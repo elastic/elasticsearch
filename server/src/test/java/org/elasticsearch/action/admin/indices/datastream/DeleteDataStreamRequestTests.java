@@ -74,7 +74,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
-        final List<String> otherIndices = List.of("foo", "bar", "baz");
+        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
         ClusterState cs = getClusterState(
             List.of(new Tuple<>(dataStreamName, List.of(

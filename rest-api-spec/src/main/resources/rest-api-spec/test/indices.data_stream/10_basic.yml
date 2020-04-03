@@ -69,6 +69,7 @@
           timestamp_field: "@timestamp"
   - is_true: acknowledged
 
+  - do:
       indices.create_data_stream:
         name: get-data-stream2
         body:
@@ -161,8 +162,7 @@
   - is_true: acknowledged
 
   - do:
+      catch: missing
       indices.get:
-        index: "*"
+        index: "delete-data-stream1-000001"
         expand_wildcards: all
-
-  - is_true: test_index.settings

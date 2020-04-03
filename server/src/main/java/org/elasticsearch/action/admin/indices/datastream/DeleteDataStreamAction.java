@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -174,15 +175,17 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                 throw new ResourceNotFoundException("data_streams matching [" + request.name + "] not found");
             }
             List<String> dataStreamsToRemove = new ArrayList<>();
+            Set<Index> backingIndicesToRemove = new HashSet<>();
             for (String dataStreamName : dataStreams) {
-                logger.info("removing data stream [{}]", dataStreamName);
                 DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
                 assert dataStream != null;
-                currentState = deleteIndexService.deleteIndices(currentState, new HashSet<>(dataStream.getIndices()));
+                backingIndicesToRemove.addAll(dataStream.getIndices());
                 dataStreamsToRemove.add(dataStreamName);
             }
+            currentState = deleteIndexService.deleteIndices(currentState, backingIndicesToRemove);
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             for (String ds : dataStreamsToRemove) {
+                logger.info("removing data stream [{}]", ds);
                 metadata.removeDataStream(ds);
             }
             return ClusterState.builder(currentState).metadata(metadata).build();

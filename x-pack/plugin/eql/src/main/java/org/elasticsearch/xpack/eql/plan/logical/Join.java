@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+
 public class Join extends LogicalPlan {
 
     private final List<LogicalPlan> queries;
@@ -86,5 +88,10 @@ public class Join extends LogicalPlan {
 
         return Objects.equals(queries, other.queries)
                 && Objects.equals(until, other.until);
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        return emptyList();
     }
 }

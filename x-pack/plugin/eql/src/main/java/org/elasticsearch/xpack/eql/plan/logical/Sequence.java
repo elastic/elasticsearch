@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.singletonList;
+
 public class Sequence extends Join {
 
     private final TimeValue maxSpan;
@@ -61,5 +63,10 @@ public class Sequence extends Join {
         return Objects.equals(maxSpan, other.maxSpan)
                 && Objects.equals(queries(), other.queries())
                 && Objects.equals(until(), other.until());
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        return singletonList(maxSpan);
     }
 }

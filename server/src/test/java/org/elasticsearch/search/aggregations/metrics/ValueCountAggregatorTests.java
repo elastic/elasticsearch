@@ -183,9 +183,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
-        }, card -> {
-            assertEquals(3, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, null);
     }
 
@@ -197,9 +197,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
-        }, card -> {
-            assertEquals(3, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, null);
     }
 
@@ -211,9 +211,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
-        }, card -> {
-            assertEquals(3, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, null);
     }
 
@@ -249,15 +249,15 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 8)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 9)));
-        }, card -> {
-            assertEquals(3, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, fieldType);
     }
 
     public void testSingleScriptNumber() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
-            .field(FIELD_NAME);
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
 
         MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
         fieldType.setName(FIELD_NAME);
@@ -278,10 +278,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 1));
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 1));
             iw.addDocument(doc);
-        }, card -> {
-            // note: this is 6, even though the script returns a single value.  ValueCount does not de-dedupe
-            assertEquals(6, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            // Note: The field values won't be taken into account. The script will only be called
+            // once per document, and only expect a count of 3
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, fieldType);
     }
 
@@ -298,15 +299,15 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("2"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("3"))));
-        }, card -> {
-            assertEquals(3, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, fieldType);
     }
 
     public void testSingleScriptString() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
-            .field(FIELD_NAME);
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
 
         MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
         fieldType.setName(FIELD_NAME);
@@ -328,10 +329,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("5")));
             doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("6")));
             iw.addDocument(doc);
-        }, card -> {
-            // note: this is 6, even though the script returns a single value.  ValueCount does not de-dedupe
-            assertEquals(6, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, valueCount -> {
+            // Note: The field values won't be taken into account. The script will only be called
+            // once per document, and only expect a count of 3
+            assertEquals(3, valueCount.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(valueCount));
         }, fieldType);
     }
 

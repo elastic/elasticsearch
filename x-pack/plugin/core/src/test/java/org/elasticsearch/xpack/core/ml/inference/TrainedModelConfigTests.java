@@ -324,7 +324,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         if (version.before(Version.V_7_7_0)) {
             builder.setDefaultFieldMap(null);
         }
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_8_0)) {
             builder.setInferenceConfig(null);
         }
         return builder.build();

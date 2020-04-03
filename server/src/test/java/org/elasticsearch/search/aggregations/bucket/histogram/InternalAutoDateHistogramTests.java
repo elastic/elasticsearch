@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -40,22 +41,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
 
     private DocValueFormat format;
     private RoundingInfo[] roundingInfos;
+    private long defaultStart;
+    private int roundingIndex;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
+        defaultStart = randomLongBetween(0, DateFormatter.forPattern("date_optional_time").parseMillis("2050-01-01"));
+        roundingIndex = between(0, AutoDateHistogramAggregationBuilder.buildRoundings(null, null).length - 1);
     }
 
     @Override
@@ -68,17 +71,20 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
 
-        long startingDate = System.currentTimeMillis();
+        long startingDate = defaultStart;
+        if (rarely()) {
+            startingDate += randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS).toMillis(between(1, 10000));
+        }
 
         long interval = randomIntBetween(1, 3);
-        long intervalMillis = randomFrom(timeValueSeconds(interval), timeValueMinutes(interval), timeValueHours(interval)).getMillis();
+        long intervalMillis = roundingInfos[roundingIndex].roughEstimateDurationMillis * interval;
 
         for (int i = 0; i < nbBuckets; i++) {
             long key = startingDate + (intervalMillis * i);
             buckets.add(i, new InternalAutoDateHistogram.Bucket(key, randomIntBetween(1, 100), format, aggregations));
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
-        BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
+        BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, subAggregations);
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, emptyList(), metadata, 1);
     }
 
@@ -108,11 +114,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(result, equalTo(2));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54540")
-    public void testReduceRandom() {
-        super.testReduceRandom();
-    }
-
     @Override
     protected void assertReduced(InternalAutoDateHistogram reduced, List<InternalAutoDateHistogram> inputs) {
 
@@ -135,41 +136,49 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         RoundingInfo roundingInfo = roundingInfos[roundingIndex];
 
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
-        long innerIntervalToUse = roundingInfo.innerIntervals[0];
         int innerIntervalIndex = 0;
 
-        // First, try to calculate the correct innerInterval using the normalizedDuration.
-        // This handles cases where highest and lowest are further apart than the interval being used.
+        /*
+         * Guess the interval to use based on the roughly estimated
+         * duration. It'll be accurate or it'll produce more buckets
+         * than we need but it is quick. 
+         */
         if (normalizedDuration != 0) {
             for (int j = roundingInfo.innerIntervals.length-1; j >= 0; j--) {
                 int interval = roundingInfo.innerIntervals[j];
                 if (normalizedDuration / interval < reduced.getBuckets().size()) {
-                    innerIntervalToUse = interval;
                     innerIntervalIndex = j;
                 }
             }
         }
 
-        long intervalInMillis = innerIntervalToUse * roundingInfo.getRoughEstimateDurationMillis();
-        int bucketCount = getBucketCount(lowest, highest, roundingInfo, intervalInMillis);
-
-        //Next, if our bucketCount is still above what we need, we'll go back and determine the interval
-        // based on a size calculation.
-        if (bucketCount > reduced.getBuckets().size()) {
-            for (int i = innerIntervalIndex; i < roundingInfo.innerIntervals.length; i++) {
-                long newIntervalMillis = roundingInfo.innerIntervals[i] * roundingInfo.getRoughEstimateDurationMillis();
-                if (getBucketCount(lowest, highest, roundingInfo, newIntervalMillis) <= reduced.getBuckets().size()) {
-                    innerIntervalToUse = roundingInfo.innerIntervals[i];
-                    intervalInMillis = innerIntervalToUse * roundingInfo.getRoughEstimateDurationMillis();
-                }
+        /*
+         * Next pick smaller intervals until we find the one that makes the right
+         * number of buckets.
+         */
+        int innerIntervalToUse;
+        do {
+            innerIntervalToUse = roundingInfo.innerIntervals[innerIntervalIndex];
+            int bucketCount = getBucketCount(lowest, highest, roundingInfo.rounding, innerIntervalToUse);
+            if (bucketCount == reduced.getBuckets().size()) {
+                break;
             }
-        }
+            if (bucketCount < reduced.getBuckets().size()) {
+                innerIntervalToUse = roundingInfo.innerIntervals[Math.max(0, innerIntervalIndex - 1)];
+                break;
+            }
+        } while (++innerIntervalIndex < roundingInfo.innerIntervals.length);
 
-        Map<Long, Long> expectedCounts = new TreeMap<>();
-        for (long keyForBucket = roundingInfo.rounding.round(lowest);
-             keyForBucket <= roundingInfo.rounding.round(highest);
-             keyForBucket = keyForBucket + intervalInMillis) {
-            expectedCounts.put(keyForBucket, 0L);
+        assertThat(reduced.getInterval().toString(), equalTo(innerIntervalToUse + roundingInfo.unitAbbreviation));
+        Map<Instant, Long> expectedCounts = new TreeMap<>();
+        long keyForBucket = roundingInfo.rounding.round(lowest);
+        while (keyForBucket <= roundingInfo.rounding.round(highest)) {
+            long nextKey = keyForBucket;
+            for (int i = 0; i < innerIntervalToUse; i++) {
+                nextKey = roundingInfo.rounding.nextRoundingValue(nextKey);
+            }
+            Instant key = Instant.ofEpochMilli(keyForBucket);
+            expectedCounts.put(key, 0L);
 
             // Iterate through the input buckets, and for each bucket, determine if it's inside
             // the range of the bucket in the outer loop. if it is, add the doc count to the total
@@ -179,26 +188,26 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                 for (Histogram.Bucket bucket : histogram.getBuckets()) {
                     long roundedBucketKey = roundingInfo.rounding.round(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli());
                     long docCount = bucket.getDocCount();
-                    if (roundedBucketKey >= keyForBucket
-                        && roundedBucketKey < keyForBucket + intervalInMillis) {
-                        expectedCounts.compute(keyForBucket,
-                            (key, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
+                    if (roundedBucketKey >= keyForBucket && roundedBucketKey < nextKey) {
+                        expectedCounts.compute(key,
+                            (k, oldValue) -> (oldValue == null ? 0 : oldValue) + docCount);
                     }
                 }
             }
+            keyForBucket = nextKey;
         }
 
         // If there is only a single bucket, and we haven't added it above, add a bucket with no documents.
         // this step is necessary because of the roundedBucketKey < keyForBucket + intervalInMillis above.
         if (roundingInfo.rounding.round(lowest) == roundingInfo.rounding.round(highest) && expectedCounts.isEmpty()) {
-            expectedCounts.put(roundingInfo.rounding.round(lowest), 0L);
+            expectedCounts.put(Instant.ofEpochMilli(roundingInfo.rounding.round(lowest)), 0L);
         }
 
 
         // pick out the actual reduced values to the make the assertion more readable
-        Map<Long, Long> actualCounts = new TreeMap<>();
+        Map<Instant, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
+            actualCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant(),
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
@@ -212,11 +221,13 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(reduced.getInterval(), equalTo(expectedInterval));
     }
 
-    private int getBucketCount(long lowest, long highest, RoundingInfo roundingInfo, long intervalInMillis) {
+    private int getBucketCount(long min, long max, Rounding rounding, int interval) {
         int bucketCount = 0;
-        for (long keyForBucket = roundingInfo.rounding.round(lowest);
-             keyForBucket <= roundingInfo.rounding.round(highest);
-             keyForBucket = keyForBucket + intervalInMillis) {
+        long key = rounding.round(min);
+        while (key < max) {
+            for (int i = 0; i < interval; i++) {
+                key = rounding.nextRoundingValue(key);
+            }
             bucketCount++;
         }
         return bucketCount;

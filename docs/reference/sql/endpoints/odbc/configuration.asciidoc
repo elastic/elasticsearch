@@ -421,7 +421,7 @@ truncate any longer string to it. The string types are textual fields
 (TEXT, KEYWORD etc.) and some specialized fields (IP, the GEOs etc.). Note that
 no interpretation of the value is performed before trunctation, which can lead
 to invalid values if the limit is set too low.
-This is required for those applications that do not support column lenghts as
+This is required for those applications that do not support column lengths as
 large as {es} fields can be.
 
 

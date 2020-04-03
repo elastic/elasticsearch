@@ -131,8 +131,6 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
-
-  testCompile 'com.google.guava:guava:18.0'
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"

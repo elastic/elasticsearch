@@ -92,8 +92,10 @@ public class TrainedModelStatsService {
     }
 
     public void queueStats(InferenceStats stats) {
-        statsQueue.computeIfPresent(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
-            (k, previousStats) -> InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
+        statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
+            (k, previousStats) -> previousStats == null ?
+                stats :
+                InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
     }
 
     void stop() {

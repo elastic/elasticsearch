@@ -173,7 +173,7 @@ public class InboundHandler {
                     }
                     threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 sendErrorResponse(action, transportChannel, e);
             }
         }
@@ -182,7 +182,7 @@ public class InboundHandler {
     private static void sendErrorResponse(String actionName, TransportChannel transportChannel, Exception e) {
         try {
             transportChannel.sendResponse(e);
-        } catch (IOException inner) {
+        } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", actionName), inner);
         }

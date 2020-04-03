@@ -59,7 +59,8 @@ public class InboundAggregator implements Releasable {
 
     }
 
-    public InboundAggregator(Supplier<CircuitBreaker> circuitBreaker, Predicate<String> requestCanTripBreaker) {
+    // Visible for testing
+    InboundAggregator(Supplier<CircuitBreaker> circuitBreaker, Predicate<String> requestCanTripBreaker) {
         this.circuitBreaker = circuitBreaker;
         this.requestCanTripBreaker = requestCanTripBreaker;
     }
@@ -83,6 +84,7 @@ public class InboundAggregator implements Releasable {
             } else {
                 if (contentAggregation == null) {
                     contentAggregation = new ArrayList<>(4);
+                    assert firstContent != null;
                     contentAggregation.add(firstContent);
                     firstContent = null;
                 }
@@ -194,7 +196,7 @@ public class InboundAggregator implements Releasable {
         try {
             canTripBreaker = requestCanTripBreaker.test(actionName);
         } catch (ActionNotFoundTransportException e) {
-            shortCircuit(new ActionNotFoundTransportException(actionName));
+            shortCircuit(e);
         }
     }
 
@@ -206,18 +208,20 @@ public class InboundAggregator implements Releasable {
 
         if (canTripBreaker) {
             try {
-                circuitBreaker.get().addEstimateBytesAndMaybeBreak(contentLength, "<transport_request>");
-                breakerControl.incrementReservedBytes(contentLength);
+                circuitBreaker.get().addEstimateBytesAndMaybeBreak(contentLength, header.getActionName());
+                breakerControl.setReservedBytes(contentLength);
             } catch (CircuitBreakingException e) {
                 shortCircuit(e);
             }
         } else {
             circuitBreaker.get().addWithoutBreaking(contentLength);
-            breakerControl.incrementReservedBytes(contentLength);
+            breakerControl.setReservedBytes(contentLength);
         }
     }
 
     private static class BreakerControl implements Releasable {
+
+        private static final int CLOSED = -1;
 
         private final Supplier<CircuitBreaker> circuitBreaker;
         private final AtomicInteger bytesToRelease = new AtomicInteger(0);
@@ -226,14 +230,18 @@ public class InboundAggregator implements Releasable {
             this.circuitBreaker = circuitBreaker;
         }
 
-        private void incrementReservedBytes(int delta) {
-            bytesToRelease.getAndAdd(delta);
+        private void setReservedBytes(int reservedBytes) {
+            final boolean set = bytesToRelease.compareAndSet(0, reservedBytes);
+            assert set : "Expected bytesToRelease to be 0, found " + bytesToRelease.get();
         }
 
         @Override
         public void close() {
-            final int toRelease = bytesToRelease.getAndSet(0);
-            circuitBreaker.get().addWithoutBreaking(-toRelease);
+            final int toRelease = bytesToRelease.getAndSet(CLOSED);
+            assert toRelease != CLOSED;
+            if (toRelease > 0) {
+                circuitBreaker.get().addWithoutBreaking(-toRelease);
+            }
         }
     }
 }

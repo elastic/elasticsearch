@@ -90,7 +90,11 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
     }
 
     void persistStats() {
-        trainedModelStatsService.queueStats(getLatestStatsAndReset());
+        InferenceStats currentStats = getLatestStatsAndReset();
+        if (currentStats.hasStats() == false) {
+            return;
+        }
+        trainedModelStatsService.queueStats(currentStats);
         if (persistenceQuotient < 1000 && currentInferenceCount.sum() > 1000) {
             persistenceQuotient = 1000;
         }

@@ -127,6 +127,10 @@ public class InferenceStats implements ToXContentObject, Writeable {
         return timeStamp;
     }
 
+    public boolean hasStats() {
+        return missingAllFieldsCount > 0 || inferenceCount > 0 || failureCount > 0;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

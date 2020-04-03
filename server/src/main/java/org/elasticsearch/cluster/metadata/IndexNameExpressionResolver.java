@@ -55,6 +55,7 @@ import java.util.SortedMap;
 import java.util.Spliterators;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class IndexNameExpressionResolver {
@@ -200,9 +201,20 @@ public class IndexNameExpressionResolver {
                 } else {
                     continue;
                 }
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.getOptions().ignoreDataStreams()) {
+                if (failNoIndices) {
+                    throw dataStreamsNotSupportedException(expression);
+                } else {
+                    continue;
+                }
             }
 
-            if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
+            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
+                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+                if (addIndex(writeIndex, context)) {
+                    concreteIndices.add(writeIndex.getIndex());
+                }
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
                 IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex == null) {
                     throw new IllegalArgumentException("no write index is defined for alias [" + indexAbstraction.getName() + "]." +
@@ -258,6 +270,11 @@ public class IndexNameExpressionResolver {
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
         return new IllegalArgumentException("The provided expression [" + expression + "] matches an " +
                 "alias, specify the corresponding concrete indices instead.");
+    }
+
+    private static IllegalArgumentException dataStreamsNotSupportedException(String expression) {
+        return new IllegalArgumentException("The provided expression [" + expression + "] matches a " +
+            "data stream, specify the corresponding concrete indices instead.");
     }
 
     /**
@@ -726,6 +743,8 @@ public class IndexNameExpressionResolver {
                             throw indexNotFoundException(expression);
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
                             throw aliasesNotSupportedException(expression);
+                        } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && options.ignoreDataStreams()) {
+                            throw dataStreamsNotSupportedException(expression);
                         }
                     }
                     if (add) {
@@ -766,9 +785,20 @@ public class IndexNameExpressionResolver {
 
         private static boolean aliasOrIndexExists(IndicesOptions options, Metadata metadata, String expression) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
+            if (indexAbstraction == null) {
+                return false;
+            }
+
             //treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            return indexAbstraction != null && (options.ignoreAliases() == false ||
-                indexAbstraction.getType() != IndexAbstraction.Type.ALIAS);
+            if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
+                return false;
+            }
+
+            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && options.ignoreDataStreams()) {
+                return false;
+            }
+
+            return true;
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {
@@ -794,11 +824,9 @@ public class IndexNameExpressionResolver {
 
         public static Map<String, IndexAbstraction> matches(Context context, Metadata metadata, String expression) {
             if (Regex.isMatchAllPattern(expression)) {
-                // Can only happen if the expressions was initially: '-*'
-                if (context.getOptions().ignoreAliases()) {
-                    return metadata.getIndicesLookup().entrySet().stream()
-                            .filter(e -> e.getValue().getType() != IndexAbstraction.Type.ALIAS)
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                if (context.getOptions().ignoreAliases() || context.getOptions().ignoreDataStreams()) {
+                    Stream<Map.Entry<String, IndexAbstraction>> stream = getStream(metadata.getIndicesLookup(), context.getOptions());
+                    return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
                     return metadata.getIndicesLookup();
                 }
@@ -816,22 +844,30 @@ public class IndexNameExpressionResolver {
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
             SortedMap<String, IndexAbstraction> subMap = metadata.getIndicesLookup().subMap(fromPrefix, toPrefix);
-            if (context.getOptions().ignoreAliases()) {
-                 return subMap.entrySet().stream()
-                        .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.ALIAS)
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (context.getOptions().ignoreAliases() || context.getOptions().ignoreDataStreams()) {
+                 Stream<Map.Entry<String, IndexAbstraction>> stream = getStream(subMap, context.getOptions());
+                 return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
             return subMap;
         }
 
         private static Map<String, IndexAbstraction> otherWildcard(Context context, Metadata metadata, String expression) {
             final String pattern = expression;
-            return metadata.getIndicesLookup()
-                .entrySet()
-                .stream()
-                .filter(e -> context.getOptions().ignoreAliases() == false || e.getValue().getType() != IndexAbstraction.Type.ALIAS)
-                .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
+            Stream<Map.Entry<String, IndexAbstraction>> stream = getStream(metadata.getIndicesLookup(), context.getOptions());
+            return stream.filter(e -> Regex.simpleMatch(pattern, e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+
+        private static Stream<Map.Entry<String, IndexAbstraction>> getStream(SortedMap<String, IndexAbstraction> indicesLookup,
+                                                                             IndicesOptions options) {
+            Stream<Map.Entry<String, IndexAbstraction>> stream = indicesLookup.entrySet().stream();
+            if (options.ignoreAliases()) {
+                stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.ALIAS);
+            }
+            if (options.ignoreDataStreams()) {
+                stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.DATA_STREAM);
+            }
+            return stream;
         }
 
         private static Set<String> expand(Context context, IndexMetadata.State excludeState, Map<String, IndexAbstraction> matches,

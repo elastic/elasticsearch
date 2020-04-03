@@ -1369,6 +1369,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
+            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
+            if (dataStreamMetadata != null) {
+                for (Map.Entry<String, DataStream> entry : dataStreamMetadata.dataStreams().entrySet()) {
+                    DataStream dataStream = entry.getValue();
+                    List<IndexMetadata> backingIndices = dataStream.getIndices().stream()
+                        .map(index -> indices.get(index.getName()))
+                        .collect(Collectors.toList());
+                    assert backingIndices.isEmpty() == false;
+
+                    IndexMetadata writeIndex = backingIndices.get(backingIndices.size() - 1);
+                    IndexAbstraction existing = aliasAndIndexLookup.put(dataStream.getName(),
+                        new IndexAbstraction.DataStream(dataStream, backingIndices, writeIndex));
+                    assert existing == null;
+                }
+            }
+
             aliasAndIndexLookup.values().stream()
                 .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
                 .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());

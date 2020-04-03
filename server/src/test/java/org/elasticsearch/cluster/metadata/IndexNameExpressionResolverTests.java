@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
     private IndexNameExpressionResolver indexNameExpressionResolver;
@@ -894,8 +895,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String dottedHiddenAlias = ".hidden_alias";
         final String dottedHiddenIndex = ".hidden_index";
 
-        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false);
-        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false);
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false, true);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false, true);
 
         {
             // A visible index with a visible alias and a hidden index with a hidden alias
@@ -1028,8 +1029,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String hiddenAlias = "my-hidden-alias";
         final String visibleAlias = "my-visible-alias";
 
-        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
-        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false, true);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false, true);
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
@@ -1757,6 +1758,158 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertEquals("index", indices[0].getName());
             assertEquals("index-closed", indices[1].getName());
             assertEquals("test-index", indices[2].getName());
+        }
+    }
+
+    public void testDataSteams() {
+        final String dataStreamName = "my-data-stream";
+        IndexMetadata index1 = IndexMetadata.builder(dataStreamName + "-000001")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata index2 = IndexMetadata.builder(dataStreamName + "-000002")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(index1, false)
+            .put(index2, false)
+            .put(new DataStream(dataStreamName, "ts", List.of(index1.getIndex(), index2.getIndex())));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream");
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(dataStreamName + "-000001"));
+            assertThat(result[1].getName(), equalTo(dataStreamName + "-000002"));
+        }
+        {
+            // Ignore data streams
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.IGNORE_DATA_STREAMS),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream"));
+            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
+                "data stream, specify the corresponding concrete indices instead."));
+        }
+        {
+            // Ignore data streams and allow no indices
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                IndicesOptions.Option.IGNORE_DATA_STREAMS), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream"));
+            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
+                "data stream, specify the corresponding concrete indices instead."));
+        }
+        {
+            // Ignore data streams and allow no indices
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                IndicesOptions.Option.IGNORE_DATA_STREAMS, IndicesOptions.Option.IGNORE_UNAVAILABLE),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream");
+            assertThat(result.length, equalTo(0));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false);
+            assertThat(result.getName(), equalTo(dataStreamName + "-000002"));
+        }
+        {
+            // Ignore data streams
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.IGNORE_DATA_STREAMS),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true));
+            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
+                "data stream, specify the corresponding concrete indices instead."));
+
+        }
+        {
+            // Ignore data streams and allow no indices
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                IndicesOptions.Option.IGNORE_DATA_STREAMS), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false));
+            assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a data stream, " +
+                "specify the corresponding concrete indices instead."));
+        }
+        {
+            // Ignore data streams, allow no indices and ignore unavailable
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                IndicesOptions.Option.IGNORE_DATA_STREAMS, IndicesOptions.Option.IGNORE_UNAVAILABLE),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false));
+            assertThat(e.getMessage(), equalTo("The index expression [my-data-stream] and options provided did not point " +
+                "to a single write-index"));
+        }
+    }
+
+    public void testDataStreamsWithWildcardExpression() {
+        final String dataStream1 = "logs-mysql";
+        final String dataStream2 = "logs-redis";
+        IndexMetadata index1 = IndexMetadata.builder(dataStream1 + "-000001")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata index2 = IndexMetadata.builder(dataStream1 + "-000002")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata index3 = IndexMetadata.builder(dataStream2 + "-000001")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata index4 = IndexMetadata.builder(dataStream2 + "-000002")
+            .settings(settings(Version.CURRENT).put("index.hidden", true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(index1, false)
+            .put(index2, false)
+            .put(index3, false)
+            .put(index4, false)
+            .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))
+            .put(new DataStream(dataStream2, "ts", List.of(index3.getIndex(), index4.getIndex())));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(4));
+            assertThat(result[0].getName(), equalTo(dataStream1 + "-000001"));
+            assertThat(result[1].getName(), equalTo(dataStream1 + "-000002"));
+            assertThat(result[2].getName(), equalTo(dataStream2 + "-000001"));
+            assertThat(result[3].getName(), equalTo(dataStream2 + "-000002"));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-m*");
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(dataStream1 + "-000001"));
+            assertThat(result[1].getName(), equalTo(dataStream1 + "-000002"));
+        }
+        {
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                IndicesOptions.Option.IGNORE_DATA_STREAMS), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
+            assertThat(result.length, equalTo(0));
+        }
+        {
+            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.IGNORE_DATA_STREAMS),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*"));
         }
     }
 }

@@ -431,6 +431,15 @@ class IndicesAndAliasesResolver {
                 return false;
             }
         }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+            if (indicesOptions.ignoreDataStreams()) {
+                return false;
+            } else if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
+                return true;
+            } else {
+                return false;
+            }
+        }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
         if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {

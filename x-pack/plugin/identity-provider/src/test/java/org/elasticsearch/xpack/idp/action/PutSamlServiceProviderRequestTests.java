@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
-import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -104,7 +103,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         ));
         fields.put("privileges", Map.of(
             "resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999),
-            "roles", Map.of("role_name", "role:" + randomAlphaOfLengthBetween(4, 8))
+            "roles", List.of("role:(.*)")
         ));
         fields.put("certificates", Map.of());
         final String entityId = "https://www." + randomAlphaOfLengthBetween(5, 12) + ".app/";
@@ -114,8 +113,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         assertThat(request.getDocument().acs, equalTo(fields.get("acs")));
         assertThat(request.getDocument().enabled, equalTo(fields.get("enabled")));
         assertThat(request.getDocument().privileges.resource, notNullValue());
-        assertThat(request.getDocument().privileges.roleActions, aMapWithSize(1));
-        assertThat(request.getDocument().privileges.roleActions.keySet(), contains("role_name"));
+        assertThat(request.getDocument().privileges.rolePatterns, contains("role:(.*)"));
         assertThat(request.getDocument().attributeNames.principal, startsWith("urn:oid:0.1"));
         assertThat(request.getDocument().attributeNames.email, startsWith("urn:oid:0.2"));
         assertThat(request.getDocument().attributeNames.name, startsWith("urn:oid:0.3"));

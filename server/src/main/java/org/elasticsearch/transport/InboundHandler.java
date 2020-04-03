@@ -158,8 +158,6 @@ public class InboundHandler {
             assertRemoteVersion(stream, header.getVersion());
             try {
                 if (header.isHandshake()) {
-                    // TODO: Modify the handshaker to use the TcpTransportChannl. This should be
-                    //  straightforward now that handshakes contribute to circuit breaking.
                     handshaker.handleHandshake(transportChannel, requestId, stream);
                 } else {
                     final RequestHandlerRegistry<T> reg = getRequestHandler(action);

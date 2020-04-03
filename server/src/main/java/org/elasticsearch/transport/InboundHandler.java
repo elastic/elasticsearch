@@ -173,7 +173,7 @@ public class InboundHandler {
                     }
                     threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 sendErrorResponse(action, transportChannel, e);
             }
         }

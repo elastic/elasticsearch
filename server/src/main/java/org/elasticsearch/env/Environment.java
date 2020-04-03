@@ -90,15 +90,11 @@ public class Environment {
     private final Path tmpFile;
 
     public Environment(final Settings settings, final Path configPath) {
-        this(settings, configPath, true);
-    }
-
-    public Environment(final Settings settings, final Path configPath, final boolean nodeLocalStorage) {
-        this(settings, configPath, nodeLocalStorage, PathUtils.get(System.getProperty("java.io.tmpdir")));
+        this(settings, configPath, PathUtils.get(System.getProperty("java.io.tmpdir")));
     }
 
     // Should only be called directly by this class's unit tests
-    Environment(final Settings settings, final Path configPath, final boolean nodeLocalStorage, final Path tmpPath) {
+    Environment(final Settings settings, final Path configPath, final Path tmpPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).toAbsolutePath().normalize();
@@ -118,22 +114,13 @@ public class Environment {
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        if (nodeLocalStorage) {
-            if (dataPaths.isEmpty() == false) {
-                dataFiles = new Path[dataPaths.size()];
-                for (int i = 0; i < dataPaths.size(); i++) {
-                    dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
-                }
-            } else {
-                dataFiles = new Path[]{homeFile.resolve("data")};
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
         } else {
-            if (dataPaths.isEmpty()) {
-                dataFiles = EMPTY_PATH_ARRAY;
-            } else {
-                final String paths = String.join(",", dataPaths);
-                throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
-            }
+            dataFiles = new Path[]{homeFile.resolve("data")};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();

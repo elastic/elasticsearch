@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -42,8 +42,8 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_RESIZE_SOURCE_NAME;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_RESIZE_SOURCE_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -139,29 +139,29 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {
-        MetaData.Builder metaData = MetaData.builder();
+        Metadata.Builder metadata = Metadata.builder();
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(settings);
-        final IndexMetaData sourceIndex;
+        final IndexMetadata sourceIndex;
         //put a fake closed source index
-        sourceIndex = IndexMetaData.builder("sourceIndex")
+        sourceIndex = IndexMetadata.builder("sourceIndex")
             .settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0)
             .putInSyncAllocationIds(0, Collections.singleton("aid0"))
             .putInSyncAllocationIds(1, Collections.singleton("aid1"))
             .build();
-        metaData.put(sourceIndex, false);
+        metadata.put(sourceIndex, false);
         indexSettings.put(INDEX_RESIZE_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
         indexSettings.put(INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
-        final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("idx").settings(indexSettings)
+        final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("idx").settings(indexSettings)
             .numberOfShards(1).numberOfReplicas(1);
-        final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
-        metaData.put(indexMetaData, false);
+        final IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        metadata.put(indexMetadata, false);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.addAsFromCloseToOpen(sourceIndex);
-        routingTableBuilder.addAsNew(indexMetaData);
+        routingTableBuilder.addAsNew(indexMetadata);
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         return service.reroute(clusterState, "reroute");
@@ -169,8 +169,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testInvalidIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        Setting<String> filterSetting = randomFrom(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
         String invalidIP = randomFrom("192..168.1.1", "192.300.1.1");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
@@ -181,17 +181,17 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testNull() {
-        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        Setting<String> filterSetting = randomFrom(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
 
-        IndexMetaData.builder("test")
+        IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT).putNull(filterSetting.getKey() + "name")).numberOfShards(2).numberOfReplicas(0).build();
     }
 
     public void testWildcardIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        Setting<String> filterSetting = randomFrom(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
         String wildcardIP = randomFrom("192.168.*", "192.*.1.1");
         IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         indexScopedSettings.updateDynamicSettings(Settings.builder().put(filterSetting.getKey() + ipKey, wildcardIP).build(),

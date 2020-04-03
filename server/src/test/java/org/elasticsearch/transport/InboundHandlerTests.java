@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -59,10 +58,10 @@ public class InboundHandlerTests extends ESTestCase {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        TransportHandshaker handshaker = new TransportHandshaker(new ClusterName("cluster-name"), version, threadPool, (n, c, r, v) -> {
-        }, (v, c, r, r_id) -> { });
+        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {}, (v, c, r, r_id) -> { });
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        OutboundHandler outboundHandler = new OutboundHandler("node", version, new StatsTracker(), threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE);
         final NoneCircuitBreakerService breaker = new NoneCircuitBreakerService();
         handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, breaker, handshaker, keepAlive);
     }
@@ -80,8 +79,6 @@ public class InboundHandlerTests extends ESTestCase {
         handler.registerRequestHandler(registry);
 
         handler.inboundMessage(channel, new InboundMessage(null, true));
-        assertEquals(1, handler.getReadBytes().count());
-        assertEquals(6, handler.getReadBytes().sum());
         if (channel.isServerChannel()) {
             BytesReference ping = channel.getMessageCaptor().get();
             assertEquals('E', ping.get(0));

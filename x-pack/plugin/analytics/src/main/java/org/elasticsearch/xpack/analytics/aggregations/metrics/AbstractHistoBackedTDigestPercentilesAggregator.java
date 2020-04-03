@@ -44,8 +44,8 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
 
     AbstractHistoBackedTDigestPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                          double[] keys, double compression, boolean keyed, DocValueFormat formatter,
-                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.formatter = formatter;

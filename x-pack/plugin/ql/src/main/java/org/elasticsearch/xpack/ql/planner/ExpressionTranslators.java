@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -41,28 +42,36 @@ import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+
 
 public final class ExpressionTranslators {
 
     public static final String DATE_FORMAT = "strict_date_time";
     public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
 
-    
+
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
             new BinaryComparisons(),
             new Ranges(),
             new BinaryLogic(),
             new Nots(),
             new Likes(),
+            new InComparisons(),
             new StringQueries(),
             new Matches(),
             new MultiMatches(),
@@ -83,6 +92,13 @@ public final class ExpressionTranslators {
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
+    }
+
+    public static Object valueOf(Expression e) {
+        if (e.foldable()) {
+            return e.fold();
+        }
+        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     // TODO: see whether escaping is needed
@@ -195,7 +211,7 @@ public final class ExpressionTranslators {
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
             return doTranslate(bc, handler);
         }
-        
+
         public static void checkBinaryComparison(BinaryComparison bc) {
             Check.isTrue(bc.right().foldable(),
                          "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
@@ -314,6 +330,36 @@ public final class ExpressionTranslators {
         }
     }
 
+    public static class InComparisons extends ExpressionTranslator<In> {
+
+        protected Query asQuery(In in, TranslatorHandler handler) {
+            return doTranslate(in, handler);
+        }
+
+        public static Query doTranslate(In in, TranslatorHandler handler) {
+            Query q;
+            if (in.value() instanceof FieldAttribute) {
+                // equality should always be against an exact match (which is important for strings)
+                FieldAttribute fa = (FieldAttribute) in.value();
+                List<Expression> list = in.list();
+
+                // TODO: this needs to be handled inside the optimizer
+                list.removeIf(e -> DataTypes.isNull(e.dataType()));
+                DataType dt = list.get(0).dataType();
+                Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
+
+                for (Expression e : list) {
+                    set.add(handler.convert(valueOf(e), dt));
+                }
+
+                q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
+            } else {
+                q = new ScriptQuery(in.source(), in.asScript());
+            }
+            return handler.wrapFunctionQuery(in, in.value(), q);
+        }
+    }
+
     public static class Scalars extends ExpressionTranslator<ScalarFunction> {
 
         @Override
@@ -324,13 +370,6 @@ public final class ExpressionTranslators {
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
         }
-    }
-
-    public static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     public static Query or(Source source, Query left, Query right) {

@@ -78,8 +78,8 @@ class TopHitsAggregator extends MetricsAggregator {
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
 
     TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
@@ -204,7 +204,7 @@ class TopHitsAggregator extends MetricsAggregator {
             }
         }
         return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocsAndMaxScore, fetchResult.hits(),
-                pipelineAggregators(), metaData());
+                pipelineAggregators(), metadata());
     }
 
     @Override
@@ -217,7 +217,7 @@ class TopHitsAggregator extends MetricsAggregator {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
         return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), new TopDocsAndMaxScore(topDocs, Float.NaN),
-                SearchHits.empty(), pipelineAggregators(), metaData());
+                SearchHits.empty(), pipelineAggregators(), metadata());
     }
 
     @Override

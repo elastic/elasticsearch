@@ -39,8 +39,8 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                               DocValueFormat format, QueryShardContext queryShardContext,
                                               AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                              Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
         this.format = format;
     }
@@ -50,20 +50,20 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
 
         return doCreateInternal(searchContext, configs, format, parent,
-            collectsFromSingleBucket, pipelineAggregators, metaData);
+            collectsFromSingleBucket, pipelineAggregators, metadata);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException;
+                                                    Map<String, Object> metadata) throws IOException;
 
     protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
                                                    DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
                                                    List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData) throws IOException;
+                                                   Map<String, Object> metadata) throws IOException;
 
 }

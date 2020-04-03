@@ -1209,7 +1209,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final List<SnapshotDeletionsInProgress.Entry> newEntries = new ArrayList<>();
                 for (SnapshotDeletionsInProgress.Entry entry : existingDeletions.getEntries()) {
                     if (entry.matches(new Snapshot(repositoryName, snapshot))) {
-                        newEntries.add(new SnapshotDeletionsInProgress.Entry(entry, repositoryGen));
+                        newEntries.add(new SnapshotDeletionsInProgress.Entry(entry, snapshot, repositoryGen));
                         changed = true;
                     } else {
                         newEntries.add(entry);

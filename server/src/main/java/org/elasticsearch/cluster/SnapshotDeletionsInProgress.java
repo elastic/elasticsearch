@@ -176,27 +176,25 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         private final long repositoryStateId;
 
         public Entry(String repo, String snapshotName, long startTime) {
-            this.repo = repo;
-            this.snapshotName = snapshotName;
-            this.startTime = startTime;
-            this.snapshotIds = Collections.emptyList();
-            this.repositoryStateId = RepositoryData.UNKNOWN_REPO_GEN;
+            this(Collections.emptyList(), repo, snapshotName, startTime, RepositoryData.UNKNOWN_REPO_GEN);
         }
 
         public Entry(Snapshot snapshot, long startTime, long repositoryStateId) {
-            this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
-            this.repo = snapshot.getRepository();
-            this.snapshotName = snapshot.getSnapshotId().getName();
-            this.startTime = startTime;
-            this.repositoryStateId = repositoryStateId;
+            this(Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), snapshot.getSnapshotId().getName(),
+                startTime, repositoryStateId);
         }
 
-        public Entry(Entry entry, long repositoryStateId) {
-            this.snapshotIds = entry.snapshotIds;
-            this.repo = entry.repo;
-            this.snapshotName = entry.snapshotName;
-            this.startTime = entry.startTime;
+        public Entry(Entry entry, SnapshotId snapshotId, long repositoryStateId) {
+            this(Collections.singletonList(snapshotId), entry.repo, entry.snapshotName, entry.startTime, repositoryStateId);
+        }
+
+        private Entry(List<SnapshotId> snapshotIds, String repo, String snapshotName, long startTime, long repositoryStateId) {
+            this.snapshotIds = snapshotIds;
+            this.repo = repo;
+            this.snapshotName = snapshotName;
+            this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;
+            assert assertConsistent();
         }
 
         public Entry(StreamInput in) throws IOException {
@@ -206,12 +204,24 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 this. snapshotIds = in.readList(SnapshotId::new);
             } else {
                 final Snapshot snapshot = new Snapshot(in);
-                this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
+                final SnapshotId snapshotId = snapshot.getSnapshotId();
+                this.snapshotIds = Collections.singletonList(snapshotId);
                 this.repo = snapshot.getRepository();
-                this.snapshotName = snapshot.getSnapshotId().getName();
+                this.snapshotName = snapshotId.getName();
             }
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
+            assert assertConsistent();
+        }
+
+        private boolean assertConsistent() {
+            if (repositoryStateId == RepositoryData.UNKNOWN_REPO_GEN) {
+                assert snapshotIds.isEmpty() : "Saw concrete snapshot ids for unknown repository generation in [" + this + "]";
+            } else {
+                assert snapshotIds.size() == 1
+                    : "Should have resolved one snapshot id for concrete repository generation but saw [" + this + "]";
+            }
+            return true;
         }
 
         public String getSnapshotName() {
@@ -266,6 +276,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 out.writeString(snapshotName);
                 out.writeList(snapshotIds);
             } else {
+                assert snapshotIds.size() == 1 : "Saw multiple snapshot ids [" + snapshotIds +
+                    "] in delete but cluster contains node version [" + out.getVersion() + "]";
                 new Snapshot(repo, snapshotIds.get(0)).writeTo(out);
             }
             out.writeVLong(startTime);

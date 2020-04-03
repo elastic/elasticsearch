@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
@@ -43,8 +44,12 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private final String REALM_NAME = "cloud-saml";
 
     @Before
-    public void createUsers() throws IOException {
+    public void setupSecurityData() throws IOException {
         setUserPassword("kibana", new SecureString("kibana".toCharArray()));
+        createApplicationPrivileges("elastic-cloud", Map.ofEntries(
+            Map.entry("deployment_admin", Set.of("sso:admin")),
+            Map.entry("deployment_viewer", Set.of("sso:viewer"))
+        ));
     }
 
     public void testRegistrationAndIdpInitiatedSso() throws Exception {
@@ -53,7 +58,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             Map.entry("acs", SP_ACS),
             Map.entry("privileges", Map.ofEntries(
                 Map.entry("resource", SP_ENTITY_ID),
-                Map.entry("roles", Map.of("superuser", "role:superuser", "viewer", "role:viewer"))
+                Map.entry("roles", List.of("sso:(\\w+)"))
             )),
             Map.entry("attributes", Map.ofEntries(
                 Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
@@ -74,7 +79,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             Map.entry("acs", SP_ACS),
             Map.entry("privileges", Map.ofEntries(
                 Map.entry("resource", SP_ENTITY_ID),
-                Map.entry("roles", Map.of("superuser", "role:superuser", "viewer", "role:viewer"))
+                Map.entry("roles", List.of("sso:(\\w+)"))
             )),
             Map.entry("attributes", Map.ofEntries(
                 Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),

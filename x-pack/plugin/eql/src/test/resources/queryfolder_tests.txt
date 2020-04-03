@@ -102,3 +102,21 @@ process where substring(file_name, -4) == '.exe'
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
 
+
+wildcardFunctionSingleArgument
+process where wildcard(process_path, "*\\red_ttp\\wininit.*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+
+
+wildcardFunctionTwoArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+
+
+wildcardFunctionThreeArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+"wildcard":{"process_path":{"wildcard":"*def*"
+

@@ -102,7 +102,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 modelId = in.readString();
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                     this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
                 } else {
                     this.inferenceStats = null;
@@ -142,7 +142,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 out.writeString(modelId);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                     out.writeOptionalWriteable(this.inferenceStats);
                 }
             }

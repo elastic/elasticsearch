@@ -33,8 +33,8 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     public static final String PARSER_NAME = "sampler";
 
     InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, subAggregations, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, docCount, subAggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -57,6 +57,6 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount,
             InternalAggregations subAggregations) {
-        return new InternalSampler(name, docCount, subAggregations, pipelineAggregators(), metaData);
+        return new InternalSampler(name, docCount, subAggregations, pipelineAggregators(), metadata);
     }
 }

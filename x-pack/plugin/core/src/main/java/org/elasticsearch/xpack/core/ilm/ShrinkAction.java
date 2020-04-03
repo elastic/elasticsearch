@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,7 +83,7 @@ public class ShrinkAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
+        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
 
         StepKey branchingKey = new StepKey(phase, NAME, BranchingStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
@@ -97,7 +97,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(branchingKey, waitForNoFollowerStepKey, nextStepKey,
-            (index, clusterState) -> clusterState.getMetaData().index(index).getNumberOfShards() == numberOfShards);
+            (index, clusterState) -> clusterState.getMetadata().index(index).getNumberOfShards() == numberOfShards);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, setSingleNodeKey, client, readOnlySettings);
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);

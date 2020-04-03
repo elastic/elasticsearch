@@ -217,7 +217,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 final Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder()
                     .put("ldap_dn", session.userDn())
                     .put("ldap_groups", ldapData.groups)
-                    .putAll(ldapData.metaData)
+                    .putAll(ldapData.metadata)
                     .map();
                 final UserData user = new UserData(username, session.userDn(), ldapData.groups, metadata, session.realm());
                 roleMapper.resolveRoles(user, ActionListener.wrap(

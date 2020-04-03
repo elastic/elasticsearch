@@ -41,10 +41,10 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
@@ -749,12 +749,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
             RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
-        final MetaData metaData = new MetaData.Builder()
-                .put(new IndexMetaData.Builder(internalSecurityIndex)
+        final Metadata metadata = new Metadata.Builder()
+                .put(new IndexMetadata.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
-                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
+                        .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
                         .build(), true)
                 .build();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -764,7 +764,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             String asyncSearchIndex = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
             final Map<String, IndexAccessControl> authzMap = role.indices().authorize(indexMonitoringActionName,
                 Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                metaData.getIndicesLookup(), fieldPermissionsCache);
+                metadata.getIndicesLookup(), fieldPermissionsCache);
             assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
             assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
             assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
@@ -872,28 +872,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
             RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
-        final MetaData metaData = new MetaData.Builder()
-                .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder("b")
+        final Metadata metadata = new Metadata.Builder()
+                .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetadata.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetadata.Builder("b")
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
-                        .putAlias(new AliasMetaData.Builder("ab").build())
-                        .putAlias(new AliasMetaData.Builder("ba").build())
+                        .putAlias(new AliasMetadata.Builder("ab").build())
+                        .putAlias(new AliasMetadata.Builder("ba").build())
                         .build(), true)
-                .put(new IndexMetaData.Builder(internalSecurityIndex)
+                .put(new IndexMetadata.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
-                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
+                        .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
                         .build(), true)
                 .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = metaData.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         Map<String, IndexAccessControl> authzMap =
                 superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));

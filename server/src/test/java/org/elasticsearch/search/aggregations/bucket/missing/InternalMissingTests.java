@@ -31,8 +31,8 @@ import java.util.Map;
 public class InternalMissingTests extends InternalSingleBucketAggregationTestCase<InternalMissing> {
     @Override
     protected InternalMissing createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalMissing(name, docCount, aggregations, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalMissing(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     @Override

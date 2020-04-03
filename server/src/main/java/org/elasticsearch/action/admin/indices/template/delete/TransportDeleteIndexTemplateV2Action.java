@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,11 +44,11 @@ public class TransportDeleteIndexTemplateV2Action
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateV2Action.class);
 
-    private final MetaDataIndexTemplateService indexTemplateService;
+    private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
     public TransportDeleteIndexTemplateV2Action(TransportService transportService, ClusterService clusterService,
-                                                  ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
+                                                  ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteIndexTemplateV2Action.NAME, transportService, clusterService, threadPool, actionFilters,
             DeleteIndexTemplateV2Action.Request::new, indexNameExpressionResolver);

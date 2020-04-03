@@ -12,9 +12,6 @@ to modify documents upon insertion.
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`)::
         The name of the index.
 
-{ref}/mapping-type-field.html[`ctx['_type']`] (`String`)::
-        The type of document within an index.
-
 `ctx` (`Map`)::
         Contains extracted JSON in a `Map` and `List` structure for the fields
         that are part of the document.
@@ -23,9 +20,6 @@ to modify documents upon insertion.
 
 {ref}/mapping-index-field.html[`ctx['_index']`]::
         Modify this to change the destination index for the current document.
-
-{ref}/mapping-type-field.html[`ctx['_type']`]::
-        Modify this to change the type for the current document.
 
 `ctx` (`Map`)::
         Modify the values in the `Map/List` structure to add, modify, or delete

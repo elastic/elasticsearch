@@ -116,9 +116,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
-    // TODO: the following field is package-private as some tests require access to it
-    // These tests can be rewritten to use public methods once Coordinator is more feature-complete
-    final Object mutex = new Object();
+    final Object mutex = new Object(); // package-private to allow tests to call methods that assert that the mutex is held
     private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
 
@@ -855,7 +853,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
             // automatically generate a UID for the metadata if we need to
-            metadataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
+            metadataBuilder.generateClusterUuidIfNeeded();
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
@@ -1159,7 +1157,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
+        final TimeValue gracePeriod = TimeValue.ZERO;
         electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {
             @Override
             public void run() {
@@ -1189,7 +1187,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     public Iterable<DiscoveryNode> getFoundPeers() {
-        // TODO everyone takes this and adds the local node. Maybe just add the local node here?
         return peerFinder.getFoundPeers();
     }
 

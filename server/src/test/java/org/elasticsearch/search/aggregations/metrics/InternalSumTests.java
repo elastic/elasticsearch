@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -33,10 +32,10 @@ import java.util.Map;
 public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
 
     @Override
-    protected InternalSum createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected InternalSum createTestInstance(String name, Map<String, Object> metadata) {
         double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN);
         DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.RAW);
-        return new InternalSum(name, value, formatter, pipelineAggregators, metadata);
+        return new InternalSum(name, value, formatter, metadata);
     }
 
     @Override
@@ -84,9 +83,9 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
     private void verifySummationOfDoubles(double[] values, double expected, double delta) {
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         for (double value : values) {
-            aggregations.add(new InternalSum("dummy1", value, null, null, null));
+            aggregations.add(new InternalSum("dummy1", value, null, null));
         }
-        InternalSum internalSum = new InternalSum("dummy", 0, null, null, null);
+        InternalSum internalSum = new InternalSum("dummy", 0, null, null);
         InternalSum reduced = internalSum.reduce(aggregations, null);
         assertEquals(expected, reduced.value(), delta);
     }
@@ -103,7 +102,6 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         String name = instance.getName();
         double value = instance.getValue();
         DocValueFormat formatter = instance.format;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -127,6 +125,6 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalSum(name, value, formatter, pipelineAggregators, metadata);
+        return new InternalSum(name, value, formatter, metadata);
     }
 }

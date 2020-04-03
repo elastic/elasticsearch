@@ -16,15 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.test
+package org.elasticsearch.client.ml.inference.trainedmodel;
 
-/**
- * Any object that can produce an accompanying stop task, meant to tear down
- * a previously instantiated service.
- */
-public interface Fixture {
+import org.elasticsearch.client.ml.inference.NamedXContentObject;
 
-    /** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
-    public Object getStopTask()
+
+public interface InferenceConfig extends NamedXContentObject {
 
 }

@@ -144,9 +144,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, false, true),
-            (v, channel, response, requestId) -> outboundHandler.sendResponse(v, channel, requestId,
-                TransportHandshaker.HANDSHAKE_ACTION_NAME, response, false, true));
+                TransportRequestOptions.EMPTY, v, false, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, circuitBreakerService, handshaker,
             keepAlive);

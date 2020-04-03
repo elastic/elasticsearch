@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -33,7 +34,8 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState
     ) {
         super(
             ClearSearchableSnapshotsCacheAction.NAME,
@@ -44,6 +46,7 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
             ClearSearchableSnapshotsCacheRequest::new,
             ThreadPool.Names.MANAGEMENT,
             indicesService,
+            licenseState,
             false
         );
     }

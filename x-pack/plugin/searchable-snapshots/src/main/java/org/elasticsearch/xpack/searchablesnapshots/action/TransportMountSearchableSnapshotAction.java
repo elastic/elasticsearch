@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -32,13 +33,14 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotAllocator;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotAllocator;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -57,6 +59,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
 
     private final Client client;
     private final RepositoriesService repositoriesService;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportMountSearchableSnapshotAction(
@@ -66,7 +69,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState
     ) {
         super(
             MountSearchableSnapshotAction.NAME,
@@ -79,6 +83,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         );
         this.client = client;
         this.repositoriesService = repositoriesService;
+        this.licenseState = Objects.requireNonNull(licenseState);
     }
 
     @Override
@@ -121,6 +126,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         final ClusterState state,
         final ActionListener<RestoreSnapshotResponse> listener
     ) {
+        SearchableSnapshots.ensureValidLicense(licenseState);
 
         final String repoName = request.repositoryName();
         final String snapName = request.snapshotName();

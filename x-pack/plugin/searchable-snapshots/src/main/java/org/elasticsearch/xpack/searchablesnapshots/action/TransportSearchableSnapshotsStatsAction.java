@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
@@ -37,7 +38,8 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState
     ) {
         super(
             SearchableSnapshotsStatsAction.NAME,
@@ -47,7 +49,8 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
             indexNameExpressionResolver,
             SearchableSnapshotsStatsRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            indicesService
+            indicesService,
+            licenseState
         );
     }
 

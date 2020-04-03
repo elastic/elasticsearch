@@ -88,13 +88,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         auditor = mock(InferenceAuditor.class);
         trainedModelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceStats> listener = (ActionListener<InferenceStats>) invocationOnMock.getArguments()[2];
-            listener.onResponse(InferenceStats.emptyStats((String)invocationOnMock.getArguments()[0],
-                (String)invocationOnMock.getArguments()[1]));
-            return null;
-        }).when(trainedModelProvider).getInferenceStats(any(), any(), any());
         doAnswer(a -> null).when(auditor).error(any(String.class), any(String.class));
         doAnswer(a -> null).when(auditor).info(any(String.class), any(String.class));
         doAnswer(a -> null).when(auditor).warning(any(String.class), any(String.class));
@@ -365,6 +358,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelDefinition()).thenReturn(definition);
+        when(trainedModelConfig.getModelId()).thenReturn(modelId);
         when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
         doAnswer(invocationOnMock -> {

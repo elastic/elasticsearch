@@ -45,5 +45,5 @@ public interface Model<T extends InferenceConfig> {
         }
     }
 
-    InferenceStats getLatestStats();
+    InferenceStats getLatestStatsAndReset();
 }

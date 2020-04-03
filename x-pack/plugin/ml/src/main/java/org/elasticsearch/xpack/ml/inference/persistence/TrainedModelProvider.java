@@ -53,6 +53,9 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -91,7 +94,6 @@ public class TrainedModelProvider {
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
-    private static final int MAX_NODE_STATS_SIZE = 10_000;
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -521,92 +523,31 @@ public class TrainedModelProvider {
             .indicesOptions(IndicesOptions.lenientExpandOpen())
             .allowPartialSearchResults(false)
             .source(SearchSourceBuilder.searchSource()
-                .size(MAX_NODE_STATS_SIZE)
-                .query(queryBuilder)
-                .sort(SortBuilders.fieldSort(InferenceStats.TIMESTAMP.getPreferredName())
-                    .order(SortOrder.DESC)
-                    .unmappedType("long")));
+                .size(0)
+                .aggregation(AggregationBuilders.sum(InferenceStats.FAILURE_COUNT.getPreferredName())
+                    .field(InferenceStats.FAILURE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName())
+                    .field(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.INFERENCE_COUNT.getPreferredName())
+                    .field(InferenceStats.INFERENCE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.max(InferenceStats.TIMESTAMP.getPreferredName())
+                    .field(InferenceStats.TIMESTAMP.getPreferredName()))
+                .query(queryBuilder));
     }
 
     private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
-        if (response.getHits().getHits().length == 0) {
-            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
-            return null;
-        }
-        Set<String> observedNodes = new HashSet<>();
-        Instant latestTimeStamp = null;
-        InferenceStats.Accumulator accumulator = new InferenceStats.Accumulator(modelId, null);
-        for (SearchHit searchHit : response.getHits().getHits()) {
-            BytesReference source = searchHit.getSourceRef();
-            try(XContentParser parser = XContentHelper.createParser(
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
-                source,
-                XContentType.JSON
-            )) {
-                InferenceStats stats = InferenceStats.PARSER.apply(parser, null);
-                if (latestTimeStamp == null) {
-                    latestTimeStamp = stats.getTimeStamp();
-                }
-                if (observedNodes.contains(stats.getNodeId()) == false) {
-                    accumulator.merge(stats);
-                    observedNodes.add(stats.getNodeId());
-                }
-            } catch (Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage("[{}] statistics failed to be parsed", modelId), e);
-                throw ExceptionsHelper.serverError("Failed to parse stats for [{}]", e, modelId);
-            }
-        }
-        return accumulator.currentStats(latestTimeStamp);
-    }
-
-    public void getInferenceStats(String modelId,
-                                  String nodeId,
-                                  ActionListener<InferenceStats> listener) {
-        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
-            .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME))
-            .filter(QueryBuilders.termQuery(InferenceStats.NODE_ID.getPreferredName(), nodeId));
-        SearchRequest searchRequest = new SearchRequest(MlStatsIndex.indexPattern())
-            .indicesOptions(IndicesOptions.lenientExpandOpen())
-            .source(SearchSourceBuilder.searchSource()
-                .size(1)
-                .query(queryBuilder)
-                .sort(SortBuilders.fieldSort(InferenceStats.TIMESTAMP.getPreferredName())
-                    .order(SortOrder.DESC)
-                    .unmappedType("long")));
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ML_ORIGIN,
-            searchRequest,
-            ActionListener.<SearchResponse>wrap(
-                response -> {
-                    if (response.getHits().getHits().length == 0) {
-                        logger.trace("[{}] [{}] no previous statistics found", modelId, nodeId);
-                        listener.onResponse(InferenceStats.emptyStats(modelId, nodeId));
-                        return;
-                    }
-                    assert response.getHits().getHits().length == 1;
-                    SearchHit searchHit = response.getHits().getHits()[0];
-                    BytesReference source = searchHit.getSourceRef();
-                    try(XContentParser parser = XContentHelper.createParser(
-                        xContentRegistry,
-                        LoggingDeprecationHandler.INSTANCE,
-                        source,
-                        XContentType.JSON
-                    )) {
-                        listener.onResponse(InferenceStats.PARSER.apply(parser, null));
-                    } catch (Exception e) {
-                        logger.error(
-                            () -> new ParameterizedMessage("[{}] [{}] statistics failed to be parsed", modelId, nodeId), e);
-                        listener.onFailure(e);
-                    }
-                },
-                listener::onFailure
-            ),
-            client::search);
-
+        Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
+        Sum missing = response.getAggregations().get(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName());
+        Sum count = response.getAggregations().get(InferenceStats.INFERENCE_COUNT.getPreferredName());
+        Max timeStamp = response.getAggregations().get(InferenceStats.TIMESTAMP.getPreferredName());
+        return new InferenceStats(
+            missing == null ? 0L : Double.valueOf(missing.getValue()).longValue(),
+            count == null ? 0L : Double.valueOf(count.getValue()).longValue(),
+            failures == null ? 0L : Double.valueOf(failures.getValue()).longValue(),
+            modelId,
+            null,
+            timeStamp == null ? Instant.now() : Instant.ofEpochMilli(Double.valueOf(timeStamp.getValue()).longValue())
+        );
     }
 
     static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs) {

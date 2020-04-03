@@ -78,7 +78,6 @@ public class InferenceStats implements ToXContentObject, Writeable {
             instant);
     }
 
-
     public InferenceStats(long missingAllFieldsCount,
                           long inferenceCount,
                           long failureCount,
@@ -180,8 +179,8 @@ public class InferenceStats implements ToXContentObject, Writeable {
         return value == null ? 0L : value;
     }
 
-    public static Accumulator accumulator(String modelId, String nodeId) {
-        return new Accumulator(modelId, nodeId);
+    public static Accumulator accumulator(InferenceStats stats) {
+        return new Accumulator(stats);
     }
 
     @Override
@@ -215,10 +214,11 @@ public class InferenceStats implements ToXContentObject, Writeable {
             this.failureCountAccumulator.add(previousStats.failureCount);
         }
 
-        public void merge(InferenceStats otherStats) {
+        public Accumulator merge(InferenceStats otherStats) {
             this.missingFieldsAccumulator.add(otherStats.missingAllFieldsCount);
             this.inferenceAccumulator.add(otherStats.inferenceCount);
             this.failureCountAccumulator.add(otherStats.failureCount);
+            return this;
         }
 
         public void incMissingFields() {

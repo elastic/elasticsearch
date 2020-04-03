@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -160,11 +158,11 @@ public class ModelLoadingService implements ClusterStateListener {
                         trainedModelConfig.getInferenceConfig();
                     modelActionListener.onResponse(new LocalModel<>(
                         trainedModelConfig.getModelId(),
+                        localNode,
                         trainedModelConfig.getModelDefinition(),
                         trainedModelConfig.getInput(),
                         trainedModelConfig.getDefaultFieldMap(),
                         inferenceConfig,
-                        InferenceStats.emptyStats(modelId, localNode),
                         modelStatsService));
                 },
                 modelActionListener::onFailure
@@ -196,7 +194,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)) == null) {
                     logger.trace(() -> new ParameterizedMessage("[{}] attempting to load and cache", modelId));
                     loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
-                    loadStatsAndModel(modelId);
+                    loadModel(modelId);
                 }
                 return true;
             }
@@ -206,11 +204,11 @@ public class ModelLoadingService implements ClusterStateListener {
         } // synchronized (loadingListeners)
     }
 
-    private void loadModel(String modelId, InferenceStats inferenceStats) {
+    private void loadModel(String modelId) {
         provider.getTrainedModel(modelId, true, ActionListener.wrap(
             trainedModelConfig -> {
                 logger.debug(() -> new ParameterizedMessage("[{}] successfully loaded model", modelId));
-                handleLoadSuccess(modelId, trainedModelConfig, inferenceStats);
+                handleLoadSuccess(modelId, trainedModelConfig);
             },
             failure -> {
                 logger.warn(new ParameterizedMessage("[{}] failed to load model", modelId), failure);
@@ -219,7 +217,7 @@ public class ModelLoadingService implements ClusterStateListener {
         ));
     }
 
-    private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig, InferenceStats stats) throws IOException {
+    private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) throws IOException {
         Queue<ActionListener<Model<? extends InferenceConfig>>> listeners;
         trainedModelConfig.ensureParsedDefinition(namedXContentRegistry);
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
@@ -227,11 +225,11 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getInferenceConfig();
         LocalModel<? extends InferenceConfig> loadedModel = new LocalModel<>(
             trainedModelConfig.getModelId(),
+            localNode,
             trainedModelConfig.getModelDefinition(),
             trainedModelConfig.getInput(),
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
-            stats,
             modelStatsService);
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
@@ -366,25 +364,9 @@ public class ModelLoadingService implements ClusterStateListener {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             for (String modelId : modelIds) {
                 auditNewReferencedModel(modelId);
-                loadStatsAndModel(modelId);
+                loadModel(modelId);
             }
         });
-    }
-
-    private void loadStatsAndModel(String modelId) {
-        this.provider.getInferenceStats(modelId,
-            localNode,
-            ActionListener.wrap(
-                r -> this.loadModel(modelId, r),
-                e -> {
-                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                    if (unwrapped instanceof ResourceNotFoundException) {
-                        this.loadModel(modelId, InferenceStats.emptyStats(modelId, localNode));
-                        return;
-                    }
-                    logger.warn(new ParameterizedMessage("[{}] failed to get previous model stats", modelId), unwrapped);
-                    handleLoadFailure(modelId, (Exception)unwrapped);
-                }));
     }
 
     private void auditNewReferencedModel(String modelId) {

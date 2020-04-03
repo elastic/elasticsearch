@@ -45,19 +45,14 @@ import java.util.stream.Collectors;
 public class TrainedModelStatsService {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelStatsService.class);
+    private static final TimeValue PERSISTENCE_INTERVAL = TimeValue.timeValueSeconds(1);
 
     // Script to only update if stats have increased since last persistence
     private static final String STATS_UPDATE_SCRIPT = "" +
-        "if (ctx._source.missing_all_fields_count >= params.missing_all_fields_count\n" +
-        "     && ctx._source.inference_count >= params.inference_count\n" +
-        "     && ctx._source.failure_count >= params.failure_count) {\n" +
-        "      ctx.op = 'none';\n" +
-        "      return;\n" +
-        "    }\n" +
-        "    ctx._source.missing_all_fields_count = params.missing_all_fields_count;\n" +
-        "    ctx._source.inference_count = params.inference_count;\n" +
-        "    ctx._source.failure_count = params.failure_count;\n" +
-        "    ctx._source.time_stamp = params.time_stamp;";
+        "    ctx._source.missing_all_fields_count += params.missing_all_fields_count;\n" +
+        "    ctx._source.inference_count += params.inference_count;\n" +
+        "    ctx._source.failure_count += params.failure_count;\n" +
+        "    ctx._source.time_stamp += params.time_stamp;";
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS =
         new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
@@ -97,7 +92,8 @@ public class TrainedModelStatsService {
     }
 
     public void queueStats(InferenceStats stats) {
-        statsQueue.put(InferenceStats.docId(stats.getModelId(), stats.getNodeId()), stats);
+        statsQueue.computeIfPresent(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
+            (k, previousStats) -> InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
     }
 
     void stop() {
@@ -113,7 +109,7 @@ public class TrainedModelStatsService {
     void start() {
         stopped = false;
         scheduledFuture = threadPool.scheduleWithFixedDelay(this::updateStats,
-            TimeValue.timeValueSeconds(1),
+            PERSISTENCE_INTERVAL,
             MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 

@@ -62,11 +62,11 @@ public class LocalModelTests extends ESTestCase {
             .build();
 
         Model<ClassificationConfig> model = new LocalModel<>(modelId,
+            "test-node",
             definition,
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
-            InferenceStats.emptyStats(modelId, "node_id"),
             modelStatsService);
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
@@ -77,13 +77,13 @@ public class LocalModelTests extends ESTestCase {
         SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0"));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(1L));
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
         ClassificationInferenceResults classificationResult =
             (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfigUpdate(1, null, null, null));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(2L));
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
         // Test with labels
         definition = new TrainedModelDefinition.Builder()
@@ -91,35 +91,34 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(true))
             .build();
         model = new LocalModel<>(modelId,
+            "test-node",
             definition,
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
-            InferenceStats.emptyStats(modelId, "node_id"),
             modelStatsService);
         result = getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(1L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
             new ClassificationConfigUpdate(1, null, null, null));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(2L));
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
             new ClassificationConfigUpdate(2, null, null, null));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(3L));
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
             new ClassificationConfigUpdate(-1, null, null, null));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(4L));
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
     }
 
     public void testRegression() throws Exception {
@@ -131,11 +130,11 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildRegression())
             .build();
         Model<RegressionConfig> model = new LocalModel<>("regression_model",
+            "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
-            InferenceStats.emptyStats("regression_model", "node_id"),
             modelStatsService);
 
         Map<String, Object> fields = new HashMap<>() {{
@@ -158,11 +157,11 @@ public class LocalModelTests extends ESTestCase {
             .build();
         Model<RegressionConfig> model = new LocalModel<>(
             "regression_model",
+            "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
             null,
             RegressionConfig.EMPTY_PARAMS,
-            InferenceStats.emptyStats("regression_model", "node_id"),
             modelStatsService);
 
         Map<String, Object> fields = new HashMap<>() {{
@@ -174,7 +173,7 @@ public class LocalModelTests extends ESTestCase {
         WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, RegressionConfigUpdate.EMPTY_PARAMS);
         assertThat(results.getWarning(),
             equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
-        assertThat(model.getLatestStats().getMissingAllFieldsCount(), equalTo(1L));
+        assertThat(model.getLatestStatsAndReset().getMissingAllFieldsCount(), equalTo(1L));
     }
 
     public void testInferPersistsStatsAfterNumberOfCalls() throws Exception {
@@ -188,11 +187,11 @@ public class LocalModelTests extends ESTestCase {
             .build();
 
         Model<ClassificationConfig> model = new LocalModel<>(modelId,
+            "test-node",
             definition,
             new TrainedModelInput(inputFields),
             null,
             ClassificationConfig.EMPTY_PARAMS,
-            InferenceStats.emptyStats(modelId, "node_id"),
             modelStatsService
         );
         Map<String, Object> fields = new HashMap<>() {{
@@ -207,7 +206,8 @@ public class LocalModelTests extends ESTestCase {
         SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0"));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(101L));
+        // Should have reset after persistence, so only 2 docs have been seen since last persistence
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
         verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
             @Override
             public boolean matches(Object o) {

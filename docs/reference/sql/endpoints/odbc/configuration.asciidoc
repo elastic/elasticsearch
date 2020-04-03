@@ -201,7 +201,7 @@ This corresponds to the `MaxBodySizeMB` setting in <<odbc-cfg-dsnparams>>.
 +
 * Varchar limit
 +
-The maximum caracter length of the string type columns.
+The maximum character length of the string type columns.
 this correspeonds to the `VarcharLimit` setting in <<odbc-cfg-dsnparams>>.
 +
 * Floats format
@@ -483,4 +483,3 @@ equivalent to a direct execution. This will only happen if the query lacks
 parameters. Early execution is useful with those applications that inspect the
 result before actually executing the query. {es-sql} lacks a preparation API,
 so early execution is required for interoperability with these applications.
-

@@ -57,6 +57,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()), usage);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54744")
     public void test() throws IOException {
         AnalyticsUsage.Item item = randomFrom(AnalyticsUsage.Item.values());
         AnalyticsUsage realUsage = new AnalyticsUsage();

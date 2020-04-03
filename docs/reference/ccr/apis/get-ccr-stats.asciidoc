@@ -51,39 +51,41 @@ This API gets {ccr} stats. This API will return all stats related to {ccr}. In
 particular, this API returns stats about auto-following, and returns the same
 shard-level stats as in the <<ccr-get-follow-stats,get follower stats API>>.
 
+[role="child_attributes"]
 [[ccr-get-stats-response-body]]
 ==== {api-response-body-title}
 
-This API returns the following information:
-
+//Begin auto_follow_stats
 `auto_follow_stats`::
-  (object) An object representing stats for the auto-follow coordinator.
+(object) An object representing stats for the auto-follow coordinator.
++
+.Properties of `auto_follow_stats`
+[%collapsible%open]
+====
+`number_of_failed_follow_indices`::
+(long) The number of indices that the auto-follow coordinator failed to
+automatically follow. The causes of recent failures are captured in the logs
+of the elected master node and in the
+`auto_follow_stats.recent_auto_follow_errors` field.
 
-This object consists of the following fields:
+`number_of_failed_remote_cluster_state_requests`::
+(long) The number of times that the auto-follow coordinator failed to retrieve
+the cluster state from a remote cluster registered in a collection of
+auto-follow patterns.
 
-`auto_follow_stats.number_of_failed_follow_indices`::
-  (long) The number of indices that the auto-follow coordinator failed to
-  automatically follow. The causes of recent failures are captured in the logs
-  of the elected master node and in the
-  `auto_follow_stats.recent_auto_follow_errors` field.
+`number_of_successful_follow_indices`::
+(long) The number of indices that the auto-follow coordinator successfully
+followed.
 
-`auto_follow_stats.number_of_failed_remote_cluster_state_requests`::
-  (long) The number of times that the auto-follow coordinator failed to retrieve
-  the cluster state from a remote cluster registered in a collection of
-  auto-follow patterns.
-
-`auto_follow_stats.number_of_successful_follow_indices`::
-  (long) The number of indices that the auto-follow coordinator successfully
-  followed.
-
-`auto_follow_stats.recent_auto_follow_errors`::
-  (array) An array of objects representing failures by the auto-follow
-  coordinator.
+`recent_auto_follow_errors`::
+(array) An array of objects representing failures by the auto-follow coordinator.
+====
+//End auto_follow_stats
 
 `follow_stats`::
-  (object) An object representing shard-level stats for follower indices; refer
-  to the details of the response in the
-  <<ccr-get-follow-stats,get follower stats API>>.
+(object) An object representing shard-level stats for follower indices; refer to
+the details of the response in the
+<<ccr-get-follow-stats,get follower stats API>>.
 
 [[ccr-get-stats-examples]]
 ==== {api-examples-title}

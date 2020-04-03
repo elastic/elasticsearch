@@ -19,12 +19,19 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,7 +39,9 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -40,16 +49,20 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
+
+    private static final Logger logger = LogManager.getLogger(RemoteRecoveryTargetHandler.class);
 
     private final TransportService transportService;
     private final long recoveryId;
     private final ShardId shardId;
     private final DiscoveryNode targetNode;
     private final RecoverySettings recoverySettings;
+    private final ConcurrentLinkedQueue<RetryableAction<Void>> onGoingFileChunkRequest = new ConcurrentLinkedQueue<>();
 
     private final TransportRequestOptions translogOpsRequestOptions;
     private final TransportRequestOptions fileChunkRequestOptions;
@@ -174,15 +187,42 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             throttleTimeInNanos = 0;
         }
 
-        transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
-            new RecoveryFileChunkRequest(recoveryId, shardId, fileMetadata, position, content, lastChunk,
-                totalTranslogOps,
+        final ThreadPool threadPool = transportService.getThreadPool();
+        final TimeValue initialDelay = TimeValue.timeValueMillis(50);
+        final TimeValue timeout = fileChunkRequestOptions.timeout();
+        final ActionListener<Void> wrapper = ActionListener.runBefore(listener, () -> {});
+        final RetryableAction<Void> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, wrapper) {
+
+            @Override
+            public void tryAction(ActionListener<Void> listener) {
                 /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
                  * see how many translog ops we accumulate while copying files across the network. A future optimization
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
-                throttleTimeInNanos), fileChunkRequestOptions, new ActionListenerResponseHandler<>(
-                    ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
+                final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(recoveryId, shardId, fileMetadata, position, content,
+                    lastChunk, totalTranslogOps, throttleTimeInNanos);
+                transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
+                    request, fileChunkRequestOptions, new ActionListenerResponseHandler<>(
+                        ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                if (e instanceof RemoteTransportException) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    return cause instanceof ConnectTransportException ||
+                        cause instanceof CircuitBreakingException ||
+                        cause instanceof EsRejectedExecutionException;
+                }
+                return false;
+            }
+        };
+
+        retryableAction.run();
     }
 
+    @Override
+    public void cancel() {
+        // Cancel the RetryableAction
+    }
 }

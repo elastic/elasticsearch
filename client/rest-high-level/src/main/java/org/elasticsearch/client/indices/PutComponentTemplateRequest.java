@@ -21,7 +21,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * A request to create an component template.
  */
-public class PutComponentTemplateRequest extends TimedRequest implements ToXContentFragment {
+public class PutComponentTemplateRequest extends TimedRequest implements ToXContentObject {
 
     private String name;
 
@@ -96,10 +96,5 @@ public class PutComponentTemplateRequest extends TimedRequest implements ToXCont
             componentTemplate.toXContent(builder, params);
         }
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 }

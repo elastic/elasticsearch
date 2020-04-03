@@ -210,9 +210,8 @@ public final class ClusterClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse putComponentTemplate(
-        PutComponentTemplateRequest putComponentTemplateRequest,
-        RequestOptions options) throws IOException {
+    public AcknowledgedResponse putComponentTemplate(PutComponentTemplateRequest putComponentTemplateRequest,
+                                                     RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putComponentTemplateRequest, ClusterRequestConverters::putComponentTemplate,
             options, AcknowledgedResponse::fromXContent, emptySet());
     }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.decision;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -37,11 +38,6 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     }
 
     @Override
-    public AutoscalingDecision scale() {
-        return new AutoscalingDecision(NAME, AutoscalingDecisionType.SCALE_UP, "always");
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -69,6 +65,13 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     @Override
     public int hashCode() {
         return 0;
+    }
+
+    @Override
+    public BoundDecider bind(AutoscalingDeciderServiceRegistry registry) {
+        // dummy, for demonstration purpose only
+        ShardsAllocator allocator = registry.get(ShardsAllocator.class);
+        return context -> new AutoscalingDecision(NAME, AutoscalingDecisionType.SCALE_UP, "always");
     }
 
 }

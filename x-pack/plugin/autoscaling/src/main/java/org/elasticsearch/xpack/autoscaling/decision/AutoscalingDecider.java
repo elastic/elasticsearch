@@ -22,10 +22,26 @@ public interface AutoscalingDecider extends ToXContentObject, NamedWriteable {
     String name();
 
     /**
-     * Whether or not to scale based on the current state.
+     * Bind this decider to services. The resulting bound decider will be reused for multiple scaling decisions as long as the policy does
+     * not change.
      *
-     * @return the autoscaling decision
+     * @param registry provides access to services.
+     * @return a bound decider that can make scaling decisions.
      */
-    AutoscalingDecision scale();
+    BoundDecider bind(AutoscalingDeciderServiceRegistry registry);
+
+    interface AutoscalingDeciderServiceRegistry {
+        <T> T get(Class<T> service);
+    }
+    // todo: maybe find a better name?
+    interface BoundDecider {
+        /**
+         * Whether or not to scale based on the current state.
+         *
+         * @param context provides access to information about current state
+         * @return the autoscaling decision
+         */
+        AutoscalingDecision scale(AutoscalingDeciderContext context);
+    }
 
 }

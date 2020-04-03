@@ -140,7 +140,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model3);
@@ -192,19 +192,19 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model2), eq(true), any());
         // Only loaded requested once on the initial load from the change event
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model1);
             }
         }));
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model2);
             }
         }));
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model3);

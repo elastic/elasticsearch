@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Respon
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -68,11 +69,30 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
             List<Response.TrainedModelStats> stats = instance.getResources()
                 .results()
                 .stream()
-                .map(s -> new Response.TrainedModelStats(s.getModelId(), s.getIngestStats(), s.getPipelineCount(), null))
+                .map(s -> new Response.TrainedModelStats(s.getModelId(),
+                    adjustForVersion(s.getIngestStats(), version),
+                    s.getPipelineCount(),
+                    null))
                 .collect(Collectors.toList());
             return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
         }
         return instance;
+    }
+
+    IngestStats adjustForVersion(IngestStats stats, Version version) {
+        if (version.before(Version.V_7_6_0)) {
+            return new IngestStats(stats.getTotalStats(),
+                stats.getPipelineStats(),
+                stats.getProcessorStats()
+                    .entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey,
+                        (kv) -> kv.getValue()
+                            .stream()
+                            .map(pstats -> new IngestStats.ProcessorStat(pstats.getName(), "_NOT_AVAILABLE", pstats.getStats()))
+                            .collect(Collectors.toList()))));
+        }
+        return stats;
     }
 
 }

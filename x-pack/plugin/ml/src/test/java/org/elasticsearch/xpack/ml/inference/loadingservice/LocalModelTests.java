@@ -194,7 +194,7 @@ public class LocalModelTests extends ESTestCase {
             ClassificationConfig.EMPTY_PARAMS,
             modelStatsService
         );
-        Map<String, Object> fields = new HashMap<>() {{
+        Map<String, Object> fields = new HashMap<String, Object>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
             put("categorical", "dog");
@@ -208,7 +208,7 @@ public class LocalModelTests extends ESTestCase {
         assertThat(result.valueAsString(), is("0"));
         // Should have reset after persistence, so only 2 docs have been seen since last persistence
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
-        verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(Object o) {
                 return ((InferenceStats)o).getInferenceCount() == 99L;

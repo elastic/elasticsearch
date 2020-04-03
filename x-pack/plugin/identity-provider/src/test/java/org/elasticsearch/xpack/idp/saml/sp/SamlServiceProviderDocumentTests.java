@@ -145,7 +145,6 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
             assertThat(obj2, equalTo(obj1));
 
             final BytesReference bytes2 = XContentHelper.toXContent(obj2, xContentType, humanReadable);
-            assertThat(bytes2, equalTo(bytes1));
             assertToXContentEquivalent(bytes1, bytes2, xContentType);
 
             return obj2;

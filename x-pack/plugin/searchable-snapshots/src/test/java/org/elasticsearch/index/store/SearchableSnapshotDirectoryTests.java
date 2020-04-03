@@ -96,7 +96,9 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
@@ -431,7 +433,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 cacheService.start();
 
                 try (
-                    Directory snapshotDirectory = new SearchableSnapshotDirectory(
+                    SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
                         () -> snapshot,
                         snapshotId,
@@ -443,6 +445,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         cacheDir
                     )
                 ) {
+                    final boolean loaded = snapshotDirectory.loadSnapshot();
+                    assertThat("Failed to load snapshot", loaded, is(true));
+                    assertThat("Snapshot should be loaded", snapshotDirectory.snapshot(), sameInstance(snapshot));
+                    assertThat("BlobContainer should be loaded", snapshotDirectory.blobContainer(), sameInstance(blobContainer));
+
                     consumer.accept(directory, snapshotDirectory);
                 }
             } finally {
@@ -519,6 +526,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     cacheDir
                 )
             ) {
+
+                final boolean loaded = directory.loadSnapshot();
+                assertThat("Failed to load snapshot", loaded, is(true));
+                assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));
+                assertThat("BlobContainer should be loaded", directory.blobContainer(), sameInstance(blobContainer));
 
                 final byte[] buffer = new byte[1024];
                 for (int i = 0; i < randomIntBetween(10, 50); i++) {

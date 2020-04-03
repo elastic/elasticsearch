@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -20,11 +18,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.store.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.TransportService;
@@ -34,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.index.store.SearchableSnapshotDirectory.unwrapDirectory;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 public abstract class AbstractTransportSearchableSnapshotsAction<
@@ -114,20 +111,4 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         ShardRouting shardRouting,
         SearchableSnapshotDirectory directory
     ) throws IOException;
-
-    @Nullable
-    private static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {
-        while (dir != null) {
-            if (dir instanceof SearchableSnapshotDirectory) {
-                return (SearchableSnapshotDirectory) dir;
-            } else if (dir instanceof InMemoryNoOpCommitDirectory) {
-                dir = ((InMemoryNoOpCommitDirectory) dir).getRealDirectory();
-            } else if (dir instanceof FilterDirectory) {
-                dir = ((FilterDirectory) dir).getDelegate();
-            } else {
-                dir = null;
-            }
-        }
-        return null;
-    }
 }

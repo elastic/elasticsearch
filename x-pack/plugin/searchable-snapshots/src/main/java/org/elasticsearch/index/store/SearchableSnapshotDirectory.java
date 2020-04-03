@@ -8,6 +8,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -32,6 +33,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FileNotFoundException;
@@ -41,6 +43,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -70,8 +73,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
  */
 public class SearchableSnapshotDirectory extends BaseDirectory {
 
-    private final Supplier<BlobContainer> blobContainer;
-    private final Supplier<BlobStoreIndexShardSnapshot> snapshot;
+    private final Supplier<BlobContainer> blobContainerSupplier;
+    private final Supplier<BlobStoreIndexShardSnapshot> snapshotSupplier;
     private final SnapshotId snapshotId;
     private final IndexId indexId;
     private final ShardId shardId;
@@ -83,6 +86,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
     private final AtomicBoolean closed;
+
+    // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
+    private volatile BlobStoreIndexShardSnapshot snapshot;
+    private volatile BlobContainer blobContainer;
+    private volatile boolean loaded;
 
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
@@ -96,8 +104,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir
     ) {
         super(new SingleInstanceLockFactory());
-        this.snapshot = Objects.requireNonNull(snapshot);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.snapshotSupplier = Objects.requireNonNull(snapshot);
+        this.blobContainerSupplier = Objects.requireNonNull(blobContainer);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
@@ -109,18 +117,70 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
+        this.loaded = false;
+        assert invariant();
     }
 
+    private synchronized boolean invariant() {
+        assert loaded ^ snapshot == null;
+        assert loaded ^ blobContainer == null;
+        return true;
+    }
+
+    protected final boolean assertCurrentThreadMayLoadSnapshot() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
+            // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
+            // method somehow.
+            || threadName.startsWith("TEST-") : "current thread [" + Thread.currentThread() + "] may not load " + snapshotId;
+        return true;
+    }
+
+    /**
+     * Loads the snapshot if and only if it the snapshot is not loaded yet.
+     *
+     * @return true if the snapshot was loaded by executing this method, false otherwise
+     */
+    public boolean loadSnapshot() {
+        boolean alreadyLoaded = this.loaded;
+        if (alreadyLoaded == false) {
+            synchronized (this) {
+                alreadyLoaded = this.loaded;
+                if (alreadyLoaded == false) {
+                    this.blobContainer = blobContainerSupplier.get();
+                    this.snapshot = snapshotSupplier.get();
+                    this.loaded = true;
+                }
+            }
+        }
+        assert assertCurrentThreadMayLoadSnapshot();
+        assert invariant();
+        return alreadyLoaded == false;
+    }
+
+    @Nullable
     public BlobContainer blobContainer() {
-        final BlobContainer blobContainer = this.blobContainer.get();
-        assert blobContainer != null;
+        final BlobContainer blobContainer = this.blobContainer;
+        assert invariant();
         return blobContainer;
     }
 
+    @Nullable
     public BlobStoreIndexShardSnapshot snapshot() {
-        final BlobStoreIndexShardSnapshot snapshot = this.snapshot.get();
-        assert snapshot != null;
+        final BlobStoreIndexShardSnapshot snapshot = this.snapshot;
+        assert invariant();
         return snapshot;
+    }
+
+    private List<BlobStoreIndexShardSnapshot.FileInfo> files() {
+        final BlobStoreIndexShardSnapshot snapshot = snapshot();
+        if (snapshot == null) {
+            return List.of();
+        }
+        final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshot.indexFiles();
+        assert files != null;
+        assert files.size() > 0;
+        return files;
     }
 
     public SnapshotId getSnapshotId() {
@@ -145,8 +205,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
-        return snapshot().indexFiles()
-            .stream()
+        return files().stream()
             .filter(fileInfo -> fileInfo.physicalName().equals(name))
             .findFirst()
             .orElseThrow(() -> new FileNotFoundException(name));
@@ -155,11 +214,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public final String[] listAll() {
         ensureOpen();
-        return snapshot().indexFiles()
-            .stream()
-            .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
-            .sorted(String::compareTo)
-            .toArray(String[]::new);
+        return files().stream().map(BlobStoreIndexShardSnapshot.FileInfo::physicalName).sorted(String::compareTo).toArray(String[]::new);
     }
 
     @Override
@@ -274,7 +329,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "@" + snapshot().snapshot() + " lockFactory=" + lockFactory;
+        return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory;
     }
 
     public static Directory create(
@@ -320,5 +375,20 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cacheDir
             )
         );
+    }
+
+    public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {
+        while (dir != null) {
+            if (dir instanceof SearchableSnapshotDirectory) {
+                return (SearchableSnapshotDirectory) dir;
+            } else if (dir instanceof InMemoryNoOpCommitDirectory) {
+                dir = ((InMemoryNoOpCommitDirectory) dir).getRealDirectory();
+            } else if (dir instanceof FilterDirectory) {
+                dir = ((FilterDirectory) dir).getDelegate();
+            } else {
+                dir = null;
+            }
+        }
+        return null;
     }
 }

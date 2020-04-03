@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -592,6 +593,11 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         ) {
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
+
+            final boolean loaded = directory.loadSnapshot();
+            assertThat("Failed to load snapshot", loaded, is(true));
+            assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
+            assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
 
             test.apply(fileName, fileContent, directory);
         }

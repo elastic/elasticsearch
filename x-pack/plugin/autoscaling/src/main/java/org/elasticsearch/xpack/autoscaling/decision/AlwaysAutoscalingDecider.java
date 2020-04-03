@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class AlwaysAutoscalingDecider implements AutoscalingDecider {
+public class AlwaysAutoscalingDecider implements AutoscalingDecider<AlwaysAutoscalingDeciderContext> {
 
     public static final String NAME = "always";
 
@@ -37,7 +37,7 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     }
 
     @Override
-    public AutoscalingDecision scale(AutoscalingDeciderContext context) {
+    public AutoscalingDecision scale(AlwaysAutoscalingDeciderContext context) {
         return new AutoscalingDecision(NAME, AutoscalingDecisionType.SCALE_UP, "always");
     }
 

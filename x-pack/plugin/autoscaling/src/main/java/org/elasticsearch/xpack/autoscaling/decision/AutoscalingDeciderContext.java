@@ -6,18 +6,5 @@
 
 package org.elasticsearch.xpack.autoscaling.decision;
 
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-
 public interface AutoscalingDeciderContext {
-    public ClusterState state();
-    public ClusterInfo info();
-
-    void allocate(RoutingAllocation allocation);
-    Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
-    Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
 }

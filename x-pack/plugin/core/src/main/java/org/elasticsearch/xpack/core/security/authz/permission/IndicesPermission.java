@@ -11,7 +11,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -207,8 +207,8 @@ public final class IndicesPermission {
             Set<String> concreteIndices = new HashSet<>();
             IndexAbstraction indexAbstraction = allAliasesAndIndices.get(indexOrAlias);
             if (indexAbstraction != null) {
-                for (IndexMetaData indexMetaData : indexAbstraction.getIndices()) {
-                    concreteIndices.add(indexMetaData.getIndex().getName());
+                for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
+                    concreteIndices.add(indexMetadata.getIndex().getName());
                 }
             }
 

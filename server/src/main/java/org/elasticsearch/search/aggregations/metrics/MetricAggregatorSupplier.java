@@ -36,5 +36,5 @@ public interface MetricAggregatorSupplier extends AggregatorSupplier {
                      SearchContext context,
                      Aggregator parent,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

@@ -21,10 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.InternalBucket;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,15 +53,14 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     }
 
     @Override
-    protected InternalFilters createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-            InternalAggregations aggregations) {
+    protected InternalFilters createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalFilters.InternalBucket> buckets = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed));
         }
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators, metaData);
+        return new InternalFilters(name, buckets, keyed, metadata);
     }
 
     @Override
@@ -96,8 +94,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     protected InternalFilters mutateInstance(InternalFilters instance) {
         String name = instance.getName();
         List<InternalBucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -108,14 +105,14 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
             break;
         case 2:
         default:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         }
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators, metaData);
+        return new InternalFilters(name, buckets, keyed, metadata);
     }
 }

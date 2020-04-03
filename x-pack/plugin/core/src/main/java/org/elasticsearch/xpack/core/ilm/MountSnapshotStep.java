@@ -92,7 +92,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             false);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
-                if (response.status() != RestStatus.OK || response.status() != RestStatus.ACCEPTED) {
+                if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {
                     logger.debug("mount snapshot response failed to complete");
                     throw new ElasticsearchException("mount snapshot response failed to complete, got response " + response.status());
                 }

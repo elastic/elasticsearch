@@ -1587,7 +1587,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(5000), singletonMap(DeleteAction.NAME, new DeleteAction(true))));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,
+            new DeleteAction(true))));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -1606,16 +1607,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             randomBoolean());
 
         String[] snapshotName = new String[1];
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(index);
+                if(explainIndex == null) {
+                    // in case we missed the original index and it was deleted
+                    explainIndex = explainIndex(restoredIndexName);
+                }
                 snapshotName[0] = (String) explainIndex.get("snapshot_name");
                 return snapshotName[0] != null;
             } catch (IOException e) {
                 return false;
             }
         }, 30, TimeUnit.SECONDS));
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
         assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
 
         assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
@@ -1638,7 +1643,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(5000), singletonMap(DeleteAction.NAME,
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,
             new DeleteAction(false))));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
@@ -1658,16 +1663,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             randomBoolean());
 
         String[] snapshotName = new String[1];
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(index);
+                if(explainIndex == null) {
+                    // in case we missed the original index and it was deleted
+                    explainIndex = explainIndex(restoredIndexName);
+                }
                 snapshotName[0] = (String) explainIndex.get("snapshot_name");
                 return snapshotName[0] != null;
             } catch (IOException e) {
                 return false;
             }
         }, 30, TimeUnit.SECONDS));
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
         assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
 
         assertTrue("the snapshot we generate in the cold phase should not be deleted by the delete phase", waitUntil(() -> {

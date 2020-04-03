@@ -25,7 +25,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -75,8 +75,8 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
         ));
         indexRandomData(index);
         ensureGreen(index);
@@ -126,10 +126,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index2 = "test2";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index1).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")
         ));
         assertAcked(prepareCreate(index2).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")
         ));
         indexRandomData(index1);
         indexRandomData(index2);
@@ -155,7 +155,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "5")
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
 

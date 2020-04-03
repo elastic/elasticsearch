@@ -251,7 +251,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
             writeIndex = in.readOptionalBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 isHidden = in.readOptionalBoolean();
             }
             originalAliases = in.readStringArray();
@@ -267,7 +267,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
             out.writeOptionalBoolean(writeIndex);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { //TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeOptionalBoolean(isHidden);
             }
             out.writeStringArray(originalAliases);
@@ -553,12 +553,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(routing, other.routing)
                     && Objects.equals(indexRouting, other.indexRouting)
                     && Objects.equals(searchRouting, other.searchRouting)
-                    && Objects.equals(writeIndex, other.writeIndex);
+                    && Objects.equals(writeIndex, other.writeIndex)
+                    && Objects.equals(isHidden, other.isHidden);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden);
         }
     }
 

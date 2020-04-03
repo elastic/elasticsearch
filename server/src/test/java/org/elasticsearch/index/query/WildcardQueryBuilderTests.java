@@ -27,6 +27,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +76,9 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
             assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
             assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
-            assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
+            // wildcard queries get normalized
+            String text = wildcardQuery.getTerm().text().toLowerCase(Locale.ROOT);
+            assertThat(text, equalTo(text));
         } else {
             Query expected = new MatchNoDocsQuery("unknown field [" + expectedFieldName + "]");
             assertEquals(expected, query);
@@ -138,14 +141,14 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
-    
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }   
-    
+    }
+
     public void testRewriteIndexQueryNotMatchNone() throws IOException {
         String fullIndexName = getIndex().getName();
         String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);

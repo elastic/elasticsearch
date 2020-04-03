@@ -48,6 +48,31 @@ public abstract class AbstractObjectParser<Value, Context>
             ValueType type);
 
     /**
+     * Declares a single named object.
+     *
+     * <pre>
+     * <code>
+     * {
+     *   "object_name": {
+     *     "instance_name": { "field1": "value1", ... }
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     *
+     * @param consumer
+     *            sets the value once it has been parsed
+     * @param namedObjectParser
+     *            parses the named object
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                                 ParseField parseField);
+
+
+    /**
      * Declares named objects in the style of aggregations. These are named
      * inside and object like this:
      *

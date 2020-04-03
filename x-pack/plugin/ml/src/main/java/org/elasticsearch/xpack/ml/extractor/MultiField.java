@@ -17,7 +17,7 @@ public class MultiField implements ExtractedField {
     private final ExtractedField field;
     private final String parent;
 
-    MultiField(String parent, ExtractedField field) {
+    public MultiField(String parent, ExtractedField field) {
         this(field.getName(), field.getSearchField(), parent, field);
     }
 

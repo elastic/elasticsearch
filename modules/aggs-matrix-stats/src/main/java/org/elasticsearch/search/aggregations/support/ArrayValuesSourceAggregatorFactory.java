@@ -31,16 +31,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource>
+public abstract class ArrayValuesSourceAggregatorFactory
     extends AggregatorFactory {
 
-    protected Map<String, ValuesSourceConfig<VS>> configs;
+    protected Map<String, ValuesSourceConfig> configs;
 
-    public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
+    public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                               QueryShardContext queryShardContext, AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                              Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
     }
 
@@ -49,32 +49,32 @@ public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-        HashMap<String, VS> valuesSources = new HashMap<>();
+                                        Map<String, Object> metadata) throws IOException {
+        HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
-        for (Map.Entry<String, ValuesSourceConfig<VS>> config : configs.entrySet()) {
-            VS vs = config.getValue().toValuesSource(queryShardContext);
+        for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {
+            ValuesSource vs = config.getValue().toValuesSource();
             if (vs != null) {
                 valuesSources.put(config.getKey(), vs);
             }
         }
         if (valuesSources.isEmpty()) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
+            return createUnmapped(searchContext, parent, pipelineAggregators, metadata);
         }
         return doCreateInternal(valuesSources, searchContext, parent,
-                collectsFromSingleBucket, pipelineAggregators, metaData);
+                collectsFromSingleBucket, pipelineAggregators, metadata);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException;
+                                                    Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(Map<String, VS> valuesSources,
+    protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException;
+                                                    Map<String, Object> metadata) throws IOException;
 
 }

@@ -27,9 +27,10 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -52,7 +53,8 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
@@ -75,6 +77,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
@@ -114,9 +117,24 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
     }
 
+    private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
+
+    @Override
+    public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
+        final DiscoveryNode node = selectLeastLoadedNode(
+            clusterState,
+            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+        );
+        if (node == null) {
+            return NO_ASSIGNMENT;
+        } else {
+            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
+        }
+    }
+
     @Override
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                 PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
+                                                 PersistentTasksCustomMetadata.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders());
@@ -132,30 +150,26 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index followerIndex = params.getFollowShardId().getIndex();
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
-
-                final Client remoteClient;
-                try {
-                    remoteClient = remoteClient(params);
-                } catch (NoSuchRemoteClusterException e) {
-                    errorHandler.accept(e);
-                    return;
-                }
-
-                CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
-                    indexMetaData -> {
-                        if (indexMetaData.mapping() == null) {
-                            assert indexMetaData.getMappingVersion() == 1;
-                            handler.accept(indexMetaData.getMappingVersion());
+                final ActionListener<IndexMetadata> listener = ActionListener.wrap(
+                    indexMetadata -> {
+                        if (indexMetadata.mapping() == null) {
+                            assert indexMetadata.getMappingVersion() == 1;
+                            handler.accept(indexMetadata.getMappingVersion());
                             return;
                         }
-                        MappingMetaData mappingMetaData = indexMetaData.mapping();
-                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+                        MappingMetadata mappingMetadata = indexMetadata.mapping();
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
                         followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
-                            putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
+                            putMappingResponse -> handler.accept(indexMetadata.getMappingVersion()),
                             errorHandler));
                     },
                     errorHandler
-                ));
+                );
+                try {
+                    CcrRequests.getIndexMetadata(remoteClient(params), leaderIndex, minRequiredMappingVersion, 0L, timeout, listener);
+                } catch (NoSuchRemoteClusterException e) {
+                    errorHandler.accept(e);
+                }
             }
 
             @Override
@@ -163,11 +177,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Index followIndex = params.getFollowShardId().getIndex();
 
-                ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+                ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
 
                 CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final IndexMetaData leaderIMD = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    final IndexMetaData followerIMD = clusterService.state().metaData().getIndexSafe(followIndex);
+                    final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
+                    final IndexMetadata followerIMD = clusterService.state().metadata().getIndexSafe(followIndex);
 
                     final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
                     final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
@@ -238,27 +252,27 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final var leaderIndex = params.getLeaderShardId().getIndex();
                 final var followerIndex = params.getFollowShardId().getIndex();
 
-                final var clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+                final var clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
 
                 final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final var leaderIndexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    final var followerIndexMetaData = clusterService.state().metaData().getIndexSafe(followerIndex);
+                    final var leaderIndexMetadata = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
+                    final var followerIndexMetadata = clusterService.state().metadata().getIndexSafe(followerIndex);
 
                     // partition the aliases into the three sets
                     final var aliasesOnLeaderNotOnFollower = new HashSet<String>();
                     final var aliasesInCommon = new HashSet<String>();
                     final var aliasesOnFollowerNotOnLeader = new HashSet<String>();
 
-                    for (final var aliasName : leaderIndexMetaData.getAliases().keys()) {
-                        if (followerIndexMetaData.getAliases().containsKey(aliasName.value)) {
+                    for (final var aliasName : leaderIndexMetadata.getAliases().keys()) {
+                        if (followerIndexMetadata.getAliases().containsKey(aliasName.value)) {
                             aliasesInCommon.add(aliasName.value);
                         } else {
                             aliasesOnLeaderNotOnFollower.add(aliasName.value);
                         }
                     }
 
-                    for (final var aliasName : followerIndexMetaData.getAliases().keys()) {
-                        if (leaderIndexMetaData.getAliases().containsKey(aliasName.value)) {
+                    for (final var aliasName : followerIndexMetadata.getAliases().keys()) {
+                        if (leaderIndexMetadata.getAliases().containsKey(aliasName.value)) {
                             assert aliasesInCommon.contains(aliasName.value) : aliasName.value;
                         } else {
                             aliasesOnFollowerNotOnLeader.add(aliasName.value);
@@ -269,7 +283,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                     // add the aliases the follower does not have
                     for (final var aliasName : aliasesOnLeaderNotOnFollower) {
-                        final var alias = leaderIndexMetaData.getAliases().get(aliasName);
+                        final var alias = leaderIndexMetadata.getAliases().get(aliasName);
                         // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
                         aliasActions.add(IndicesAliasesRequest.AliasActions.add()
                                 .index(followerIndex.getName())
@@ -282,26 +296,26 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                     // update the aliases that are different (ignoring write aliases)
                     for (final var aliasName : aliasesInCommon) {
-                        final var leaderAliasMetaData = leaderIndexMetaData.getAliases().get(aliasName);
+                        final var leaderAliasMetadata = leaderIndexMetadata.getAliases().get(aliasName);
                         // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        final var leaderAliasMetaDataWithoutWriteIndex = new AliasMetaData.Builder(aliasName)
-                                .filter(leaderAliasMetaData.filter())
-                                .indexRouting(leaderAliasMetaData.indexRouting())
-                                .searchRouting(leaderAliasMetaData.searchRouting())
+                        final var leaderAliasMetadataWithoutWriteIndex = new AliasMetadata.Builder(aliasName)
+                                .filter(leaderAliasMetadata.filter())
+                                .indexRouting(leaderAliasMetadata.indexRouting())
+                                .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false)
                                 .build();
-                        final var followerAliasMetaData = followerIndexMetaData.getAliases().get(aliasName);
-                        if (leaderAliasMetaDataWithoutWriteIndex.equals(followerAliasMetaData)) {
+                        final var followerAliasMetadata = followerIndexMetadata.getAliases().get(aliasName);
+                        if (leaderAliasMetadataWithoutWriteIndex.equals(followerAliasMetadata)) {
                             // skip this alias, the leader and follower have the same modulo the write index
                             continue;
                         }
                         // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
                         aliasActions.add(IndicesAliasesRequest.AliasActions.add()
                                 .index(followerIndex.getName())
-                                .alias(leaderAliasMetaData.alias())
-                                .filter(leaderAliasMetaData.filter() == null ? null : leaderAliasMetaData.filter().toString())
-                                .indexRouting(leaderAliasMetaData.indexRouting())
-                                .searchRouting(leaderAliasMetaData.searchRouting())
+                                .alias(leaderAliasMetadata.alias())
+                                .filter(leaderAliasMetadata.filter() == null ? null : leaderAliasMetadata.filter().toString())
+                                .indexRouting(leaderAliasMetadata.indexRouting())
+                                .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false));
                     }
 
@@ -311,14 +325,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     }
 
                     if (aliasActions.isEmpty()) {
-                        handler.accept(leaderIndexMetaData.getAliasesVersion());
+                        handler.accept(leaderIndexMetadata.getAliasesVersion());
                     } else {
                         final var request = new IndicesAliasesRequest();
                         request.origin("ccr");
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
                                 request,
-                                ActionListener.wrap(r -> handler.accept(leaderIndexMetaData.getAliasesVersion()), errorHandler));
+                                ActionListener.wrap(r -> handler.accept(leaderIndexMetadata.getAliasesVersion()), errorHandler));
                     }
                 };
 
@@ -424,21 +438,27 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         "{} background adding retention lease [{}] while following",
                                         params.getFollowShardId(),
                                         retentionLeaseId);
-                                CcrRetentionLeases.asyncAddRetentionLease(
+                                try {
+                                    final ActionListener<RetentionLeaseActions.Response> wrappedListener = ActionListener.wrap(
+                                        r -> {},
+                                        inner -> {
+                                            /*
+                                             * If this fails that the retention lease already exists, something highly unusual is
+                                             * going on. Log it, and renew again after another renew interval has passed.
+                                             */
+                                            final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
+                                            logRetentionLeaseFailure(retentionLeaseId, innerCause);
+                                        });
+                                    CcrRetentionLeases.asyncAddRetentionLease(
                                         params.getLeaderShardId(),
                                         retentionLeaseId,
                                         followerGlobalCheckpoint.getAsLong(),
                                         remoteClient(params),
-                                        ActionListener.wrap(
-                                                r -> {},
-                                                inner -> {
-                                                    /*
-                                                     * If this fails that the retention lease already exists, something highly unusual is
-                                                     * going on. Log it, and renew again after another renew interval has passed.
-                                                     */
-                                                    final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
-                                                    logRetentionLeaseFailure(retentionLeaseId, innerCause);
-                                                }));
+                                        wrappedListener);
+                                } catch (NoSuchRemoteClusterException rce) {
+                                    // we will attempt to renew again after another renew interval has passed
+                                    logRetentionLeaseFailure(retentionLeaseId, rce);
+                                }
                             } else {
                                  // if something else happened, we will attempt to renew again after another renew interval has passed
                             }
@@ -481,8 +501,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     private String getLeaderShardHistoryUUID(ShardFollowTask params) {
-        IndexMetaData followIndexMetaData = clusterService.state().metaData().index(params.getFollowShardId().getIndex());
-        Map<String, String> ccrIndexMetadata = followIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        IndexMetadata followIndexMetadata = clusterService.state().metadata().index(params.getFollowShardId().getIndex());
+        Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
     }
@@ -529,8 +549,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
-                IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
-                if (indexMetaData != null) {
+                IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                if (indexMetadata != null) {
                     errorHandler.accept(new ShardNotFoundException(shardId));
                 } else {
                     errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));

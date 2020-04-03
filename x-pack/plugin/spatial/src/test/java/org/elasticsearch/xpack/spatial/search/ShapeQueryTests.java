@@ -10,11 +10,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -335,5 +337,43 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 .get();
             assertEquals(1, response.getHits().getTotalHits().value);
         }
+    }
+
+    public void testDistanceQuery() throws Exception {
+        client().admin().indices().prepareCreate("test_distance").setMapping("location", "type=shape")
+            .execute().actionGet();
+        ensureGreen();
+
+        CircleBuilder circleBuilder = new CircleBuilder().center(new Coordinate(1, 0)).radius(10, DistanceUnit.METERS);
+
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("location", new PointBuilder(2, 2)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("location", new PointBuilder(3, 1)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("location", new PointBuilder(-20, -30)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("location", new PointBuilder(20, 30)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        SearchResponse response = client().prepareSearch("test_distance")
+            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.WITHIN))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(new ShapeQueryBuilder("location", circleBuilder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+            .get();
+        assertEquals(0, response.getHits().getTotalHits().value);
     }
 }

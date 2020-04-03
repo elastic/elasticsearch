@@ -32,8 +32,9 @@ import java.util.Objects;
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class PSubDefArray extends AStoreable {
-    private AExpression index;
+public class PSubDefArray extends AStoreable {
+
+    protected AExpression index;
 
     PSubDefArray(Location location, AExpression index) {
         super(location);
@@ -42,39 +43,31 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        index.analyze(scriptRoot, scope);
-        index.expected = index.actual;
-        index.cast();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
+
+        Input indexInput = new Input();
+        Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+        indexInput.expected = indexOutput.actual;
+        index.cast(indexInput, indexOutput);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
-    }
+        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
-    @Override
-    BraceSubDefNode write(ClassNode classNode) {
         BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
-        braceSubDefNode.setChildNode(index.cast(index.write(classNode)));
+        braceSubDefNode.setChildNode(index.cast(indexOutput));
 
         braceSubDefNode.setLocation(location);
-        braceSubDefNode.setExpressionType(actual);
+        braceSubDefNode.setExpressionType(output.actual);
 
-        return braceSubDefNode;
+        output.expressionNode = braceSubDefNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return true;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        this.actual = actual;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
     }
 }

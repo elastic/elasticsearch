@@ -27,16 +27,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -80,6 +81,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
     private TransportService transportService;
     private ClusterStateObserver clusterStateObserver;
+    private ClusterSettings clusterSettings;
+    private int staticMaximum;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -116,8 +119,18 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
 
-        new TransportAddVotingConfigExclusionsAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver()); // registers action
+        final Settings.Builder nodeSettingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            staticMaximum = between(5, 15);
+            nodeSettingsBuilder.put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), staticMaximum);
+        } else {
+            staticMaximum = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(Settings.EMPTY);
+        }
+        final Settings nodeSettings = nodeSettingsBuilder.build();
+        clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        new TransportAddVotingConfigExclusionsAction(nodeSettings, clusterSettings, transportService, clusterService, threadPool,
+            new ActionFilters(emptySet()), new IndexNameExpressionResolver()); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -127,8 +140,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         setState(clusterService, builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode)
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .metaData(MetaData.builder()
-                .coordinationMetaData(CoordinationMetaData.builder().lastAcceptedConfiguration(allNodesConfig)
+            .metadata(Metadata.builder()
+                .coordinationMetadata(CoordinationMetadata.builder().lastAcceptedConfiguration(allNodesConfig)
                     .lastCommittedConfiguration(allNodesConfig).build())));
 
         clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
@@ -221,8 +234,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
         final ClusterState state = clusterService.state();
         setState(clusterService, builder(state)
-            .metaData(MetaData.builder(state.metaData())
-                .coordinationMetaData(CoordinationMetaData.builder(state.coordinationMetaData())
+            .metadata(Metadata.builder(state.metadata())
+                .coordinationMetadata(CoordinationMetadata.builder(state.coordinationMetadata())
                     .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
                     .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
                 .build())));
@@ -284,9 +297,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     public void testSucceedsEvenIfAllExclusionsAlreadyAdded() throws InterruptedException {
         final ClusterState state = clusterService.state();
         final ClusterState.Builder builder = builder(state);
-        builder.metaData(MetaData.builder(state.metaData()).
-                coordinationMetaData(
-                        CoordinationMetaData.builder(state.coordinationMetaData())
+        builder.metadata(Metadata.builder(state.metadata()).
+                coordinationMetadata(
+                        CoordinationMetadata.builder(state.coordinationMetadata())
                                 .addVotingConfigExclusion(otherNode1Exclusion).
                 build()));
         setState(clusterService, builder);
@@ -307,26 +320,38 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     }
 
     public void testReturnsErrorIfMaximumExclusionCountExceeded() throws InterruptedException {
-        final MetaData.Builder metaDataBuilder = MetaData.builder(clusterService.state().metaData()).persistentSettings(
-                Settings.builder().put(clusterService.state().metaData().persistentSettings())
-                        .put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), 2).build());
-        CoordinationMetaData.Builder coordinationMetaDataBuilder =
-                CoordinationMetaData.builder(clusterService.state().coordinationMetaData())
-                        .addVotingConfigExclusion(localNodeExclusion);
+        final Metadata.Builder metadataBuilder = Metadata.builder(clusterService.state().metadata());
+        CoordinationMetadata.Builder coordinationMetadataBuilder =
+            CoordinationMetadata.builder(clusterService.state().coordinationMetadata())
+                .addVotingConfigExclusion(localNodeExclusion);
+
+        final int actualMaximum;
+        if (randomBoolean()) {
+            actualMaximum = staticMaximum;
+        } else {
+            actualMaximum = between(2, 15);
+            clusterSettings.applySettings(Settings.builder().put(clusterService.state().metadata().persistentSettings())
+                .put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), actualMaximum).build());
+        }
+
+        for (int i = 2; i < actualMaximum; i++) {
+            coordinationMetadataBuilder.addVotingConfigExclusion(
+                new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        }
 
         final int existingCount, newCount;
         if (randomBoolean()) {
-            coordinationMetaDataBuilder.addVotingConfigExclusion(otherNode1Exclusion);
-            existingCount = 2;
+            coordinationMetadataBuilder.addVotingConfigExclusion(otherNode1Exclusion);
+            existingCount = actualMaximum;
             newCount = 1;
         } else {
-            existingCount = 1;
+            existingCount = actualMaximum - 1;
             newCount = 2;
         }
 
-        metaDataBuilder.coordinationMetaData(coordinationMetaDataBuilder.build());
+        metadataBuilder.coordinationMetadata(coordinationMetadataBuilder.build());
 
-        final ClusterState.Builder builder = builder(clusterService.state()).metaData(metaDataBuilder);
+        final ClusterState.Builder builder = builder(clusterService.state()).metadata(metadataBuilder);
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -345,7 +370,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(rootCause.getMessage(), equalTo("add voting config exclusions request for [other*] would add [" + newCount +
             "] exclusions to the existing [" + existingCount +
-            "] which would exceed the maximum of [2] set by [cluster.max_voting_config_exclusions]"));
+            "] which would exceed the maximum of [" + actualMaximum + "] set by [cluster.max_voting_config_exclusions]"));
     }
 
     public void testTimesOut() throws InterruptedException {
@@ -416,8 +441,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
                     currentState.getVotingConfigExclusions().forEach(t -> votingNodeIds.remove(t.getNodeId()));
                     final VotingConfiguration votingConfiguration = new VotingConfiguration(votingNodeIds);
                     return builder(currentState)
-                        .metaData(MetaData.builder(currentState.metaData())
-                            .coordinationMetaData(CoordinationMetaData.builder(currentState.coordinationMetaData())
+                        .metadata(Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(CoordinationMetadata.builder(currentState.coordinationMetadata())
                                 .lastAcceptedConfiguration(votingConfiguration)
                                 .lastCommittedConfiguration(votingConfiguration)
                                 .build()))

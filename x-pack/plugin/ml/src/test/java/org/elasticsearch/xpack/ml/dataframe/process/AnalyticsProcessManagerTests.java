@@ -56,7 +56,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "config-id";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null);
+    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null);
 
     private Client client;
     private DataFrameAnalyticsAuditor auditor;
@@ -169,7 +169,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
         inOrder.verify(process).isProcessAlive();
         inOrder.verify(task).getStatsHolder();
-        inOrder.verify(dataExtractor).getFieldNames();
+        inOrder.verify(dataExtractor).getAllExtractedFields();
         inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
         verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
     }
@@ -227,7 +227,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
         inOrder.verify(process).isProcessAlive();
         inOrder.verify(task).getStatsHolder();
-        inOrder.verify(dataExtractor).getFieldNames();
+        inOrder.verify(dataExtractor).getAllExtractedFields();
         // stop
         inOrder.verify(dataExtractor).cancel();
         inOrder.verify(process).kill();

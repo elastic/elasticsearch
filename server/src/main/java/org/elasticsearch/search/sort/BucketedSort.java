@@ -134,13 +134,6 @@ public abstract class BucketedSort implements Releasable {
      * it is still gathering.
      */
     private final BitArray heapMode;
-    /**
-     * The highest bucket ordinal that has been converted into a heap. This is
-     * required because calling {@link BitArray#get(int)} on an index higher
-     * than the highest one that was {@link BitArray#set(int) set} could throw
-     * and {@link ArrayIndexOutOfBoundsException}. So we check this first.
-     */
-    private long maxHeapBucket = 0;
 
     protected BucketedSort(BigArrays bigArrays, SortOrder order, DocValueFormat format, int bucketSize, ExtraData extra) {
         this.bigArrays = bigArrays;
@@ -216,7 +209,7 @@ public abstract class BucketedSort implements Releasable {
      * Is this bucket a min heap {@code true} or in gathering mode {@code false}? 
      */
     private boolean inHeapMode(long bucket) {
-        return bucket <= maxHeapBucket && heapMode.get((int) bucket);
+        return heapMode.get((int) bucket);
     }
 
     /**
@@ -430,7 +423,6 @@ public abstract class BucketedSort implements Releasable {
                     throw new UnsupportedOperationException("Bucketed sort doesn't support more than [" + Integer.MAX_VALUE + "] buckets");
                     // BitArray needs int keys and this'd take a ton of memory to use that many buckets. So we just don't.
                 }
-                maxHeapBucket = Math.max(bucket, maxHeapBucket);
                 heapMode.set((int) bucket);
                 heapify(rootIndex);
             } else {

@@ -28,11 +28,14 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
 
     /**
      * Builds the aggregation that collect required data to compute the metric
+     * @param parameters settings that may be needed by aggregations
      * @param actualField the field that stores the actual value
      * @param predictedField the field that stores the predicted value (class name or probability)
      * @return the aggregations required to compute the metric
      */
-    Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField);
+    Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
+                                                                           String actualField,
+                                                                           String predictedField);
 
     /**
      * Processes given aggregations as a step towards computing result

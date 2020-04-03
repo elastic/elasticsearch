@@ -28,92 +28,92 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a map initialization shortcut.
  */
-public final class EMapInit extends AExpression {
-    private final List<AExpression> keys;
-    private final List<AExpression> values;
+public class EMapInit extends AExpression {
 
-    private PainlessConstructor constructor = null;
-    private PainlessMethod method = null;
+    protected final List<AExpression> keys;
+    protected final List<AExpression> values;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
         super(location);
 
-        this.keys = keys;
-        this.values = values;
+        this.keys = Collections.unmodifiableList(Objects.requireNonNull(keys));
+        this.values = Collections.unmodifiableList(Objects.requireNonNull(values));
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        if (input.read == false) {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
 
-        actual = HashMap.class;
+        output.actual = HashMap.class;
 
-        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+        PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
+                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
         }
 
-        method = scriptRoot.getPainlessLookup().lookupPainlessMethod(actual, false, "put", 2);
+        PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(output.actual, false, "put", 2);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", put/2] not found"));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", put/2] not found"));
         }
 
         if (keys.size() != values.size()) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        for (int index = 0; index < keys.size(); ++index) {
-            AExpression expression = keys.get(index);
+        List<Output> keyOutputs = new ArrayList<>(keys.size());
+        List<Output> valueOutputs = new ArrayList<>(values.size());
 
-            expression.expected = def.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
-            expression.cast();
+        for (int i = 0; i < keys.size(); ++i) {
+            AExpression expression = keys.get(i);
+            Input expressionInput = new Input();
+            expressionInput.expected = def.class;
+            expressionInput.internal = true;
+            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
+            keyOutputs.add(expressionOutput);
+
+            expression = values.get(i);
+            expressionInput = new Input();
+            expressionInput.expected = def.class;
+            expressionInput.internal = true;
+            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
+            valueOutputs.add(expressionOutput);
         }
 
-        for (int index = 0; index < values.size(); ++index) {
-            AExpression expression = values.get(index);
-
-            expression.expected = def.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
-            expression.cast();
-        }
-    }
-
-    @Override
-    MapInitializationNode write(ClassNode classNode) {
         MapInitializationNode mapInitializationNode = new MapInitializationNode();
 
-        for (int index = 0; index < keys.size(); ++index) {
+        for (int i = 0; i < keys.size(); ++i) {
             mapInitializationNode.addArgumentNode(
-                    keys.get(index).cast(keys.get(index).write(classNode)),
-                    values.get(index).cast(values.get(index).write(classNode)));
+                    keys.get(i).cast(keyOutputs.get(i)),
+                    values.get(i).cast(valueOutputs.get(i)));
         }
 
         mapInitializationNode.setLocation(location);
-        mapInitializationNode.setExpressionType(actual);
+        mapInitializationNode.setExpressionType(output.actual);
         mapInitializationNode.setConstructor(constructor);
         mapInitializationNode.setMethod(method);
 
-        return mapInitializationNode;
-    }
+        output.expressionNode = mapInitializationNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(pairwiseToString(keys, values));
+        return output;
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -33,6 +34,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * A base class for all the single bucket aggregations.
@@ -50,8 +53,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
     protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }
@@ -112,19 +115,20 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     /**
-     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a single-bucket
-     * agg needs to first reduce the aggs in it's bucket (and their parent pipelines) before allowing sibling pipelines
-     * to reduce
+     * Amulti-bucket agg needs to first reduce the buckets and *their* pipelines
+     * before allowing sibling pipelines to materialize.
      */
     @Override
-    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+    public final InternalAggregation reducePipelines(
+            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
         assert reduceContext.isFinalReduce();
         List<InternalAggregation> aggs = new ArrayList<>();
         for (Aggregation agg : getAggregations().asList()) {
-            aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+            PipelineTree subTree = pipelineTree.subTree(agg.getName());
+            aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
         }
         InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
-        return super.reducePipelines(create(reducedSubAggs), reduceContext);
+        return super.reducePipelines(create(reducedSubAggs), reduceContext, pipelineTree);
     }
 
     @Override
@@ -167,6 +171,20 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     @Override
     public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         return aggregations.sortValue(head, tail);
+    }
+
+    @Override
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        InternalAggregations rewritten = rewriter.apply(aggregations);
+        if (rewritten == null) {
+            return this;
+        }
+        return create(rewritten);
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        consumer.accept(aggregations);
     }
 
     @Override

@@ -76,7 +76,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -339,7 +339,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
             // now, optimize and wait for merges, see that we have no merge flag
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
 
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -349,7 +349,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             final boolean flush = randomBoolean();
             final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-            engine.forceMerge(flush);
+            engine.forceMerge(flush, 1, false, false, false, UUIDs.randomBase64UUID());
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
             }
@@ -1239,8 +1239,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final MapperService mapperService = createMapperService();
         final Set<String> liveDocs = new HashSet<>();
@@ -1276,7 +1276,7 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
                 safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
@@ -1295,12 +1295,12 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
-            indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
             engine.onSettingsChanged();
             globalCheckpoint.set(localCheckpoint);
             engine.syncTranslog();
 
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
         }
@@ -1311,8 +1311,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final MapperService mapperService = createMapperService();
         final boolean omitSourceAllTheTime = randomBoolean();
@@ -1364,7 +1364,7 @@ public class InternalEngineTests extends EngineTestCase {
                     safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
                 minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
@@ -1385,7 +1385,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
-            indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
             engine.onSettingsChanged();
             // If we already merged down to 1 segment, then the next force-merge will be a noop. We need to add an extra segment to make
             // merges happen so we can verify that _recovery_source are pruned. See: https://github.com/elastic/elasticsearch/issues/41628.
@@ -1407,7 +1407,7 @@ public class InternalEngineTests extends EngineTestCase {
                 globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 engine.syncTranslog();
             }
-            engine.forceMerge(true, 1, false, false, false);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocsWithSource.size()));
         }
@@ -1443,7 +1443,8 @@ public class InternalEngineTests extends EngineTestCase {
                                 engine.refresh("test");
                                 indexed.countDown();
                                 try {
-                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
+                                    engine.forceMerge(
+                                        randomBoolean(), 1, false, randomBoolean(), randomBoolean(), UUIDs.randomBase64UUID());
                                 } catch (IOException e) {
                                     return;
                                 }
@@ -1460,7 +1461,7 @@ public class InternalEngineTests extends EngineTestCase {
                 startGun.countDown();
                 int someIters = randomIntBetween(1, 10);
                 for (int i = 0; i < someIters; i++) {
-                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
+                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean(), UUIDs.randomBase64UUID());
                 }
                 indexed.await();
                 IOUtils.close(engine);
@@ -2613,7 +2614,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testTranslogCleanUpPostCommitCrash() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
+        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetadata(), defaultSettings.getNodeSettings(),
             defaultSettings.getScopedSettings());
         try (Store store = createStore()) {
             AtomicBoolean throwErrorOnCommit = new AtomicBoolean();
@@ -2838,7 +2839,7 @@ public class InternalEngineTests extends EngineTestCase {
                     try {
                         switch (operation) {
                             case "optimize": {
-                                engine.forceMerge(true, 1, false, false, false);
+                                engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
                                 break;
                             }
                             case "refresh": {
@@ -4079,7 +4080,7 @@ public class InternalEngineTests extends EngineTestCase {
                 boolean onlyExpungeDeletes = randomBoolean();
                 int maxNumSegments = randomIntBetween(-1, 10);
                 try {
-                    engine.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, false, false);
+                    engine.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, false, false, UUIDs.randomBase64UUID());
                 } catch (IllegalArgumentException e) {
                     assertThat(e.getMessage(), containsString("only_expunge_deletes and max_num_segments are mutually exclusive"));
                     assertThat(onlyExpungeDeletes, is(true));
@@ -4705,10 +4706,10 @@ public class InternalEngineTests extends EngineTestCase {
         long flushThreshold = RandomNumbers.randomLongBetween(random(), 120,
             engine.getTranslog().stats().getUncommittedSizeInBytes()- extraTranslogSizeInNewEngine);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         engine.onSettingsChanged();
         assertThat(uncommittedTranslogOperationsSinceLastCommit.getAsInt(), equalTo(numDocs));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
@@ -4756,10 +4757,10 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING.getKey(),  "0b")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         engine.onSettingsChanged();
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(1));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
@@ -4767,7 +4768,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(doc));
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(2));
         engine.refresh("test");
-        engine.forceMerge(false, 1, false, false, false);
+        engine.forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID());
         assertBusy(() -> {
             // the merge listner runs concurrently after the force merge returned
             assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
@@ -4780,11 +4781,11 @@ public class InternalEngineTests extends EngineTestCase {
         final long flushThreshold = randomLongBetween(120, 5000);
         final long generationThreshold = randomLongBetween(1000, 5000);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), generationThreshold + "b")
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         engine.onSettingsChanged();
         final int numOps = scaledRandomIntBetween(100, 10_000);
         for (int i = 0; i < numOps; i++) {
@@ -4809,10 +4810,10 @@ public class InternalEngineTests extends EngineTestCase {
             // this is a reproduction of https://github.com/elastic/elasticsearch/issues/28714
             try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
                 final IndexSettings indexSettings = engine.config().getIndexSettings();
-                final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+                final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
                     .settings(Settings.builder().put(indexSettings.getSettings())
                         .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(1))).build();
-                engine.engineConfig.getIndexSettings().updateIndexMetaData(indexMetaData);
+                engine.engineConfig.getIndexSettings().updateIndexMetadata(indexMetadata);
                 engine.onSettingsChanged();
                 ParsedDocument document = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
                 final Engine.Index doc = new Engine.Index(newUid(document), document, UNASSIGNED_SEQ_NO, 0,
@@ -4870,10 +4871,10 @@ public class InternalEngineTests extends EngineTestCase {
         when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> clock.get());
         final long gcInterval = randomIntBetween(0, 10);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(gcInterval).getStringRep())).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        indexSettings.updateIndexMetadata(indexMetadata);
         try (Store store = createStore();
              InternalEngine engine = createEngine(store, createTempDir())) {
             engine.config().setEnableGcDeletes(false);
@@ -4991,8 +4992,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         Set<Long> expectedSeqNos = new HashSet<>();
         try (Store store = createStore();
              Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
@@ -5013,7 +5014,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.flush();
                 }
                 if (rarely()) {
-                    engine.forceMerge(true);
+                    engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
                 }
             }
             MapperService mapperService = createMapperService();
@@ -5028,8 +5029,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicLong retentionLeasesVersion = new AtomicLong();
@@ -5080,7 +5081,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             if (rarely()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
-                indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+                indexSettings.updateIndexMetadata(IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
                 engine.onSettingsChanged();
             }
             if (rarely()) {
@@ -5092,7 +5093,7 @@ public class InternalEngineTests extends EngineTestCase {
                     equalTo(engine.getMinRetainedSeqNo()));
             }
             if (rarely()) {
-                engine.forceMerge(randomBoolean());
+                engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
             }
             try (Closeable ignored = engine.acquireHistoryRetentionLock()) {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
@@ -5366,11 +5367,11 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Path translogPath = createTempDir();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData())
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata())
             .settings(Settings.builder().put(defaultSettings.getSettings())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         try (Store store = createStore()) {
             EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
             final List<DocIdSeqNoAndSource> docs;
@@ -5410,7 +5411,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(softDeletesEngine.getVersionMap().keySet(), empty());
                 softDeletesEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 if (randomBoolean()) {
-                    softDeletesEngine.forceMerge(randomBoolean());
+                    engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
                 }
                 assertThat(getDocIds(softDeletesEngine, true), equalTo(docs));
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(softDeletesEngine, createMapperService());
@@ -5433,7 +5434,7 @@ public class InternalEngineTests extends EngineTestCase {
                 Version.CURRENT, VersionUtils.getPreviousMinorVersion(), VersionUtils.getFirstVersion())) {
             Settings settings = Settings.builder()
                     .put(indexSettings())
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, createdVersion).build();
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             try (Store store = createStore();
                     InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
@@ -5532,7 +5533,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testGetReaderAttributes() throws IOException {
         Settings.Builder settingsBuilder = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         Settings settings = settingsBuilder.build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
 
@@ -5613,7 +5614,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.delete(new Engine.Delete("0", newUid("0"), primaryTerm.get()));
             engine.refresh("test");
             // now we have 2 segments since we now added a tombstone plus the old segment with the delete
@@ -5632,7 +5633,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             // lets force merge the tombstone and the original segment and make sure the doc is still there but the ID term is gone
-            engine.forceMerge(true);
+            engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             engine.refresh("test");
             try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                 IndexReader reader = searcher.getIndexReader();
@@ -5676,7 +5677,7 @@ public class InternalEngineTests extends EngineTestCase {
                         engine.flush();
                     }
                     if (randomInt(100) < 5) {
-                        engine.forceMerge(randomBoolean(), 1, false, false, false);
+                        engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
                     }
                 }
                 if (randomBoolean()) {

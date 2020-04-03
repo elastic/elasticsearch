@@ -24,12 +24,10 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -88,9 +86,9 @@ public class ParsedTopMetrics extends ParsedAggregation {
         private static final ParseField METRICS_FIELD = new ParseField("metrics");
 
         private final List<Object> sort;
-        private final Map<String, Double> metrics;
+        private final Map<String, Object> metrics;
 
-        private TopMetrics(List<Object> sort, Map<String, Double> metrics) {
+        private TopMetrics(List<Object> sort, Map<String, Object> metrics) {
             this.sort = sort;
             this.metrics = metrics;
         }
@@ -105,7 +103,7 @@ public class ParsedTopMetrics extends ParsedAggregation {
         /**
          * The top metric values returned by the aggregation.
          */
-        public Map<String, Double> getMetrics() {
+        public Map<String, Object> getMetrics() {
             return metrics;
         }
 
@@ -114,13 +112,13 @@ public class ParsedTopMetrics extends ParsedAggregation {
                     @SuppressWarnings("unchecked")
                     List<Object> sort = (List<Object>) args[0];
                     @SuppressWarnings("unchecked")
-                    Map<String, Double> metrics = (Map<String, Double>) args[1];
+                    Map<String, Object> metrics = (Map<String, Object>) args[1];
                     return new TopMetrics(sort, metrics);
                 });
         static {
             PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
                     SORT_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
-            PARSER.declareObject(constructorArg(), (p, c) -> p.map(HashMap::new, XContentParser::doubleValue), METRICS_FIELD);
+            PARSER.declareObject(constructorArg(), (p, c) -> p.map(), METRICS_FIELD);
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

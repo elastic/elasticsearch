@@ -46,9 +46,9 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
 
     DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
+        super(name, shardSize, factories, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }

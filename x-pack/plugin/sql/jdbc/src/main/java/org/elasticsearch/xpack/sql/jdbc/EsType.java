@@ -25,6 +25,7 @@ public enum EsType implements SQLType {
     SCALED_FLOAT(             Types.FLOAT),
     KEYWORD(                  Types.VARCHAR),
     TEXT(                     Types.VARCHAR),
+    CONSTANT_KEYWORD(         Types.VARCHAR),
     OBJECT(                   Types.STRUCT),
     NESTED(                   Types.STRUCT),
     BINARY(                   Types.VARBINARY),

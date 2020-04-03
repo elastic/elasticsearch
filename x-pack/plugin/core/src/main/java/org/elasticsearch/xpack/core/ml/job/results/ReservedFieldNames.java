@@ -118,6 +118,8 @@ public final class ReservedFieldNames {
             CategoryDefinition.REGEX.getPreferredName(),
             CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(),
             CategoryDefinition.EXAMPLES.getPreferredName(),
+            CategoryDefinition.NUM_MATCHES.getPreferredName(),
+            CategoryDefinition.PREFERRED_TO_CATEGORIES.getPreferredName(),
 
             DataCounts.PROCESSED_RECORD_COUNT.getPreferredName(),
             DataCounts.PROCESSED_FIELD_COUNT.getPreferredName(),
@@ -317,12 +319,13 @@ public final class ReservedFieldNames {
             Classification.NAME.getPreferredName(),
             Classification.DEPENDENT_VARIABLE.getPreferredName(),
             Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(),
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),
             BoostedTreeParams.GAMMA.getPreferredName(),
             BoostedTreeParams.ETA.getPreferredName(),
-            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.MAX_TREES.getPreferredName(),
             BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
             BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
 

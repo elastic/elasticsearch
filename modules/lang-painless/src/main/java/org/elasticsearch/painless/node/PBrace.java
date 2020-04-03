@@ -34,11 +34,12 @@ import java.util.Objects;
 /**
  * Represents an array load/store and defers to a child subnode.
  */
-public final class PBrace extends AStoreable {
+public class PBrace extends AStoreable {
 
-    private AExpression index;
+    protected final AExpression index;
 
-    private AStoreable sub = null;
+    // TODO: #54015
+    private boolean isDefOptimized = false;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
@@ -47,58 +48,65 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        prefix.analyze(scriptRoot, scope);
-        prefix.expected = prefix.actual;
-        prefix.cast();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+        AStoreable.Input storeableInput = new AStoreable.Input();
+        storeableInput.read = input.read;
+        storeableInput.expected = input.expected;
+        storeableInput.explicit = input.explicit;
+        storeableInput.internal = input.internal;
 
-        if (prefix.actual.isArray()) {
-            sub = new PSubBrace(location, prefix.actual, index);
-        } else if (prefix.actual == def.class) {
-            sub = new PSubDefArray(location, index);
-        } else if (Map.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubMapShortcut(location, prefix.actual, index);
-        } else if (List.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubListShortcut(location, prefix.actual, index);
-        } else {
-            throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
-        }
-
-        sub.write = write;
-        sub.read = read;
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(scriptRoot, scope);
-        actual = sub.actual;
+        return analyze(classNode, scriptRoot, scope, storeableInput);
     }
 
     @Override
-    BraceNode write(ClassNode classNode) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
+
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
+
+        AStoreable sub;
+
+        if (prefixOutput.actual.isArray()) {
+            sub = new PSubBrace(location, prefixOutput.actual, index);
+        } else if (prefixOutput.actual == def.class) {
+            sub = new PSubDefArray(location, index);
+        } else if (Map.class.isAssignableFrom(prefixOutput.actual)) {
+            sub = new PSubMapShortcut(location, prefixOutput.actual, index);
+        } else if (List.class.isAssignableFrom(prefixOutput.actual)) {
+            sub = new PSubListShortcut(location, prefixOutput.actual, index);
+        } else {
+            throw createError(new IllegalArgumentException("Illegal array access on type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
+        }
+
+        isDefOptimized = sub.isDefOptimized();
+
+        Input subInput = new Input();
+        subInput.write = input.write;
+        subInput.read = input.read;
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
+
         BraceNode braceNode = new BraceNode();
 
-        braceNode.setLeftNode(prefix.cast(prefix.write(classNode)));
-        braceNode.setRightNode(sub.write(classNode));
+        braceNode.setLeftNode(prefix.cast(prefixOutput));
+        braceNode.setRightNode(subOutput.expressionNode);
 
         braceNode.setLocation(location);
-        braceNode.setExpressionType(actual);
+        braceNode.setExpressionType(output.actual);
 
-        return braceNode;
+        output.expressionNode = braceNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.actual = actual;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
+        return isDefOptimized;
     }
 }

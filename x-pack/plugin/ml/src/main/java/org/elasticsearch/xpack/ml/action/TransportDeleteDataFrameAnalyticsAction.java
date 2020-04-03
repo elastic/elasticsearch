@@ -26,21 +26,24 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -127,7 +130,7 @@ public class TransportDeleteDataFrameAnalyticsAction
 
     private void normalDelete(ParentTaskAssigningClient parentTaskClient, ClusterState state, String id,
                               ActionListener<AcknowledgedResponse> listener) {
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot delete data frame analytics [{}] while its status is [{}]",
@@ -138,20 +141,38 @@ public class TransportDeleteDataFrameAnalyticsAction
         // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
 
-        // Step 3. Delete the config
-        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
+        // Step 4. Delete the config
+        ActionListener<BulkByScrollResponse> deleteStatsHandler = ActionListener.wrap(
             bulkByScrollResponse -> {
                 if (bulkByScrollResponse.isTimedOut()) {
-                    logger.warn("[{}] DeleteByQuery for state timed out", id);
+                    logger.warn("[{}] DeleteByQuery for stats timed out", id);
                 }
                 if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                    logger.warn("[{}] {} failures and {} conflicts encountered while runnint DeleteByQuery for state", id,
+                    logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery for stats", id,
                         bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
                     for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
                         logger.warn("[{}] DBQ failure: {}", id, failure);
                     }
                 }
                 deleteConfig(parentTaskClient, id, listener);
+            },
+            listener::onFailure
+        );
+
+        // Step 3. Delete job docs from stats index
+        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
+            bulkByScrollResponse -> {
+                if (bulkByScrollResponse.isTimedOut()) {
+                    logger.warn("[{}] DeleteByQuery for state timed out", id);
+                }
+                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                    logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery for state", id,
+                        bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
+                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                        logger.warn("[{}] DBQ failure: {}", id, failure);
+                    }
+                }
+                deleteStats(parentTaskClient, id, deleteStatsHandler);
             },
             listener::onFailure
         );
@@ -193,8 +214,29 @@ public class TransportDeleteDataFrameAnalyticsAction
         if (config.getAnalysis().persistsState()) {
             ids.add(config.getAnalysis().getStateDocId(config.getId()));
         }
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
-        request.setQuery(QueryBuilders.idsQuery().addIds(ids.toArray(String[]::new)));
+        executeDeleteByQuery(
+            parentTaskClient,
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            QueryBuilders.idsQuery().addIds(ids.toArray(String[]::new)),
+            listener
+        );
+    }
+
+    private void deleteStats(ParentTaskAssigningClient parentTaskClient,
+                             String jobId,
+                             ActionListener<BulkByScrollResponse> listener) {
+        executeDeleteByQuery(
+            parentTaskClient,
+            MlStatsIndex.indexPattern(),
+            QueryBuilders.termQuery(Fields.JOB_ID.getPreferredName(), jobId),
+            listener
+        );
+    }
+
+    private void executeDeleteByQuery(ParentTaskAssigningClient parentTaskClient, String index, QueryBuilder query,
+                                      ActionListener<BulkByScrollResponse> listener) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest(index);
+        request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);

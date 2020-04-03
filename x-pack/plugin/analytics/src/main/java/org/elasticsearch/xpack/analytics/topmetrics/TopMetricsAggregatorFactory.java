@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -40,9 +41,9 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
     private final List<MultiValuesSourceFieldConfig> metricFields;
 
     public TopMetricsAggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
-            Builder subFactoriesBuilder, Map<String, Object> metaData, List<SortBuilder<?>> sortBuilders,
+            Builder subFactoriesBuilder, Map<String, Object> metadata, List<SortBuilder<?>> sortBuilders,
             int size, List<MultiValuesSourceFieldConfig> metricFields) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sortBuilders = sortBuilders;
         this.size = size;
         this.metricFields = metricFields;
@@ -50,21 +51,22 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
 
     @Override
     protected TopMetricsAggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
         int maxBucketSize = MAX_BUCKET_SIZE.get(searchContext.getQueryShardContext().getIndexSettings().getSettings());
         if (size > maxBucketSize) {
             throw new IllegalArgumentException("[top_metrics.size] must not be more than [" + maxBucketSize + "] but was [" + size
                     + "]. This limit can be set by changing the [" + MAX_BUCKET_SIZE.getKey()
                     + "] index level setting.");
         }
-        List<String> metricNames = metricFields.stream().map(MultiValuesSourceFieldConfig::getFieldName).collect(toList());
-        List<ValuesSource.Numeric> metricValuesSources = metricFields.stream().map(config -> {
-                    ValuesSourceConfig<ValuesSource.Numeric> resolved = ValuesSourceConfig.resolve(
+        List<TopMetricsAggregator.MetricSource> metricSources = metricFields.stream().map(config -> {
+                    ValuesSourceConfig resolved = ValuesSourceConfig.resolve(
                             searchContext.getQueryShardContext(), ValueType.NUMERIC,
-                            config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null);
-                    return resolved.toValuesSource(searchContext.getQueryShardContext());
+                            config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
+                        CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
+                    return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
+                        (ValuesSource.Numeric) resolved.toValuesSource());
                 }).collect(toList());
-        return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metaData, size,
-                sortBuilders.get(0), metricNames, metricValuesSources);
+        return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metadata, size,
+                sortBuilders.get(0), metricSources);
     }
 }

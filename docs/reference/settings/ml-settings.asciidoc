@@ -36,19 +36,20 @@ IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
 the `node.ml` role.
 
 `xpack.ml.enabled`::
-Set to `true` (default) to enable {ml} on the node. +
+Set to `true` (default) to enable {ml} on the node.
 +
-If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled on the node.
-Therefore the node cannot open jobs, start {dfeeds}, or receive transport (internal)
-communication requests related to {ml} APIs. It also affects all {kib} instances
-that connect to this {es} instance; you do not need to disable {ml} in those
-`kibana.yml` files. For more information about disabling {ml} in specific {kib}
-instances, see
-{kibana-ref}/ml-settings-kb.html[{kib} Machine Learning Settings].
+If set to `false`, the {ml} APIs are disabled on the node. Therefore the node
+cannot open jobs, start {dfeeds}, or receive transport (internal) communication
+requests related to {ml} APIs. If the node is a coordinating node, {ml} requests
+from clients (including {kib}) also fail. For more information about disabling
+{ml} in specific {kib} instances, see
+{kibana-ref}/ml-settings-kb.html[{kib} {ml} settings].
 +
-IMPORTANT: If you want to use {ml} features in your cluster, you must have
-`xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
-default behavior.
+IMPORTANT: If you want to use {ml-features} in your cluster, it is recommended
+that you set `xpack.ml.enabled` to `true` on all nodes. This is the
+default behavior. At a minimum, it must be enabled on all master-eligible nodes.
+If you want to use {ml-features} in clients or {kib}, it must also be enabled on
+all coordinating nodes.
 
 `xpack.ml.inference_model.cache_size`::
 The maximum inference cache size allowed. The inference cache exists in the JVM

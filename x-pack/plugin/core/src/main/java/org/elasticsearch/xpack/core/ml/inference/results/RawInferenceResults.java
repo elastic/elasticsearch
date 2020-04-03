@@ -18,9 +18,9 @@ public class RawInferenceResults implements InferenceResults {
     public static final String NAME = "raw";
 
     private final double[] value;
-    private final Map<String, Double> featureImportance;
+    private final Map<String, double[]> featureImportance;
 
-    public RawInferenceResults(double[] value, Map<String, Double> featureImportance) {
+    public RawInferenceResults(double[] value, Map<String, double[]> featureImportance) {
         this.value = value;
         this.featureImportance = featureImportance;
     }
@@ -29,7 +29,7 @@ public class RawInferenceResults implements InferenceResults {
         return value;
     }
 
-    public Map<String, Double> getFeatureImportance() {
+    public Map<String, double[]> getFeatureImportance() {
         return featureImportance;
     }
 

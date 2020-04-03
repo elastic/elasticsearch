@@ -347,7 +347,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             // allowPartialSearchResults is set to false, so we should never see shard failures here
             assert (searchResponse.getShardFailures().length == 0);
-
+            stats.markStartProcessing();
             stats.incrementNumPages(1);
             IterationResult<JobPosition> iterationResult = doProcess(searchResponse);
 
@@ -355,11 +355,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
 
                 position.set(iterationResult.getPosition());
+                stats.markEndProcessing();
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
                         r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
                         e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
-
                 return;
             }
 
@@ -369,7 +369,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (docs.isEmpty() == false) {
                 final BulkRequest bulkRequest = new BulkRequest();
                 docs.forEach(bulkRequest::add);
-
+                stats.markEndProcessing();
                 stats.markStartIndexing();
                 doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                     // TODO we should check items in the response and move after accordingly to
@@ -390,6 +390,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     onBulkResponse(bulkResponse, newPosition);
                 }, this::finishWithIndexingFailure));
             } else {
+                stats.markEndProcessing();
                 // no documents need to be indexed, continue with search
                 try {
                     JobPosition newPosition = iterationResult.getPosition();

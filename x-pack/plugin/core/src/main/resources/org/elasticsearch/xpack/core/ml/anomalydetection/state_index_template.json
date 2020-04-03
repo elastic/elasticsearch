@@ -9,6 +9,7 @@
       "auto_expand_replicas" : "0-1",
       "hidden": true
     }
+    ${xpack.ml.index.lifecycle.settings}
   },
   "mappings" : {
     "_doc": {
@@ -18,5 +19,5 @@
       "enabled": false
     }
   },
-  "aliases" : { }
+  "aliases" : {}
 }

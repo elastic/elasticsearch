@@ -31,11 +31,11 @@ import java.util.Objects;
 /**
  * Represents a boolean expression.
  */
-public final class EBool extends AExpression {
+public class EBool extends AExpression {
 
-    private final Operation operation;
-    private AExpression left;
-    private AExpression right;
+    protected final Operation operation;
+    protected final AExpression left;
+    protected final AExpression right;
 
     public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -46,34 +46,32 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        left.expected = boolean.class;
-        left.analyze(scriptRoot, scope);
-        left.cast();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        right.expected = boolean.class;
-        right.analyze(scriptRoot, scope);
-        right.cast();
+        Input leftInput = new Input();
+        leftInput.expected = boolean.class;
+        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        left.cast(leftInput, leftOutput);
 
-        actual = boolean.class;
-    }
+        Input rightInput = new Input();
+        rightInput.expected = boolean.class;
+        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        right.cast(rightInput, rightOutput);
 
-    @Override
-    BooleanNode write(ClassNode classNode) {
+        output.actual = boolean.class;
+
         BooleanNode booleanNode = new BooleanNode();
 
-        booleanNode.setLeftNode(left.cast(left.write(classNode)));
-        booleanNode.setRightNode(right.cast(right.write(classNode)));
+        booleanNode.setLeftNode(left.cast(leftOutput));
+        booleanNode.setRightNode(right.cast(rightOutput));
 
         booleanNode.setLocation(location);
-        booleanNode.setExpressionType(actual);
+        booleanNode.setExpressionType(output.actual);
         booleanNode.setOperation(operation);
 
-        return booleanNode;
-    }
+        output.expressionNode = booleanNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return output;
     }
 }

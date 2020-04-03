@@ -125,7 +125,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testWithMetaDataField() throws IOException {
+    public void testWithMetadataField() throws IOException {
         QueryShardContext context = createShardContext();
         for (String field : new String[]{"field1", "field2"}) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");

@@ -184,6 +184,12 @@ public class InternalEngine extends Engine {
     @Nullable
     private final String historyUUID;
 
+    /**
+     * UUID value that is updated every time the engine is force merged.
+     */
+    @Nullable
+    private volatile String forceMergeUUID;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, LocalCheckpointTracker::new);
     }
@@ -222,7 +228,9 @@ public class InternalEngine extends Engine {
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
-                historyUUID = loadHistoryUUID(writer);
+                final Map<String, String> commitData = commitDataAsMap(writer);
+                historyUUID = loadHistoryUUID(commitData);
+                forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -558,6 +566,12 @@ public class InternalEngine extends Engine {
         return historyUUID;
     }
 
+    /** returns the force merge uuid for the engine */
+    @Nullable
+    public String getForceMergeUUID() {
+        return forceMergeUUID;
+    }
+
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
     @Override
     public long getWritingBytes() {
@@ -567,8 +581,8 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(final IndexWriter writer) {
-        final String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
+    private String loadHistoryUUID(Map<String, String> commitData) {
+        final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
         }
@@ -1815,7 +1829,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, IOException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments,
+                           final String forceMergeUUID) throws EngineException, IOException {
         if (onlyExpungeDeletes && maxNumSegments >= 0) {
             throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
         }
@@ -1850,6 +1865,7 @@ public class InternalEngine extends Engine {
                     indexWriter.maybeMerge();
                 } else {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
+                    this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
                     flush(false, true);
@@ -2297,12 +2313,16 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(6);
+                final Map<String, String> commitData = new HashMap<>(7);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
+                final String currentForceMergeUUID = forceMergeUUID;
+                if (currentForceMergeUUID != null) {
+                    commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
+                }
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();

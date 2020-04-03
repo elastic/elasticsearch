@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -114,7 +114,7 @@ public class CopyRestTestsTask extends DefaultTask {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
-                    c.from(coreConfig.getSingleFile());
+                    c.from(coreConfig.getAsFileTree());
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
                 });
@@ -138,7 +138,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
-                c.from(xpackConfig.getSingleFile());
+                c.from(xpackConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });
@@ -146,6 +146,6 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     private SourceSet getTestSourceSet() {
-        return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
+        return GradleUtils.getJavaSourceSets(getProject()).findByName("test");
     }
 }

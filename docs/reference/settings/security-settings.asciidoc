@@ -9,13 +9,13 @@ By default, the {es} {security-features} are disabled when you have a basic or
 trial license. To enable {security-features}, use the `xpack.security.enabled`
 setting.
 
-You configure `xpack.security` settings  to
-<<anonymous-access-settings, enable anonymous access>>
-and perform message authentication,
-<<field-document-security-settings, set up document and field level security>>,
-<<realm-settings, configure realms>>,
-<<ssl-tls-settings, encrypt communications with SSL>>, and
-<<auditing-settings, audit security events>>.
+You configure `xpack.security` settings to
+<<anonymous-access-settings,enable anonymous access>> and perform message
+authentication,
+<<field-document-security-settings,set up document and field level security>>,
+<<realm-settings,configure realms>>,
+<<ssl-tls-settings,encrypt communications with SSL>>,and
+<<auditing-settings,audit security events>>.
 
 All of these settings can be added to the `elasticsearch.yml` configuration file,
 with the exception of the secure settings, which you add to the {es} keystore.
@@ -355,7 +355,7 @@ The scope of the user search. Valid values are `sub_tree`, `one_level` or
 `base`. `one_level` only searches objects directly contained within the
 `base_dn`. `sub_tree` searches all objects contained under `base_dn`.
 `base` specifies that the `base_dn` is the user object, and that it is
-the only user considered. Defaults to  `sub_tree`.
+the only user considered. Defaults to `sub_tree`.
 
 `user_search.filter`::
 Specifies the filter used to search the directory in attempts to match
@@ -460,77 +460,73 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.key`::
-Path to a PEM encoded file containing the private key, which is used if the 
-LDAP server requires client authentication. `ssl.key` and `ssl.keystore.path` 
-cannot be used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
++
+If the LDAP server requires client authentication, it uses this file. You cannot
+use this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key may not be encrypted.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 `ssl.certificate`::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate]
++
+This certificate is presented to clients when they connect.
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted. 
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
-same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
++
+You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.keystore.path`::
-The path to the Java Keystore file that contains a private key and certificate.
-`ssl.key` and `ssl.keystore.path` may not be used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
++
+You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.keystore.password`::
-The password to the keystore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 `ssl.keystore.secure_key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.truststore.path`::
-The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
++
+You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.password`::
-The password to the truststore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.type`::
-The format of the keystore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
-in the middle attacks and certificate forgery. Values are `none`, `certificate`,
-and `full`. Defaults to `full`.
-+
-See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
+in the middle attacks and certificate forgery.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. See <<ssl-tls-settings,`ssl.cipher_suites`>>
-for the default value.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+//TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -716,80 +712,74 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.certificate`::
-Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect. 
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate]
++
+This certificate is presented to clients when they connect. 
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted. 
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
-same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
++
+You cannot use this setting and `ssl.truststore.path` at the same time.
 
 `ssl.key`::
-Path to the PEM encoded file containing the private key, which is used when the 
-Active Directory server requires client authentication. `ssl.key` and 
-`ssl.keystore.path` cannot be used at the same time.
-
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
++
+If the Active Directory server requires client authentication, it uses this file.
+You cannot use this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-The passphrase that is used to decrypt the private key. This value is
-optional as the key might not be encrypted.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 `ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-The password for the key in the keystore. Defaults to the keystore password.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 `ssl.keystore.password`::
-The password to the keystore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 `ssl.secure_keystore.password` (<<secure-settings,Secure>>)::
-The password to the keystore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+//TBD: Why/how is this different than `ssl.keystore.secure_password`?
 
 `ssl.keystore.path`::
-The path to the Java Keystore file that contains a private key and certificate.
-`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
++
+You cannot use this setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-The format of the keystore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.truststore.password`::
-The password to the truststore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `ssl.truststore.path`::
-The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
-same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
++
+You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
-The format of the truststore file. Should be `jks` to use the Java
-Keystore format, `PKCS12` to use PKCS#12 files, or `PKCS11` to use a PKCS#11 token.
-The default is `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
-in the middle attacks and certificate forgery. Values are `none`, `certificate`,
-and `full`. Defaults to `full`.
-+
-See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
+in the middle attacks and certificate forgery.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
-communicating with the Active Directory server. 
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. See <<ssl-tls-settings,`ssl.cipher_suites`>> for
-the default values.
+communicating with the Active Directory server.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+//TBD: Can this be updated to using the Java 11 URL instead or does it have to stay java8?
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -838,10 +828,11 @@ for SSL. This setting cannot be used with `truststore.path`.
 Algorithm for the truststore. Defaults to `SunX509`.
 
 `truststore.password`::
-The password for the truststore. Must be provided if `truststore.path` is set.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+If `truststore.path` is set, this setting is required.
 
 `truststore.secure_password` (<<secure-settings,Secure>>)::
-The password for the truststore.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 `truststore.path`::
 The path of a truststore to use. Defaults to the trusted certificates configured
@@ -1037,9 +1028,9 @@ Service Provider metadata or manually configured within the IdP to allow for
 signature validation. This setting can only be used if `signing.key` is set.
 
 `signing.keystore.path`::
-The path to the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`signing.key` and `signing.keystore.path` cannot be used at the same time.
+The path to the keystore that contains a private key and certificate. It must be
+either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and
+`signing.key` at the same time.
 
 `signing.keystore.type`::
 The type of the keystore in `signing.keystore.path`.
@@ -1083,9 +1074,9 @@ the Service Provider metadata or manually configured within the IdP to enable
 message encryption. This setting can be used only if `encryption.key` is set.
 
 `encryption.keystore.path`::
-The path to the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`encryption.key` and `encryption.keystore.path` cannot be used at the same time.
+The path to the keystore that contains a private key and certificate. It must be
+either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and
+`encryption.key` at the same time.
 
 `encryption.keystore.type`::
 The type of the keystore (`encryption.keystore.path`).
@@ -1117,94 +1108,90 @@ NOTE: These settings are not used for any purpose other than loading metadata
 over https.
 
 `ssl.key`::
-Specifies the path to the PEM encoded private key to use for http client 
-authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used 
-at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
++
+If HTTP client authentication is required, it uses this file. You cannot use
+this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
-Specifies the
-passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. Cannot be used with `ssl.secure_key_passphrase`. 
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
++
+You cannot use this setting and `ssl.secure_key_passphrase` at the same time. 
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-Specifies the
-passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. Cannot be used with `ssl.key_passphrase`. 
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
++
+You cannot use this setting and `ssl.key_passphrase` at the same time.
 
 `ssl.certificate`::
-Specifies the
-path to the PEM encoded certificate (or certificate chain) that is associated
-with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate]
++
+This setting can be used only if `ssl.key` is set.
 
 `ssl.certificate_authorities`::
-Specifies the
-paths to the PEM encoded certificate authority certificates that should be
-trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
-used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
++
+This setting and `ssl.truststore.path` cannot be used at the same time.
 
 `ssl.keystore.path`::
-Specifies the path to
-the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
++
+It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this
+setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-The type of the keystore (`ssl.keystore.path`). Must be either `jks` or `PKCS12`.
-If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults 
-to `PKCS12`. Otherwise, it defaults to `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.keystore.password`::
-The password to the keystore (`ssl.keystore.path`). This setting cannot be used 
-with `ssl.keystore.secure_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
++
+You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore (`ssl.keystore.path`).
-This setting cannot be used with `ssl.keystore.password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
++
+You cannot use this setting and `ssl.keystore.password` at the same time.
+//TBD: Why is this different name than `ssl.secure_keystore.password` elsewhere in this file?
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with 
-`ssl.keystore.secure_key_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
++
+You cannot use this setting and `ssl.keystore.secure_key_password` at the same
+time.
 
 `ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with 
-`ssl.keystore.key_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
 `ssl.truststore.path`::
-The path to the
-keystore that contains the certificates to trust.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
-same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
++
+You cannot use this setting and `ssl.certificate_authorities` at the same time.
+
 
 `ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be either `jks` or
-`PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting 
-defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.truststore.password`::
-The password to the truststore (`ssl.truststore.path`). This setting cannot be 
-used with `ssl.truststore.secure_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
++
+You cannot use this setting and `ssl.truststore.secure_password` at the same
+time.
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore (`ssl.truststore.path`). This setting cannot be 
-used with `ssl.truststore.password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
++
+This setting cannot be used with `ssl.truststore.password`.
 
 `ssl.verification_mode`::
-One of `full`
-(verify the hostname and the certificate path), `certificate` (verify the
-certificate path, but not the hostname) or `none` (perform no verification).
-Defaults to `full`.
-+
-See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
+Controls the verification of certificates.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`::
-Specifies the
-cipher suites that should be supported.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 
 [float]
 [[ref-kerberos-settings]]
@@ -1294,8 +1281,8 @@ at the OpenID Connect Provider
 
 `rp.redirect_uri`::
 The Redirect URI within {kib}. If you want to use the authorization code flow, this is the
-"api/security/v1/oidc" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/v1/oidc/implicit" endpoint.
-For example, `https://kibana.example.com/api/security/v1/oidc`.
+"api/security/oidc/callback" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/oidc/implicit" endpoint.
+For example, `https://kibana.example.com/api/security/oidc/callback`.
 
 `rp.response_type`::
 OAuth 2.0 Response Type value that determines the authorization
@@ -1398,87 +1385,90 @@ NOTE: These settings are _only_ used for the back-channel communication between
 {es} and the OpenID Connect Provider
 
 `ssl.key`::
-Specifies the path to the PEM encoded private key to use for http client
-authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used
-at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
++
+If HTTP client authentication is required, it uses this file. You cannot use
+this setting and `ssl.keystore.path` at the same time.
 
 `ssl.key_passphrase`::
-Specifies the passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. Cannot be used with `ssl.secure_key_passphrase`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
++
+You cannot use this setting and `ssl.secure_key_passphrase` at the same
+time.
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-Specifies the passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. Cannot be used with `ssl.key_passphrase`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
++
+You cannot use this setting and `ssl.key_passphrase` at the same time.
 
 `ssl.certificate`::
-Specifies the path to the PEM encoded certificate (or certificate chain) that is associated
-with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate]
++
+This setting can be used only if `ssl.key` is set.
 
 `ssl.certificate_authorities`::
-Specifies the paths to the PEM encoded certificate authority certificates that should be
-trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
-used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
++
+This setting and `ssl.truststore.path` cannot be used at the same time.
 
 `ssl.keystore.path`::
-Specifies the path to the keystore that contains a private key and certificate.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
++
+It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this
+setting and `ssl.key` at the same time.
 
 `ssl.keystore.type`::
-The type of the keystore (`ssl.keystore.path`). Must be either `jks` or `PKCS12`.
-If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults
-to `PKCS12`. Otherwise, it defaults to `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 `ssl.keystore.password`::
-The password to the keystore (`ssl.keystore.path`). This setting cannot be used
-with `ssl.keystore.secure_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
++
+You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore (`ssl.keystore.path`).
-This setting cannot be used with `ssl.keystore.password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
++
+You cannot use this setting and `ssl.keystore.password` at the same time.
 
 `ssl.keystore.key_password`::
-The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with
-`ssl.keystore.secure_key_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
++
+You cannot use this setting and `ssl.keystore.secure_key_password` at the same
+time.
 
 `ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with
-`ssl.keystore.key_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
++
+You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
 `ssl.truststore.path`::
-The path to the keystore that contains the certificates to trust.
-Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
-same time.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
++
+You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be either `jks` or
-`PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting
-defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.truststore.password`::
-The password to the truststore (`ssl.truststore.path`). This setting cannot be
-used with `ssl.truststore.secure_password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
++
+You cannot use this setting and `ssl.truststore.secure_password` at the same
+time.
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore (`ssl.truststore.path`). This setting cannot be
-used with `ssl.truststore.password`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
++
+You cannot use this setting and `ssl.truststore.password` at the same time.
 
 `ssl.verification_mode`::
-One of `full` (verify the hostname and the certificate path), `certificate` (verify the
-certificate path, but not the hostname) or `none` (perform no verification).
-Defaults to `full`.
-+
-See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
+Controls the verification of certificates.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
 `ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 `ssl.cipher_suites`::
-Specifies the cipher suites that should be supported.
+include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 
 [float]
 [[load-balancing]]
@@ -1517,62 +1507,6 @@ to establish trust.
 This diagnostic message contains information that can be used to determine the
 cause of the failure and assist with resolving the problem.
 Set to `false` to disable these messages.
-
-==== Default values for TLS/SSL settings
-In general, the values below represent the default values for the various TLS
-settings.
-The prefixes for these settings are based on the context in which they are
-used (e.g. `xpack.security.authc.realms.ldap.corp_ldap.ssl.verification_mode`
-or `xpack.security.transport.ssl.supported_protocols`).
-
-For more information, see
-<<encrypting-communications>>.
-
-`*.ssl.supported_protocols`::
-Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
-+
---
-NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
-or `SSLv3`. See <<fips-140-compliance>>.
---
-
-`*.ssl.client_authentication`::
-Controls the server's behavior in regard to requesting a certificate
-from client connections. Valid values are `required`, `optional`, and `none`.
-`required` forces a client to present a certificate, while `optional`
-requests a client certificate but the client is not required to present one.
-Defaults to `required`, except for HTTP, which defaults to `none`. See
- <<http-tls-ssl-settings>>.
-
-`*.ssl.verification_mode`::
-Controls the verification of certificates. Valid values are:
-- `full`, which verifies that the provided certificate is signed by a trusted
-       authority (CA) and also verifies that the server's hostname (or IP
-       address) matches the names identified within the certificate.
-- `certificate`, which verifies that the provided certificate is signed by a
-       trusted authority (CA), but does not perform any hostname verification.
-- `none`, which performs _no verification_ of the server's certificate. This mode
-       disables many of the security benefits of SSL/TLS and should only be
-       used after very careful consideration. It is primarily intended as a
-       temporary diagnostic mechanism when attempting to resolve TLS errors,
-       and its use on production clusters is strongly discouraged.
-+
-The default value is `full`.
-
-`*.ssl.cipher_suites`::
-Supported cipher suites can be found in Oracle's
-https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java Cryptography Architecture documentation].
-Defaults to `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`,
-`TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`,
-`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
-`TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`,
-`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
 [float]
 [[tls-ssl-key-settings]]

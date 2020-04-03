@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -38,7 +39,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -97,6 +98,7 @@ public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
+    private static final String PRIMARY_SHARDS_INACTIVE = "not all primary shards are active";
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -160,10 +162,10 @@ public class TransportStartDataFrameAnalyticsAction
         }
 
         // Wait for analytics to be started
-        ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>> waitForAnalyticsToStart =
-            new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>> waitForAnalyticsToStart =
+            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
                     waitForAnalyticsStarted(task, request.getTimeout(), listener);
                 }
 
@@ -384,7 +386,7 @@ public class TransportStartDataFrameAnalyticsAction
         );
     }
 
-    private void waitForAnalyticsStarted(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
+    private void waitForAnalyticsStarted(PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
                                          TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
         AnalyticsPredicate predicate = new AnalyticsPredicate();
         persistentTasksService.waitForPersistentTaskCondition(task.getId(), predicate, timeout,
@@ -392,7 +394,7 @@ public class TransportStartDataFrameAnalyticsAction
             new PersistentTasksService.WaitForPersistentTaskListener<PersistentTaskParams>() {
 
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<PersistentTaskParams> persistentTask) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task, to match
                         // what would have happened if the error had been detected in the "fast fail" validation
@@ -410,8 +412,26 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException(
-                        "Starting data frame analytics [" + task.getParams().getId() + "] timed out after [" + timeout + "]"));
+                    logger.error(
+                        () -> new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                            task.getParams().getId(),
+                            timeout,
+                            predicate.assignmentExplanation));
+                    if (predicate.assignmentExplanation != null) {
+                        cancelAnalyticsStart(task,
+                            new ElasticsearchStatusException(
+                                "Could not start data frame analytics task, timed out after [{}] waiting for task assignment. "
+                                    + "Assignment explanation [{}]",
+                                RestStatus.TOO_MANY_REQUESTS,
+                                timeout,
+                                predicate.assignmentExplanation),
+                            listener);
+                    } else {
+                        listener.onFailure(new ElasticsearchException(
+                            "Starting data frame analytics [{}] timed out after [{}]",
+                            task.getParams().getId(),
+                            timeout));
+                    }
                 }
         });
     }
@@ -433,26 +453,33 @@ public class TransportStartDataFrameAnalyticsAction
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
+        private volatile String assignmentExplanation;
 
         @Override
-        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }
 
-            PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+            PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
             // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
             if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
                 return true;
             }
 
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                assignment.isAssigned() == false) {
-                // Assignment has failed despite passing our "fast fail" validation
+            if (assignment != null
+                && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
+                && assignment.isAssigned() == false) {
+                assignmentExplanation = assignment.getExplanation();
+                // Assignment failed due to primary shard check.
+                // This is hopefully intermittent and we should allow another assignment attempt.
+                if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
+                    return false;
+                }
                 exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
                     assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
                 return true;
@@ -484,12 +511,12 @@ public class TransportStartDataFrameAnalyticsAction
     }
 
     private void cancelAnalyticsStart(
-        PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask, Exception exception,
+        PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask, Exception exception,
         ActionListener<AcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
-            new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                     // We succeeded in cancelling the persistent task, but the
                     // problem that caused us to cancel it is the overall result
                     listener.onFailure(exception);
@@ -512,7 +539,7 @@ public class TransportStartDataFrameAnalyticsAction
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
             // This is OK as indices are created on demand
-            if (clusterState.metaData().hasIndex(index) == false) {
+            if (clusterState.metadata().hasIndex(index) == false) {
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
@@ -559,14 +586,14 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         protected AllocatedPersistentTask createTask(
             long id, String type, String action, TaskId parentTaskId,
-            PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask,
+            PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask,
             Map<String, String> headers) {
             return new DataFrameAnalyticsTask(
                 id, type, action, parentTaskId, headers, client, clusterService, manager, auditor, persistentTask.getParams());
         }
 
         @Override
-        public PersistentTasksCustomMetaData.Assignment getAssignment(StartDataFrameAnalyticsAction.TaskParams params,
+        public PersistentTasksCustomMetadata.Assignment getAssignment(StartDataFrameAnalyticsAction.TaskParams params,
                                                                       ClusterState clusterState) {
 
             // If we are waiting for an upgrade to complete, we should not assign to a node
@@ -583,10 +610,14 @@ public class TransportStartDataFrameAnalyticsAction
                     MlStatsIndex.indexPattern(),
                     AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
-                String reason = "Not opening data frame analytics job [" + id +
-                    "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";
+                String reason = "Not opening data frame analytics job ["
+                    + id
+                    + "], because "
+                    + PRIMARY_SHARDS_INACTIVE
+                    + " for the following indices ["
+                    + String.join(",", unavailableIndices) + "]";
                 logger.debug(reason);
-                return new PersistentTasksCustomMetaData.Assignment(null, reason);
+                return new PersistentTasksCustomMetadata.Assignment(null, reason);
             }
 
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
@@ -596,7 +627,7 @@ public class TransportStartDataFrameAnalyticsAction
                     String reason = "Not opening data frame analytics job [" + id +
                         "] because job memory requirements are stale - refresh requested";
                     logger.debug(reason);
-                    return new PersistentTasksCustomMetaData.Assignment(null, reason);
+                    return new PersistentTasksCustomMetadata.Assignment(null, reason);
                 }
             }
 

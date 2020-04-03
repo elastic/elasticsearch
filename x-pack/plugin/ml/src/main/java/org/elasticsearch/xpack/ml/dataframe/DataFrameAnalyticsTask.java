@@ -280,6 +280,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .id(progressDocId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+                    LOGGER.debug("[{}] Persisting progress is: {}", jobId, stats.get().getProgress());
                     new StoredProgress(stats.get().getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }

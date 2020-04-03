@@ -35,11 +35,12 @@ import java.util.Objects;
 /**
  * Represents a capturing function reference.  For member functions that require a this reference, ie not static.
  */
-public final class ECapturingFunctionRef extends AExpression implements ILambda {
-    private final String variable;
-    private final String call;
+public class ECapturingFunctionRef extends AExpression implements ILambda {
 
-    private FunctionRef ref;
+    protected final String variable;
+    protected final String call;
+
+    // TODO: #54015
     private Variable captured;
     private String defPointer;
 
@@ -51,9 +52,13 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        FunctionRef ref = null;
+
+        Output output = new Output();
+
         captured = scope.getVariable(location, variable);
-        if (expected == null) {
+        if (input.expected == null) {
             if (captured.getType() == def.class) {
                 // dynamic implementation
                 defPointer = "D" + variable + "." + call + ",1";
@@ -61,30 +66,29 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 // typed implementation
                 defPointer = "S" + captured.getCanonicalTypeName() + "." + call + ",1";
             }
-            actual = String.class;
+            output.actual = String.class;
         } else {
             defPointer = null;
             // static case
             if (captured.getType() != def.class) {
                 ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
-                        expected, captured.getCanonicalTypeName(), call, 1);
+                        input.expected, captured.getCanonicalTypeName(), call, 1);
             }
-            actual = expected;
+            output.actual = input.expected;
         }
-    }
 
-    @Override
-    CapturingFuncRefNode write(ClassNode classNode) {
         CapturingFuncRefNode capturingFuncRefNode = new CapturingFuncRefNode();
 
         capturingFuncRefNode.setLocation(location);
-        capturingFuncRefNode.setExpressionType(actual);
+        capturingFuncRefNode.setExpressionType(output.actual);
         capturingFuncRefNode.setCapturedName(captured.getName());
         capturingFuncRefNode.setName(call);
         capturingFuncRefNode.setPointer(defPointer);
-        capturingFuncRefNode.setFuncRef(ref);;
+        capturingFuncRefNode.setFuncRef(ref);
 
-        return capturingFuncRefNode;
+        output.expressionNode = capturingFuncRefNode;
+
+        return output;
     }
 
     @Override
@@ -95,10 +99,5 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     @Override
     public List<Class<?>> getCaptures() {
         return Collections.singletonList(captured.getType());
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(variable, call);
     }
 }

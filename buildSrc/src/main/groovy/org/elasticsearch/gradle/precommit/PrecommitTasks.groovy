@@ -28,6 +28,7 @@ import org.elasticsearch.gradle.util.Util
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.tasks.TaskProvider
@@ -142,6 +143,19 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
+
+            //  use the runtime classpath if we have it, but some qa projects don't have one...
+            if (name.endsWith('Test')) {
+                FileCollection runtime = project.sourceSets.test.runtimeClasspath
+                if (runtime != null) {
+                    classpath = runtime.plus(project.sourceSets.test.compileClasspath)
+                }
+            } else {
+                FileCollection runtime = project.sourceSets.main.runtimeClasspath
+                if (runtime != null) {
+                    classpath = runtime.plus(project.sourceSets.main.compileClasspath)
+                }
+            }
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
                 project.logger.warn(

@@ -146,7 +146,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 stringStatsUsage = 0;
                 topMetricsUsage = 0;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 ttestUsage = in.readVLong();
             } else {
                 ttestUsage = 0;
@@ -164,7 +164,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeVLong(ttestUsage);
             }
         }

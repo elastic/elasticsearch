@@ -155,7 +155,10 @@ public class InboundHandler {
         try {
             messageListener.onRequestReceived(requestId, action);
             if (header.isHandshake()) {
-                handshaker.handleHandshake(version, channel, requestId, stream);
+                // Handshakes are not currently circuit broken
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                    circuitBreakerService, 0, header.isCompressed(), header.isHandshake());
+                handshaker.handleHandshake(transportChannel, requestId, stream);
             } else {
                 final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                 if (reg == null) {
@@ -168,7 +171,7 @@ public class InboundHandler {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, messageLengthBytes, header.isCompressed());
+                    circuitBreakerService, messageLengthBytes, header.isCompressed(), header.isHandshake());
                 final T request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
@@ -184,7 +187,7 @@ public class InboundHandler {
             // the circuit breaker tripped
             if (transportChannel == null) {
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, 0, header.isCompressed());
+                    circuitBreakerService, 0, header.isCompressed(), header.isHandshake());
             }
             try {
                 transportChannel.sendResponse(e);

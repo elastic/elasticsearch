@@ -58,20 +58,21 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     }
 
     public void test() throws IOException {
-        AnalyticsUsage.Item item = randomFrom(AnalyticsUsage.Item.values());
-        AnalyticsUsage realUsage = new AnalyticsUsage();
-        AnalyticsUsage emptyUsage = new AnalyticsUsage();
-        ContextParser<Void, Void> parser = realUsage.track(item, (p, c) -> c);
-        ObjectPath unused = run(realUsage, emptyUsage);
-        assertThat(unused.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
-        assertThat(unused.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
-        int count = between(1, 10000);
-        for (int i = 0; i < count; i++) {
-            assertNull(parser.parse(null, null));
+        for (AnalyticsUsage.Item item : AnalyticsUsage.Item.values()) {
+            AnalyticsUsage realUsage = new AnalyticsUsage();
+            AnalyticsUsage emptyUsage = new AnalyticsUsage();
+            ContextParser<Void, Void> parser = realUsage.track(item, (p, c) -> c);
+            ObjectPath unused = run(realUsage, emptyUsage);
+            assertThat(unused.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
+            assertThat(unused.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
+            int count = between(1, 10000);
+            for (int i = 0; i < count; i++) {
+                assertNull(parser.parse(null, null));
+            }
+            ObjectPath used = run(realUsage, emptyUsage);
+            assertThat(item.name(), used.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(count));
+            assertThat(item.name(), used.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
         }
-        ObjectPath used = run(realUsage, emptyUsage);
-        assertThat(used.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(count));
-        assertThat(used.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
     }
 
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {

@@ -536,6 +536,10 @@ public class TrainedModelProvider {
     }
 
     private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
+        if (response.getAggregations() == null) {
+            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
+            return null;
+        }
         Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
         Sum missing = response.getAggregations().get(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName());
         Sum count = response.getAggregations().get(InferenceStats.INFERENCE_COUNT.getPreferredName());

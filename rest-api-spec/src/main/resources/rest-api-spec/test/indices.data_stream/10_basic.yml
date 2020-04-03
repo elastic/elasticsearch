@@ -77,8 +77,7 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_data_streams:
-        name: null
+      indices.get_data_streams: {}
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 1.name: get-data-stream2 }

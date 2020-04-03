@@ -320,6 +320,7 @@ public class ModelLoadingService implements ClusterStateListener {
             // Remove all that are still referenced, i.e. the intersection of allReferencedModelKeys and referencedModels
             allReferencedModelKeys.removeAll(referencedModels);
             referencedModels.addAll(allReferencedModelKeys);
+            
             // Populate loadingListeners key so we know that we are currently loading the model
             for (String modelId : allReferencedModelKeys) {
                 loadingListeners.put(modelId, new ArrayDeque<>());
@@ -365,7 +366,7 @@ public class ModelLoadingService implements ClusterStateListener {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             for (String modelId : modelIds) {
                 auditNewReferencedModel(modelId);
-                loadModel(modelId);
+                this.loadModel(modelId);
             }
         });
     }

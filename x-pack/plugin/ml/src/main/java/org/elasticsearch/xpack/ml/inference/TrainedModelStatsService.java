@@ -52,7 +52,7 @@ public class TrainedModelStatsService {
         "    ctx._source.missing_all_fields_count += params.missing_all_fields_count;\n" +
         "    ctx._source.inference_count += params.inference_count;\n" +
         "    ctx._source.failure_count += params.failure_count;\n" +
-        "    ctx._source.time_stamp += params.time_stamp;";
+        "    ctx._source.time_stamp = params.time_stamp;";
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS =
         new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 

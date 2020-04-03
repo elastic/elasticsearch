@@ -30,10 +30,9 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -270,11 +269,11 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         document.privileges.setResource("app:" + randomAlphaOfLengthBetween(3, 6) + ":" + Math.abs(randomLong()));
         final int roleCount = randomIntBetween(0, 4);
-        final Map<String, String> roles = new HashMap<>();
+        final Set<String> roles = new HashSet<>();
         for (int i = 0; i < roleCount; i++) {
-            roles.put(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6) + ":" + randomAlphaOfLengthBetween(3, 6));
+            roles.add(randomAlphaOfLengthBetween(3, 6) + ":(" + randomAlphaOfLengthBetween(3, 6) + ")");
         }
-        document.privileges.setRoleActions(roles);
+        document.privileges.setRolePatterns(roles);
 
         document.attributeNames.setPrincipal(randomUri());
         if (randomBoolean()) {

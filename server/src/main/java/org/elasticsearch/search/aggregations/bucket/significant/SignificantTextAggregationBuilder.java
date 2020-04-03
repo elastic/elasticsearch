@@ -107,8 +107,8 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     protected SignificantTextAggregationBuilder(SignificantTextAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                                Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.fieldName = clone.fieldName;
         this.filterBuilder = clone.filterBuilder;
@@ -119,8 +119,8 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new SignificantTextAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
@@ -333,7 +333,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
         return new SignificantTextAggregatorFactory(name, includeExclude, filterBuilder,
                 bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder,
-                fieldName, sourceFieldNames, filterDuplicateText, metaData);
+                fieldName, sourceFieldNames, filterDuplicateText, metadata);
     }
 
     @Override

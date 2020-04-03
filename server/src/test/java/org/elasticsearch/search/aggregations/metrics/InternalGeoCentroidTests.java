@@ -22,8 +22,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -36,8 +34,7 @@ import java.util.Map;
 public class InternalGeoCentroidTests extends InternalAggregationTestCase<InternalGeoCentroid> {
 
     @Override
-    protected InternalGeoCentroid createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData) {
+    protected InternalGeoCentroid createTestInstance(String name, Map<String, Object> metadata) {
         GeoPoint centroid = RandomGeoGenerator.randomPoint(random());
 
         // Re-encode lat/longs to avoid rounding issue when testing InternalGeoCentroid#hashCode() and
@@ -92,7 +89,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         GeoPoint centroid = instance.centroid();
         long count = instance.count();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -120,16 +117,16 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             }
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metaData);
+        return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metadata);
     }
 }

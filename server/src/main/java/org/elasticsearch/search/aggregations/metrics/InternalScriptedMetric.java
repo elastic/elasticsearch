@@ -41,13 +41,13 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     private final List<Object> aggregation;
 
     InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
-                                  Map<String, Object> metaData) {
-        this(name, Collections.singletonList(aggregation), reduceScript, pipelineAggregators, metaData);
+                                  Map<String, Object> metadata) {
+        this(name, Collections.singletonList(aggregation), reduceScript, pipelineAggregators, metadata);
     }
 
     private InternalScriptedMetric(String name, List<Object> aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.aggregation = aggregation;
         this.reduceScript = reduceScript;
     }
@@ -115,7 +115,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(),
-                getMetaData());
+                getMetadata());
     }
 
     @Override

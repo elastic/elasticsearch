@@ -6,7 +6,11 @@
 
 package org.elasticsearch.xpack.eql.expression.function;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 
@@ -17,14 +21,18 @@ public class EqlFunctionRegistry extends FunctionRegistry {
     public EqlFunctionRegistry() {
         super(functions());
     }
-    
+
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
         // Scalar functions
         // String
             new FunctionDefinition[] {
+                def(EndsWith.class, EndsWith::new, "endswith"),
+                def(Length.class, Length::new, "length"),
+                def(StartsWith.class, StartsWith::new, "startswith"),
                 def(Substring.class, Substring::new, "substring"),
-            },
+                def(Wildcard.class, Wildcard::new, "wildcard"),
+            }
         };
     }
 

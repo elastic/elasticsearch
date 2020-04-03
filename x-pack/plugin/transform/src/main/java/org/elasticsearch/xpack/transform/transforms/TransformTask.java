@@ -15,7 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -421,7 +421,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         markAsCompleted();
     }
 
-    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
+    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
         updatePersistentTaskState(state, ActionListener.wrap(success -> {
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);

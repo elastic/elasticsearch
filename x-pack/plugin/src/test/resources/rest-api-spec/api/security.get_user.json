@@ -1,7 +1,8 @@
 {
   "security.get_user":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html",
+      "description":"Retrieves information about users in the native realm and built-in users."
     },
     "stability":"stable",
     "url":{

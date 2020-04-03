@@ -45,9 +45,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -83,8 +81,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -160,6 +158,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1373,7 +1372,11 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> "Shard: " + request.shardId() + "\nSource:\n" + request.source(),
             out -> {
             queryPhase.execute(context);
-            context.queryResult().writeToNoId(out);
+            try {
+                context.queryResult().writeToNoId(out);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Could not serialize response", e);
+            }
             loadedFromCache[0] = false;
         });
 
@@ -1412,10 +1415,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey,
-                                                 CheckedSupplier<String, Exception> cacheKeyRenderer,
-                                                 CheckedConsumer<StreamOutput, Exception> loader) throws Exception {
+            Supplier<String> cacheKeyRenderer, Consumer<StreamOutput> loader) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
-        CheckedSupplier<BytesReference, Exception> supplier = () -> {
+        Supplier<BytesReference> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
              * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
              * a date histogram with 3 buckets is ~100byte so 16k might be very wasteful

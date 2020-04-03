@@ -21,7 +21,6 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
@@ -30,16 +29,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.ScriptedMetricIT;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -48,23 +41,14 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.scriptedMetric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -492,50 +476,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             }
             assertCacheState(client, "index", expectedHits, expectedMisses);
         }
-    }
-
-    public void testAggsSerializationHandling() throws Exception {
-        Client client = client();
-        assertAcked(client.admin().indices().prepareCreate("index")
-            .setMapping("f", "type=date")
-            .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)).get());
-        indexRandom(true,
-            client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client.prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z"));
-        ensureSearchable("index");
-
-        final SearchRequestBuilder searchRequest = client.prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(scriptedMetric("metric")
-                .initScript(new Script(ScriptType.INLINE, ScriptedMetricIT.CustomScriptPlugin.NAME, "noop", Collections.emptyMap()))
-                .mapScript(new Script(ScriptType.INLINE, ScriptedMetricIT.CustomScriptPlugin.NAME, "noop", Collections.emptyMap()))
-                .reduceScript(new Script(ScriptType.INLINE, ScriptedMetricIT.CustomScriptPlugin.NAME, "noop", Collections.emptyMap()))
-                .combineScript(new Script(ScriptType.INLINE, ScriptedMetricIT.CustomScriptPlugin.NAME, "combine", Collections.emptyMap()))
-            );
-
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString("can not write type"));
-    }
-
-
-    public static class CustomScriptPlugin extends MockScriptPlugin {
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("noop", script -> null);
-            scripts.put("combine", script -> new Object() {
-                @Override
-                public String toString() {
-                    return "This object cannot be serialized by writeGeneric method";
-                }
-            });
-            return scripts;
-        }
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(CustomScriptPlugin.class);
-        return plugins;
     }
 
     private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {

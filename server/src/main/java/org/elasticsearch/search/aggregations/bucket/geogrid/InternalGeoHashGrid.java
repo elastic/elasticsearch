@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,9 +32,8 @@ import java.util.Map;
  */
 public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBucket> {
 
-    InternalGeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, requiredSize, buckets, pipelineAggregators, metadata);
+    InternalGeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+        super(name, requiredSize, buckets, metadata);
     }
 
     public InternalGeoHashGrid(StreamInput in) throws IOException {
@@ -44,7 +42,7 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
 
     @Override
     public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators(), metadata);
+        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
@@ -53,8 +51,8 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metadata) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, list, metadata);
+    InternalGeoGrid create(String name, int requiredSize, List buckets, Map metadata) {
+        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override

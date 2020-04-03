@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -69,9 +68,9 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     }
 
     @Override
-    protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
         String[] keys = minBucketKeys.toArray(new String[0]);
-        return new InternalBucketMetricValue(name(), keys, minValue, format, Collections.emptyList(), metadata());
+        return new InternalBucketMetricValue(name(), keys, minValue, format, metadata());
     }
 
 }

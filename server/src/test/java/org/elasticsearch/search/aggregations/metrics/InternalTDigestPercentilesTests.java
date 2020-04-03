@@ -28,18 +28,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+
 public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase<InternalTDigestPercentiles> {
 
     @Override
     protected InternalTDigestPercentiles createTestInstance(String name,
-                                                            List<PipelineAggregator> pipelineAggregators,
                                                             Map<String, Object> metadata,
                                                             boolean keyed, DocValueFormat format, double[] percents, double[] values) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
         assertEquals(state.centroidCount(), values.length);
-        return new InternalTDigestPercentiles(name, percents, state, keyed, format, pipelineAggregators, metadata);
+        return new InternalTDigestPercentiles(name, percents, state, keyed, format, emptyList(), metadata);
     }
 
     @Override

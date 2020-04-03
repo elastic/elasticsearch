@@ -278,7 +278,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metadata);
+                bucketCountThresholds.getMinDocCount(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

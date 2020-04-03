@@ -144,18 +144,26 @@ class PrecommitTasks {
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
 
-            //  use the runtime classpath if we have it, but some qa projects don't have one...
-            if (name.endsWith('Test')) {
-                FileCollection runtime = project.sourceSets.test.runtimeClasspath
-                if (runtime != null) {
-                    classpath = runtime.plus(project.sourceSets.test.compileClasspath)
-                }
-            } else {
-                FileCollection runtime = project.sourceSets.main.runtimeClasspath
-                if (runtime != null) {
-                    classpath = runtime.plus(project.sourceSets.main.compileClasspath)
+            String[] parts = name.split('forbiddenApis')
+            if (parts.length == 0) {
+                throw new IllegalStateException("The forbidden APIs plugin has changed it's task name please update the precommit task")
+            }
+            String sourceSetName = 'main';
+            if (parts.length == 2) {
+                sourceSetName = parts[1].toLowerCase(Locale.ROOT)
+            }
+            //add the sourceSet's compile classPath if it exists
+            def sourceSets = project.sourceSets;
+            if (sourceSetName) {
+                def sourceSet = sourceSets.findByName(sourceSetName)
+                if (sourceSet) {
+                    FileCollection runtime = sourceSet.runtimeClasspath
+                    if (runtime && sourceSet.compileClasspath) {
+                        classpath = runtime.plus(sourceSet.compileClasspath)
+                    }
                 }
             }
+
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
                 project.logger.warn(

@@ -23,15 +23,20 @@ import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
+import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.antlr.v4.runtime.misc.Utils;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.antlr.v4.runtime.tree.Tree;
+import org.antlr.v4.runtime.tree.Trees;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.antlr.PainlessParser.AddsubContext;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
@@ -80,9 +85,11 @@ import org.elasticsearch.painless.antlr.PainlessParser.NewarrayContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewinitializedarrayContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewobjectContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NewstandardarrayContext;
+import org.elasticsearch.painless.antlr.PainlessParser.NonconditionalContext;
+import org.elasticsearch.painless.antlr.PainlessParser.NotContext;
+import org.elasticsearch.painless.antlr.PainlessParser.NotaddsubContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NullContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NumericContext;
-import org.elasticsearch.painless.antlr.PainlessParser.OperatorContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ParametersContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PostContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PostdotContext;
@@ -101,6 +108,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.TrailerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TrapContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TrueContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
+import org.elasticsearch.painless.antlr.PainlessParser.TypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -164,6 +172,46 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
+    // TODO: remove
+
+    /** Platform dependent end-of-line marker */
+    public static final String Eol = System.lineSeparator();
+    /** The literal indent char(s) used for pretty-printing */
+    public static final String Indents = "  ";
+    private int level;
+
+    public String toPrettyTree(final Tree t, final Parser p) {
+        level = 0;
+        return process(t, p).replaceAll("(?m)^\\s+$", "").replaceAll("\\r?\\n\\r?\\n", Eol);
+    }
+
+    private String process(final Tree t, final Parser p) {
+        if (t.getChildCount() == 0) return Utils.escapeWhitespace(Trees.getNodeText(t, p), false);
+        StringBuilder sb = new StringBuilder();
+        sb.append(lead(level));
+        level++;
+        String s = Utils.escapeWhitespace(Trees.getNodeText(t, p), false);
+        sb.append(s + ' ');
+        for (int i = 0; i < t.getChildCount(); i++) {
+            sb.append(process(t.getChild(i), p));
+        }
+        level--;
+        sb.append(lead(level));
+        return sb.toString();
+    }
+
+    private String lead(int level) {
+        StringBuilder sb = new StringBuilder();
+        if (level > 0) {
+            sb.append(Eol);
+            for (int cnt = 0; cnt < level; cnt++) {
+                sb.append(Indents);
+            }
+        }
+        return sb.toString();
+    }
+    // TODO: end remove
+
     public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup) {
         return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup).source;
@@ -198,6 +246,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         }
 
         parser.setErrorHandler(strategy);
+
+        if (true) {
+            //throw new RuntimeException(toPrettyTree(parser.source(), parser));
+        }
 
         return parser.source();
     }
@@ -302,7 +354,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitParameters(ParametersContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
@@ -312,7 +364,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.dstatement() != null) {
             return visit(ctx.dstatement());
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -341,7 +393,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.empty() != null) {
             return new SWhile(location(ctx), expression, null);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -366,7 +418,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.empty() != null) {
             return new SFor(location(ctx), initializer, expression, afterthought, null);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -451,7 +503,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
             return new SBlock(location(ctx), statements);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -476,7 +528,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitEmpty(EmptyContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
@@ -486,7 +538,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.expression() != null) {
             return visit(ctx.expression());
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -513,12 +565,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitDecltype(DecltypeContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
+    }
+
+    @Override
+    public ANode visitType(TypeContext ctx) {
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
     public ANode visitDeclvar(DeclvarContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
@@ -569,7 +626,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.BWOR() != null) {
             operation = Operation.BWOR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EBinary(location(ctx), operation, left, right);
@@ -598,7 +655,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.NER() != null) {
             operation = Operation.NER;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EComp(location(ctx), operation, left, right);
@@ -623,10 +680,23 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.BOOLOR() != null) {
             operation = Operation.OR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EBool(location(ctx), operation, left, right);
+    }
+
+    @Override
+    public ANode visitElvis(ElvisContext ctx) {
+        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
+        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
+
+        return new EElvis(location(ctx), left, right);
+    }
+
+    @Override
+    public ANode visitNonconditional(NonconditionalContext ctx) {
+        return visit(ctx.noncondexpression());
     }
 
     @Override
@@ -636,14 +706,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         AExpression right = (AExpression)visit(ctx.expression(1));
 
         return new EConditional(location(ctx), condition, left, right);
-    }
-
-    @Override
-    public ANode visitElvis(ElvisContext ctx) {
-        AExpression left = (AExpression)visit(ctx.noncondexpression(0));
-        AExpression right = (AExpression)visit(ctx.noncondexpression(1));
-
-        return new EElvis(location(ctx), left, right);
     }
 
     @Override
@@ -678,7 +740,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.AOR() != null) {
             operation = Operation.BWOR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EAssignment(location(ctx), lhs, rhs, false, false, operation);
@@ -695,10 +757,47 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.DECR() != null) {
             operation = Operation.DECR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EAssignment(location(ctx), expression, null, true, false, operation);
+    }
+
+    @Override
+    public ANode visitAddsub(AddsubContext ctx) {
+        AExpression expression = (AExpression)visit(ctx.unary());
+
+        final Operation operation;
+
+        if (ctx.ADD() != null) {
+            operation = Operation.ADD;
+        } else if (ctx.SUB() != null) {
+            if (ctx.unary() instanceof NotaddsubContext
+                    && ((NotaddsubContext)ctx.unary()).unarynotaddsub() instanceof ReadContext
+                    && ((ReadContext)((NotaddsubContext)ctx.unary()).unarynotaddsub()).chain() instanceof DynamicContext
+                    && ((DynamicContext)((ReadContext)((NotaddsubContext)ctx.unary()).unarynotaddsub()).chain())
+                            .primary() instanceof NumericContext
+                    && ((DynamicContext)((ReadContext)((NotaddsubContext)ctx.unary()).unarynotaddsub()).chain()).postfix().isEmpty()) {
+
+                return expression;
+            }
+
+            operation = Operation.SUB;
+        } else {
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
+        }
+
+        return new EUnary(location(ctx), operation, expression);
+    }
+
+    @Override
+    public ANode visitNotaddsub(NotaddsubContext ctx) {
+        return visit(ctx.unarynotaddsub());
+    }
+
+    @Override
+    public ANode visitRead(ReadContext ctx) {
+        return visit(ctx.chain());
     }
 
     @Override
@@ -712,19 +811,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.DECR() != null) {
             operation = Operation.DECR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EAssignment(location(ctx), expression, null, false, true, operation);
     }
 
     @Override
-    public ANode visitRead(ReadContext ctx) {
-        return visit(ctx.chain());
-    }
-
-    @Override
-    public ANode visitOperator(OperatorContext ctx) {
+    public ANode visitNot(NotContext ctx) {
         AExpression expression = (AExpression)visit(ctx.unary());
 
         final Operation operation;
@@ -733,19 +827,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             operation = Operation.NOT;
         } else if (ctx.BWNOT() != null) {
             operation = Operation.BWNOT;
-        } else if (ctx.ADD() != null) {
-            operation = Operation.ADD;
-        } else if (ctx.SUB() != null) {
-            if (ctx.unary() instanceof ReadContext && ((ReadContext)ctx.unary()).chain() instanceof DynamicContext &&
-                ((DynamicContext)((ReadContext)ctx.unary()).chain()).primary() instanceof NumericContext &&
-                ((DynamicContext)((ReadContext)ctx.unary()).chain()).postfix().isEmpty()) {
-
-                return expression;
-            }
-
-            operation = Operation.SUB;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EUnary(location(ctx), operation, expression);
@@ -754,7 +837,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitCast(CastContext ctx) {
         String type = ctx.decltype().getText();
-        AExpression child = (AExpression)visit(ctx.unary());
+        AExpression child = (AExpression)visit(ctx.unarynotaddsub());
 
         return new EExplicit(location(ctx), type, child);
     }
@@ -779,8 +862,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitNumeric(NumericContext ctx) {
         final boolean negate = ((DynamicContext)ctx.parent).postfix().isEmpty() &&
-            ctx.parent.parent.parent instanceof OperatorContext &&
-            ((OperatorContext)ctx.parent.parent.parent).SUB() != null;
+                (ctx.parent.parent.parent.parent instanceof AddsubContext) &&
+                (((AddsubContext)ctx.parent.parent.parent.parent).SUB() != null);
 
         if (ctx.DECIMAL() != null) {
             return new EDecimal(location(ctx), (negate ? "-" : "") + ctx.DECIMAL().getText());
@@ -791,7 +874,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.OCTAL() != null) {
             return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.OCTAL().getText().substring(1), 8);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -894,7 +977,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitPostfix(PostfixContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     public AExpression visitPostfix(PostfixContext ctx, AExpression prefix) {
@@ -905,13 +988,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.braceaccess() != null) {
             return visitBraceaccess(ctx.braceaccess(), prefix);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
     @Override
     public ANode visitPostdot(PostdotContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     public AExpression visitPostdot(PostdotContext ctx, AExpression prefix) {
@@ -920,13 +1003,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.fieldaccess() != null) {
             return visitFieldaccess(ctx.fieldaccess(), prefix);
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
     @Override
     public ANode visitCallinvoke(CallinvokeContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     public AExpression visitCallinvoke(CallinvokeContext ctx, AExpression prefix) {
@@ -938,7 +1021,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitFieldaccess(FieldaccessContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     public AExpression visitFieldaccess(FieldaccessContext ctx, AExpression prefix) {
@@ -949,7 +1032,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.DOTINTEGER() != null) {
             value = ctx.DOTINTEGER().getText();
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
         return new EDot(location(ctx), prefix, ctx.NSDOT() != null, value);
@@ -957,7 +1040,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBraceaccess(BraceaccessContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     public AExpression visitBraceaccess(BraceaccessContext ctx, AExpression prefix) {
@@ -1017,12 +1100,12 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitMaptoken(MaptokenContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
     public ANode visitArguments(ArgumentsContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     private List<AExpression> collectArguments(ArgumentsContext ctx) {
@@ -1044,7 +1127,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.funcref() != null) {
             return visit(ctx.funcref());
         } else {
-            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
     }
 
@@ -1083,7 +1166,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitLamtype(LamtypeContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

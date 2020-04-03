@@ -91,8 +91,7 @@ decltype
     ;
 
 type
-    : PRIMITIVE
-    | ID (DOT DOTID)*
+    : ID (DOT DOTID)*
     ;
 
 declvar
@@ -129,11 +128,16 @@ expression
     ;
 
 unary
-    :  ( INCR | DECR ) chain                 # pre
-    |  chain (INCR | DECR )                  # post
-    |  chain                                 # read
-    |  ( BOOLNOT | BWNOT | ADD | SUB ) unary # operator
-    |  LP decltype RP unary                  # cast
+    : ( INCR | DECR ) chain                  # pre
+    | ( ADD | SUB ) unary                    # addsub
+    | unarynotaddsub                         # notaddsub
+    ;
+
+unarynotaddsub
+    : chain                                  # read
+    | chain (INCR | DECR )                   # post
+    | ( BOOLNOT | BWNOT ) unary              # not
+    | LP decltype RP unarynotaddsub          # cast
     ;
 
 chain

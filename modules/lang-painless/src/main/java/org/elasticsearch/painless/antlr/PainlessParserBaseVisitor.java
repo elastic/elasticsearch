@@ -276,7 +276,14 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitPost(PainlessParser.PostContext ctx) { return visitChildren(ctx); }
+  @Override public T visitAddsub(PainlessParser.AddsubContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitNotaddsub(PainlessParser.NotaddsubContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -290,7 +297,14 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitOperator(PainlessParser.OperatorContext ctx) { return visitChildren(ctx); }
+  @Override public T visitPost(PainlessParser.PostContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitNot(PainlessParser.NotContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

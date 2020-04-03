@@ -256,29 +256,43 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPre(PainlessParser.PreContext ctx);
   /**
-   * Visit a parse tree produced by the {@code post}
+   * Visit a parse tree produced by the {@code addsub}
    * labeled alternative in {@link PainlessParser#unary}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitPost(PainlessParser.PostContext ctx);
+  T visitAddsub(PainlessParser.AddsubContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code notaddsub}
+   * labeled alternative in {@link PainlessParser#unary}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNotaddsub(PainlessParser.NotaddsubContext ctx);
   /**
    * Visit a parse tree produced by the {@code read}
-   * labeled alternative in {@link PainlessParser#unary}.
+   * labeled alternative in {@link PainlessParser#unarynotaddsub}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitRead(PainlessParser.ReadContext ctx);
   /**
-   * Visit a parse tree produced by the {@code operator}
-   * labeled alternative in {@link PainlessParser#unary}.
+   * Visit a parse tree produced by the {@code post}
+   * labeled alternative in {@link PainlessParser#unarynotaddsub}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitOperator(PainlessParser.OperatorContext ctx);
+  T visitPost(PainlessParser.PostContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code not}
+   * labeled alternative in {@link PainlessParser#unarynotaddsub}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNot(PainlessParser.NotContext ctx);
   /**
    * Visit a parse tree produced by the {@code cast}
-   * labeled alternative in {@link PainlessParser#unary}.
+   * labeled alternative in {@link PainlessParser#unarynotaddsub}.
    * @param ctx the parse tree
    * @return the visitor result
    */

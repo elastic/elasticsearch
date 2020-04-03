@@ -206,6 +206,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "Java" : "C++") + " took " + duration + "ms");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/issues/1121")
     public void testNumMatchesAndCategoryPreference() throws Exception {
         String index = "hadoop_logs";
         client().admin().indices().prepareCreate(index)
@@ -285,12 +286,10 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
         CategoryDefinition category1 = categories.get(0);
         assertThat(category1.getNumMatches(), equalTo(2L));
-        long[] expectedPreferenceTo = new long[]{2L, 3L, 4L, 5L, 6L};
-        assertThat(category1.getPreferredToCategories().length, equalTo(5));
+        long[] expectedPreferenceTo = new long[]{2L, 3L, 4L, 5L, 6L, 7L};
         assertThat(category1.getPreferredToCategories(), equalTo(expectedPreferenceTo));
         client().admin().indices().prepareDelete(index).get();
     }
-
 
     private static Job.Builder newJobBuilder(String id, List<String> categorizationFilters) {
         Detector.Builder detector = new Detector.Builder();

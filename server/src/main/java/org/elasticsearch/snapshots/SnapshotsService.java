@@ -615,6 +615,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
             final List<SnapshotId> snapshotIdsToDelete = entry.getSnapshotIds();
             if (snapshotIdsToDelete.isEmpty()) {
+                // The delete never resolved to a concrete snapshot before failing on the previous master so we just remove it from the
+                // cluster state
                 removeSnapshotDeletionFromClusterState(entry.getSnapshotName(), null, null);
             } else {
                 assert snapshotIdsToDelete.size() == 1 : "Can only delete one snapshot at a time but saw [" + snapshotIdsToDelete + "]";

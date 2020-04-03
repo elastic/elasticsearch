@@ -259,7 +259,7 @@ public class IndicesOptions implements ToXContentFragment {
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, boolean expandToHiddenIndices) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, expandToHiddenIndices, true,
-            false, false, false, true);
+            false, false, false, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
@@ -275,7 +275,7 @@ public class IndicesOptions implements ToXContentFragment {
                                              boolean forbidClosedIndices, boolean ignoreAliases,
                                              boolean ignoreThrottled) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, false,
-            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled, true);
+            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,

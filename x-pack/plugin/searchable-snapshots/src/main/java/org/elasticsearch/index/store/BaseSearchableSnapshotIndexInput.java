@@ -44,8 +44,11 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
-        assert fileInfo.metadata().hashEqualsContents() == false
-            : "this method should only be used with blobs that are NOT stored in metadata's hash field (fileInfo: " + fileInfo + ')';
+        assert fileInfo.metadata()
+            .hashEqualsContents() == false : "this method should only be used with blobs that are NOT stored in metadata's hash field "
+                + "(fileInfo: "
+                + fileInfo
+                + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
@@ -100,20 +103,27 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     protected InputStream openInputStream(final long position, final long length) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
-        final long startPart = getPartNumberForPosition(position);
-        final long endPart = getPartNumberForPosition(position + length);
-        if ((startPart == endPart) || fileInfo.numberOfParts() == 1L) {
-            return blobContainer.readBlob(fileInfo.partName(startPart), getRelativePositionInPart(position), length);
+        if (fileInfo.numberOfParts() == 1L) {
+            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
+                + position
+                + "-"
+                + (position + length)
+                + "] from ["
+                + fileInfo
+                + "]";
+            return blobContainer.readBlob(fileInfo.partName(0L), position, length);
         } else {
+            final long startPart = getPartNumberForPosition(position);
+            final long endPart = getPartNumberForPosition(position + length);
             return new SlicedInputStream(endPart - startPart + 1L) {
                 @Override
                 protected InputStream openSlice(long slice) throws IOException {
                     final long currentPart = startPart + slice;
-                    return blobContainer.readBlob(
-                        fileInfo.partName(currentPart),
-                        (currentPart == startPart) ? getRelativePositionInPart(position) : 0L,
-                        (currentPart == endPart) ? getRelativePositionInPart(length) : getLengthOfPart(currentPart)
-                    );
+                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+                    final long endInPart = (currentPart == endPart)
+                        ? getRelativePositionInPart(position + length)
+                        : getLengthOfPart(currentPart);
+                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
                 }
             };
         }
@@ -136,8 +146,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             // method somehow.
-            || threadName.startsWith("TEST-")
-            : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
+            || threadName.startsWith("TEST-") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
         return true;
     }
 

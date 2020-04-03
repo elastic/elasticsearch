@@ -34,9 +34,11 @@ public class CacheFile {
         void onEviction(CacheFile evictedCacheFile);
     }
 
-    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[]{
-        StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE
-    };
+    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
+        StandardOpenOption.READ,
+        StandardOpenOption.WRITE,
+        StandardOpenOption.CREATE,
+        StandardOpenOption.SPARSE };
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
@@ -218,15 +220,22 @@ public class CacheFile {
 
     @Override
     public String toString() {
-        return "CacheFile{" +
-            "desc='" + description + '\'' +
-            ", file=" + file +
-            ", length=" + tracker.getLength() +
-            ", channel=" + (channel != null ? "yes" : "no") +
-            ", listeners=" + listeners.size() +
-            ", evicted=" + evicted +
-            ", tracker=" + tracker +
-            '}';
+        return "CacheFile{"
+            + "desc='"
+            + description
+            + "', file="
+            + file
+            + ", length="
+            + tracker.getLength()
+            + ", channel="
+            + (channel != null ? "yes" : "no")
+            + ", listeners="
+            + listeners.size()
+            + ", evicted="
+            + evicted
+            + ", tracker="
+            + tracker
+            + '}';
     }
 
     private void ensureOpen() {
@@ -235,9 +244,11 @@ public class CacheFile {
         }
     }
 
-    CompletableFuture<Integer> fetchRange(long position,
-                                          CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
-                                          CheckedBiConsumer<Long, Long, IOException> onRangeMissing) {
+    CompletableFuture<Integer> fetchRange(
+        long position,
+        CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
+        CheckedBiConsumer<Long, Long, IOException> onRangeMissing
+    ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
             if (position < 0 || position > tracker.getLength()) {
@@ -248,18 +259,20 @@ public class CacheFile {
             final long rangeStart = (position / rangeSize) * rangeSize;
             final long rangeEnd = Math.min(rangeStart + rangeSize, tracker.getLength());
 
-            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeStart, rangeEnd,
+            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                rangeStart,
+                rangeEnd,
                 ActionListener.wrap(
                     rangeReady -> future.complete(onRangeAvailable.apply(rangeStart, rangeEnd)),
-                    rangeFailure -> future.completeExceptionally(rangeFailure)));
+                    rangeFailure -> future.completeExceptionally(rangeFailure)
+                )
+            );
 
             if (gaps.size() > 0) {
                 final SparseFileTracker.Gap range = gaps.get(0);
                 assert gaps.size() == 1 : "expected 1 range to fetch but got " + gaps.size();
-                assert range.start == rangeStart
-                    : "range/gap start mismatch (" + range.start + ',' + rangeStart + ')';
-                assert range.end == rangeEnd
-                    : "range/gap end mismatch (" + range.end + ',' + rangeEnd + ')';
+                assert range.start == rangeStart : "range/gap start mismatch (" + range.start + ',' + rangeStart + ')';
+                assert range.end == rangeEnd : "range/gap end mismatch (" + range.end + ',' + rangeEnd + ')';
 
                 try {
                     ensureOpen();

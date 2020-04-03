@@ -51,18 +51,32 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  * repository to be accessible from data and master-eligible nodes so we can't run it everywhere.  Given that we already have a way to run
  * actions on the master and that we have to do the restore via the master, it's simplest to use {@link TransportMasterNodeAction}.
  */
-public class TransportMountSearchableSnapshotAction
-    extends TransportMasterNodeAction<MountSearchableSnapshotRequest, RestoreSnapshotResponse> {
+public class TransportMountSearchableSnapshotAction extends TransportMasterNodeAction<
+    MountSearchableSnapshotRequest,
+    RestoreSnapshotResponse> {
 
     private final Client client;
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportMountSearchableSnapshotAction(TransportService transportService, ClusterService clusterService, Client client,
-                                                  ThreadPool threadPool, RepositoriesService repositoriesService,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(MountSearchableSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            MountSearchableSnapshotRequest::new, indexNameExpressionResolver);
+    public TransportMountSearchableSnapshotAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        Client client,
+        ThreadPool threadPool,
+        RepositoriesService repositoriesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            MountSearchableSnapshotAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            MountSearchableSnapshotRequest::new,
+            indexNameExpressionResolver
+        );
         this.client = client;
         this.repositoriesService = repositoriesService;
     }
@@ -101,8 +115,12 @@ public class TransportMountSearchableSnapshotAction
     }
 
     @Override
-    protected void masterOperation(Task task, final MountSearchableSnapshotRequest request, final ClusterState state,
-                                   final ActionListener<RestoreSnapshotResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final MountSearchableSnapshotRequest request,
+        final ClusterState state,
+        final ActionListener<RestoreSnapshotResponse> listener
+    ) {
 
         final String repoName = request.repositoryName();
         final String snapName = request.snapshotName();
@@ -120,8 +138,10 @@ public class TransportMountSearchableSnapshotAction
             }
             final IndexId indexId = indexIds.get(indexName);
 
-            final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds().stream()
-                .filter(s -> snapName.equals(s.getName())).findFirst();
+            final Optional<SnapshotId> matchingSnapshotId = repoData.getSnapshotIds()
+                .stream()
+                .filter(s -> snapName.equals(s.getName()))
+                .findFirst();
             if (matchingSnapshotId.isEmpty()) {
                 throw new ElasticsearchException("snapshot [" + snapName + "] not found in repository [" + repoName + "]");
             }
@@ -131,26 +151,34 @@ public class TransportMountSearchableSnapshotAction
             // by one with the same name while we are restoring it) or else the index metadata might bear no relation to the snapshot we're
             // searching. TODO NORELEASE validate IDs in the restore.
 
-            client.admin().cluster().restoreSnapshot(new RestoreSnapshotRequest(repoName, snapName)
-                // Restore the single index specified
-                .indices(indexName)
-                // Always rename it to the desired mounted index name
-                .renamePattern(".+")
-                .renameReplacement(request.mountedIndexName())
-                // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                .indexSettings(Settings.builder().put(request.indexSettings())
-                    .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
-                    .build())
-                // Pass through ignored index settings
-                .ignoreIndexSettings(request.ignoreIndexSettings())
-                // Don't include global state
-                .includeGlobalState(false)
-                // Don't include aliases
-                .includeAliases(false)
-                // Pass through the wait-for-completion flag
-                .waitForCompletion(request.waitForCompletion())
-                // Pass through the master-node timeout
-                .masterNodeTimeout(request.masterNodeTimeout()), listener);
+            client.admin()
+                .cluster()
+                .restoreSnapshot(
+                    new RestoreSnapshotRequest(repoName, snapName)
+                        // Restore the single index specified
+                        .indices(indexName)
+                        // Always rename it to the desired mounted index name
+                        .renamePattern(".+")
+                        .renameReplacement(request.mountedIndexName())
+                        // Pass through index settings, adding the index-level settings required to use searchable snapshots
+                        .indexSettings(
+                            Settings.builder()
+                                .put(request.indexSettings())
+                                .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
+                                .build()
+                        )
+                        // Pass through ignored index settings
+                        .ignoreIndexSettings(request.ignoreIndexSettings())
+                        // Don't include global state
+                        .includeGlobalState(false)
+                        // Don't include aliases
+                        .includeAliases(false)
+                        // Pass through the wait-for-completion flag
+                        .waitForCompletion(request.waitForCompletion())
+                        // Pass through the master-node timeout
+                        .masterNodeTimeout(request.masterNodeTimeout()),
+                    listener
+                );
         }, listener::onFailure);
     }
 }

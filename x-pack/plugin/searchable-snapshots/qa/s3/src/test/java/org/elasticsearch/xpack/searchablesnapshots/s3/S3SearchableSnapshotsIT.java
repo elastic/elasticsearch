@@ -26,10 +26,6 @@ public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
-            .put("client", "searchable_snapshots")
-            .put("bucket", bucket)
-            .put("base_path", basePath)
-            .build();
+        return Settings.builder().put("client", "searchable_snapshots").put("bucket", bucket).put("base_path", basePath).build();
     }
 }

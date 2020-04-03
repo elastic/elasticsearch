@@ -22,15 +22,30 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransportSearchableSnapshotsAction
-    <ClearSearchableSnapshotsCacheRequest, ClearSearchableSnapshotsCacheResponse, EmptyResult> {
+public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransportSearchableSnapshotsAction<
+    ClearSearchableSnapshotsCacheRequest,
+    ClearSearchableSnapshotsCacheResponse,
+    EmptyResult> {
 
     @Inject
-    public TransportClearSearchableSnapshotsCacheAction(ClusterService clusterService, TransportService transportService,
-                                                        IndicesService indicesService, ActionFilters actionFilters,
-                                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ClearSearchableSnapshotsCacheAction.NAME, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, ClearSearchableSnapshotsCacheRequest::new, ThreadPool.Names.MANAGEMENT, indicesService, false);
+    public TransportClearSearchableSnapshotsCacheAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ClearSearchableSnapshotsCacheAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            ClearSearchableSnapshotsCacheRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            indicesService,
+            false
+        );
     }
 
     @Override
@@ -39,11 +54,15 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
     }
 
     @Override
-    protected ClearSearchableSnapshotsCacheResponse newResponse(ClearSearchableSnapshotsCacheRequest request,
-                                                                int totalShards, int successfulShards, int failedShards,
-                                                                List<EmptyResult> responses,
-                                                                List<DefaultShardOperationFailedException> shardFailures,
-                                                                ClusterState clusterState) {
+    protected ClearSearchableSnapshotsCacheResponse newResponse(
+        ClearSearchableSnapshotsCacheRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<EmptyResult> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         return new ClearSearchableSnapshotsCacheResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 
@@ -53,9 +72,11 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
     }
 
     @Override
-    protected EmptyResult executeShardOperation(ClearSearchableSnapshotsCacheRequest request,
-                                                ShardRouting shardRouting,
-                                                SearchableSnapshotDirectory directory) {
+    protected EmptyResult executeShardOperation(
+        ClearSearchableSnapshotsCacheRequest request,
+        ShardRouting shardRouting,
+        SearchableSnapshotDirectory directory
+    ) {
         directory.clearCache();
         return EmptyResult.INSTANCE;
     }

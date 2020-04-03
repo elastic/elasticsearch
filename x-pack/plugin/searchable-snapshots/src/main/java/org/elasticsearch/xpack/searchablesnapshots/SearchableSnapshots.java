@@ -87,23 +87,45 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         }
     }
 
-    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING =
-        Setting.simpleString("index.store.snapshot.repository_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
-    public static final Setting<String> SNAPSHOT_SNAPSHOT_NAME_SETTING =
-        Setting.simpleString("index.store.snapshot.snapshot_name", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
-    public static final Setting<String> SNAPSHOT_SNAPSHOT_ID_SETTING =
-        Setting.simpleString("index.store.snapshot.snapshot_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
-    public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING =
-        Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
-    public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
-        Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
+    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
+        "index.store.snapshot.repository_name",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
+    public static final Setting<String> SNAPSHOT_SNAPSHOT_NAME_SETTING = Setting.simpleString(
+        "index.store.snapshot.snapshot_name",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
+    public static final Setting<String> SNAPSHOT_SNAPSHOT_ID_SETTING = Setting.simpleString(
+        "index.store.snapshot.snapshot_uuid",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
+    public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING = Setting.simpleString(
+        "index.store.snapshot.index_uuid",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
+    public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "index.store.snapshot.cache.enabled",
+        true,
+        Setting.Property.IndexScope
+    );
     // The file extensions that are excluded from the cache
-    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING =
-        Setting.listSetting("index.store.snapshot.cache.excluded_file_types", Collections.emptyList(), Function.identity(),
-            Setting.Property.IndexScope, Setting.Property.NodeScope);
-    public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("index.store.snapshot.uncached_chunk_size", new ByteSizeValue(-1, ByteSizeUnit.BYTES),
-            Setting.Property.IndexScope, Setting.Property.NodeScope);
+    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
+        "index.store.snapshot.cache.excluded_file_types",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.IndexScope,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "index.store.snapshot.uncached_chunk_size",
+        new ByteSizeValue(-1, ByteSizeUnit.BYTES),
+        Setting.Property.IndexScope,
+        Setting.Property.NodeScope
+    );
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
@@ -120,7 +142,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public List<Setting<?>> getSettings() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return List.of(SNAPSHOT_REPOSITORY_SETTING,
+            return List.of(
+                SNAPSHOT_REPOSITORY_SETTING,
                 SNAPSHOT_SNAPSHOT_NAME_SETTING,
                 SNAPSHOT_SNAPSHOT_ID_SETTING,
                 SNAPSHOT_INDEX_ID_SETTING,
@@ -137,16 +160,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Collection<Object> createComponents(
-            final Client client,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ResourceWatcherService resourceWatcherService,
-            final ScriptService scriptService,
-            final NamedXContentRegistry xContentRegistry,
-            final Environment environment,
-            final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry registry,
-            final IndexNameExpressionResolver resolver) {
+        final Client client,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ResourceWatcherService resourceWatcherService,
+        final ScriptService scriptService,
+        final NamedXContentRegistry xContentRegistry,
+        final Environment environment,
+        final NodeEnvironment nodeEnvironment,
+        final NamedWriteableRegistry registry,
+        final IndexNameExpressionResolver resolver
+    ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             final CacheService cacheService = new CacheService(settings);
             this.cacheService.set(cacheService);
@@ -187,8 +211,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED
-                && isSearchableSnapshotStore(indexSettings.getSettings())
-                && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
+            && isSearchableSnapshotStore(indexSettings.getSettings())
+            && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
         }
         return Optional.empty();
@@ -207,10 +231,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         }
     }
 
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             return List.of(
                 new RestSearchableSnapshotsStatsAction(),
@@ -235,4 +264,3 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
     }
 }
-

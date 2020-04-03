@@ -121,8 +121,7 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
             inMemoryNoOpCommitDirectory.syncMetaData();
         }
 
-        assertThat(inMemoryNoOpCommitDirectory.fileLength(name),
-            equalTo((long)StandardCharsets.UTF_8.encode(s).array().length));
+        assertThat(inMemoryNoOpCommitDirectory.fileLength(name), equalTo((long) StandardCharsets.UTF_8.encode(s).array().length));
 
         assertThat(Arrays.asList(inMemoryNoOpCommitDirectory.listAll()), hasItem(name));
 
@@ -158,8 +157,7 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
             assertThat(input.readString(), equalTo(s));
         }
 
-        assertThat(inMemoryNoOpCommitDirectory.fileLength(name),
-            equalTo((long) StandardCharsets.UTF_8.encode(s).array().length));
+        assertThat(inMemoryNoOpCommitDirectory.fileLength(name), equalTo((long) StandardCharsets.UTF_8.encode(s).array().length));
 
         assertThat(Arrays.asList(inMemoryNoOpCommitDirectory.listAll()), hasItem(name));
     }

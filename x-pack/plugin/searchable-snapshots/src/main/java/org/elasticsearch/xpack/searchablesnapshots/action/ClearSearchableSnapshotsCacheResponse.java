@@ -18,8 +18,12 @@ public class ClearSearchableSnapshotsCacheResponse extends BroadcastResponse {
         super(in);
     }
 
-    ClearSearchableSnapshotsCacheResponse(int totalShards, int successfulShards, int failedShards,
-                                          List<DefaultShardOperationFailedException> shardFailures) {
+    ClearSearchableSnapshotsCacheResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 }

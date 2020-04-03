@@ -6,7 +6,6 @@
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 
@@ -106,7 +105,7 @@ public class CacheFileTests extends ESTestCase {
         }
 
         final List<TestEvictionListener> releasedListeners = new ArrayList<>();
-        for (Iterator<TestEvictionListener> it = acquiredListeners.iterator(); it.hasNext(); ) {
+        for (Iterator<TestEvictionListener> it = acquiredListeners.iterator(); it.hasNext();) {
             if (randomBoolean()) {
                 TestEvictionListener listener = it.next();
                 releasedListeners.add(listener);

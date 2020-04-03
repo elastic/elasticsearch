@@ -33,10 +33,14 @@ public class RestMountSearchableSnapshotAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        MountSearchableSnapshotRequest mountSearchableSnapshotRequest
-            = MountSearchableSnapshotRequest.PARSER.apply(request.contentParser(), request)
-            .masterNodeTimeout(request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT));
-        return channel -> client.execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
-            new RestToXContentListener<>(channel));
+        MountSearchableSnapshotRequest mountSearchableSnapshotRequest = MountSearchableSnapshotRequest.PARSER.apply(
+            request.contentParser(),
+            request
+        ).masterNodeTimeout(request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT));
+        return channel -> client.execute(
+            MountSearchableSnapshotAction.INSTANCE,
+            mountSearchableSnapshotRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

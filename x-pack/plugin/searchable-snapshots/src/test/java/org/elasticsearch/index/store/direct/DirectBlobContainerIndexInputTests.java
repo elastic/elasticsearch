@@ -40,13 +40,18 @@ import static org.mockito.Mockito.when;
 public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     private DirectBlobContainerIndexInput createIndexInput(final byte[] input) throws IOException {
-        return createIndexInput(input, randomBoolean() ? input.length : randomIntBetween(1, input.length), randomIntBetween(1, 1000),
-            () -> {});
+        return createIndexInput(
+            input,
+            randomBoolean() ? input.length : randomIntBetween(1, input.length),
+            randomIntBetween(1, 1000),
+            () -> {}
+        );
     }
 
-    private DirectBlobContainerIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize,
-                                                           Runnable onReadBlob) throws IOException {
-        final FileInfo fileInfo = new FileInfo(randomAlphaOfLength(5),
+    private DirectBlobContainerIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize, Runnable onReadBlob)
+        throws IOException {
+        final FileInfo fileInfo = new FileInfo(
+            randomAlphaOfLength(5),
             new StoreFileMetadata("test", input.length, "_checksum", Version.LATEST),
             partSize == input.length
                 ? randomFrom(
@@ -54,50 +59,62 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     new ByteSizeValue(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
                     ByteSizeValue.ZERO,
                     new ByteSizeValue(-1, ByteSizeUnit.BYTES),
-                    null)
-                : new ByteSizeValue(partSize, ByteSizeUnit.BYTES));
+                    null
+                )
+                : new ByteSizeValue(partSize, ByteSizeUnit.BYTES)
+        );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyInt()))
-            .thenAnswer(invocationOnMock -> {
-                String name = (String) invocationOnMock.getArguments()[0];
-                long position = (long) invocationOnMock.getArguments()[1];
-                long length = (long) invocationOnMock.getArguments()[2];
-                assertThat("Reading [" + length + "] bytes from [" + name + "] at [" + position + "] exceeds part size [" + partSize + "]",
-                    position + length, lessThanOrEqualTo(partSize));
+        when(blobContainer.readBlob(anyString(), anyLong(), anyInt())).thenAnswer(invocationOnMock -> {
+            String name = (String) invocationOnMock.getArguments()[0];
+            long position = (long) invocationOnMock.getArguments()[1];
+            long length = (long) invocationOnMock.getArguments()[2];
+            assertThat(
+                "Reading [" + length + "] bytes from [" + name + "] at [" + position + "] exceeds part size [" + partSize + "]",
+                position + length,
+                lessThanOrEqualTo(partSize)
+            );
 
-                onReadBlob.run();
+            onReadBlob.run();
 
-                final InputStream stream;
-                if (fileInfo.numberOfParts() == 1L) {
-                    assertThat("Unexpected blob name [" + name + "]", name, equalTo(fileInfo.name()));
-                    stream = new ByteArrayInputStream(input, Math.toIntExact(position), Math.toIntExact(length));
+            final InputStream stream;
+            if (fileInfo.numberOfParts() == 1L) {
+                assertThat("Unexpected blob name [" + name + "]", name, equalTo(fileInfo.name()));
+                stream = new ByteArrayInputStream(input, Math.toIntExact(position), Math.toIntExact(length));
 
-                } else {
-                    assertThat("Unexpected blob name [" + name + "]", name, allOf(startsWith(fileInfo.name()), containsString(".part")));
+            } else {
+                assertThat("Unexpected blob name [" + name + "]", name, allOf(startsWith(fileInfo.name()), containsString(".part")));
 
-                    long partNumber = Long.parseLong(name.substring(name.indexOf(".part") + ".part".length()));
-                    assertThat("Unexpected part number [" + partNumber + "] for [" + name + "]", partNumber,
-                        allOf(greaterThanOrEqualTo(0L), lessThan(fileInfo.numberOfParts())));
+                long partNumber = Long.parseLong(name.substring(name.indexOf(".part") + ".part".length()));
+                assertThat(
+                    "Unexpected part number [" + partNumber + "] for [" + name + "]",
+                    partNumber,
+                    allOf(greaterThanOrEqualTo(0L), lessThan(fileInfo.numberOfParts()))
+                );
 
-                    stream = new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), Math.toIntExact(length));
-                }
+                stream = new ByteArrayInputStream(input, Math.toIntExact(partNumber * partSize + position), Math.toIntExact(length));
+            }
 
-                if (randomBoolean()) {
-                    return stream;
-                } else {
-                    // sometimes serve less bytes than expected, in agreement with InputStream{@link #read(byte[], int, int)} javadoc
-                    return new FilterInputStream(stream) {
-                        @Override
-                        public int read(byte[] b, int off, int len) throws IOException {
-                            return super.read(b, off, randomIntBetween(1, len));
-                        }
-                    };
-                }
-            });
-        return new DirectBlobContainerIndexInput(blobContainer, fileInfo, newIOContext(random()), new IndexInputStats(0L, () -> 0L),
+            if (randomBoolean()) {
+                return stream;
+            } else {
+                // sometimes serve less bytes than expected, in agreement with InputStream{@link #read(byte[], int, int)} javadoc
+                return new FilterInputStream(stream) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        return super.read(b, off, randomIntBetween(1, len));
+                    }
+                };
+            }
+        });
+        return new DirectBlobContainerIndexInput(
+            blobContainer,
+            fileInfo,
+            newIOContext(random()),
+            new IndexInputStats(0L, () -> 0L),
             minimumReadSize,
-            randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE));
+            randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
+        );
     }
 
     public void testRandomReads() throws IOException {
@@ -195,21 +212,25 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 // read was split across parts; each part involves at least one range
 
                 final int bytesInFirstPart = (firstPart + 1) * partSize - readStart;
-                final int rangesInFirstPart
-                    = (bytesInFirstPart + minimumReadSize - 1) / minimumReadSize; // ceil(bytesInFirstPart/minimumReadSize)
+                // ceil(bytesInFirstPart/minimumReadSize)
+                final int rangesInFirstPart = (bytesInFirstPart + minimumReadSize - 1) / minimumReadSize;
 
                 final int bytesInLastPart = bufferedEnd - lastPart * partSize;
-                final int rangesInLastPart
-                    = (bytesInLastPart + minimumReadSize - 1) / minimumReadSize; // ceil(bytesInLastPart/minimumReadSize)
+                // ceil(bytesInLastPart/minimumReadSize)
+                final int rangesInLastPart = (bytesInLastPart + minimumReadSize - 1) / minimumReadSize;
 
-                final int rangesInMiddleParts = (partSize + minimumReadSize - 1) / minimumReadSize; // ceil(partSize/minimumReadSize);
+                // ceil(partSize/minimumReadSize);
+                final int rangesInMiddleParts = (partSize + minimumReadSize - 1) / minimumReadSize;
                 final int middlePartCount = lastPart - firstPart - 1;
 
                 expectedRanges = rangesInFirstPart + rangesInLastPart + rangesInMiddleParts * middlePartCount;
             }
 
-            assertThat("data was read in ranges of no less than " + minimumReadSize + " where possible",
-                readBlobCount.get(), lessThanOrEqualTo(expectedRanges));
+            assertThat(
+                "data was read in ranges of no less than " + minimumReadSize + " where possible",
+                readBlobCount.get(),
+                lessThanOrEqualTo(expectedRanges)
+            );
         }
     }
 

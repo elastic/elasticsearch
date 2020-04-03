@@ -31,17 +31,21 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(SETTINGS_PREFIX + "size",
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "size",
         new ByteSizeValue(1, ByteSizeUnit.GB),                  // TODO: size the default value according to disk space
         new ByteSizeValue(0, ByteSizeUnit.BYTES),               // min
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(SETTINGS_PREFIX + "range_size",
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "range_size",
         new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
         new ByteSizeValue(4, ByteSizeUnit.KB),                  // min
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
@@ -75,8 +79,7 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     private void ensureLifecycleStarted() {
         final Lifecycle.State state = lifecycleState();

@@ -27,15 +27,28 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSearchableSnapshotsAction<SearchableSnapshotsStatsRequest,
-                                                                                                        SearchableSnapshotsStatsResponse,
-                                                                                                        SearchableSnapshotShardStats> {
+public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSearchableSnapshotsAction<
+    SearchableSnapshotsStatsRequest,
+    SearchableSnapshotsStatsResponse,
+    SearchableSnapshotShardStats> {
     @Inject
-    public TransportSearchableSnapshotsStatsAction(ClusterService clusterService, TransportService transportService,
-                                                   IndicesService indicesService, ActionFilters actionFilters,
-                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(SearchableSnapshotsStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            SearchableSnapshotsStatsRequest::new, ThreadPool.Names.MANAGEMENT, indicesService);
+    public TransportSearchableSnapshotsStatsAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            SearchableSnapshotsStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            SearchableSnapshotsStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            indicesService
+        );
     }
 
     @Override
@@ -44,11 +57,15 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
     }
 
     @Override
-    protected SearchableSnapshotsStatsResponse newResponse(SearchableSnapshotsStatsRequest request,
-                                                           int totalShards, int successfulShards, int failedShards,
-                                                           List<SearchableSnapshotShardStats> shardsStats,
-                                                           List<DefaultShardOperationFailedException> shardFailures,
-                                                           ClusterState clusterState) {
+    protected SearchableSnapshotsStatsResponse newResponse(
+        SearchableSnapshotsStatsRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<SearchableSnapshotShardStats> shardsStats,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         return new SearchableSnapshotsStatsResponse(shardsStats, totalShards, successfulShards, failedShards, shardFailures);
     }
 
@@ -58,23 +75,40 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
     }
 
     @Override
-    protected SearchableSnapshotShardStats executeShardOperation(SearchableSnapshotsStatsRequest request,
-                                                                 ShardRouting shardRouting,
-                                                                 SearchableSnapshotDirectory directory) {
-        return new SearchableSnapshotShardStats(shardRouting, directory.getSnapshotId(), directory.getIndexId(),
-            directory.getStats().entrySet().stream()
+    protected SearchableSnapshotShardStats executeShardOperation(
+        SearchableSnapshotsStatsRequest request,
+        ShardRouting shardRouting,
+        SearchableSnapshotDirectory directory
+    ) {
+        return new SearchableSnapshotShardStats(
+            shardRouting,
+            directory.getSnapshotId(),
+            directory.getIndexId(),
+            directory.getStats()
+                .entrySet()
+                .stream()
                 .map(entry -> toCacheIndexInputStats(entry.getKey(), entry.getValue()))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList())
+        );
     }
 
     private static CacheIndexInputStats toCacheIndexInputStats(final String fileName, final IndexInputStats inputStats) {
-        return new CacheIndexInputStats(fileName, inputStats.getFileLength(),
-            inputStats.getOpened().sum(), inputStats.getClosed().sum(),
-            toCounter(inputStats.getForwardSmallSeeks()), toCounter(inputStats.getBackwardSmallSeeks()),
-            toCounter(inputStats.getForwardLargeSeeks()), toCounter(inputStats.getBackwardLargeSeeks()),
-            toCounter(inputStats.getContiguousReads()), toCounter(inputStats.getNonContiguousReads()),
-            toCounter(inputStats.getCachedBytesRead()), toTimedCounter(inputStats.getCachedBytesWritten()),
-            toTimedCounter(inputStats.getDirectBytesRead()), toTimedCounter(inputStats.getOptimizedBytesRead()));
+        return new CacheIndexInputStats(
+            fileName,
+            inputStats.getFileLength(),
+            inputStats.getOpened().sum(),
+            inputStats.getClosed().sum(),
+            toCounter(inputStats.getForwardSmallSeeks()),
+            toCounter(inputStats.getBackwardSmallSeeks()),
+            toCounter(inputStats.getForwardLargeSeeks()),
+            toCounter(inputStats.getBackwardLargeSeeks()),
+            toCounter(inputStats.getContiguousReads()),
+            toCounter(inputStats.getNonContiguousReads()),
+            toCounter(inputStats.getCachedBytesRead()),
+            toTimedCounter(inputStats.getCachedBytesWritten()),
+            toTimedCounter(inputStats.getDirectBytesRead()),
+            toTimedCounter(inputStats.getOptimizedBytesRead())
+        );
     }
 
     private static Counter toCounter(final IndexInputStats.Counter counter) {

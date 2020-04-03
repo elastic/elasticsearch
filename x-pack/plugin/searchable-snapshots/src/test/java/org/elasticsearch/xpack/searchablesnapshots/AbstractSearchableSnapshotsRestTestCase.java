@@ -59,10 +59,13 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final int numberOfShards = randomIntBetween(1, 5);
 
         logger.info("creating index [{}]", indexName);
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
         ensureGreen(indexName);
 
         final int numDocs = randomIntBetween(1, 10_000);
@@ -169,17 +172,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     public void testClearCache() throws Exception {
         @SuppressWarnings("unchecked")
-        final Function<Map<?, ?>, Long> sumCachedBytesWritten = stats -> stats.values().stream()
+        final Function<Map<?, ?>, Long> sumCachedBytesWritten = stats -> stats.values()
+            .stream()
             .filter(o -> o instanceof List)
             .flatMap(o -> ((List) o).stream())
             .filter(o -> o instanceof Map)
-            .map(o -> ((Map<?,?>)o).get("files"))
+            .map(o -> ((Map<?, ?>) o).get("files"))
             .filter(o -> o instanceof List)
             .flatMap(o -> ((List) o).stream())
             .filter(o -> o instanceof Map)
-            .map(o -> ((Map<?,?>)o).get("cached_bytes_written"))
+            .map(o -> ((Map<?, ?>) o).get("cached_bytes_written"))
             .filter(o -> o instanceof Map)
-            .map(o -> ((Map<?,?>)o).get("sum"))
+            .map(o -> ((Map<?, ?>) o).get("sum"))
             .mapToLong(o -> ((Number) o).longValue())
             .sum();
 
@@ -249,8 +253,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).verify(verify).settings(settings)));
 
         final Response response = client().performRequest(request);
-        assertThat("Failed to create repository [" + repository + "] of type [" + type + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to create repository [" + repository + "] of type [" + type + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
     }
 
     protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
@@ -258,16 +265,22 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
         final Response response = client().performRequest(request);
-        assertThat("Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
     }
 
     protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         try {
             final Response response = client().performRequest(request);
-            assertThat("Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-                response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+            assertThat(
+                "Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+                response.getStatusLine().getStatusCode(),
+                equalTo(RestStatus.OK.getStatus())
+            );
         } catch (IOException e) {
             if (ignoreMissing && e instanceof ResponseException) {
                 Response response = ((ResponseException) e).getResponse();
@@ -278,14 +291,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void mountSnapshot(String repository, String snapshot, boolean waitForCompletion,
-                                        String snapshotIndexName, String mountIndexName, Settings indexSettings) throws IOException {
+    protected static void mountSnapshot(
+        String repository,
+        String snapshot,
+        boolean waitForCompletion,
+        String snapshotIndexName,
+        String mountIndexName,
+        Settings indexSettings
+    ) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/" + snapshot + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
-        final XContentBuilder builder = JsonXContent.contentBuilder()
-            .startObject()
-            .field("index", snapshotIndexName);
+        final XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("index", snapshotIndexName);
         if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
             builder.field("renamed_index", mountIndexName);
         }
@@ -298,8 +315,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         request.setJsonEntity(Strings.toString(builder));
 
         final Response response = client().performRequest(request);
-        assertThat("Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
     }
 
     protected static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {
@@ -311,12 +331,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     protected static Number count(String index) throws IOException {
         final Response response = client().performRequest(new Request(HttpPost.METHOD_NAME, '/' + index + "/_count"));
-        assertThat("Failed to execute count request on index [" + index + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to execute count request on index [" + index + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
 
         final Map<String, Object> responseAsMap = responseAsMap(response);
-        assertThat("Shard failures when executing count request on index [" + index + "]: " + response,
-            extractValue(responseAsMap, "_shards.failed"), equalTo(0));
+        assertThat(
+            "Shard failures when executing count request on index [" + index + "]: " + response,
+            extractValue(responseAsMap, "_shards.failed"),
+            equalTo(0)
+        );
         return (Number) extractValue(responseAsMap, "count");
     }
 
@@ -328,30 +354,45 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
 
         final Response response = client().performRequest(request);
-        assertThat("Failed to execute search request on index [" + index + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to execute search request on index [" + index + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
 
         final Map<String, Object> responseAsMap = responseAsMap(response);
-        assertThat("Shard failures when executing search request on index [" + index + "]: " + response,
-            extractValue(responseAsMap, "_shards.failed"), equalTo(0));
+        assertThat(
+            "Shard failures when executing search request on index [" + index + "]: " + response,
+            extractValue(responseAsMap, "_shards.failed"),
+            equalTo(0)
+        );
         return responseAsMap;
     }
 
     protected static Map<String, Object> searchableSnapshotStats(String index) throws IOException {
         final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats"));
-        assertThat("Failed to retrieve searchable snapshots stats for on index [" + index + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to retrieve searchable snapshots stats for on index [" + index + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
 
         final Map<String, Object> responseAsMap = responseAsMap(response);
-        assertThat("Shard failures when retrieving searchable snapshots stats for index [" + index + "]: " + response,
-            extractValue(responseAsMap, "_shards.failed"), equalTo(0));
+        assertThat(
+            "Shard failures when retrieving searchable snapshots stats for index [" + index + "]: " + response,
+            extractValue(responseAsMap, "_shards.failed"),
+            equalTo(0)
+        );
         return extractValue(responseAsMap, "indices." + index + ".shards");
     }
 
     protected static Map<String, Object> indexSettings(String index) throws IOException {
         final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, '/' + index));
-        assertThat("Failed to get settings on index [" + index + "]: " + response,
-            response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(
+            "Failed to get settings on index [" + index + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
         return extractValue(responseAsMap(response), index + ".settings");
     }
 

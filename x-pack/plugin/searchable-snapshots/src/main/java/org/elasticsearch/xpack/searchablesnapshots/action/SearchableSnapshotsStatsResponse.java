@@ -30,8 +30,13 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
         this.stats = in.readList(SearchableSnapshotShardStats::new);
     }
 
-    SearchableSnapshotsStatsResponse(List<SearchableSnapshotShardStats> stats, int totalShards, int successfulShards, int failedShards,
-                                     List<DefaultShardOperationFailedException> shardFailures) {
+    SearchableSnapshotsStatsResponse(
+        List<SearchableSnapshotShardStats> stats,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.stats = Objects.requireNonNull(stats);
     }

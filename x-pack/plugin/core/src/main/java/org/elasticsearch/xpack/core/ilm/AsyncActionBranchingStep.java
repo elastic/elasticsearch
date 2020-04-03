@@ -61,7 +61,7 @@ public class AsyncActionBranchingStep extends AsyncActionStep {
     @Override
     public final StepKey getNextStepKey() {
         if (onResponseResult.get() == null) {
-            throw new IllegalStateException("Cannot call getNextStepKey before performAction");
+            throw new IllegalStateException("cannot call getNextStepKey before performAction");
         }
         return onResponseResult.get() ? stepToExecute.getNextStepKey() : nextKeyOnIncompleteResponse;
     }

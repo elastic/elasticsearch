@@ -413,6 +413,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Determines if data streams are preserved upon completion of this test. The default implementation wipes data streams.
+     *
+     * @return whether or not to preserve data streams
+     */
+    protected boolean preserveDataStreamsUponCompletion() {
+        return false;
+    }
+
+    /**
      * Controls whether or not to preserve cluster settings upon completion of the test. The default implementation is to remove all cluster
      * settings.
      *
@@ -522,6 +531,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             inProgressSnapshots.set(wipeSnapshots());
         }
 
+        // wipe data streams before indices so that the backing indices for data streams are handled properly
+        if (preserveDataStreamsUponCompletion() == false) {
+            wipeDataStreams();
+        }
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             wipeAllIndices();
@@ -598,6 +612,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    protected static void wipeDataStreams() throws IOException {
+        adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
     }
 
     /**

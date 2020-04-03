@@ -148,18 +148,23 @@ public class InboundHandler {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
-        messageListener.onRequestReceived(requestId, action);
         final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
             header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
-        if (message.isShortCircuit()) {
-            sendErrorResponse(action, transportChannel, message.getException());
-        } else {
+        if (header.isHandshake()) {
+            messageListener.onRequestReceived(requestId, action);
+            // Cannot short circuit handshakes
+            assert message.isShortCircuit() == false;
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
+            handshaker.handleHandshake(transportChannel, requestId, stream);
+        } else {
             try {
-                if (header.isHandshake()) {
-                    handshaker.handleHandshake(transportChannel, requestId, stream);
+                messageListener.onRequestReceived(requestId, action);
+                if (message.isShortCircuit()) {
+                    sendErrorResponse(action, transportChannel, message.getException());
                 } else {
+                    final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+                    assertRemoteVersion(stream, header.getVersion());
                     final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                     assert reg != null;
                     final T request = reg.newRequest(stream);
@@ -176,6 +181,7 @@ public class InboundHandler {
             } catch (Exception e) {
                 sendErrorResponse(action, transportChannel, e);
             }
+
         }
     }
 

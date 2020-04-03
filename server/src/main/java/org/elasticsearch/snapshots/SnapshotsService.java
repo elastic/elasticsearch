@@ -551,7 +551,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {
-                assert  assertConsistentState(event.state());
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
                 final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
                 final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
@@ -579,14 +578,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
         }
+        assert  assertConsistentState(event.state());
     }
 
-    private static boolean assertConsistentState(ClusterState state) {
+    private boolean assertConsistentState(ClusterState state) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
         if (snapshotsInProgress != null && deletionsInProgress != null && snapshotsInProgress.entries().isEmpty() == false
             && deletionsInProgress.getEntries().isEmpty() == false) {
             final SnapshotsInProgress.Entry snapshot = snapshotsInProgress.entries().get(0);
+            final Set<Snapshot> runningSnapshots =
+                snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            assert runningSnapshots.containsAll(snapshotCompletionListeners.keySet()) :
+                "Saw completion listeners for unknown snapshots in " + snapshotCompletionListeners.keySet() + " but running snapshots are "
+                    + runningSnapshots;
             final SnapshotDeletionsInProgress.Entry deletion = deletionsInProgress.getEntries().get(0);
             assert deletion.matches(snapshot.snapshot()) :
                 "Found conflicting snapshot delete [" + deletion + "] and -create [" + snapshot + "]in cluster state";

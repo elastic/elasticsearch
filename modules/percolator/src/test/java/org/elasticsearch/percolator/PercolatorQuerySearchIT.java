@@ -71,7 +71,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-@ESIntegTestCase.ClusterScope(numClientNodes = 1)
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @Override
@@ -852,7 +851,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()), XContentType.YAML)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
-                    BytesReference.bytes(smileBuilder().startObject().field("field1", "b c").endObject()), XContentType.SMILE)))
+                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()), XContentType.JSON)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
                     BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()), XContentType.JSON)))

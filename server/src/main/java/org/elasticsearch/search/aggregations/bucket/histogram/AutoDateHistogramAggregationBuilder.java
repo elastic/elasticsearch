@@ -314,5 +314,10 @@ public class AutoDateHistogramAggregationBuilder
                 && Objects.equals(dateTimeUnit, other.dateTimeUnit)
                 ;
         }
+
+        @Override
+        public String toString() {
+            return "RoundingInfo[" + rounding + " " + Arrays.toString(innerIntervals) + "]";
+        }
     }
 }

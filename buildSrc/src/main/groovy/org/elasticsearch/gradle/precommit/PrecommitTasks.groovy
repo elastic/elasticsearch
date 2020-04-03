@@ -31,6 +31,8 @@ import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+import org.gradle.api.tasks.SourceSet
+import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -144,21 +146,18 @@ class PrecommitTasks {
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
 
-            String[] parts = name.split('forbiddenApis')
-            if (parts.length == 0) {
-                throw new IllegalStateException("The forbidden APIs plugin has changed it's task name please update the precommit task")
-            }
-            String sourceSetName = 'main';
+            String[] parts = name.split(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
+            String sourceSetName = 'main'
             if (parts.length == 2) {
                 sourceSetName = parts[1].toLowerCase(Locale.ROOT)
             }
             //add the sourceSet's compile classPath if it exists
-            def sourceSets = project.sourceSets;
+            SourceSetContainer sourceSets = project.sourceSets
             if (sourceSetName) {
-                def sourceSet = sourceSets.findByName(sourceSetName)
+                SourceSet sourceSet = sourceSets.findByName(sourceSetName)
                 if (sourceSet) {
                     FileCollection runtime = sourceSet.runtimeClasspath
-                    if (runtime && sourceSet.compileClasspath) {
+                    if (runtime) {
                         classpath = runtime.plus(sourceSet.compileClasspath)
                     }
                 }

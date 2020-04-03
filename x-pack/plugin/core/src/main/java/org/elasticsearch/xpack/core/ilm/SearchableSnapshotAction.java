@@ -5,33 +5,21 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ilm.OnAsyncWaitBranchingStep.BranchingStepListener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.SnapshotsInProgress.State.SUCCESS;
-import static org.elasticsearch.snapshots.SnapshotState.IN_PROGRESS;
 
 /**
  * A {@link LifecycleAction} that will convert the index into a searchable snapshot, by taking a snapshot of the index, creating a
@@ -75,7 +63,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
-        StepKey verifySnapshotStatusBranchingKey = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
         StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
@@ -87,9 +74,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
-        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, verifySnapshotStatusBranchingKey, client);
-        OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(verifySnapshotStatusBranchingKey,
-            cleanSnapshotKey, mountSnapshotKey, client, getCheckSnapshotStatusAsyncAction());
+        AsyncActionBranchingStep createSnapshotBranchingStep = new AsyncActionBranchingStep(
+            new CreateSnapshotStep(createSnapshotKey, mountSnapshotKey, client), cleanSnapshotKey, client);
         MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
             client, RESTORED_INDEX_PREFIX);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
@@ -105,102 +91,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(swapAliasesKey,
             null, client, RESTORED_INDEX_PREFIX);
 
-        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotStep,
-            onAsyncWaitBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep,
-            swapAliasesAndDeleteSourceIndexStep);
-    }
-
-    /**
-     * Creates a consumer to evaluate the ILM generated snapshot status in the provided snapshotRepository in an async way, akin to an
-     * equivalent {@link AsyncWaitStep} implementation.
-     */
-    static TriConsumer<Client, IndexMetadata, BranchingStepListener> getCheckSnapshotStatusAsyncAction() {
-        return (client, indexMetadata, branchingStepListener) -> {
-
-            LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-
-            String snapshotName = executionState.getSnapshotName();
-            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-            final String indexName = indexMetadata.getIndex().getName();
-            final String repositoryName = executionState.getSnapshotRepository();
-            if (Strings.hasText(repositoryName) == false) {
-                branchingStepListener.onFailure(
-                    new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName +
-                        "]"));
-                return;
-            }
-            if (Strings.hasText(snapshotName) == false) {
-                branchingStepListener.onFailure(new IllegalStateException("snapshot name was not generated for policy [" + policyName +
-                    "] and index [" + indexName + "]"));
-                return;
-            }
-            SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repositoryName, new String[]{snapshotName});
-            client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(SnapshotsStatusResponse snapshotsStatusResponse) {
-                    List<SnapshotStatus> statuses = snapshotsStatusResponse.getSnapshots();
-                    assert statuses.size() == 1 : "we only requested the status info for one snapshot";
-                    SnapshotStatus snapshotStatus = statuses.get(0);
-                    SnapshotsInProgress.State snapshotState = snapshotStatus.getState();
-                    if (snapshotState.equals(SUCCESS)) {
-                        branchingStepListener.onResponse(true, null);
-                    } else if (snapshotState.equals(IN_PROGRESS)) {
-                        branchingStepListener.onResponse(false, new Info(
-                            "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] is " +
-                                "in state [" + snapshotState + "]. waiting for SUCCESS"));
-                    } else {
-                        branchingStepListener.onStopWaitingAndMoveToNextKey(new Info(
-                            "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] " +
-                                "cannot complete as it is in state [" + snapshotState + "]"));
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    branchingStepListener.onFailure(e);
-                }
-
-                final class Info implements ToXContentObject {
-
-                    final ParseField MESSAGE_FIELD = new ParseField("message");
-
-                    private final String message;
-
-                    Info(String message) {
-                        this.message = message;
-                    }
-
-                    String getMessage() {
-                        return message;
-                    }
-
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.startObject();
-                        builder.field(MESSAGE_FIELD.getPreferredName(), message);
-                        builder.endObject();
-                        return builder;
-                    }
-
-                    @Override
-                    public boolean equals(Object o) {
-                        if (o == null) {
-                            return false;
-                        }
-                        if (getClass() != o.getClass()) {
-                            return false;
-                        }
-                        Info info = (Info) o;
-                        return Objects.equals(getMessage(), info.getMessage());
-                    }
-
-                    @Override
-                    public int hashCode() {
-                        return Objects.hash(getMessage());
-                    }
-                }
-            });
-        };
+        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotBranchingStep,
+            mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
     }
 
     @Override

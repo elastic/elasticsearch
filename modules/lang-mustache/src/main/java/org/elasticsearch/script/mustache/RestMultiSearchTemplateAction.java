@@ -85,9 +85,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
-     * @param typeConsumer - is a function used when parsing a request body. if it contains a types field it will consume it,
-     *                     allowing the same parsing logic to work in v7 and v8.
-     *                     It takes a string - field name, returns a boolean - if the field was "type or types"
+     * @param typeConsumer - A function used to validate if a provided xContent key is allowed.
+     *                     This is useful for xContent compatibility to determine
+     *                     if a key is allowed to be present in version agnostic manner.
+     *                     The provided function should return false if the key is not allowed.
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest,
                                                           boolean allowExplicitIndex,

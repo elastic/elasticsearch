@@ -49,7 +49,7 @@ public class RestSearchActionV7 extends RestSearchAction {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-        request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is not replaced with _doc
+        request.param(INCLUDE_TYPE_NAME_PARAMETER);
 
         if (request.hasParam("type")) {
             deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);

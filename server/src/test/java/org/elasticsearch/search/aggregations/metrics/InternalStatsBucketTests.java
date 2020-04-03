@@ -22,11 +22,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -34,14 +32,13 @@ public class InternalStatsBucketTests extends InternalStatsTests {
 
     @Override
     protected InternalStatsBucket createInstance(String name, long count, double sum, double min, double max,
-            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalStatsBucket(name, count, sum, min, max, formatter, pipelineAggregators, metadata);
+            DocValueFormat formatter, Map<String, Object> metadata) {
+        return new InternalStatsBucket(name, count, sum, min, max, formatter, metadata);
     }
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
     }
 
     @Override

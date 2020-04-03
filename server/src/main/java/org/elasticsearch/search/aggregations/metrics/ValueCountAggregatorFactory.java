@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -40,10 +41,11 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.registerAny(ValueCountAggregationBuilder.NAME,
-            new ValueCountAggregatorSupplier() {
+            new MetricAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,
                                         ValuesSource valuesSource,
+                                        DocValueFormat format,
                                         SearchContext aggregationContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
@@ -69,18 +71,18 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             ValueCountAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof ValueCountAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected ValueCountAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((ValueCountAggregatorSupplier) aggregatorSupplier)
-            .build(name, valuesSource, searchContext, parent, pipelineAggregators,metaData);
+        return ((MetricAggregatorSupplier) aggregatorSupplier)
+            .build(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 }

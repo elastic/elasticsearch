@@ -1095,7 +1095,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             if (hasUncompletedShards) {
                                 // snapshot is being finalized - wait for shards to complete finalization process
                                 logger.debug("trying to delete completed snapshot - should wait for shards to finalize on all nodes");
-                                return currentState;
+                                shards = null;
                             } else {
                                 // no shards to wait for but a node is gone - this is the only case
                                 // where we force to finish the snapshot
@@ -1104,9 +1104,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                             failure = snapshotEntry.failure();
                         }
-                        SnapshotsInProgress.Entry newSnapshot =
-                            new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
-                        clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(newSnapshot));
+                        if (shards != null) {
+                            clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE,
+                                new SnapshotsInProgress(new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure)));
+                        }
                         if (abortedDuringInit) {
                             newDelete = null;
                         } else {
@@ -1506,7 +1507,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void deleteSnapshotFromRepository(SnapshotDeletionsInProgress.Entry deletion, @Nullable ActionListener<Void> listener,
                                               Version minNodeVersion) {
-        assert deletion.getSnapshotIds().size() == 1 : "Deletion " + deletion + "did not contain a unique SnapshotId";
+        assert deletion != null && deletion.getSnapshotIds().size() == 1 : "Deletion " + deletion + "did not contain a unique SnapshotId";
         final SnapshotId snapshotId = deletion.getSnapshotIds().get(0);
         final String snapshotName = deletion.getSnapshotIds().get(0).getName();
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {

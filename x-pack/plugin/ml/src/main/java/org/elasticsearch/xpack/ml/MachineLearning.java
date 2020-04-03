@@ -221,6 +221,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -636,13 +637,20 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         this.datafeedManager.set(datafeedManager);
 
         // Inference components
+        final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(resultsPersisterService,
+            originSettingClient,
+            indexNameExpressionResolver,
+            clusterService,
+            threadPool);
         final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
         final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
             inferenceAuditor,
             threadPool,
             clusterService,
             xContentRegistry,
-            settings);
+            trainedModelStatsService,
+            settings,
+            clusterService.getNodeName());
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,

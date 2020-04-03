@@ -22,14 +22,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-
-import static java.util.Collections.unmodifiableList;
 
 /**
  * A request to read the content of component templates

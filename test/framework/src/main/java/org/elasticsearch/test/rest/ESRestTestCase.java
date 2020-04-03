@@ -619,9 +619,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
-            if (e.getMessage().contains("no handler found for uri [_data_stream/*]") == false) {
-                throw e;
-            }
         }
     }
 

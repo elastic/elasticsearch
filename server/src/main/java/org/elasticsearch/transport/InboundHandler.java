@@ -149,22 +149,19 @@ public class InboundHandler {
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
         messageListener.onRequestReceived(requestId, action);
+        final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+            header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
         if (message.isShortCircuit()) {
-            final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), message.takeBreakerReleaseControl());
             sendErrorResponse(action, transportChannel, message.getException());
         } else {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
-            TransportChannel transportChannel = null;
             try {
                 if (header.isHandshake()) {
                     // TODO: Modify the handshaker to use the TcpTransportChannl. This should be
                     //  straightforward now that handshakes contribute to circuit breaking.
-                    handshaker.handleHandshake(version, channel, requestId, stream);
+                    handshaker.handleHandshake(transportChannel, requestId, stream);
                 } else {
-                    transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, header.isCompressed(),
-                        message.takeBreakerReleaseControl());
                     final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                     assert reg != null;
                     final T request = reg.newRequest(stream);
@@ -179,10 +176,6 @@ public class InboundHandler {
                     threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
                 }
             } catch (Exception e) {
-                if (transportChannel == null) {
-                    transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, header.isCompressed(),
-                        message.takeBreakerReleaseControl());
-                }
                 sendErrorResponse(action, transportChannel, e);
             }
         }

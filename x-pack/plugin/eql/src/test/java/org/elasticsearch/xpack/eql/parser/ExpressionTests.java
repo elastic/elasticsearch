@@ -52,7 +52,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
 
-    public void testStrings() throws Exception {
+    public void testStrings() {
         assertEquals("hello\"world", unquoteString("'hello\"world'"));
         assertEquals("hello'world", unquoteString("\"hello'world\""));
         assertEquals("hello\nworld", unquoteString("'hello\\nworld'"));

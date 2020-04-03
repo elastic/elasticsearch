@@ -36,40 +36,26 @@ import static java.util.Collections.unmodifiableList;
  */
 public class GetComponentTemplatesRequest implements Validatable {
 
-    private final List<String> names;
+    private final String name;
 
     private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
-     * Create a request to read the content of one or more component templates. If no template names are provided, all templates will
+     * Create a request to read the content of component template. If no template name is provided, all templates will
      * be read
      *
-     * @param names the names of templates to read
+     * @param name the name of template to read
      */
-    public GetComponentTemplatesRequest(String... names) {
-        this(Arrays.asList(names));
+    public GetComponentTemplatesRequest(String name) {
+        this.name = name;
     }
 
     /**
-     * Create a request to read the content of one or more component templates. If no template names are provided, all templates will
-     * be read
-     *
-     * @param names the names of templates to read
+     * @return the name of component template this request is requesting
      */
-    public GetComponentTemplatesRequest(List<String> names) {
-        Objects.requireNonNull(names);
-        if (names.stream().anyMatch(name -> name == null || Strings.hasText(name) == false)) {
-            throw new IllegalArgumentException("all index template names must be non null and non empty");
-        }
-        this.names = unmodifiableList(names);
-    }
-
-    /**
-     * @return the names of component templates this request is requesting
-     */
-    public List<String> names() {
-        return names;
+    public String name() {
+        return name;
     }
 
     /**

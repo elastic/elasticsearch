@@ -18,17 +18,11 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -49,8 +43,8 @@ public class PutComponentTemplateRequest extends TimedRequest implements ToXCont
      * Sets the name of the component template.
      */
     public PutComponentTemplateRequest name(String name) {
-        if (name == null) {
-            throw new IllegalArgumentException("Name cannot be null");
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name cannot be null or empty");
         }
         this.name = name;
         return this;
@@ -94,56 +88,6 @@ public class PutComponentTemplateRequest extends TimedRequest implements ToXCont
 
     public String cause() {
         return this.cause;
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutComponentTemplateRequest source(XContentBuilder templateBuilder) {
-        try {
-            return source(BytesReference.bytes(templateBuilder), templateBuilder.contentType());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to build json for template request", e);
-        }
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutComponentTemplateRequest source(String templateSource, XContentType xContentType) {
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)) {
-            return componentTemplate(ComponentTemplate.parse(parser));
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
-        }
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutComponentTemplateRequest source(byte[] source, XContentType xContentType) {
-        return source(source, 0, source.length, xContentType);
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutComponentTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, offset, length)) {
-            return componentTemplate(ComponentTemplate.parse(parser));
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
-        }
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutComponentTemplateRequest source(BytesReference source, XContentType xContentType) {
-        BytesRef ref = source.toBytesRef();
-        return source(ref.bytes, ref.offset, ref.length, xContentType);
     }
 
     @Override

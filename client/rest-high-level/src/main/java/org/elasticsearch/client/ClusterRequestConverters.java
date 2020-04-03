@@ -108,7 +108,7 @@ final class ClusterRequestConverters {
     static Request getComponentTemplates(GetComponentTemplatesRequest getComponentTemplatesRequest){
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_component_template")
-            .addCommaSeparatedPathParts(getComponentTemplatesRequest.names())
+            .addPathPart(getComponentTemplatesRequest.name())
             .build();
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         final RequestConverters.Params params = new RequestConverters.Params();
@@ -121,7 +121,7 @@ final class ClusterRequestConverters {
     static Request componentTemplatesExist(ComponentTemplatesExistRequest componentTemplatesRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_component_template")
-            .addCommaSeparatedPathParts(componentTemplatesRequest.names())
+            .addPathPart(componentTemplatesRequest.name())
             .build();
         final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         final RequestConverters.Params params = new RequestConverters.Params();

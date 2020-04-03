@@ -19,8 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import java.util.Arrays;
-import java.util.List;
+import org.elasticsearch.common.Strings;
 
 /**
  * A request to check for the existence of component templates
@@ -28,23 +27,14 @@ import java.util.List;
 public class ComponentTemplatesExistRequest extends GetComponentTemplatesRequest {
 
     /**
-     * Create a request to check for the existence of component templates. At least one template index name must be provided
+     * Create a request to check for the existence of component template. Name must be provided
      *
-     * @param names the names of templates to check for the existence of
+     * @param name the name of template to check for the existence of
      */
-    public ComponentTemplatesExistRequest(String... names) {
-        this(Arrays.asList(names));
-    }
-
-    /**
-     * Create a request to check for the existence of component templates. At least one template index name must be provided
-     *
-     * @param names the names of templates to check for the existence of
-     */
-    public ComponentTemplatesExistRequest(List<String> names) {
-        super(names);
-        if (names().isEmpty()) {
-            throw new IllegalArgumentException("must provide at least one component template name");
+    public ComponentTemplatesExistRequest(String name) {
+        super(name);
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("must provide component template name");
         }
     }
 }

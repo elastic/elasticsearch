@@ -228,8 +228,7 @@ public final class ClusterClient {
     public Cancellable putComponentTemplateAsync(PutComponentTemplateRequest putComponentTemplateRequest,
                                                  RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(putComponentTemplateRequest,
-            ClusterRequestConverters::putComponentTemplate, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+            ClusterRequestConverters::putComponentTemplate, options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -242,8 +241,7 @@ public final class ClusterClient {
     public GetComponentTemplatesResponse getComponentTemplate(GetComponentTemplatesRequest getComponentTemplatesRequest,
                                                               RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getComponentTemplatesRequest,
-            ClusterRequestConverters::getComponentTemplates,
-            options, GetComponentTemplatesResponse::fromXContent, emptySet());
+            ClusterRequestConverters::getComponentTemplates, options, GetComponentTemplatesResponse::fromXContent, emptySet());
     }
 
     /**
@@ -256,8 +254,7 @@ public final class ClusterClient {
     public Cancellable getComponentTemplateAsync(GetComponentTemplatesRequest getComponentTemplatesRequest, RequestOptions options,
                                                  ActionListener<GetComponentTemplatesResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getComponentTemplatesRequest,
-            ClusterRequestConverters::getComponentTemplates,
-            options, GetComponentTemplatesResponse::fromXContent, listener, emptySet());
+            ClusterRequestConverters::getComponentTemplates, options, GetComponentTemplatesResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -271,8 +268,7 @@ public final class ClusterClient {
     public boolean existsComponentTemplate(ComponentTemplatesExistRequest componentTemplatesRequest,
                                            RequestOptions options) throws IOException {
         return restHighLevelClient.performRequest(componentTemplatesRequest,
-            ClusterRequestConverters::componentTemplatesExist, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+            ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, emptySet());
     }
 
     /**
@@ -287,7 +283,6 @@ public final class ClusterClient {
                                                     ActionListener<Boolean> listener) {
 
         return restHighLevelClient.performRequestAsync(componentTemplatesRequest,
-            ClusterRequestConverters::componentTemplatesExist, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+            ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 }

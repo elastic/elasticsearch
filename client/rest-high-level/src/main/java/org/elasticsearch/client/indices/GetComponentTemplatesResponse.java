@@ -71,10 +71,6 @@ public class GetComponentTemplatesResponse {
 
     private final Map<String, ComponentTemplate> componentTemplates;
 
-    GetComponentTemplatesResponse() {
-        componentTemplates = Collections.emptyMap();
-    }
-
     GetComponentTemplatesResponse(Map<String, ComponentTemplate> componentTemplates) {
         this.componentTemplates = Collections.unmodifiableMap(new LinkedHashMap<>(componentTemplates));
     }
@@ -95,12 +91,15 @@ public class GetComponentTemplatesResponse {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         GetComponentTemplatesResponse other = (GetComponentTemplatesResponse) obj;
         return Objects.equals(componentTemplates, other.componentTemplates);
     }

@@ -77,6 +77,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -1367,6 +1368,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     });
                 }
             }
+
             aliasAndIndexLookup.values().stream()
                 .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
                 .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
@@ -1377,15 +1379,28 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    if (indicesLookup.containsKey(ds.getName())) {
+                    IndexAbstraction existing = indicesLookup.get(ds.getName());
+                    if (existing != null && existing.getType() != IndexAbstraction.Type.DATA_STREAM) {
                         throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
                     }
 
-                    SortedMap<?, ?> map = indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
-                    if (map.size() != 0) {
-                        throw new IllegalStateException("data stream [" + ds.getName() +
-                            "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +
-                            " including '" + map.firstKey() + "'");
+                    SortedMap<String, IndexAbstraction> potentialConflicts =
+                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
+                    if (potentialConflicts.size() != 0) {
+                        List<String> indexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+                        List<String> conflicts = new ArrayList<>();
+                        for (Map.Entry<String, IndexAbstraction> entry : potentialConflicts.entrySet()) {
+                            if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX ||
+                                indexNames.contains(entry.getKey()) == false) {
+                                conflicts.add(entry.getKey());
+                            }
+                        }
+
+                        if (conflicts.size() > 0) {
+                            throw new IllegalStateException("data stream [" + ds.getName() +
+                                "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
+                                " including '" + conflicts.get(0) + "'");
+                        }
                     }
                 }
             }

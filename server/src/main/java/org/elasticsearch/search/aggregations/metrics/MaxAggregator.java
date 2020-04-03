@@ -146,12 +146,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, pipelineAggregators(),  metadata());
+        return new InternalMax(name, maxes.get(bucket), formatter, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metadata());
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metadata());
     }
 
     @Override

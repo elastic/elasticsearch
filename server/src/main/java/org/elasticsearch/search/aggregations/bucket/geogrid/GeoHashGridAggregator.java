@@ -43,13 +43,13 @@ public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid
 
     @Override
     InternalGeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators, metadata);
+                                         Map<String, Object> metadata) {
+        return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metadata());
+        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
     InternalGeoGridBucket newEmptyBucket() {

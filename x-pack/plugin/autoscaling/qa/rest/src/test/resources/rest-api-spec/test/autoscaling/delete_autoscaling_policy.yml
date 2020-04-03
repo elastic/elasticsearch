@@ -1,0 +1,22 @@
+---
+"Test delete autoscaling policy":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: hot
+        body:
+          policy:
+            deciders:
+              always: {}
+
+  - match: { "acknowledged": true }
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: hot
+
+  # TODO: add validation that the policy is removed after we have a get policy API
+
+  - do:
+      catch: bad_request
+      autoscaling.delete_autoscaling_policy:
+        name: does_not_exist

@@ -6,12 +6,13 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         id: trained_model_config-a-unused-regression-model1-0
-        index: .ml-inference-000001
+        index: .ml-inference-000002
         body: >
           {
             "model_id": "a-unused-regression-model1",
             "created_by": "ml_tests",
             "version": "8.0.0",
+            "inference_config": {"regression": {}},
             "description": "empty model for tests",
             "create_time": 0,
             "doc_type": "trained_model_config"
@@ -22,12 +23,13 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         id: trained_model_config-a-unused-regression-model-0
-        index: .ml-inference-000001
+        index: .ml-inference-000002
         body: >
           {
             "model_id": "a-unused-regression-model",
             "created_by": "ml_tests",
             "version": "8.0.0",
+            "inference_config": {"regression": {}},
             "description": "empty model for tests",
             "create_time": 0,
             "doc_type": "trained_model_config"
@@ -37,12 +39,13 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         id: trained_model_config-a-used-regression-model-0
-        index: .ml-inference-000001
+        index: .ml-inference-000002
         body: >
           {
             "model_id": "a-used-regression-model",
             "created_by": "ml_tests",
             "version": "8.0.0",
+            "inference_config": {"regression": {}},
             "description": "empty model for tests",
             "create_time": 0,
             "doc_type": "trained_model_config"

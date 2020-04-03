@@ -184,8 +184,4 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         builder.endObject();
         return builder;
     }
-
-    public class Builder {
-
-    }
 }

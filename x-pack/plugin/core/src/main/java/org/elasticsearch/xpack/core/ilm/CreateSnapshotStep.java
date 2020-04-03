@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
@@ -22,6 +23,8 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
  */
 public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "create-snapshot";
+
+    private static final Logger logger = LogManager.getLogger(CreateSnapshotStep.class);
 
     public CreateSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -54,19 +57,26 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
         CreateSnapshotRequest request = new CreateSnapshotRequest(snapshotRepository, snapshotName);
         request.indices(indexName);
-        // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't perform
-        // expensive operations (ie. clusterStateProcessed)
-        request.waitForCompletion(false);
+        // this is safe as the snapshot creation will still be async, it's just that the listener will be notified when the snapshot is
+        // complete
+        request.waitForCompletion(true);
         request.includeGlobalState(false);
         request.masterNodeTimeout(getMasterTimeout(currentClusterState));
         getClient().admin().cluster().createSnapshot(request,
             ActionListener.wrap(response -> {
-                if (response.status().equals(RestStatus.INTERNAL_SERVER_ERROR)) {
-                    listener.onFailure(new SnapshotException(snapshotRepository, snapshotName,
-                        "unable to request snapshot creation [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" +
-                            policyName + "] execution due to an internal server error"));
-                } else {
+                logger.debug("create snapshot response for policy [{}] and index [{}] is: {}", policyName, indexName,
+                    Strings.toString(response));
+                final SnapshotInfo snapInfo = response.getSnapshotInfo();
+
+                // Check that there are no failed shards, since the request may not entirely
+                // fail, but may still have failures (such as in the case of an aborted snapshot)
+                if (snapInfo.failedShards() == 0) {
                     listener.onResponse(true);
+                } else {
+                    int failures = snapInfo.failedShards();
+                    int total = snapInfo.totalShards();
+                    logger.warn("failed to create snapshot successfully, {} failures  out of {} total shards failed", failures, total);
+                    listener.onResponse(false);
                 }
             }, listener::onFailure));
     }

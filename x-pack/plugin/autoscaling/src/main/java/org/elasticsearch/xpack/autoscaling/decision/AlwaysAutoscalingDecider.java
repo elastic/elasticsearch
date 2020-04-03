@@ -37,7 +37,7 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     }
 
     @Override
-    public AutoscalingDecision scale() {
+    public AutoscalingDecision scale(AutoscalingDeciderContext context) {
         return new AutoscalingDecision(NAME, AutoscalingDecisionType.SCALE_UP, "always");
     }
 

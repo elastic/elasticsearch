@@ -73,7 +73,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super(in);
             this.modelId = in.readString();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 this.update = (InferenceConfigUpdate<? extends InferenceConfig>)in.readNamedWriteable(InferenceConfigUpdate.class);
             } else {
                 InferenceConfig oldConfig = in.readNamedWriteable(InferenceConfig.class);
@@ -114,7 +114,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super.writeTo(out);
             out.writeString(modelId);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeNamedWriteable(update);
             } else {
                 out.writeNamedWriteable(update.toConfig());

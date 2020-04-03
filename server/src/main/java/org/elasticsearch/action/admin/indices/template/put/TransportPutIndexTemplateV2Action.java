@@ -26,15 +26,12 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -75,14 +72,6 @@ public class TransportPutIndexTemplateV2Action
     protected void masterOperation(Task task, final PutIndexTemplateV2Action.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         IndexTemplateV2 indexTemplate = request.indexTemplate();
-        Template template = indexTemplate.template();
-        // Normalize the index settings if necessary
-        if (template.settings() != null) {
-            Settings.Builder settings = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-            template = new Template(settings.build(), template.mappings(), template.aliases());
-            indexTemplate = new IndexTemplateV2(indexTemplate.indexPatterns(), template, indexTemplate.composedOf(),
-                indexTemplate.priority(), indexTemplate.version(), indexTemplate.metadata());
-        }
         indexTemplateService.putIndexTemplateV2(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),
             indexTemplate, listener);
     }

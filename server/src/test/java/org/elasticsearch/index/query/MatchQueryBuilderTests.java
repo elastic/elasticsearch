@@ -69,7 +69,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
             DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
@@ -388,15 +388,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         {
             matchQuery.setAutoGenerateSynonymsPhraseQuery(false);
-            final Query query = matchQuery.parse(Type.BOOLEAN, STRING_FIELD_NAME, "guinea pig");
+            final Query query = matchQuery.parse(Type.BOOLEAN, TEXT_FIELD_NAME, "guinea pig");
             final Query expectedQuery = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
                         .add(new BooleanQuery.Builder()
-                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
-                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
+                                .add(new TermQuery(new Term(TEXT_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
+                                .add(new TermQuery(new Term(TEXT_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
                                 .build(),
                             BooleanClause.Occur.SHOULD)
-                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term(TEXT_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
                         .build(),
                     BooleanClause.Occur.SHOULD).build();
             assertThat(query, equalTo(expectedQuery));
@@ -404,15 +404,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         {
             matchQuery.setAutoGenerateSynonymsPhraseQuery(true);
-            final Query query = matchQuery.parse(Type.BOOLEAN, STRING_FIELD_NAME, "guinea pig");
+            final Query query = matchQuery.parse(Type.BOOLEAN, TEXT_FIELD_NAME, "guinea pig");
             final Query expectedQuery = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
                         .add(new PhraseQuery.Builder()
-                            .add(new Term(STRING_FIELD_NAME, "guinea"))
-                            .add(new Term(STRING_FIELD_NAME, "pig"))
+                            .add(new Term(TEXT_FIELD_NAME, "guinea"))
+                            .add(new Term(TEXT_FIELD_NAME, "pig"))
                             .build(),
                             BooleanClause.Occur.SHOULD)
-                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term(TEXT_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
                         .build(),
                     BooleanClause.Occur.SHOULD).build();
             assertThat(query, equalTo(expectedQuery));
@@ -420,15 +420,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         {
             matchQuery.setAutoGenerateSynonymsPhraseQuery(false);
-            final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "guinea pig");
+            final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "guinea pig");
             final Query expectedQuery = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
                         .add(new BooleanQuery.Builder()
-                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
-                                .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
+                                .add(new TermQuery(new Term(TEXT_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
+                                .add(new TermQuery(new Term(TEXT_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
                                 .build(),
                             BooleanClause.Occur.SHOULD)
-                        .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term(TEXT_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD)
                         .build(),
                     BooleanClause.Occur.SHOULD).build();
             assertThat(query, equalTo(expectedQuery));
@@ -436,12 +436,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         {
             matchQuery.setAutoGenerateSynonymsPhraseQuery(true);
-            final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "guinea pig");
-            final MultiPhrasePrefixQuery guineaPig = new MultiPhrasePrefixQuery(STRING_FIELD_NAME);
-            guineaPig.add(new Term(STRING_FIELD_NAME, "guinea"));
-            guineaPig.add(new Term(STRING_FIELD_NAME, "pig"));
-            final MultiPhrasePrefixQuery cavy = new MultiPhrasePrefixQuery(STRING_FIELD_NAME);
-            cavy.add(new Term(STRING_FIELD_NAME, "cavy"));
+            final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "guinea pig");
+            final MultiPhrasePrefixQuery guineaPig = new MultiPhrasePrefixQuery(TEXT_FIELD_NAME);
+            guineaPig.add(new Term(TEXT_FIELD_NAME, "guinea"));
+            guineaPig.add(new Term(TEXT_FIELD_NAME, "pig"));
+            final MultiPhrasePrefixQuery cavy = new MultiPhrasePrefixQuery(TEXT_FIELD_NAME);
+            cavy.add(new Term(TEXT_FIELD_NAME, "cavy"));
             final Query expectedQuery = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
                         .add(guineaPig, BooleanClause.Occur.SHOULD)
@@ -455,21 +455,21 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testMultiWordSynonymsPhrase() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        final Query actual = matchQuery.parse(Type.PHRASE, STRING_FIELD_NAME, "guinea pig dogs");
-        Query expected = SpanNearQuery.newOrderedNearQuery(STRING_FIELD_NAME)
+        final Query actual = matchQuery.parse(Type.PHRASE, TEXT_FIELD_NAME, "guinea pig dogs");
+        Query expected = SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
             .addClause(
                 new SpanOrQuery(new SpanQuery[]{
-                    SpanNearQuery.newOrderedNearQuery(STRING_FIELD_NAME)
-                        .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
-                        .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig")))
+                    SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
+                        .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "guinea")))
+                        .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "pig")))
                         .setSlop(0)
                         .build(),
-                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+                    new SpanTermQuery(new Term(TEXT_FIELD_NAME, "cavy"))
                 })
             )
             .addClause(new SpanOrQuery(new SpanQuery[]{
-                new SpanTermQuery(new Term(STRING_FIELD_NAME, "dogs")),
-                new SpanTermQuery(new Term(STRING_FIELD_NAME, "dog"))
+                new SpanTermQuery(new Term(TEXT_FIELD_NAME, "dogs")),
+                new SpanTermQuery(new Term(TEXT_FIELD_NAME, "dog"))
             }))
             .build();
         assertEquals(expected, actual);
@@ -479,10 +479,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testAliasWithSynonyms() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        final Query actual = matchQuery.parse(Type.PHRASE, STRING_ALIAS_FIELD_NAME, "dogs");
-        Query expected = new SynonymQuery.Builder(STRING_FIELD_NAME)
-            .addTerm(new Term(STRING_FIELD_NAME, "dogs"))
-            .addTerm(new Term(STRING_FIELD_NAME, "dog"))
+        final Query actual = matchQuery.parse(Type.PHRASE, TEXT_ALIAS_FIELD_NAME, "dogs");
+        Query expected = new SynonymQuery.Builder(TEXT_FIELD_NAME)
+            .addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
+            .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
             .build();
         assertEquals(expected, actual);
     }
@@ -490,9 +490,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testMaxBooleanClause() {
         MatchQuery query = new MatchQuery(createShardContext());
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
-        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
+        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
-        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
+        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
     }
 
     private static class MockGraphAnalyzer extends Analyzer {

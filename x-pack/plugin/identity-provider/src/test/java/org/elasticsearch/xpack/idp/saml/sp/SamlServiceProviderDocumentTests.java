@@ -25,9 +25,9 @@ import org.opensaml.security.x509.X509Credential;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -109,11 +109,11 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.certificates.setIdentityProviderX509MetadataSigningCertificates(idpMetadataCertificates);
 
         doc1.privileges.setResource("service:" + randomAlphaOfLength(12) + ":" + randomAlphaOfLength(12));
-        final Map<String, String> roleActions = new HashMap<>();
+        final Set<String> rolePatterns = new HashSet<>();
         for (int i = randomIntBetween(1, 6); i > 0; i--) {
-            roleActions.put(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(6) + ":" + randomAlphaOfLength(6));
+            rolePatterns.add(randomAlphaOfLength(6) + ":(" + randomAlphaOfLength(6) + ")");
         }
-        doc1.privileges.setRoleActions(roleActions);
+        doc1.privileges.setRolePatterns(rolePatterns);
 
         doc1.attributeNames.setPrincipal("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setEmail("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));

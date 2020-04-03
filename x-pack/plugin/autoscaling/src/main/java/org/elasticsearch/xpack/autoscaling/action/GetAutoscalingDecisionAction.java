@@ -31,7 +31,7 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
         super(NAME, Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<GetAutoscalingDecisionAction.Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<GetAutoscalingDecisionAction.Request> {
 
         public Request() {
 
@@ -49,16 +49,6 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject();
-            {
-
-            }
-            builder.endObject();
-            return builder;
         }
 
     }

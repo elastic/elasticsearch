@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,9 +34,8 @@ import java.util.Objects;
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, Map<String, Object> metadata) {
+        super(name, metadata);
         this.counts = counts;
     }
 
@@ -92,7 +90,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             if (cardinality.counts != null) {
                 if (reduced == null) {
                     reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                            BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetadata());
+                            BigArrays.NON_RECYCLING_INSTANCE, 1), getMetadata());
                 }
                 reduced.merge(cardinality);
             }

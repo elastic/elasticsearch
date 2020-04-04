@@ -16,6 +16,8 @@
 
   # TODO: add validation that the policy is removed after we have a get policy API
 
+---
+"Test delete non-existent policy":
   - do:
       catch: bad_request
       autoscaling.delete_autoscaling_policy:

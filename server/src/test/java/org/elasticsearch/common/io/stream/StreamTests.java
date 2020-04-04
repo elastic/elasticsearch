@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,11 +39,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -432,6 +435,34 @@ public class StreamTests extends ESTestCase {
                 assertThat(input.readOptionalSecureString(), is(nullValue()));
             }
         }
+    }
+
+    public void testGenericSet() throws IOException {
+        Set<String> set = Set.of("a", "b", "c", "d", "e");
+        assertGenericRoundtrip(set);
+        // reverse order in normal set so linked hashset does not match the order
+        var list = new ArrayList<>(set);
+        Collections.reverse(list);
+        assertGenericRoundtrip(new LinkedHashSet<>(list));
+    }
+
+    private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
+                                     CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            outputAssertions.accept(output);
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+            inputAssertions.accept(input);
+        }
+    }
+
+    private void assertGenericRoundtrip(Object original) throws IOException {
+        assertSerialization(output -> {
+            output.writeGenericValue(original);
+        }, input -> {
+            Object read = input.readGenericValue();
+            assertThat(read, equalTo(original));
+        });
     }
 
 }

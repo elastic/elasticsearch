@@ -70,11 +70,13 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -735,6 +737,10 @@ public abstract class StreamInput extends InputStream {
                 return readGeoPoint();
             case 23:
                 return readZonedDateTime();
+            case 24:
+                return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
+            case 25:
+                return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -818,6 +824,18 @@ public abstract class StreamInput extends InputStream {
             map10.put(readString(), readGenericValue());
         }
         return map10;
+    }
+
+    private Set<?> readSet(Function<Integer, Set<Object>> ctor) throws IOException {
+        int size = readArraySize();
+        if (size == 0) {
+            return Collections.emptySet();
+        }
+        Set<Object> set = ctor.apply(size);
+        for (int i = 0; i < size; i++) {
+            set.add(readGenericValue());
+        }
+        return set;
     }
 
     private Date readDate() throws IOException {

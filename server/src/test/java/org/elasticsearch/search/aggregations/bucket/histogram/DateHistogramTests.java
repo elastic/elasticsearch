@@ -150,7 +150,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
     public void testRewriteTimeZone() throws IOException {
         DateFormatter format = DateFormatter.forPattern("strict_date_optional_time");
-        for (String fieldName : new String[] { DATE_FIELD_NAME, DATE_NANOS_FIELD_NAME }) {
+        for (String fieldName : new String[]{DATE_FIELD_NAME, DATE_NANOS_FIELD_NAME}) {
             try (Directory dir = newDirectory();
                  IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
@@ -182,6 +182,18 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
                         builder.timeZone(tz);
                         assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
                         assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                        // timeZone without DST => always rewrite
+                        tz = ZoneId.of("Australia/Brisbane");
+                        builder.timeZone(tz);
+                        assertSame(ZoneOffset.ofHours(10), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(ZoneOffset.ofHours(10), builder.rewriteTimeZone(shardContextThatCrosses));
+
+                        // another timeZone without DST => always rewrite
+                        tz = ZoneId.of("Asia/Katmandu");
+                        builder.timeZone(tz);
+                        assertSame(ZoneOffset.ofHoursMinutes(5, 45), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(ZoneOffset.ofHoursMinutes(5, 45), builder.rewriteTimeZone(shardContextThatCrosses));
 
                         // daylight-saving-times => rewrite if doesn't cross
                         tz = ZoneId.of("Europe/Paris");

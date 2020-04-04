@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -53,7 +53,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionMet() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(2)
@@ -87,7 +87,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionNotMetShardsNotInSync() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(2)
@@ -126,7 +126,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionNotMetNotAFollowerIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(2)
             .numberOfReplicas(0)

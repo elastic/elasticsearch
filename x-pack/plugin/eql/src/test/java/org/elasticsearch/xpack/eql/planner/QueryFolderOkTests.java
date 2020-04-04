@@ -20,6 +20,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
+
     private final String name;
     private final String query;
     private final Object expect;
@@ -94,7 +95,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(25, eqe.output().size());
+        assertEquals(27, eqe.output().size());
         assertEquals(KEYWORD, eqe.output().get(0).dataType());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");

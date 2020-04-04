@@ -38,7 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 
 /**
  * A {@code SnapshotLifecyclePolicy} is a policy for the cluster including a schedule of when a

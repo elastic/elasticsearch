@@ -13,8 +13,8 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -132,18 +132,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong()));
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
             .fPut(index.getName(), indexMetadata);
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
@@ -168,19 +168,19 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setPhase(mockShrinkStep.getPhase());
         lifecycleState.setAction(mockShrinkStep.getAction());
         lifecycleState.setStep(mockShrinkStep.getName());
-        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
             .fPut(index.getName(), indexMetadata);
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -221,19 +221,19 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setPhase(mockShrinkStep.getPhase());
         lifecycleState.setAction(mockShrinkStep.getAction());
         lifecycleState.setStep(mockShrinkStep.getName());
-        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
             .fPut(index.getName(), indexMetadata);
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -264,19 +264,19 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setPhase(currentStepKey.getPhase());
         lifecycleState.setAction(currentStepKey.getAction());
         lifecycleState.setStep(currentStepKey.getName());
-        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
             .fPut(index.getName(), indexMetadata);
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -370,26 +370,26 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         policyMap.put(policy2, new LifecyclePolicyMetadata(i2policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong()));
 
-        IndexMetaData i1indexMetadata = IndexMetaData.builder(index1.getName())
+        IndexMetadata i1indexMetadata = IndexMetadata.builder(index1.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i1lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        IndexMetaData i2indexMetadata = IndexMetaData.builder(index2.getName())
+        IndexMetadata i2indexMetadata = IndexMetadata.builder(index2.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i2lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
             .fPut(index1.getName(), i1indexMetadata)
             .fPut(index2.getName(), i2indexMetadata);
 
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
 
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 

@@ -123,7 +123,11 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("PhraseSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug ID is 9064309.
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {

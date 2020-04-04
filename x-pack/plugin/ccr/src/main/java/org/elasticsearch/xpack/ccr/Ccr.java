@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -293,7 +293,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // auto-follow metadata, persisted into the cluster state as XContent
                 new NamedXContentRegistry.Entry(
-                        MetaData.Custom.class,
+                        Metadata.Custom.class,
                         new ParseField(AutoFollowMetadata.TYPE),
                         AutoFollowMetadata::fromXContent),
                 // persistent action requests

@@ -18,13 +18,17 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -231,7 +235,32 @@ public class AnalyticsResultProcessor {
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setDefaultFieldMap(defaultFieldMapping)
+            .setInferenceConfig(buildInferenceConfig(definition.getTrainedModel().targetType()))
             .build();
+    }
+
+    private InferenceConfig buildInferenceConfig(TargetType targetType) {
+        switch (targetType) {
+            case CLASSIFICATION:
+                assert analytics.getAnalysis() instanceof Classification;
+                Classification classification = ((Classification)analytics.getAnalysis());
+                return ClassificationConfig.builder()
+                    .setNumTopClasses(classification.getNumTopClasses())
+                    .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
+                    .build();
+            case REGRESSION:
+                assert analytics.getAnalysis() instanceof Regression;
+                Regression regression = ((Regression)analytics.getAnalysis());
+                return RegressionConfig.builder()
+                    .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
+                    .build();
+            default:
+                setAndReportFailure(ExceptionsHelper.serverError(
+                    "process created a model with an unsupported target type [{}]",
+                    null,
+                    targetType));
+                return null;
+        }
     }
 
     private String getDependentVariable() {

@@ -22,7 +22,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
@@ -59,7 +59,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
     static final String MASTER_NODE_BOOTSTRAPPED_MSG = "Master node was successfully bootstrapped";
     static final Setting<String> UNSAFE_BOOTSTRAP =
-            ClusterService.USER_DEFINED_META_DATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
+            ClusterService.USER_DEFINED_METADATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
 
     UnsafeBootstrapMasterCommand() {
         super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
@@ -83,39 +83,39 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = state.v2();
 
-        final MetaData metaData = oldClusterState.metaData();
+        final Metadata metadata = oldClusterState.metadata();
 
-        final CoordinationMetaData coordinationMetaData = metaData.coordinationMetaData();
-        if (coordinationMetaData == null ||
-            coordinationMetaData.getLastCommittedConfiguration() == null ||
-            coordinationMetaData.getLastCommittedConfiguration().isEmpty()) {
+        final CoordinationMetadata coordinationMetadata = metadata.coordinationMetadata();
+        if (coordinationMetadata == null ||
+            coordinationMetadata.getLastCommittedConfiguration() == null ||
+            coordinationMetadata.getLastCommittedConfiguration().isEmpty()) {
             throw new ElasticsearchException(EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG);
         }
-        terminal.println(String.format(Locale.ROOT, CLUSTER_STATE_TERM_VERSION_MSG_FORMAT, coordinationMetaData.term(),
-            metaData.version()));
+        terminal.println(String.format(Locale.ROOT, CLUSTER_STATE_TERM_VERSION_MSG_FORMAT, coordinationMetadata.term(),
+            metadata.version()));
 
-        CoordinationMetaData newCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
+        CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(coordinationMetadata)
             .clearVotingConfigExclusions()
-            .lastAcceptedConfiguration(new CoordinationMetaData.VotingConfiguration(
+            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(
                 Collections.singleton(persistedClusterStateService.getNodeId())))
-            .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(
+            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(
                 Collections.singleton(persistedClusterStateService.getNodeId())))
             .build();
 
         Settings persistentSettings = Settings.builder()
-            .put(metaData.persistentSettings())
+            .put(metadata.persistentSettings())
             .put(UNSAFE_BOOTSTRAP.getKey(), true)
             .build();
-        MetaData newMetaData = MetaData.builder(metaData)
-            .clusterUUID(MetaData.UNKNOWN_CLUSTER_UUID)
+        Metadata newMetadata = Metadata.builder(metadata)
+            .clusterUUID(Metadata.UNKNOWN_CLUSTER_UUID)
             .generateClusterUuidIfNeeded()
             .clusterUUIDCommitted(true)
             .persistentSettings(persistentSettings)
-            .coordinationMetaData(newCoordinationMetaData)
+            .coordinationMetadata(newCoordinationMetadata)
             .build();
 
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
-            .metaData(newMetaData).build();
+            .metadata(newMetadata).build();
 
         terminal.println(Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]");

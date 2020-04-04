@@ -91,8 +91,8 @@ public class FunctionRegistry {
     }
 
     public String resolveAlias(String alias) {
-        String upperCase = normalize(alias);
-        return aliases.getOrDefault(upperCase, upperCase);
+        String normalized = normalize(alias);
+        return aliases.getOrDefault(normalized, normalized);
     }
 
     public boolean functionExists(String functionName) {
@@ -422,7 +422,6 @@ public class FunctionRegistry {
         T build(Source source, Expression expression, DataType dataType);
     }
 
-
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
                                                               TwoParametersVariadicBuilder<T> ctorRef, String... names) {
@@ -442,6 +441,6 @@ public class FunctionRegistry {
     }
 
     protected interface TwoParametersVariadicBuilder<T> {
-        T build(Source source, Expression expression, List<Expression> remaining);
+        T build(Source source, Expression src, List<Expression> remaining);
     }
 }

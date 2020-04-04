@@ -45,6 +45,7 @@ apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
+apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 
 // common maven publishing configuration
@@ -511,8 +512,8 @@ subprojects {
   pluginManager.withPlugin('elasticsearch.testclusters') {
     testClusters.all {
       if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.itv2_feature_flag_registered', 'true'
-        systemProperty 'es.datastreams_feature_flag_registered', 'true'
+        systemProperty 'es.itv2_feature_enabled', 'true'
+        systemProperty 'es.datastreams_feature_enabled', 'true'
       }
     }
   }

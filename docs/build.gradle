@@ -539,6 +539,41 @@ for (int i = 0; i < 100; i++) {
             {"load_time": "$value"}"""
 }
 
+// Used by t_test aggregations
+buildRestTests.setups['node_upgrade'] = '''
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                name:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"name": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"name": "B", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"name": "C", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"name": "D", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"name": "E", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"name": "F", "startup_time_before": 99, "startup_time_after": 98}'''
+
 // Used by iprange agg
 buildRestTests.setups['iprange'] = '''
   - do:

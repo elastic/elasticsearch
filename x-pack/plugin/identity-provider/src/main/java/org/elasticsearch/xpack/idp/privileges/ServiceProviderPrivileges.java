@@ -9,19 +9,20 @@ package org.elasticsearch.xpack.idp.privileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 public class ServiceProviderPrivileges {
 
     private final String applicationName;
     private final String resource;
-    private final Map<String, String> roles;
+    private final Function<String, Set<String>> roleMapping;
 
-    public ServiceProviderPrivileges(String applicationName, String resource, Map<String, String> roles) {
+    public ServiceProviderPrivileges(String applicationName, String resource, Function<String, Set<String>> roleMapping) {
         this.applicationName = Objects.requireNonNull(applicationName, "Application name cannot be null");
         this.resource = Objects.requireNonNull(resource, "Resource cannot be null");
-        this.roles = Map.copyOf(roles);
+        this.roleMapping = Objects.requireNonNull(roleMapping, "Role Mapping cannot be null");
     }
 
     /**
@@ -41,7 +42,7 @@ public class ServiceProviderPrivileges {
     }
 
     /**
-     * Returns a mapping from "role name" (key) to "{@link ApplicationPrivilegeDescriptor#getActions() action name}" (value)
+     * Returns a mapping from "{@link ApplicationPrivilegeDescriptor#getActions() action name}" (input) to "role name" (output)
      * that represents the roles that should be exposed to this Service Provider.
      * The "role name" (but not the action name) will be provided to the service provider.
      * These roles have no semantic meaning within the IdP, they are simply metadata that we pass to the Service Provider. They may not
@@ -49,7 +50,7 @@ public class ServiceProviderPrivileges {
      * terminology (e.g. "groups").
      * The actions will be resolved as application privileges from the IdP's security cluster.
      */
-    public Map<String, String> getRoleActions() {
-        return roles;
+    public Function<String, Set<String>> getRoleMapping() {
+        return roleMapping;
     }
 }

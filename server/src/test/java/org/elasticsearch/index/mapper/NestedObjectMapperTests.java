@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -695,7 +695,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         /**
-         * This is needed to force the index version with {@link IndexMetaData.SETTING_INDEX_VERSION_CREATED}.
+         * This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
          */
         return false;
     }
@@ -705,7 +705,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .startObject("nested1").field("type", "nested").endObject()
             .endObject().endObject().endObject());
 
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
             VersionUtils.randomIndexCompatibleVersion(random())).build();
         DocumentMapper docMapper = createIndex("test", settings)
             .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));

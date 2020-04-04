@@ -15,6 +15,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -47,6 +48,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
     private Client client;
     private AnomalyDetectionAuditor auditor;
+    private AnnotationPersister annotationPersister;
     private Consumer<Exception> taskHandler;
     private JobResultsProvider jobResultsProvider;
     private JobConfigProvider jobConfigProvider;
@@ -64,6 +66,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.settings()).thenReturn(Settings.EMPTY);
         auditor = mock(AnomalyDetectionAuditor.class);
+        annotationPersister = mock(AnnotationPersister.class);
         taskHandler = mock(Consumer.class);
         jobResultsPersister = mock(JobResultsPersister.class);
 
@@ -90,6 +93,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 client,
                 xContentRegistry(),
                 auditor,
+                annotationPersister,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,
@@ -213,6 +217,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 client,
                 xContentRegistry(),
                 auditor,
+                annotationPersister,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,

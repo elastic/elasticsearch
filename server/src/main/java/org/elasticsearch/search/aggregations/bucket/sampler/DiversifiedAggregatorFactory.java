@@ -46,8 +46,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
                                  String executionHint, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
         this.executionHint = executionHint;
@@ -59,10 +59,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
 
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, searchContext, parent, pipelineAggregators, metaData,
+            return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, searchContext, parent, pipelineAggregators, metadata,
                     (Numeric) valuesSource, maxDocsPerValue);
         }
 
@@ -81,7 +81,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 execution = ExecutionMode.MAP;
             }
             return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, searchContext, parent, pipelineAggregators,
-                    metaData);
+                    metadata);
         }
 
         throw new AggregationExecutionException("Sampler aggregation cannot be applied to field [" + config.fieldContext().field()
@@ -92,10 +92,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        final UnmappedSampler aggregation = new UnmappedSampler(name, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        final UnmappedSampler aggregation = new UnmappedSampler(name, pipelineAggregators, metadata);
 
-        return new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;

@@ -61,9 +61,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
                      SearchContext context, Aggregator parentAggregator,
-                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
                      boolean collectsFromSingleBucket) throws IOException {
-        super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
+        super(name, factories, context, parentAggregator, pipelineAggregators, metadata);
 
         Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
             : Queries.newNonNestedFilter();
@@ -127,12 +127,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
-                pipelineAggregators(), metaData());
+                pipelineAggregators(), metadata());
     }
 
         @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+        return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
     }
 
     class BufferingNestedLeafBucketCollector extends LeafBucketCollectorBase {

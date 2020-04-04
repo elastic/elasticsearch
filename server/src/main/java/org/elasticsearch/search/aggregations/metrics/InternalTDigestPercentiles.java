@@ -31,8 +31,8 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     public static final String NAME = "tdigest_percentiles";
 
     public InternalTDigestPercentiles(String name, double[] percents, TDigestState state, boolean keyed, DocValueFormat formatter,
-                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
     }
 
     /**
@@ -69,8 +69,8 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
 
     @Override
     protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTDigestPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalTDigestPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metadata);
     }
 
     public static class Iter implements Iterator<Percentile> {

@@ -24,25 +24,24 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.closeTo;
 
 public class InternalGeoBoundsTests extends InternalAggregationTestCase<InternalGeoBounds> {
     static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
-    protected InternalGeoBounds createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData) {
+    protected InternalGeoBounds createTestInstance(String name, Map<String, Object> metadata) {
         // we occasionally want to test top = Double.NEGATIVE_INFINITY since this triggers empty xContent object
         double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
         InternalGeoBounds geo = new InternalGeoBounds(name,
             top, randomDouble(), randomDouble(), randomDouble(),
             randomDouble(), randomDouble(), randomBoolean(),
-            pipelineAggregators, Collections.emptyMap());
+            emptyList(), metadata);
         return geo;
     }
 
@@ -115,7 +114,7 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         double negRight = instance.negRight;
         boolean wrapLongitude = instance.wrapLongitude;
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 8)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -146,16 +145,16 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
             wrapLongitude = wrapLongitude == false;
             break;
         case 8:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metaData);
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators, metadata);
     }
 }

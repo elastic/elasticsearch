@@ -14,7 +14,11 @@
       autoscaling.delete_autoscaling_policy:
         name: my_autoscaling_policy
 
-  # TODO: add validation that the policy is removed after we have a get policy API
+  # validate the policy does not exist
+  - do:
+      catch: /autoscaling policy with name \[my_autoscaling_policy\] does not exist/
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy
 
 ---
 "Test delete non-existent policy":

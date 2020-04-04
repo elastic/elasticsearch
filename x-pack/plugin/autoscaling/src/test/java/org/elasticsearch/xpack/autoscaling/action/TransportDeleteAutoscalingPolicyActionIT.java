@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
@@ -31,6 +32,13 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), not(hasKey(policy.name())));
+        // and verify that we can not obtain the policy via get
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet()
+        );
+        assertThat(e.getMessage(), equalTo("autoscaling policy with name [" + policy.name() + "] does not exist"));
     }
 
     public void testDeleteNonExistentPolicy() {

@@ -4,10 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.expression.function.scalar.stringcontains;
+package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 
 import java.util.concurrent.Callable;
 
@@ -26,27 +27,22 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
 
     public void testNullOrEmptyParameters() throws Exception {
         run(() -> {
-            String needle = randomBoolean() ? null : randomAlphaOfLength(10);
+            String substring = randomBoolean() ? null : randomAlphaOfLength(10);
             String str = randomBoolean() ? null : randomAlphaOfLength(10);
-            if (str != null && needle != null) {
-                str += needle;
+            if (str != null && substring != null) {
+                str += substring;
                 str += randomAlphaOfLength(10);
             }
-            final String haystack = str;
-            Boolean caseSensitive = randomBoolean() ? null : randomBoolean();
+            final String string = str;
 
-            // The haystack parameter can be null. Expect exception if any of other parameters is null.
-            if ((haystack != null) && (needle == null || caseSensitive == null)) {
+            // The string parameter can be null. Expect exception if any of other parameters is null.
+            if ((string != null) && (substring == null)) {
                 EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
-                        () -> StringContainsFunctionProcessor.doProcess(haystack, needle, caseSensitive));
-                if (needle == null) {
+                        () -> StringContainsFunctionProcessor.doProcess(string, substring));
                     assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
-                } else {
-                    assertThat(e.getMessage(), equalTo("A boolean is required; received [null]"));
-                }
             } else {
-                assertThat(StringContainsFunctionProcessor.doProcess(haystack, needle, caseSensitive),
-                        equalTo(haystack == null? null : true));
+                assertThat(StringContainsFunctionProcessor.doProcess(string, substring),
+                        equalTo(string == null? null : true));
             }
             return null;
         });

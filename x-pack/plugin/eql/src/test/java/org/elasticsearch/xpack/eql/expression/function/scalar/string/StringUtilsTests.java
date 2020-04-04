@@ -8,9 +8,20 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.Callable;
+
+import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.stringContains;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.substringSlice;
 
 public class StringUtilsTests extends ESTestCase {
+
+    protected static final int NUMBER_OF_TEST_RUNS = 20;
+
+    private static void run(Callable<Void> callable) throws Exception {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            callable.call();
+        }
+    }
 
     public void testSubstringSlicePositive() {
         String str = randomAlphaOfLength(10);
@@ -71,5 +82,20 @@ public class StringUtilsTests extends ESTestCase {
 
     public void testNullValue() {
         assertNull(substringSlice(null, 0, 0));
+    }
+
+    public void testStringContainsWithNullOrEmpty() {
+        assertFalse(stringContains(null, null));
+        assertFalse(stringContains(null, ""));
+        assertFalse(stringContains("", null));
+    }
+
+    public void testStringContainsWithRandom() throws Exception {
+        run(() -> {
+            String substring = randomAlphaOfLength(10);
+            String string = randomAlphaOfLength(10) + substring + randomAlphaOfLength(10);
+            assertTrue(stringContains(string, substring));
+            return null;
+        });
     }
 }

@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFun
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.eql.expression.function.scalar.stringcontains.StringContainsFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
 /*
@@ -38,8 +38,8 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) SubstringFunctionProcessor.doProcess(s, start, end);
     }
 
-    public static Boolean stringContains(String haystack, String needle, Boolean caseSensitive) {
-        return (Boolean) StringContainsFunctionProcessor.doProcess(haystack, needle, caseSensitive);
+    public static Boolean stringContains(String string, String substring) {
+        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
     }
 
 }

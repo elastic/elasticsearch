@@ -100,17 +100,13 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
 
 
     public void testStringContainsWrongParams() {
-        assertEquals("1:16: error building [stringcontains]: expects two or three arguments",
+        assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",
                 errorParsing("process where stringContains()"));
 
-        assertEquals("1:16: error building [stringcontains]: expects two or three arguments",
+        assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",
                 errorParsing("process where stringContains(process_name)"));
 
         assertEquals("1:15: second argument of [stringContains(process_name, 1)] must be [string], found value [1] type [integer]",
                 error("process where stringContains(process_name, 1)"));
-
-        assertEquals("1:15: third argument of [stringContains(process_name, \"foo\", 2)] must be [boolean], found value [2] type [integer]",
-                error("process where stringContains(process_name, \"foo\", 2)"));
-
     }
 }

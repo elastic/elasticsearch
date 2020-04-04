@@ -106,8 +106,8 @@ InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),p
 stringContains
 process where stringContains(process_name, "foo")
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
-"params":{"v0":"process_name","v1":"foo","v2":false}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
+"params":{"v0":"process_name","v1":"foo"}
 
 
 wildcardFunctionSingleArgument

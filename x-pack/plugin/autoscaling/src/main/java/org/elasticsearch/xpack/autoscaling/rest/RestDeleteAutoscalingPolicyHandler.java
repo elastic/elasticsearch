@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestDeleteAutoscalingPolicyActionHandler extends BaseRestHandler {
+public class RestDeleteAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {

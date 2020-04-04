@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingDecisio
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
-import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyActionHandler;
+import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -123,7 +123,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         if (enabled) {
             return List.of(
                 new RestGetAutoscalingDecisionHandler(),
-                new RestDeleteAutoscalingPolicyActionHandler(),
+                new RestDeleteAutoscalingPolicyHandler(),
                 new RestPutAutoscalingPolicyHandler()
             );
         } else {

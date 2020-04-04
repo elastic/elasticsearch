@@ -18,7 +18,7 @@ final class StringUtils {
 
     /**
      * Extracts a substring from string between left and right strings.
-     * Port of "between" function from the original EQL python implementation.
+     * Port of "stringContains" function from the original EQL python implementation.
      *
      * @param string    string to search through.
      * @param substring string to search for.

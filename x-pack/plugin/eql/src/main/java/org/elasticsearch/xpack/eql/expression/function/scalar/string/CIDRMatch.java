@@ -22,11 +22,14 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
  * EQL specific cidrMatch function
+ * Returns true if the source address matches any of the provided CIDR blocks.
+ * Refer to: https://eql.readthedocs.io/en/latest/query-guide/functions.html#cidrMatch
  */
 public class CIDRMatch extends ScalarFunction {
 
@@ -59,12 +62,29 @@ public class CIDRMatch extends ScalarFunction {
             }
         }
 
+        int index = 1;
+
+        for (Expression addr: addresses) {
+
+            resolution = isFoldable(addr, sourceText(), ParamOrdinal.fromIndex(index));
+            if (resolution.unresolved()) {
+                break;
+            }
+
+            resolution = isStringAndExact(addr, sourceText(), ParamOrdinal.fromIndex(index));
+            if (resolution.unresolved()) {
+                break;
+            }
+
+            index++;
+        }
+
         return resolution;
     }
 
     @Override
     public boolean foldable() {
-        return super.foldable() && field.foldable() && asFunction().foldable();
+        return field.foldable() && asFunction().foldable();
     }
 
     @Override

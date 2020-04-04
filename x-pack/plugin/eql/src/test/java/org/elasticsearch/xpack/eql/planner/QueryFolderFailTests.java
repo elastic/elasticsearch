@@ -97,10 +97,11 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
     }
 
     public void testCIDRMatchAgainstField() {
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
+        VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where cidrMatch(source_address, hostname)"));
         String msg = e.getMessage();
-        assertEquals("Line 1:41: Comparisons against variables are not (currently) supported; offender [hostname] in [==]", msg);
+        assertEquals("Found 1 problem\n" +
+                "line 1:15: second argument of [cidrMatch(source_address, hostname)] must be a constant, received [hostname]", msg);
     }
 
     public void testCIDRMatchNonString() {

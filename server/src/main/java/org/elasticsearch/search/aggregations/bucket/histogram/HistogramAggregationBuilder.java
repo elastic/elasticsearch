@@ -19,11 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +31,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -44,12 +38,16 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
  * fields are unsupported, and will throw at the factory layer.
  */
-public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
 
     private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
@@ -103,8 +101,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.interval = clone.interval;
         this.offset = clone.offset;
         this.minBound = clone.minBound;
@@ -115,8 +113,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new HistogramAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new HistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /** Read from a stream, for internal use only. */
@@ -264,6 +262,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
         builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), interval);
@@ -303,7 +306,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            queryShardContext, parent, subFactoriesBuilder, metaData);
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

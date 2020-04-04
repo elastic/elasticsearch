@@ -74,8 +74,8 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     ValuesSource.Bytes.WithOrdinals valuesSource,
                                     long maxOrd,
                                     List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +

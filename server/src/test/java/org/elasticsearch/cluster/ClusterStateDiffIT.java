@@ -22,16 +22,16 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -66,7 +66,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
+import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -111,10 +111,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder = randomClusterStateCustoms(clusterState);
                         break;
                     case 4:
-                        builder = randomMetaDataChanges(clusterState);
+                        builder = randomMetadataChanges(clusterState);
                         break;
                     case 5:
-                        builder = randomCoordinationMetaData(clusterState);
+                        builder = randomCoordinationMetadata(clusterState);
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -144,7 +144,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
-                assertThat(clusterStateFromDiffs.coordinationMetaData(), equalTo(clusterState.coordinationMetaData()));
+                assertThat(clusterStateFromDiffs.coordinationMetadata(), equalTo(clusterState.coordinationMetadata()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
@@ -169,14 +169,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     equalTo(clusterStateFromDiffs.blocks().disableStatePersistence()));
 
                 // Check metadata
-                assertThat(clusterStateFromDiffs.metaData().version(), equalTo(clusterState.metaData().version()));
-                assertThat(clusterStateFromDiffs.metaData().clusterUUID(), equalTo(clusterState.metaData().clusterUUID()));
-                assertThat(clusterStateFromDiffs.metaData().transientSettings(), equalTo(clusterState.metaData().transientSettings()));
-                assertThat(clusterStateFromDiffs.metaData().persistentSettings(), equalTo(clusterState.metaData().persistentSettings()));
-                assertThat(clusterStateFromDiffs.metaData().indices(), equalTo(clusterState.metaData().indices()));
-                assertThat(clusterStateFromDiffs.metaData().templates(), equalTo(clusterState.metaData().templates()));
-                assertThat(clusterStateFromDiffs.metaData().customs(), equalTo(clusterState.metaData().customs()));
-                assertThat(clusterStateFromDiffs.metaData().equalsAliases(clusterState.metaData()), is(true));
+                assertThat(clusterStateFromDiffs.metadata().version(), equalTo(clusterState.metadata().version()));
+                assertThat(clusterStateFromDiffs.metadata().clusterUUID(), equalTo(clusterState.metadata().clusterUUID()));
+                assertThat(clusterStateFromDiffs.metadata().transientSettings(), equalTo(clusterState.metadata().transientSettings()));
+                assertThat(clusterStateFromDiffs.metadata().persistentSettings(), equalTo(clusterState.metadata().persistentSettings()));
+                assertThat(clusterStateFromDiffs.metadata().indices(), equalTo(clusterState.metadata().indices()));
+                assertThat(clusterStateFromDiffs.metadata().templates(), equalTo(clusterState.metadata().templates()));
+                assertThat(clusterStateFromDiffs.metadata().customs(), equalTo(clusterState.metadata().customs()));
+                assertThat(clusterStateFromDiffs.metadata().equalsAliases(clusterState.metadata()), is(true));
 
                 // JSON Serialization test - make sure that both states produce similar JSON
                 assertNull(differenceBetweenMapsIgnoringArrayOrder(convertToMap(clusterStateFromDiffs), convertToMap(clusterState)));
@@ -196,17 +196,17 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     }
 
-    private ClusterState.Builder randomCoordinationMetaData(ClusterState clusterState) {
+    private ClusterState.Builder randomCoordinationMetadata(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        CoordinationMetaData.Builder metaBuilder = CoordinationMetaData.builder(clusterState.coordinationMetaData());
+        CoordinationMetadata.Builder metaBuilder = CoordinationMetadata.builder(clusterState.coordinationMetadata());
         metaBuilder.term(randomNonNegativeLong());
         if (randomBoolean()) {
             metaBuilder.lastCommittedConfiguration(
-                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+                new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
         if (randomBoolean()) {
             metaBuilder.lastAcceptedConfiguration(
-                new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+                new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
         }
         if (randomBoolean()) {
             metaBuilder.addVotingConfigExclusion(new VotingConfigExclusion(randomNode("node-" + randomAlphaOfLength(10))));
@@ -418,28 +418,28 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Makes random metadata changes
      */
-    private ClusterState.Builder randomMetaDataChanges(ClusterState clusterState) {
-        MetaData metaData = clusterState.metaData();
+    private ClusterState.Builder randomMetadataChanges(ClusterState clusterState) {
+        Metadata metadata = clusterState.metadata();
         int changesCount = randomIntBetween(1, 10);
         for (int i = 0; i < changesCount; i++) {
             switch (randomInt(3)) {
                 case 0:
-                    metaData = randomMetaDataSettings(metaData);
+                    metadata = randomMetadataSettings(metadata);
                     break;
                 case 1:
-                    metaData = randomIndices(metaData);
+                    metadata = randomIndices(metadata);
                     break;
                 case 2:
-                    metaData = randomTemplates(metaData);
+                    metadata = randomTemplates(metadata);
                     break;
                 case 3:
-                    metaData = randomMetaDataCustoms(metaData);
+                    metadata = randomMetadataCustoms(metadata);
                     break;
                 default:
                     throw new IllegalArgumentException("Shouldn't be here");
             }
         }
-        return ClusterState.builder(clusterState).metaData(MetaData.builder(metaData).version(metaData.version() + 1).build());
+        return ClusterState.builder(clusterState).metadata(Metadata.builder(metadata).version(metadata.version() + 1).build());
     }
 
     /**
@@ -461,11 +461,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Randomly updates persistent or transient settings of the given metadata
      */
-    private MetaData randomMetaDataSettings(MetaData metaData) {
+    private Metadata randomMetadataSettings(Metadata metadata) {
         if (randomBoolean()) {
-            return MetaData.builder(metaData).persistentSettings(randomSettings(metaData.persistentSettings())).build();
+            return Metadata.builder(metadata).persistentSettings(randomSettings(metadata.persistentSettings())).build();
         } else {
-            return MetaData.builder(metaData).transientSettings(randomSettings(metaData.transientSettings())).build();
+            return Metadata.builder(metadata).transientSettings(randomSettings(metadata.transientSettings())).build();
         }
     }
 
@@ -476,17 +476,17 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(MetaData metaData);
+        ImmutableOpenMap<String, T> parts(Metadata metadata);
 
         /**
          * Puts the part back into metadata
          */
-        MetaData.Builder put(MetaData.Builder builder, T part);
+        Metadata.Builder put(Metadata.Builder builder, T part);
 
         /**
          * Remove the part from metadata
          */
-        MetaData.Builder remove(MetaData.Builder builder, String name);
+        Metadata.Builder remove(Metadata.Builder builder, String name);
 
         /**
          * Returns a random part with the specified name
@@ -504,13 +504,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Takes an existing cluster state and randomly adds, removes or updates a metadata part using randomPart generator.
      * If a new part is added the prefix value is used as a prefix of randomly generated part name.
      */
-    private <T> MetaData randomParts(MetaData metaData, String prefix, RandomPart<T> randomPart) {
-        MetaData.Builder builder = MetaData.builder(metaData);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(metaData);
+    private <T> Metadata randomParts(Metadata metadata, String prefix, RandomPart<T> randomPart) {
+        Metadata.Builder builder = Metadata.builder(metadata);
+        ImmutableOpenMap<String, T> parts = randomPart.parts(metadata);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(randomInt(partCount - 1),
-                randomPart.parts(metaData).keys().toArray(String.class));
+                randomPart.parts(metadata).keys().toArray(String.class));
             for (String part : randomParts) {
                 if (randomBoolean()) {
                     randomPart.remove(builder, part);
@@ -530,30 +530,30 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Randomly add, deletes or updates indices in the metadata
      */
-    private MetaData randomIndices(MetaData metaData) {
-        return randomParts(metaData, "index", new RandomPart<IndexMetaData>() {
+    private Metadata randomIndices(Metadata metadata) {
+        return randomParts(metadata, "index", new RandomPart<IndexMetadata>() {
 
             @Override
-            public ImmutableOpenMap<String, IndexMetaData> parts(MetaData metaData) {
-                return metaData.indices();
+            public ImmutableOpenMap<String, IndexMetadata> parts(Metadata metadata) {
+                return metadata.indices();
             }
 
             @Override
-            public MetaData.Builder put(MetaData.Builder builder, IndexMetaData part) {
+            public Metadata.Builder put(Metadata.Builder builder, IndexMetadata part) {
                 return builder.put(part, true);
             }
 
             @Override
-            public MetaData.Builder remove(MetaData.Builder builder, String name) {
+            public Metadata.Builder remove(Metadata.Builder builder, String name) {
                 return builder.remove(name);
             }
 
             @Override
-            public IndexMetaData randomCreate(String name) {
-                IndexMetaData.Builder builder = IndexMetaData.builder(name);
+            public IndexMetadata randomCreate(String name) {
+                IndexMetadata.Builder builder = IndexMetadata.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
                 setRandomIndexSettings(random(), settingsBuilder);
-                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion(random()));
+                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()));
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
                 int aliasCount = randomInt(10);
@@ -564,8 +564,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public IndexMetaData randomChange(IndexMetaData part) {
-                IndexMetaData.Builder builder = IndexMetaData.builder(part);
+            public IndexMetadata randomChange(IndexMetadata part) {
+                IndexMetadata.Builder builder = IndexMetadata.builder(part);
                 switch (randomIntBetween(0, 2)) {
                     case 0:
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
@@ -574,12 +574,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         if (randomBoolean() && part.getAliases().isEmpty() == false) {
                             builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
                         } else {
-                            builder.putAlias(AliasMetaData.builder(randomAlphaOfLength(10)));
+                            builder.putAlias(AliasMetadata.builder(randomAlphaOfLength(10)));
                         }
                         break;
                     case 2:
                         builder.settings(Settings.builder().put(part.getSettings())
-                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -592,26 +592,26 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Randomly adds, deletes or updates index templates in the metadata
      */
-    private MetaData randomTemplates(MetaData metaData) {
-        return randomParts(metaData, "template", new RandomPart<IndexTemplateMetaData>() {
+    private Metadata randomTemplates(Metadata metadata) {
+        return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
-            public ImmutableOpenMap<String, IndexTemplateMetaData> parts(MetaData metaData) {
-                return metaData.templates();
+            public ImmutableOpenMap<String, IndexTemplateMetadata> parts(Metadata metadata) {
+                return metadata.templates();
             }
 
             @Override
-            public MetaData.Builder put(MetaData.Builder builder, IndexTemplateMetaData part) {
+            public Metadata.Builder put(Metadata.Builder builder, IndexTemplateMetadata part) {
                 return builder.put(part);
             }
 
             @Override
-            public MetaData.Builder remove(MetaData.Builder builder, String name) {
+            public Metadata.Builder remove(Metadata.Builder builder, String name) {
                 return builder.removeTemplate(name);
             }
 
             @Override
-            public IndexTemplateMetaData randomCreate(String name) {
-                IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
+            public IndexTemplateMetadata randomCreate(String name) {
+                IndexTemplateMetadata.Builder builder = IndexTemplateMetadata.builder(name);
                 builder.order(randomInt(1000))
                         .patterns(Collections.singletonList(randomName("temp")))
                         .settings(randomSettings(Settings.EMPTY));
@@ -623,8 +623,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public IndexTemplateMetaData randomChange(IndexTemplateMetaData part) {
-                IndexTemplateMetaData.Builder builder = new IndexTemplateMetaData.Builder(part);
+            public IndexTemplateMetadata randomChange(IndexTemplateMetadata part) {
+                IndexTemplateMetadata.Builder builder = new IndexTemplateMetadata.Builder(part);
                 builder.order(randomInt(1000));
                 return builder.build();
             }
@@ -634,8 +634,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Generates random alias
      */
-    private AliasMetaData randomAlias() {
-        AliasMetaData.Builder builder = newAliasMetaDataBuilder(randomName("alias"));
+    private AliasMetadata randomAlias() {
+        AliasMetadata.Builder builder = newAliasMetadataBuilder(randomName("alias"));
         if (randomBoolean()) {
             builder.filter(QueryBuilders.termQuery("test", randomRealisticUnicodeOfCodepointLength(10)).toString());
         }
@@ -648,21 +648,21 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Randomly adds, deletes or updates repositories in the metadata
      */
-    private MetaData randomMetaDataCustoms(final MetaData metaData) {
-        return randomParts(metaData, "custom", new RandomPart<MetaData.Custom>() {
+    private Metadata randomMetadataCustoms(final Metadata metadata) {
+        return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, MetaData.Custom> parts(MetaData metaData) {
-                return metaData.customs();
+            public ImmutableOpenMap<String, Metadata.Custom> parts(Metadata metadata) {
+                return metadata.customs();
             }
 
             @Override
-            public MetaData.Builder put(MetaData.Builder builder, MetaData.Custom part) {
+            public Metadata.Builder put(Metadata.Builder builder, Metadata.Custom part) {
                 return builder.putCustom(part.getWriteableName(), part);
             }
 
             @Override
-            public MetaData.Builder remove(MetaData.Builder builder, String name) {
+            public Metadata.Builder remove(Metadata.Builder builder, String name) {
                 if (IndexGraveyard.TYPE.equals(name)) {
                     // there must always be at least an empty graveyard
                     return builder.indexGraveyard(IndexGraveyard.builder().build());
@@ -672,16 +672,16 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             }
 
             @Override
-            public MetaData.Custom randomCreate(String name) {
+            public Metadata.Custom randomCreate(String name) {
                 if (randomBoolean()) {
-                    return new RepositoriesMetaData(Collections.emptyList());
+                    return new RepositoriesMetadata(Collections.emptyList());
                 } else {
                     return IndexGraveyardTests.createRandom();
                 }
             }
 
             @Override
-            public MetaData.Custom randomChange(MetaData.Custom part) {
+            public Metadata.Custom randomChange(Metadata.Custom part) {
                 return part;
             }
         });

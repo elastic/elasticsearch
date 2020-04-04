@@ -39,16 +39,16 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                  DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metaData) throws IOException {
-        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                 Map<String, Object> metadata) throws IOException {
+        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new WeightedAvgAggregator(name, null, format, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new WeightedAvgAggregator(name, null, format, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -58,12 +58,12 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS
             = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
+            return createUnmapped(searchContext, parent, pipelineAggregators, metadata);
         }
-        return new WeightedAvgAggregator(name, numericMultiVS, format, searchContext, parent, pipelineAggregators, metaData);
+        return new WeightedAvgAggregator(name, numericMultiVS, format, searchContext, parent, pipelineAggregators, metadata);
     }
 }

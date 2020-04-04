@@ -57,9 +57,4 @@ public class EBoolean extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(constant);
-    }
 }

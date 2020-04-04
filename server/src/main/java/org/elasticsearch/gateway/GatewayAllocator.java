@@ -28,7 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -45,8 +45,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
 import java.util.Collections;
 import java.util.List;
@@ -66,7 +66,7 @@ public class GatewayAllocator {
 
     private final ConcurrentMap<ShardId, AsyncShardFetch<NodeGatewayStartedShards>>
         asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetaData>>
+    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetadata>>
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
@@ -96,7 +96,7 @@ public class GatewayAllocator {
         for (AsyncShardFetch<NodeGatewayStartedShards> fetch : asyncFetchStarted.values()) {
             count += fetch.getNumberOfInFlightFetches();
         }
-        for (AsyncShardFetch<NodeStoreFilesMetaData> fetch : asyncFetchStore.values()) {
+        for (AsyncShardFetch<NodeStoreFilesMetadata> fetch : asyncFetchStore.values()) {
             count += fetch.getNumberOfInFlightFetches();
         }
         return count;
@@ -172,7 +172,7 @@ public class GatewayAllocator {
         }
     }
 
-    private static void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch,
+    private static void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
                                              RoutingAllocation allocation) {
         ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
         if (primary != null) {
@@ -221,7 +221,7 @@ public class GatewayAllocator {
             AsyncShardFetch<NodeGatewayStartedShards> fetch =
                 asyncFetchStarted.computeIfAbsent(shard.shardId(),
                             shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId,
-                                IndexMetaData.INDEX_DATA_PATH_SETTING.get(allocation.metaData().index(shard.index()).getSettings()),
+                                IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
                                 lister));
             AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
@@ -249,13 +249,13 @@ public class GatewayAllocator {
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-            Lister<BaseNodesResponse<NodeStoreFilesMetaData>, NodeStoreFilesMetaData> lister = this::listStoreFilesMetaData;
-            AsyncShardFetch<NodeStoreFilesMetaData> fetch = asyncFetchStore.computeIfAbsent(shard.shardId(),
+            Lister<BaseNodesResponse<NodeStoreFilesMetadata>, NodeStoreFilesMetadata> lister = this::listStoreFilesMetadata;
+            AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(shard.shardId(),
                     shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(),
-                        IndexMetaData.INDEX_DATA_PATH_SETTING.get(allocation.metaData().index(shard.index()).getSettings()), lister));
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores =
+                        IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()), lister));
+            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);
@@ -263,10 +263,10 @@ public class GatewayAllocator {
             return shardStores;
         }
 
-        private void listStoreFilesMetaData(ShardId shardId, String customDataPath, DiscoveryNode[] nodes,
-                                            ActionListener<BaseNodesResponse<NodeStoreFilesMetaData>> listener) {
-            var request = new TransportNodesListShardStoreMetaData.Request(shardId, customDataPath, nodes);
-            client.executeLocally(TransportNodesListShardStoreMetaData.TYPE, request,
+        private void listStoreFilesMetadata(ShardId shardId, String customDataPath, DiscoveryNode[] nodes,
+                                            ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener) {
+            var request = new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes);
+            client.executeLocally(TransportNodesListShardStoreMetadata.TYPE, request,
                 ActionListener.wrap(listener::onResponse, listener::onFailure));
         }
 

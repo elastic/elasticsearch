@@ -19,7 +19,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -48,7 +48,7 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(String index, Settings settings, Setting<?>... setting) {
-        return newIndexSettings(new Index(index, settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE)),
+        return newIndexSettings(new Index(index, settings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)),
                 settings, setting);
     }
 
@@ -57,34 +57,34 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings indexSetting, Settings nodeSettings, Setting<?>... setting) {
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings build = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSetting)
             .build();
-        IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
+        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metadata, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, IndexScopedSettings indexScopedSettings) {
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings build = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(settings)
                 .build();
-        IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
-        return new IndexSettings(metaData, Settings.EMPTY, indexScopedSettings);
+        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
+        return new IndexSettings(metadata, Settings.EMPTY, indexScopedSettings);
     }
 
-    public static IndexSettings newIndexSettings(final IndexMetaData indexMetaData, Setting<?>... setting) {
+    public static IndexSettings newIndexSettings(final IndexMetadata indexMetadata, Setting<?>... setting) {
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(indexMetaData, Settings.EMPTY, new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(indexMetadata, Settings.EMPTY, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 }

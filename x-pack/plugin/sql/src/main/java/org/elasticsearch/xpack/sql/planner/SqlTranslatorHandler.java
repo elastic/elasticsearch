@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 public class SqlTranslatorHandler implements TranslatorHandler {
 
@@ -52,5 +54,10 @@ public class SqlTranslatorHandler implements TranslatorHandler {
             return ((DateTimeFunction) e).dateTimeFormat();
         }
         return null;
+    }
+
+    @Override
+    public Object convert(Object value, DataType dataType) {
+        return SqlDataTypeConverter.convert(value, dataType);
     }
 }

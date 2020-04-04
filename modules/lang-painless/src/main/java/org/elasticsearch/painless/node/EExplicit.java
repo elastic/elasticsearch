@@ -61,9 +61,4 @@ public class EExplicit extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, child);
-    }
 }

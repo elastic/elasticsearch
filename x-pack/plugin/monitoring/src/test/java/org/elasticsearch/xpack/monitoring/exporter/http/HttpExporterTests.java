@@ -14,7 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -72,7 +72,7 @@ public class HttpExporterTests extends ESTestCase {
 
     private final ClusterService clusterService = mock(ClusterService.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-    private final MetaData metaData = mock(MetaData.class);
+    private final Metadata metadata = mock(Metadata.class);
 
     private final SSLService sslService = mock(SSLService.class);
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -83,7 +83,7 @@ public class HttpExporterTests extends ESTestCase {
         final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
 
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.metadata()).thenReturn(metadata);
         when(clusterState.nodes()).thenReturn(nodes);
         // always let the watcher resources run for these tests; HttpExporterResourceTests tests it flipping on/off
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
@@ -61,26 +61,26 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         String indexName = randomAlphaOfLengthBetween(5, 20);
         Map<String, String> customMetadata = createCustomMetadata();
 
-        IndexMetaData originalIndexMetaData = IndexMetaData.builder(indexName)
+        IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
             .numberOfReplicas(randomIntBetween(1,5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
-        IndexMetaData shrunkIndexMetaData = IndexMetaData.builder(step.getShrunkIndexPrefix() + indexName)
+        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(step.getShrunkIndexPrefix() + indexName)
             .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
             .numberOfReplicas(randomIntBetween(1,5))
             .build();
         ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder()
-                .put(originalIndexMetaData, false)
-                .put(shrunkIndexMetaData, false))
+            .metadata(Metadata.builder()
+                .put(originalIndexMetadata, false)
+                .put(shrunkIndexMetadata, false))
             .build();
 
-        ClusterState newClusterState = step.performAction(originalIndexMetaData.getIndex(), originalClusterState);
+        ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
-        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetaData);
+        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
         LifecycleExecutionState newIndexData = LifecycleExecutionState
-            .fromIndexMetadata(newClusterState.metaData().index(step.getShrunkIndexPrefix() + indexName));
+            .fromIndexMetadata(newClusterState.metadata().index(step.getShrunkIndexPrefix() + indexName));
 
         assertEquals(oldIndexData.getLifecycleDate(), newIndexData.getLifecycleDate());
         assertEquals(oldIndexData.getPhase(), newIndexData.getPhase());
@@ -92,18 +92,18 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         String indexName = randomAlphaOfLengthBetween(5, 20);
         Map<String, String> customMetadata = createCustomMetadata();
 
-        IndexMetaData originalIndexMetaData = IndexMetaData.builder(indexName)
+        IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
             .numberOfReplicas(randomIntBetween(1,5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
         ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder()
-                .put(originalIndexMetaData, false))
+            .metadata(Metadata.builder()
+                .put(originalIndexMetadata, false))
             .build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> step.performAction(originalIndexMetaData.getIndex(), originalClusterState));
+            () -> step.performAction(originalIndexMetadata.getIndex(), originalClusterState));
 
         assertThat(e.getMessage(), equalTo("unable to copy execution state from [" +
             indexName + "] to [" + step.getShrunkIndexPrefix() + indexName + "] as target index does not exist"));

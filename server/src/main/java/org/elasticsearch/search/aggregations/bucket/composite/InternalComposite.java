@@ -58,8 +58,8 @@ public class InternalComposite
 
     InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
                       List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls, boolean earlyTerminated,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.sourceNames = sourceNames;
         this.formats = formats;
         this.buckets = buckets;
@@ -116,7 +116,7 @@ public class InternalComposite
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
         return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, earlyTerminated, pipelineAggregators(), getMetaData());
+            reverseMuls, earlyTerminated, pipelineAggregators(), getMetadata());
     }
 
     @Override
@@ -207,7 +207,7 @@ public class InternalComposite
             lastKey = lastBucket.getRawKey();
         }
         return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
-            earlyTerminated, pipelineAggregators(), metaData);
+            earlyTerminated, pipelineAggregators(), metadata);
     }
 
     @Override

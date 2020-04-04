@@ -57,6 +57,7 @@ public class EVariable extends AExpression {
             }
 
             output.actual = type;
+            output.isStaticType = true;
 
             StaticNode staticNode = new StaticNode();
 

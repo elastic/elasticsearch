@@ -82,12 +82,7 @@ public abstract class AExpression extends ANode {
          */
         Class<?> actual = null;
 
-        /**
-         * The {@link PainlessCast} to convert this expression's actual type
-         * to the parent expression's expected type. {@code null} if no cast
-         * is required.
-         */
-        PainlessCast painlessCast = null;
+        boolean isStaticType = false;
 
         /**
          * {@code true} if this node or a sub-node of this node can be optimized with

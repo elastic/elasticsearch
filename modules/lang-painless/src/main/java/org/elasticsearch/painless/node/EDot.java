@@ -32,7 +32,6 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
-import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -106,8 +105,7 @@ public class EDot extends AExpression {
             dotSubDefNode.setValue(value);
             expressionNode = dotSubDefNode;
         } else {
-            boolean isStatic = prefixOutput.expressionNode instanceof StaticNode;
-            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, isStatic, value);
+            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefixOutput.isStaticType, value);
 
             if (field == null) {
                 PainlessMethod getter;

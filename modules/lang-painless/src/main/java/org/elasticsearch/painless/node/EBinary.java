@@ -80,10 +80,12 @@ public class EBinary extends AExpression {
             promote = boolean.class;
             output.actual = boolean.class;
         } else {
-            if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM || operation == Operation.SUB) {
+            if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
             } else if (operation == Operation.ADD) {
                 promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
+            } else if (operation == Operation.SUB) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
             } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
                 shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);

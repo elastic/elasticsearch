@@ -772,16 +772,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         if (ctx.ADD() != null) {
             operation = Operation.ADD;
         } else if (ctx.SUB() != null) {
-            if (ctx.unary() instanceof NotaddsubContext
-                    && ((NotaddsubContext)ctx.unary()).unarynotaddsub() instanceof ReadContext
-                    && ((ReadContext)((NotaddsubContext)ctx.unary()).unarynotaddsub()).chain() instanceof DynamicContext
-                    && ((DynamicContext)((ReadContext)((NotaddsubContext)ctx.unary()).unarynotaddsub()).chain())
-                            .primary() instanceof NumericContext
-                    && ((DynamicContext)((ReadContext)((NotaddsubContext)ctx.unary()).unarynotaddsub()).chain()).postfix().isEmpty()) {
-
-                return expression;
-            }
-
             operation = Operation.SUB;
         } else {
             throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
@@ -861,18 +851,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNumeric(NumericContext ctx) {
-        final boolean negate = ((DynamicContext)ctx.parent).postfix().isEmpty() &&
-                (ctx.parent.parent.parent.parent instanceof AddsubContext) &&
-                (((AddsubContext)ctx.parent.parent.parent.parent).SUB() != null);
-
         if (ctx.DECIMAL() != null) {
-            return new EDecimal(location(ctx), (negate ? "-" : "") + ctx.DECIMAL().getText());
+            return new EDecimal(location(ctx), ctx.DECIMAL().getText());
         } else if (ctx.HEX() != null) {
-            return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.HEX().getText().substring(2), 16);
+            return new ENumeric(location(ctx), ctx.HEX().getText().substring(2), 16);
         } else if (ctx.INTEGER() != null) {
-            return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.INTEGER().getText(), 10);
+            return new ENumeric(location(ctx), ctx.INTEGER().getText(), 10);
         } else if (ctx.OCTAL() != null) {
-            return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.OCTAL().getText().substring(1), 8);
+            return new ENumeric(location(ctx), ctx.OCTAL().getText().substring(1), 8);
         } else {
             throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }

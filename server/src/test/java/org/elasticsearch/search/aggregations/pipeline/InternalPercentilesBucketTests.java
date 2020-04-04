@@ -46,17 +46,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalPercentilesBucketTests extends InternalAggregationTestCase<InternalPercentilesBucket> {
 
     @Override
-    protected InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metaData) {
-        return createTestInstance(name, metaData, randomPercents(), true);
+    protected InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, randomPercents(), true);
     }
 
-    private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metaData,
+    private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
             double[] percents, boolean keyed) {
         final double[] percentiles = new double[percents.length];
         for (int i = 0; i < percents.length; ++i) {
             percentiles[i] = frequently() ? randomDouble() : Double.NaN;
         }
-        return createTestInstance(name, metaData, percents, percentiles, keyed);
+        return createTestInstance(name, metadata, percents, percentiles, keyed);
     }
 
     private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,

@@ -76,7 +76,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.ElasticsearchException.readStackTrace;

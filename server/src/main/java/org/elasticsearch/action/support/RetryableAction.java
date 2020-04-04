@@ -31,9 +31,9 @@ public abstract class RetryableAction<Response> {
     private final Logger logger;
 
     private final ThreadPool threadPool;
-    private final long initialDelayNanos;
-    private final long timeoutNanos;
-    private final long startNanos;
+    private final long initialDelayMillis;
+    private final long timeoutMillis;
+    private final long startMillis;
     private final ActionListener<Response> finalListener;
     private final String retryExecutor;
 
@@ -42,19 +42,19 @@ public abstract class RetryableAction<Response> {
         this(logger, threadPool, initialDelay, timeoutValue, listener, ThreadPool.Names.SAME);
     }
 
-    public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelayNanos, TimeValue timeoutValue,
+    public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
                            ActionListener<Response> listener, String retryExecutor) {
         this.logger = logger;
         this.threadPool = threadPool;
-        this.initialDelayNanos = initialDelayNanos.getNanos();
-        this.timeoutNanos = timeoutValue.getNanos();
-        this.startNanos = threadPool.relativeTimeInNanos();
+        this.initialDelayMillis = Math.max(initialDelay.getMillis(), 1);
+        this.timeoutMillis = Math.max(timeoutValue.getMillis(), 1);
+        this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
         this.retryExecutor = retryExecutor;
     }
 
     public void run() {
-        tryAction(new RetryingListener(initialDelayNanos, null));
+        tryAction(new RetryingListener(initialDelayMillis, null));
     }
 
     public abstract void tryAction(ActionListener<Response> listener);
@@ -63,11 +63,11 @@ public abstract class RetryableAction<Response> {
 
     private class RetryingListener implements ActionListener<Response> {
 
-        private final long nextDelayNanos;
+        private final long nextDelayMillis;
         private final Exception existingException;
 
-        private RetryingListener(long nextDelayNanos, Exception existingException) {
-            this.nextDelayNanos = nextDelayNanos;
+        private RetryingListener(long nextDelayMillis, Exception existingException) {
+            this.nextDelayMillis = nextDelayMillis;
             this.existingException = existingException;
         }
 
@@ -79,21 +79,21 @@ public abstract class RetryableAction<Response> {
         @Override
         public void onFailure(Exception e) {
             if (shouldRetry(e)) {
-                final long elapsedNanos = threadPool.relativeTimeInNanos() - startNanos;
-                if (elapsedNanos > timeoutNanos) {
+                final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
+                if (elapsedMillis > timeoutMillis) {
                     logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
-                        TimeValue.timeValueNanos(elapsedNanos)), e);
+                        TimeValue.timeValueMillis(elapsedMillis)), e);
                     addExisting(e);
                     finalListener.onFailure(e);
                 } else {
                     logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}",
-                        TimeValue.timeValueNanos(nextDelayNanos)), e);
+                        TimeValue.timeValueMillis(nextDelayMillis)), e);
                     addExisting(e);
-                    Runnable runnable = () -> tryAction(new RetryingListener(nextDelayNanos * 2, e));
-                    final long midpoint = (nextDelayNanos / 2);
-                    final int randomness = Randomness.get().nextInt((int) (nextDelayNanos - midpoint));
-                    final long delayNanos = midpoint + randomness;
-                    threadPool.schedule(runnable, TimeValue.timeValueNanos(delayNanos), retryExecutor);
+                    Runnable runnable = () -> tryAction(new RetryingListener(nextDelayMillis * 2, e));
+                    final long midpoint = (nextDelayMillis / 2);
+                    final int randomness = Randomness.get().nextInt((int) Math.min(midpoint, Integer.MAX_VALUE));
+                    final long delayMillis = midpoint + randomness;
+                    threadPool.schedule(runnable, TimeValue.timeValueMillis(delayMillis), retryExecutor);
                 }
             } else {
                 addExisting(e);

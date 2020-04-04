@@ -5,18 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class CategoryDefinitionTests extends AbstractSerializingTestCase<CategoryDefinition> {
+public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<CategoryDefinition> {
 
     public CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
@@ -27,6 +30,12 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         categoryDefinition.setExamples(Arrays.asList(generateRandomStringArray(10, 10, false)));
         if (randomBoolean()) {
             categoryDefinition.setGrokPattern(randomAlphaOfLength(50));
+        }
+        if (randomBoolean()) {
+            categoryDefinition.setNumMatches(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            categoryDefinition.setPreferredToCategories(LongStream.generate(ESTestCase::randomNonNegativeLong).limit(10).toArray());
         }
         return categoryDefinition;
     }
@@ -144,5 +153,14 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             CategoryDefinition.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    @Override
+    protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
+        if (version.before(Version.V_7_8_0)) {
+            instance.setPreferredToCategories(new long[0]);
+            instance.setNumMatches(0L);
+        }
+        return instance;
     }
 }

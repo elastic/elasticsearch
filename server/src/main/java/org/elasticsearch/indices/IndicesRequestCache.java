@@ -70,7 +70,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
-     * since we are checking on the cluster state IndexMetaData always.
+     * since we are checking on the cluster state IndexMetadata always.
      */
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING =
         Setting.boolSetting("index.requests.cache.enable", true, Property.Dynamic, Property.IndexScope);

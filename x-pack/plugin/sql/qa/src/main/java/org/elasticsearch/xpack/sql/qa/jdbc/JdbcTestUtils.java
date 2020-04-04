@@ -50,21 +50,21 @@ final class JdbcTestUtils {
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
-    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
+    static void logResultSetMetaData(ResultSet rs, Logger logger) throws SQLException {
+        ResultSetMetaData metadata = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
 
-        int columns = metaData.getColumnCount();
+        int columns = metadata.getColumnCount();
         for (int i = 1; i <= columns; i++) {
             if (i > 1) {
                 sb.append(" | ");
             }
             column.setLength(0);
-            column.append(metaData.getColumnName(i));
+            column.append(metadata.getColumnName(i));
             column.append("(");
-            column.append(metaData.getColumnTypeName(i));
+            column.append(metadata.getColumnTypeName(i));
             column.append(")");
 
             sb.append(trimOrPad(column));
@@ -81,9 +81,9 @@ final class JdbcTestUtils {
     }
 
     static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
+        ResultSetMetaData metadata = rs.getMetaData();
 
-        int columns = metaData.getColumnCount();
+        int columns = metadata.getColumnCount();
 
         while (rs.next()) {
             log.info(rowAsString(rs, columns));
@@ -91,8 +91,8 @@ final class JdbcTestUtils {
     }
 
     static String resultSetCurrentData(ResultSet rs) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
-        return rowAsString(rs, metaData.getColumnCount());
+        ResultSetMetaData metadata = rs.getMetaData();
+        return rowAsString(rs, metadata.getColumnCount());
     }
 
     private static String rowAsString(ResultSet rs, int columns) throws SQLException {
@@ -122,14 +122,14 @@ final class JdbcTestUtils {
     }
 
     public static void logLikeCLI(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
-        int columns = metaData.getColumnCount();
+        ResultSetMetaData metadata = rs.getMetaData();
+        int columns = metadata.getColumnCount();
 
         List<ColumnInfo> cols = new ArrayList<>(columns);
 
         for (int i = 1; i <= columns; i++) {
-            cols.add(new ColumnInfo(metaData.getTableName(i), metaData.getColumnName(i), metaData.getColumnTypeName(i),
-                    metaData.getColumnDisplaySize(i)));
+            cols.add(new ColumnInfo(metadata.getTableName(i), metadata.getColumnName(i), metadata.getColumnTypeName(i),
+                    metadata.getColumnDisplaySize(i)));
         }
 
 
@@ -146,7 +146,7 @@ final class JdbcTestUtils {
         BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
-    
+
     static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
@@ -154,7 +154,7 @@ final class JdbcTestUtils {
     /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
-     * 
+     *
      * Currently able to resolve resources inside the classpath either from:
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).

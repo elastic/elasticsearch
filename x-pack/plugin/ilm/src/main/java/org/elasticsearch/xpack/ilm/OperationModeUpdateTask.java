@@ -9,7 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -55,7 +55,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (ilmMode == null) {
             return currentState;
         }
-        IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(ilmMode) == false) {
             return currentState;
         } else if (currentMetadata == null) {
@@ -73,7 +73,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             logger.info("updating ILM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.metaData())
+            .metadata(Metadata.builder(currentState.metadata())
                     .putCustom(IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode)))
             .build();
@@ -83,7 +83,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (slmMode == null) {
             return currentState;
         }
-        SnapshotLifecycleMetadata currentMetadata = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata currentMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(slmMode) == false) {
             return currentState;
         } else if (currentMetadata == null) {
@@ -101,7 +101,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             logger.info("updating SLM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.metaData())
+            .metadata(Metadata.builder(currentState.metadata())
                 .putCustom(SnapshotLifecycleMetadata.TYPE,
                     new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(),
                         newMode, currentMetadata.getStats())))

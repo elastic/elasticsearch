@@ -231,22 +231,22 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     public void testLogoutInvalidatesToken() throws Exception {
         final String session = randomAlphaOfLengthBetween(12, 18);
         final String nameId = randomAlphaOfLengthBetween(6, 16);
-        final Map<String, Object> userMetaData = MapBuilder.<String, Object>newMapBuilder()
+        final Map<String, Object> userMetadata = MapBuilder.<String, Object>newMapBuilder()
                 .put(SamlRealm.USER_METADATA_NAMEID_FORMAT, NameID.TRANSIENT)
                 .put(SamlRealm.USER_METADATA_NAMEID_VALUE, nameId)
                 .map();
-        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetaData, true);
+        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetadata, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
-        final Map<String, Object> tokenMetaData = samlRealm.createTokenMetadata(
+        final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
         final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
-            tokenMetaData);
+            tokenMetadata);
 
 
         final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetaData, future);
+        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().v1();
         mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 

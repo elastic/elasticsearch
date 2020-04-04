@@ -114,19 +114,22 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
         static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
         static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
+        static final ParseField T_TEST_USAGE = new ParseField("t_test_usage");
 
         private final long boxplotUsage;
         private final long cumulativeCardinalityUsage;
         private final long stringStatsUsage;
         private final long topMetricsUsage;
+        private final long ttestUsage;
 
         public NodeResponse(DiscoveryNode node, long boxplotUsage, long cumulativeCardinalityUsage, long stringStatsUsage,
-                long topMetricsUsage) {
+                long topMetricsUsage, long ttestUsage) {
             super(node);
             this.boxplotUsage = boxplotUsage;
             this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
             this.stringStatsUsage = stringStatsUsage;
             this.topMetricsUsage = topMetricsUsage;
+            this.ttestUsage = ttestUsage;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -144,6 +147,11 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 stringStatsUsage = 0;
                 topMetricsUsage = 0;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+                ttestUsage = in.readVLong();
+            } else {
+                ttestUsage = 0;
+            }
         }
 
         @Override
@@ -157,6 +165,9 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+                out.writeVLong(ttestUsage);
+            }
         }
 
         @Override
@@ -166,6 +177,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
             builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
             builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
+            builder.field(T_TEST_USAGE.getPreferredName(), ttestUsage);
             builder.endObject();
             return builder;
         }
@@ -183,6 +195,10 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         }
 
         public long getTopMetricsUsage() {
+            return topMetricsUsage;
+        }
+
+        public long getTTestUsage() {
             return topMetricsUsage;
         }
     }

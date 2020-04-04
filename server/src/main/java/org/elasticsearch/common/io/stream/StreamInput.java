@@ -826,18 +826,6 @@ public abstract class StreamInput extends InputStream {
         return map10;
     }
 
-    private Set<?> readSet(Function<Integer, Set<Object>> ctor) throws IOException {
-        int size = readArraySize();
-        if (size == 0) {
-            return Collections.emptySet();
-        }
-        Set<Object> set = ctor.apply(size);
-        for (int i = 0; i < size; i++) {
-            set.add(readGenericValue());
-        }
-        return set;
-    }
-
     private Date readDate() throws IOException {
         return new Date(readLong());
     }

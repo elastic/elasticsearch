@@ -16,14 +16,19 @@
 
   - match: { policy.deciders.always: {} }
 
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+
 ---
-"Test get non-existent policy":
+"Test get non-existent autoscaling policy":
   - do:
       catch: bad_request
       autoscaling.get_autoscaling_policy:
-        name: my_autoscaling_policy
+        name: does_not_exist
 
   - do:
-      catch: /autoscaling policy with name \[my_autoscaling_policy\] does not exist/
+      catch: /autoscaling policy with name \[does_not_exist\] does not exist/
       autoscaling.get_autoscaling_policy:
-        name: my_autoscaling_policy
+        name: does_not_exist

@@ -10,6 +10,8 @@
 
   - match: { "acknowledged": true }
 
+---
+"Test put autoscaling policy with non-existent decider":
   - do:
       catch: bad_request
       autoscaling.put_autoscaling_policy:

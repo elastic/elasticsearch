@@ -118,7 +118,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
         // Load EQL validation specs
         List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true);
-        specs = CollectionUtils.combine(specs, EqlSpecLoader.load("/test_between_queries.toml", true));
+        specs = CollectionUtils.combine(specs, EqlSpecLoader.load("/test_queries_supported.toml", true));
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
 
         // Validate only currently supported specs

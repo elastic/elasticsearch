@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.eql.expression.function.scalar.between;
+package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,7 +15,7 @@ import java.util.Objects;
 
 public class BetweenFunctionProcessor implements Processor {
 
-    public static final String NAME = "sbetween";
+    public static final String NAME = "sbtw";
 
     private final Processor source, left, right, greedy, caseSensitive;
 
@@ -67,7 +67,7 @@ public class BetweenFunctionProcessor implements Processor {
         String strLeft = left.toString();
         boolean bGreedy = ((Boolean) greedy).booleanValue();
         boolean bCaseSensitive = ((Boolean) caseSensitive).booleanValue();
-        return BetweenUtils.between(str, strLeft, strRight, bGreedy, bCaseSensitive);
+        return StringUtils.between(str, strLeft, strRight, bGreedy, bCaseSensitive);
     }
 
     private static void throwIfNotString(Object obj) {

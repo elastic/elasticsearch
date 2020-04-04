@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function;
 
-import org.elasticsearch.xpack.eql.expression.function.scalar.between.Between;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Between;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;

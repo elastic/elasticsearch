@@ -49,8 +49,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     private SearchHits searchHits;
 
     public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
@@ -160,7 +160,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
         return new InternalTopHits(name, this.from, this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), pipelineAggregators(), getMetaData());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), pipelineAggregators(), getMetadata());
     }
 
     @Override

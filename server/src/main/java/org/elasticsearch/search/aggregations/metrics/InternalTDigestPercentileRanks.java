@@ -30,9 +30,9 @@ import java.util.Map;
 public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPercentiles implements PercentileRanks {
     public static final String NAME = "tdigest_percentile_ranks";
 
-    InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, DocValueFormat formatter,
-                                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
+    public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, DocValueFormat formatter,
+                                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metadata);
     }
 
     /**
@@ -69,11 +69,11 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
 
     @Override
     protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metadata);
     }
 
-    static double percentileRank(TDigestState state, double value) {
+    public static double percentileRank(TDigestState state, double value) {
         double percentileRank = state.cdf(value);
         if (percentileRank < 0) {
             percentileRank = 0;

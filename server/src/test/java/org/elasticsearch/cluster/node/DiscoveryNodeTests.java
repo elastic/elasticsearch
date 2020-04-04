@@ -34,8 +34,29 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class DiscoveryNodeTests extends ESTestCase {
+
+    public void testRolesAreSorted() {
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        final DiscoveryNode node = new DiscoveryNode(
+            "name",
+            "id",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+            emptyMap(),
+            roles,
+            Version.CURRENT
+        );
+        DiscoveryNodeRole previous = null;
+        for (final DiscoveryNodeRole current : node.getRoles()) {
+            if (previous != null) {
+                assertThat(current, greaterThanOrEqualTo(previous));
+            }
+            previous = current;
+        }
+
+    }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
         InetAddress inetAddress = randomBoolean() ? InetAddress.getByName("192.0.2.1") :

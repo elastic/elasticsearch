@@ -50,8 +50,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
     LongRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
                                    SearchContext aggregationContext, Aggregator parent, IncludeExclude.LongFilter longFilter,
                                    int maxDocCount, double precision, List<PipelineAggregator> pipelineAggregators,
-                                   Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData, maxDocCount, precision,
+                                   Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata, maxDocCount, precision,
             format, valuesSource, longFilter);
         this.bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
@@ -151,12 +151,12 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
         }
 
         CollectionUtil.introSort(buckets, ORDER.comparator());
-        return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
+        return new LongRareTerms(name, ORDER, pipelineAggregators(), metadata(), format, buckets, maxDocCount, filter);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, emptyList(), 0, filter);
+        return new LongRareTerms(name, ORDER, pipelineAggregators(), metadata(), format, emptyList(), 0, filter);
     }
 
     @Override

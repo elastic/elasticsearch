@@ -22,7 +22,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -221,7 +223,6 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
-
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         int numberOfCompilations = randomIntBetween(1, 20);
@@ -247,6 +248,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
         scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertEquals(1L, scriptService.cacheStats().getGeneralStats().getCompilations());
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
@@ -256,7 +258,64 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));
         assertEquals(2L, scriptService.stats().getCompilations());
+        assertEquals(2L, scriptService.cacheStats().getGeneralStats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
+        assertEquals(1L, scriptService.cacheStats().getGeneralStats().getCacheEvictions());
+    }
+
+    public void testContextCacheStats() throws IOException {
+        ScriptContext<?> contextA = randomFrom(contexts.values());
+        String aRate = "2/10m";
+        ScriptContext<?> contextB = randomValueOtherThan(contextA, () -> randomFrom(contexts.values()));
+        String bRate = "3/10m";
+        BiFunction<String, String, String> msg = (rate, ctx) -> (
+            "[script] Too many dynamic script compilations within, max: [" + rate +
+            "]; please use indexed, or scripts with parameters instead; this limit can be changed by the [script.context." + ctx +
+            ".max_compilations_rate] setting"
+        );
+        buildScriptService(Settings.builder()
+            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
+            .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), 1)
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), aRate)
+            .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), 2)
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), bRate)
+            .build());
+
+        // Context A
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), contextA);
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), contextA);
+        GeneralScriptException gse = expectThrows(GeneralScriptException.class,
+            () -> scriptService.compile(new Script(ScriptType.INLINE, "test", "3+3", Collections.emptyMap()), contextA));
+        assertEquals(msg.apply(aRate, contextA.name), gse.getRootCause().getMessage());
+        assertEquals(CircuitBreakingException.class, gse.getRootCause().getClass());
+
+        // Context B
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "4+4", Collections.emptyMap()), contextB);
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "5+5", Collections.emptyMap()), contextB);
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "6+6", Collections.emptyMap()), contextB);
+        gse = expectThrows(GeneralScriptException.class,
+            () -> scriptService.compile(new Script(ScriptType.INLINE, "test", "7+7", Collections.emptyMap()), contextB));
+        assertEquals(msg.apply(bRate, contextB.name), gse.getRootCause().getMessage());
+        gse = expectThrows(GeneralScriptException.class,
+            () -> scriptService.compile(new Script(ScriptType.INLINE, "test", "8+8", Collections.emptyMap()), contextB));
+        assertEquals(msg.apply(bRate, contextB.name), gse.getRootCause().getMessage());
+        assertEquals(CircuitBreakingException.class, gse.getRootCause().getClass());
+
+        // Context specific
+        ScriptCacheStats stats = scriptService.cacheStats();
+        assertEquals(2L, stats.getContextStats().get(contextA.name).getCompilations());
+        assertEquals(1L, stats.getContextStats().get(contextA.name).getCacheEvictions());
+        assertEquals(1L, stats.getContextStats().get(contextA.name).getCompilationLimitTriggered());
+
+        assertEquals(3L, stats.getContextStats().get(contextB.name).getCompilations());
+        assertEquals(1L, stats.getContextStats().get(contextB.name).getCacheEvictions());
+        assertEquals(2L, stats.getContextStats().get(contextB.name).getCompilationLimitTriggered());
+        assertNull(scriptService.cacheStats().getGeneralStats());
+
+        // Summed up
+        assertEquals(5L, scriptService.stats().getCompilations());
+        assertEquals(2L, scriptService.stats().getCacheEvictions());
+        assertEquals(3L, scriptService.stats().getCompilationLimitTriggered());
     }
 
     public void testStoreScript() throws Exception {
@@ -268,21 +327,21 @@ public class ScriptServiceTests extends ESTestCase {
             .field("source", "abc")
             .endObject()
             .endObject());
-        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
-        assertNotNull(scriptMetaData);
-        assertEquals("abc", scriptMetaData.getStoredScript("_id").getSource());
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
+        assertNotNull(scriptMetadata);
+        assertEquals("abc", scriptMetadata.getStoredScript("_id").getSource());
     }
 
     public void testDeleteScript() throws Exception {
-        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id",
             StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), XContentType.JSON));
-        scriptMetaData = ScriptMetaData.deleteStoredScript(scriptMetaData, "_id");
-        assertNotNull(scriptMetaData);
-        assertNull(scriptMetaData.getStoredScript("_id"));
+        scriptMetadata = ScriptMetadata.deleteStoredScript(scriptMetadata, "_id");
+        assertNotNull(scriptMetadata);
+        assertNull(scriptMetadata.getStoredScript("_id"));
 
-        ScriptMetaData errorMetaData = scriptMetaData;
+        ScriptMetadata errorMetadata = scriptMetadata;
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
-            ScriptMetaData.deleteStoredScript(errorMetaData, "_id");
+            ScriptMetadata.deleteStoredScript(errorMetadata, "_id");
         });
         assertEquals("stored script [_id] does not exist and cannot be deleted", e.getMessage());
     }
@@ -290,9 +349,9 @@ public class ScriptServiceTests extends ESTestCase {
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder()
-                .putCustom(ScriptMetaData.TYPE,
-                    new ScriptMetaData.Builder(null).storeScript("_id",
+            .metadata(Metadata.builder()
+                .putCustom(ScriptMetadata.TYPE,
+                    new ScriptMetadata.Builder(null).storeScript("_id",
                         StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
                             XContentType.JSON)).build()))
             .build();

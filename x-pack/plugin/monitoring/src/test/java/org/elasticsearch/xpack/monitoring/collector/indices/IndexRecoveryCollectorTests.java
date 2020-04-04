@@ -154,8 +154,8 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
         verify(indicesAdminClient).prepareRecoveries();
         if (recoveryStates.isEmpty() == false) {
-            verify(clusterState).metaData();
-            verify(metaData).clusterUUID();
+            verify(clusterState).metadata();
+            verify(metadata).clusterUUID();
         }
 
         if (nbRecoveries == 0) {

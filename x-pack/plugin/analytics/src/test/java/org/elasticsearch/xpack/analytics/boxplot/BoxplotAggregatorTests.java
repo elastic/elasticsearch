@@ -39,6 +39,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,6 +58,12 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     /** Script to return the {@code _value} provided by aggs framework. */
     public static final String VALUE_SCRIPT = "_value";
 
+
+    @BeforeClass()
+    public static void registerBuilder() {
+        BoxplotAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    }
+
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new BoxplotAggregationBuilder("foo").field(fieldName);
@@ -63,8 +71,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.HISTOGRAM);
+        return List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM);
     }
 
     @Override
@@ -80,7 +87,6 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
-
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -219,7 +225,8 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalBoxplot>) boxplot -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
+        assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword(indexed,tokenized)] " +
+            "is not supported for aggregation [boxplot]");
     }
 
     public void testBadMissingField() {

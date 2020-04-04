@@ -2,7 +2,7 @@
 "Test delete autoscaling policy":
   - do:
       autoscaling.put_autoscaling_policy:
-        name: hot
+        name: my_autoscaling_policy
         body:
           policy:
             deciders:
@@ -12,7 +12,7 @@
 
   - do:
       autoscaling.delete_autoscaling_policy:
-        name: hot
+        name: my_autoscaling_policy
 
   # TODO: add validation that the policy is removed after we have a get policy API
 

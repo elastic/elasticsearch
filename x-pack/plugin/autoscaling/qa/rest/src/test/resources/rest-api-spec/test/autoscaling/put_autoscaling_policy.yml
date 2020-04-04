@@ -2,7 +2,7 @@
 "Test put autoscaling policy":
   - do:
       autoscaling.put_autoscaling_policy:
-        name: hot
+        name: my_autoscaling_policy
         body:
           policy:
             deciders:
@@ -13,7 +13,7 @@
   - do:
       catch: bad_request
       autoscaling.put_autoscaling_policy:
-        name: hot
+        name: my_autoscaling_policy
         body:
           policy:
             deciders:

@@ -980,7 +980,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener        listener
      */
     public void deleteSnapshot(final String repositoryName, final String snapshotName, final ActionListener<Void> listener) {
-        logger.debug("trying to abort snapshot [{}] in repository [{}]", snapshotName, repositoryName);
+        logger.info("deleting snapshot [{}] from repository [{}]", snapshotName, repositoryName);
 
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(Priority.NORMAL) {
 
@@ -1093,7 +1093,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             private void tryDeleteExisting(Priority priority) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l ->
+                threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
                     repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData -> {
                         Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
                             .stream()
@@ -1129,8 +1129,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener          Listener to complete when done
      */
     private void deleteCompletedSnapshot(Snapshot snapshot, long repositoryStateId, Priority priority, ActionListener<Void> listener) {
-        logger.info("deleting snapshot [{}] assuming repository generation [{}] and with priority [{}]",
-            snapshot, repositoryStateId, priority);
+        logger.debug("deleting snapshot [{}] assuming repository generation [{}] and with priority [{}]", snapshot, repositoryStateId,
+            priority);
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
             @Override
             public ClusterState execute(ClusterState currentState) {

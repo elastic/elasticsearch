@@ -54,7 +54,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        return ThreadPool.Names.SAME;
     }
 
     @Override

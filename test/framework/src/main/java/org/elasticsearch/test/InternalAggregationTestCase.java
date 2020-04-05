@@ -281,7 +281,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, metadata);
     }
 
-    public void testReduceRandom() {
+    public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();
@@ -296,7 +296,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // sometimes do an incremental reduce
+            // sometimes do an partial reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
@@ -312,6 +312,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             //check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
             toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
+            /*
+             * sometimes simulate cross cluster search by serializing and
+             * deserializing the partially reduced result.
+             */
+            if (randomBoolean()) {
+                reduced = copyInstance(reduced);
+            }
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,

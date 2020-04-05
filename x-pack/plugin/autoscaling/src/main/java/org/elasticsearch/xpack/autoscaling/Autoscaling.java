@@ -28,14 +28,17 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingDecisionAction;
+import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportDeleteAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingDecisionAction;
+import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
+import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -103,6 +106,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
             return List.of(
                 new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class),
                 new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
+                new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
                 new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
             );
         } else {
@@ -124,6 +128,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
             return List.of(
                 new RestGetAutoscalingDecisionHandler(),
                 new RestDeleteAutoscalingPolicyHandler(),
+                new RestGetAutoscalingPolicyHandler(),
                 new RestPutAutoscalingPolicyHandler()
             );
         } else {

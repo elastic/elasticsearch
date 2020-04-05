@@ -461,7 +461,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A set of ILM policies that should be preserved between runs.
      */
     protected Set<String> preserveILMPolicyIds() {
-        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy");
+        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy", "ml-size-based-ilm-policy");
     }
 
     /**

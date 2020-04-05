@@ -392,7 +392,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public synchronized void start() {
-        LOGGER.info("Password is {}", keystorePassword);
         LOGGER.info("Starting `{}`", this);
 
         if (Files.exists(getExtractedDistributionDir()) == false) {

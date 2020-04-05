@@ -434,8 +434,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logToProcessStdout("installed plugins");
         }
 
+        logToProcessStdout("Creating elasticsearch keystore with password set to [" + keystorePassword + "]");
         if (keystorePassword.length() > 0) {
             runElasticsearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, "elasticsearch-keystore", "create", "-p");
+        } else {
+            runElasticsearchBinScript("elasticsearch-keystore", "create");
         }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {

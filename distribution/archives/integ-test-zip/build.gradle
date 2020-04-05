@@ -31,4 +31,5 @@ integTest.runner {
   } else {
     systemProperty 'tests.logfile', '--external--'
   }
+  keystorePassword 's3cr3t'
 }

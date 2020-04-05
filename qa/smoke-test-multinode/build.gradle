@@ -45,4 +45,5 @@ integTest.runner {
       'cat.templates/10_basic/Multiple template',
     ].join(',')
   }
+  keystorePassword 's3cr3t'
 }

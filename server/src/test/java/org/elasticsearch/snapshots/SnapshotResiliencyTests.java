@@ -130,6 +130,8 @@ import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -200,6 +202,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -391,10 +394,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
-            final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
-            return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
-        }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
+        runUntilAllSnapshotsDone();
 
         clearDisruptionsAndAwaitSync();
 
@@ -444,7 +444,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
             assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runUntilAllSnapshotsDone();
 
         assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(createAnotherSnapshotResponseStepListener.result());
@@ -459,6 +459,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    private void runUntilAllSnapshotsDone() {
+        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
+            final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
+        }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
     }
 
     public void testConcurrentSnapshotCreateAndDeleteOther() {
@@ -511,7 +518,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runUntilAllSnapshotsDone();
 
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
@@ -577,7 +584,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 searchResponseListener);
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        final AtomicBoolean doneSearching = new AtomicBoolean(false);
+        continueOrDie(searchResponseListener, searchResponse -> doneSearching.set(true));
+
+        runUntil(doneSearching::get, TimeUnit.MINUTES.toMillis(1L));
 
         assertEquals(documentsFirstSnapshot + documentsSecondSnapshot,
             Objects.requireNonNull(searchResponseListener.result().getHits().getTotalHits()).value);
@@ -647,25 +657,34 @@ public class SnapshotResiliencyTests extends ESTestCase {
             client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(false)
                 .setPartial(partialSnapshot).execute(createSnapshotResponseStepListener));
 
+        final AtomicBoolean done = new AtomicBoolean(false);
+
         continueOrDie(createSnapshotResponseStepListener,
-            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (partialSnapshot) {
-                        // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+            createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), ActionListener.runAfter(
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        if (partialSnapshot) {
+                            // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
+                            client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (partialSnapshot) {
-                        throw new AssertionError("Delete index should always work during partial snapshots", e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (partialSnapshot) {
+                            throw new AssertionError("Delete index should always work during partial snapshots", e);
+                        }
                     }
-                }
-            }));
+                }, () -> done.set(true))));
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runUntil(() -> {
+            if (done.get() == false) {
+                return false;
+            }
+            return testClusterNodes.randomMasterNodeSafe().clusterService.state().<SnapshotsInProgress>custom(SnapshotsInProgress.TYPE)
+                .entries().isEmpty();
+        }, TimeUnit.MINUTES.toMillis(1L));
 
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
@@ -1221,6 +1240,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         return namedWriteableRegistry;
                     }
                 };
+                final AtomicInteger circuitBreakingCounter = new AtomicInteger(3);
                 transportService = mockTransport.createTransportService(
                     settings, threadPool,
                     new TransportInterceptor() {
@@ -1242,7 +1262,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         }
                                     });
                             } else {
-                                return actualHandler;
+                                return (request, channel, task) -> {
+                                    if (randomBoolean() && clusterService.state().nodes().isLocalNodeElectedMaster() &&
+                                        action.equals(SnapshotShardsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)
+                                         && circuitBreakingCounter.decrementAndGet() >= 0) {
+                                        channel.sendResponse(new TransportException(
+                                            new CircuitBreakingException(
+                                                "Simulated breaker exception", CircuitBreaker.Durability.TRANSIENT)));
+                                    } else {
+                                        actualHandler.messageReceived(request, channel, task);
+                                    }
+                                };
                             }
                         }
                     },

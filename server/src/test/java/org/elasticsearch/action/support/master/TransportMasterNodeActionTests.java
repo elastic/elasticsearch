@@ -41,6 +41,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -53,6 +55,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -66,11 +69,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TransportMasterNodeActionTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -479,5 +487,70 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         transport.handleResponse(capturedRequest.requestId, response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
+    }
+
+    public void testRetryMasterCircuitBreakerTrippedPermanently() throws Exception {
+        Request request = new Request();
+        request.masterNodeTimeout(TimeValue.timeValueSeconds(5L));
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        final CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+        transport.handleRemoteError(
+            capturedRequest.requestId, new CircuitBreakingException("Fake circuit break", CircuitBreaker.Durability.TRANSIENT));
+        final AtomicInteger retries = new AtomicInteger(0);
+        while (listener.isDone() == false) {
+            final AtomicReference<CapturingTransport.CapturedRequest> requestRef = new AtomicReference<>();
+            assertBusy(() -> {
+                CapturingTransport.CapturedRequest[] capturedRequests2 = transport.getCapturedRequestsAndClear();
+                assertThat(capturedRequests2, arrayWithSize(1));
+                requestRef.set(capturedRequests2[0]);
+            });
+            retries.incrementAndGet();
+            transport.handleRemoteError(
+                requestRef.get().requestId, new CircuitBreakingException("Fake circuit break", CircuitBreaker.Durability.TRANSIENT));
+        }
+        assertThat(retries.get(), greaterThan(2));
+        final ExecutionException rte = expectThrows(ExecutionException.class, listener::get);
+        assertThat(rte.getCause(), instanceOf(RemoteTransportException.class));
+        assertThat(rte.getCause().getCause(), instanceOf(CircuitBreakingException.class));
+    }
+
+    public void testRetryMasterCircuitBreakerTrippedTransitively() throws Exception {
+        Request request = new Request();
+        request.masterNodeTimeout(TimeValue.timeValueSeconds(5L));
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        final CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+        transport.handleRemoteError(
+            capturedRequest.requestId, new CircuitBreakingException("Fake circuit break", CircuitBreaker.Durability.TRANSIENT));
+        final AtomicInteger retries = new AtomicInteger(0);
+        final int maxRetries = randomIntBetween(1, 3);
+        final Response response = new Response();
+        while (listener.isDone() == false) {
+            final AtomicReference<CapturingTransport.CapturedRequest> requestRef = new AtomicReference<>();
+            assertBusy(() -> {
+                CapturingTransport.CapturedRequest[] capturedRequests2 = transport.getCapturedRequestsAndClear();
+                assertThat(capturedRequests2, arrayWithSize(1));
+                requestRef.set(capturedRequests2[0]);
+            });
+            if (retries.incrementAndGet() == maxRetries) {
+                transport.handleResponse(requestRef.get().requestId, response);
+            } else {
+                transport.handleRemoteError(
+                    requestRef.get().requestId, new CircuitBreakingException("Fake circuit break", CircuitBreaker.Durability.TRANSIENT));
+            }
+        }
+        assertThat(retries.get(), equalTo(maxRetries));
+        assertThat(listener.get(), is(response));
     }
 }

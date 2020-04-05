@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -38,6 +39,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,6 +55,8 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 /**
@@ -172,24 +178,26 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         retry(null, masterChangePredicate);
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
-                        final String actionName = getMasterActionName(masterNode);
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(masterNode, actionName, request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
+                                    final boolean isRemoteTransportException = exp instanceof RemoteTransportException;
                                     if (cause instanceof ConnectTransportException ||
-                                        (exp instanceof RemoteTransportException && cause instanceof NodeClosedException)) {
+                                        (isRemoteTransportException && cause instanceof NodeClosedException)) {
                                         // we want to retry here a bit to see if a new master is elected
                                         logger.debug("connection exception while trying to forward request with action name [{}] to " +
                                                 "master node [{}], scheduling a retry. Error: [{}]",
                                             actionName, nodes.getMasterNode(), exp.getDetailedMessage());
                                         retry(cause, masterChangePredicate);
                                     } else {
-                                        logger.trace(new ParameterizedMessage("failure when forwarding request [{}] to master [{}]",
-                                            actionName, masterNode), exp);
-                                        listener.onFailure(exp);
+                                        if (maybeRetryOnCircuitBreaker(exp, masterNode) == false) {
+                                            logger.trace(new ParameterizedMessage("failure when forwarding request [{}] to master [{}]",
+                                                actionName, masterNode), exp);
+                                            listener.onFailure(exp);
+                                        }
                                     }
                                 }
                         });
@@ -201,7 +209,49 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
         }
 
+        // Number of times the request was retried because of a circuit breaker exception on the current master node
+        private AtomicInteger retryCount = new AtomicInteger(0);
+
+        // Total accumulated delay from retrying circuit breaker exceptions on master
+        private AtomicLong totalDelay = new AtomicLong(0L);
+
+        /**
+         * Checks if the exception was a remote master running into a transitive {@link CircuitBreakingException} and retries the request
+         * after a back-off delay for up to the return of {@link MasterNodeRequest#masterNodeTimeout()}.
+         *
+         * @param exp        exception seen
+         * @param masterNode current master node
+         * @return true if a retry was scheduled
+         */
+        private boolean maybeRetryOnCircuitBreaker(Exception exp, DiscoveryNode masterNode) {
+            if (exp instanceof RemoteTransportException) {
+                Throwable circuitBreakingException =
+                    ExceptionsHelper.unwrap(((RemoteTransportException) exp).unwrapCause(), CircuitBreakingException.class);
+                if (circuitBreakingException != null
+                    && ((CircuitBreakingException) circuitBreakingException)
+                    .getDurability() == CircuitBreaker.Durability.TRANSIENT) {
+                    final long maxTotalDelay = request.masterNodeTimeout.millis();
+                    final long delay = Math.min(
+                        computeCircuitBreakerDelayMS(retryCount.incrementAndGet()), maxTotalDelay - totalDelay.get());
+                    if (totalDelay.getAndAdd(delay) < maxTotalDelay) {
+                        logger.debug("Retrying request to [{}] for action [{}] with a delay of [{}ms]", masterNode, actionName, delay);
+                        threadPool.scheduleUnlessShuttingDown(
+                            TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, () -> doStart(clusterService.state()));
+                        return true;
+                    }
+                    assert maxTotalDelay == totalDelay.get() : "[" + maxTotalDelay +
+                        "] should have been fully exhausted but not overshot but waited for [" + totalDelay.get() + "] overall";
+                    logger.debug("Timed out while retrying request to [{}] for action [{}] after [{}ms]",
+                        masterNode, actionName, totalDelay.get() - delay);
+                }
+            }
+            return false;
+        }
+
         private void retry(final Throwable failure, final Predicate<ClusterState> statePredicate) {
+            // clear retry timing for back-pressure now that we're waiting for a cluster state update
+            totalDelay.set(0L);
+            retryCount.set(0);
             observer.waitForNextChange(
                 new ClusterStateObserver.Listener() {
                     @Override
@@ -225,11 +275,24 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    private static final long DELAY_MILLIS = 100L;
+
+    // At the most we wait for 5s for a master node request to be retried if master returned a circuit breaker exception
+    private static final long MAX_DELAY = TimeValue.timeValueSeconds(5).millis();
+
     /**
-     * Allows to conditionally return a different master node action name in the case an action gets renamed.
-     * This mainly for backwards compatibility should be used rarely
+     * Computes the next delay from the number retries that have already happened due to consecutive {@link CircuitBreakingException} on
+     * a remote master node.
+     *
+     * @param currentRetry number of retries including the current one that have already happened
+     * @return retry delay in ms
      */
-    protected String getMasterActionName(DiscoveryNode node) {
-        return actionName;
+    private static long computeCircuitBreakerDelayMS(int currentRetry) {
+        // Cap currentRetry to avoid overflow when computing n variable
+        int maxCurrentRetry = Math.min(currentRetry, 24);
+        long n = Math.round(Math.pow(2, maxCurrentRetry - 1));
+        // + 1 here, because nextInt(...) bound is exclusive and otherwise the first delay would always be zero.
+        int k = Randomness.get().nextInt(Math.toIntExact(n) + 1);
+        return Math.min(k * DELAY_MILLIS, MAX_DELAY);
     }
 }

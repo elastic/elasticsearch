@@ -13,5 +13,8 @@ subprojects { Project subproj ->
     testClusters.all {
       testDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
     }
+    testClusters.integTest {
+      keystorePassword 's3cr3t'
+    }
   }
 }

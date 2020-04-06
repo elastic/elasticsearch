@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -1762,16 +1763,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testDataSteams() {
         final String dataStreamName = "my-data-stream";
-        IndexMetadata index1 = IndexMetadata.builder(dataStreamName + "-000001")
-            .settings(settings(Version.CURRENT).put("index.hidden", true))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        IndexMetadata index2 = IndexMetadata.builder(dataStreamName + "-000002")
-            .settings(settings(Version.CURRENT).put("index.hidden", true))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
+        IndexMetadata index1 = createBackingIndex(dataStreamName, 1).build();
+        IndexMetadata index2 = createBackingIndex(dataStreamName, 2).build();
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
@@ -1851,26 +1844,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testDataStreamsWithWildcardExpression() {
         final String dataStream1 = "logs-mysql";
         final String dataStream2 = "logs-redis";
-        IndexMetadata index1 = IndexMetadata.builder(dataStream1 + "-000001")
-            .settings(settings(Version.CURRENT).put("index.hidden", true))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        IndexMetadata index2 = IndexMetadata.builder(dataStream1 + "-000002")
-            .settings(settings(Version.CURRENT).put("index.hidden", true))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        IndexMetadata index3 = IndexMetadata.builder(dataStream2 + "-000001")
-            .settings(settings(Version.CURRENT).put("index.hidden", true))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        IndexMetadata index4 = IndexMetadata.builder(dataStream2 + "-000002")
-            .settings(settings(Version.CURRENT).put("index.hidden", true))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
+        IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
+        IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
+        IndexMetadata index3 = createBackingIndex(dataStream2, 1).build();
+        IndexMetadata index4 = createBackingIndex(dataStream2, 2).build();
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)

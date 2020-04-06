@@ -1381,7 +1381,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     IndexMetadata writeIndex = backingIndices.get(backingIndices.size() - 1);
                     IndexAbstraction existing = aliasAndIndexLookup.put(dataStream.getName(),
                         new IndexAbstraction.DataStream(dataStream, backingIndices, writeIndex));
-                    assert existing == null;
+                    if (existing != null) {
+                        throw new IllegalStateException("data stream [" + dataStream.getName() +
+                            "] conflicts with existing " + existing.getType().getDisplayName() + " [" + existing.getName() + "]");
+                    }
                 }
             }
 
@@ -1395,11 +1398,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    IndexAbstraction existing = indicesLookup.get(ds.getName());
-                    if (existing != null && existing.getType() != IndexAbstraction.Type.DATA_STREAM) {
-                        throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
-                    }
-
                     SortedMap<String, IndexAbstraction> potentialConflicts =
                         indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
                     if (potentialConflicts.size() != 0) {

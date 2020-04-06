@@ -60,6 +60,7 @@ class MutableSearchResponse {
      * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
      * @param clusters The remote clusters statistics.
      * @param aggReduceContextSupplier A supplier to run final reduce on partial aggregations.
+     * @param threadContext The thread context to retrieve the final response headers.
      */
     MutableSearchResponse(int totalShards,
                           int skippedShards,

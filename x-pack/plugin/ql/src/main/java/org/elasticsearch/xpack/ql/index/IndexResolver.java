@@ -76,13 +76,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 public class IndexResolver {
 
     public enum IndexType {
-        STANDARD_INDEX("BASE TABLE", "INDEX"),
+        STANDARD_INDEX("TABLE", "INDEX"),
         ALIAS("VIEW", "ALIAS"),
-        FROZEN_INDEX("BASE TABLE", "FROZEN INDEX"),
+        FROZEN_INDEX("TABLE", "FROZEN INDEX"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN", "UNKNOWN");
 
-        public static final String SQL_BASE_TABLE = "BASE TABLE";
         public static final String SQL_TABLE = "TABLE";
         public static final String SQL_VIEW = "VIEW";
 

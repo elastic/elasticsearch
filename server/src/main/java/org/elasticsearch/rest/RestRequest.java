@@ -147,8 +147,16 @@ public class RestRequest implements ToXContent.Params {
 
     private boolean isRequestCompatible() {
         if (hasContent()) {
-            return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER)) &&
-                isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER));
+            String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
+            String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
+            if (isHeaderCompatible(acceptHeader) && isHeaderCompatible(contentTypeHeader)) {
+                return true;
+            } else if (isHeaderCompatible(acceptHeader) && isHeaderCompatible(contentTypeHeader) == false) {
+                throw new CompatibleApiHeadersCombinationException(
+                    String.format("Request with a body and compatible Accept={} but incorrect Content-Type={}",
+                        acceptHeader, contentTypeHeader));
+            }
+            return false;
         }
         return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
     }
@@ -557,6 +565,14 @@ public class RestRequest implements ToXContent.Params {
     public static class BadParameterException extends RuntimeException {
 
         BadParameterException(final IllegalArgumentException cause) {
+            super(cause);
+        }
+
+    }
+
+    public static class CompatibleApiHeadersCombinationException extends RuntimeException {
+
+        CompatibleApiHeadersCombinationException(String cause) {
             super(cause);
         }
 

@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -155,10 +154,12 @@ public class InboundHandler {
             assert message.isShortCircuit() == false;
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
-            try (Releasable breakerRelease = message.takeBreakerReleaseControl()) {
-                final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    header.isCompressed(), header.isHandshake(), () -> {});
+            final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+            try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
+            } catch (Exception e) {
+                sendErrorResponse(action, transportChannel, e);
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,

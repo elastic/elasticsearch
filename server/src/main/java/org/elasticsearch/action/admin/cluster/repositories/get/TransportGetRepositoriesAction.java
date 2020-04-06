@@ -60,7 +60,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override

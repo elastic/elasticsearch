@@ -1,7 +1,8 @@
 {
   "ml.put_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html",
+      "description":"Instantiates an anomaly detection job."
     },
     "stability":"stable",
     "url":{

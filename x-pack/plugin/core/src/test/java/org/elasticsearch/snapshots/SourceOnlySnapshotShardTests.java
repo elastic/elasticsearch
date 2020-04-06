@@ -46,7 +46,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -236,7 +235,6 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         IndexMetadata metadata = runAsSnapshot(threadPool, () -> repository.getSnapshotIndexMetadata(snapshotId, indexId));
         IndexShard restoredShard = newShard(
             shardRouting, metadata, null, SourceOnlySnapshotRepository.getEngineFactory(), () -> {}, RetentionLeaseSyncer.EMPTY);
-        restoredShard.mapperService().merge(shard.indexSettings().getIndexMetadata(), MapperService.MergeReason.MAPPING_RECOVERY);
         DiscoveryNode discoveryNode = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {

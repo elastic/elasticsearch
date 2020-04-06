@@ -74,6 +74,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -448,7 +449,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("--> blackholing leader {}", originalLeader);
             originalLeader.blackhole();
 
-            // This stabilisation time bound is undesirably long. TODO try and reduce it.
             cluster.stabilise(Math.max(
                 // first wait for all the followers to notice the leader has gone
                 (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
@@ -685,7 +685,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             // cluster has two nodes in mode LEADER, in different terms ofc, and the one in the lower term won’t be able to publish anything
             leader.heal();
             AckCollector ackCollector = leader.submitValue(randomLong());
-            cluster.stabilise(); // TODO: check if can find a better bound here
+            cluster.stabilise();
             assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
             assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
             assertTrue("expected nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
@@ -693,20 +693,28 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksFromFollowerInHigherTerm() {
-        // TODO: needs proper term bumping
-//        final Cluster cluster = new Cluster(3);
-//        cluster.runRandomly();
-//        cluster.stabilise();
-//        final ClusterNode leader = cluster.getAnyLeader();
-//        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
-//        final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
-//
-//        follower0.coordinator.joinLeaderInTerm(new StartJoinRequest(follower0.localNode, follower0.coordinator.getCurrentTerm() + 1));
-//        AckCollector ackCollector = leader.submitValue(randomLong());
-//        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-//        assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
-//        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
-//        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+        try (Cluster cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
+            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
+
+            final long originalTerm = leader.coordinator.getCurrentTerm();
+            follower0.coordinator.onFollowerCheckRequest(new FollowersChecker.FollowerCheckRequest(
+                originalTerm + 1,
+                leader.coordinator.getLocalNode()
+            ));
+
+            AckCollector ackCollector = leader.submitValue(randomLong());
+            cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "cluster state update");
+            assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
+            assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+            assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+
+            cluster.stabilise();
+            assertThat(cluster.getAnyLeader().coordinator.getCurrentTerm(), greaterThanOrEqualTo(originalTerm + 1));
+        }
     }
 
     public void testSettingInitialConfigurationTriggersElection() {
@@ -738,14 +746,13 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise(
                 // the first election should succeed, because only one node knows of the initial configuration and therefore can win a
                 // pre-voting round and proceed to an election, so there cannot be any collisions
-                defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING) // TODO this wait is unnecessary, we could trigger the election immediately
+                defaultMillis(ELECTION_INITIAL_TIMEOUT_SETTING)
                     // Allow two round-trip for pre-voting and voting
                     + 4 * DEFAULT_DELAY_VARIABILITY
                     // Then a commit of the new leader's first cluster state
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
                     // Then allow time for all the other nodes to join, each of which might cause a reconfiguration
                     + (cluster.size() - 1) * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                // TODO Investigate whether 4 publications is sufficient due to batching? A bound linear in the number of nodes isn't great.
             );
         }
     }

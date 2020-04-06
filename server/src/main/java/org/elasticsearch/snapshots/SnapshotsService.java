@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -67,7 +66,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -77,7 +75,6 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -96,7 +93,6 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -138,99 +134,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
             clusterService.addLowPriorityApplier(this);
         }
-    }
-
-    /**
-     * Gets the {@link RepositoryData} for the given repository.
-     *
-     * @param repositoryName repository name
-     * @param listener       listener to pass {@link RepositoryData} to
-     */
-    public void getRepositoryData(final String repositoryName, final ActionListener<RepositoryData> listener) {
-        try {
-            Repository repository = repositoriesService.repository(repositoryName);
-            assert repository != null; // should only be called once we've validated the repository exists
-            repository.getRepositoryData(listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Retrieves snapshot from repository
-     *
-     * @param snapshotsInProgress snapshots in progress in the cluster state
-     * @param repositoryName      repository name
-     * @param snapshotId          snapshot id
-     * @return snapshot
-     * @throws SnapshotMissingException if snapshot is not found
-     */
-    public SnapshotInfo snapshot(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
-        List<SnapshotsInProgress.Entry> entries =
-            currentSnapshots(snapshotsInProgress, repositoryName, Collections.singletonList(snapshotId.getName()));
-        if (!entries.isEmpty()) {
-            return inProgressSnapshot(entries.iterator().next());
-        }
-        return repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotId);
-    }
-
-    /**
-     * Returns a list of snapshots from repository sorted by snapshot creation date
-     *
-     * @param snapshotsInProgress snapshots in progress in the cluster state
-     * @param repositoryName      repository name
-     * @param snapshotIds         snapshots for which to fetch snapshot information
-     * @param ignoreUnavailable   if true, snapshots that could not be read will only be logged with a warning,
-     *                            if false, they will throw an error
-     * @return list of snapshots
-     */
-    public List<SnapshotInfo> snapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName,
-                                        List<SnapshotId> snapshotIds, boolean ignoreUnavailable) {
-        final Set<SnapshotInfo> snapshotSet = new HashSet<>();
-        final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
-        // first, look at the snapshots in progress
-        final List<SnapshotsInProgress.Entry> entries = currentSnapshots(
-            snapshotsInProgress, repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
-        for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotSet.add(inProgressSnapshot(entry));
-            snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId());
-        }
-        // then, look in the repository
-        final Repository repository = repositoriesService.repository(repositoryName);
-        for (SnapshotId snapshotId : snapshotIdsToIterate) {
-            try {
-                snapshotSet.add(repository.getSnapshotInfo(snapshotId));
-            } catch (Exception ex) {
-                if (ignoreUnavailable) {
-                    logger.warn(() -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);
-                } else {
-                    if (ex instanceof SnapshotException) {
-                        throw ex;
-                    }
-                    throw new SnapshotException(repositoryName, snapshotId, "Snapshot could not be read", ex);
-                }
-            }
-        }
-        final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotSet);
-        CollectionUtil.timSort(snapshotList);
-        return unmodifiableList(snapshotList);
-    }
-
-    /**
-     * Returns a list of currently running snapshots from repository sorted by snapshot creation date
-     *
-     * @param snapshotsInProgress snapshots in progress in the cluster state
-     * @param repositoryName repository name
-     * @return list of snapshots
-     */
-    public static List<SnapshotInfo> currentSnapshots(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName) {
-        List<SnapshotInfo> snapshotList = new ArrayList<>();
-        List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotsInProgress, repositoryName, Collections.emptyList());
-        for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotList.add(inProgressSnapshot(entry));
-        }
-        CollectionUtil.timSort(snapshotList);
-        return unmodifiableList(snapshotList);
     }
 
     /**
@@ -585,12 +488,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return metadata;
     }
 
-    private static SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
-        return new SnapshotInfo(entry.snapshot().getSnapshotId(),
-                                   entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
-                                   entry.startTime(), entry.includeGlobalState(), entry.userMetadata());
-    }
-
     /**
      * Returns status of the currently running snapshots
      * <p>
@@ -645,67 +542,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         return unmodifiableList(builder);
-    }
-
-    /**
-     * Returns status of shards  currently finished snapshots
-     * <p>
-     * This method is executed on master node and it's complimentary to the
-     * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
-     * returns similar information but for already finished snapshots.
-     * </p>
-     *
-     * @param repositoryName  repository name
-     * @param snapshotInfo    snapshot info
-     * @return map of shard id to snapshot status
-     */
-    public Map<ShardId, IndexShardSnapshotStatus> snapshotShards(final String repositoryName,
-                                                                 final RepositoryData repositoryData,
-                                                                 final SnapshotInfo snapshotInfo) throws IOException {
-        final Repository repository = repositoriesService.repository(repositoryName);
-        final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
-        for (String index : snapshotInfo.indices()) {
-            IndexId indexId = repositoryData.resolveIndexId(index);
-            IndexMetadata indexMetadata = repository.getSnapshotIndexMetadata(snapshotInfo.snapshotId(), indexId);
-            if (indexMetadata != null) {
-                int numberOfShards = indexMetadata.getNumberOfShards();
-                for (int i = 0; i < numberOfShards; i++) {
-                    ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-                    SnapshotShardFailure shardFailure = findShardFailure(snapshotInfo.shardFailures(), shardId);
-                    if (shardFailure != null) {
-                        shardStatus.put(shardId, IndexShardSnapshotStatus.newFailed(shardFailure.reason()));
-                    } else {
-                        final IndexShardSnapshotStatus shardSnapshotStatus;
-                        if (snapshotInfo.state() == SnapshotState.FAILED) {
-                            // If the snapshot failed, but the shard's snapshot does
-                            // not have an exception, it means that partial snapshots
-                            // were disabled and in this case, the shard snapshot will
-                            // *not* have any metadata, so attempting to read the shard
-                            // snapshot status will throw an exception.  Instead, we create
-                            // a status for the shard to indicate that the shard snapshot
-                            // could not be taken due to partial being set to false.
-                            shardSnapshotStatus = IndexShardSnapshotStatus.newFailed("skipped");
-                        } else {
-                            shardSnapshotStatus = repository.getShardSnapshotStatus(
-                                snapshotInfo.snapshotId(),
-                                indexId,
-                                shardId);
-                        }
-                        shardStatus.put(shardId, shardSnapshotStatus);
-                    }
-                }
-            }
-        }
-        return unmodifiableMap(shardStatus);
-    }
-
-    private static SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {
-        for (SnapshotShardFailure shardFailure : shardFailures) {
-            if (shardId.getIndexName().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
-                return shardFailure;
-            }
-        }
-        return null;
     }
 
     @Override
@@ -1390,41 +1226,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public static boolean useShardGenerations(Version repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION);
-    }
-
-    /**
-     * Checks if a repository is currently in use by one of the snapshots
-     *
-     * @param clusterState cluster state
-     * @param repository   repository id
-     * @return true if repository is currently in use by one of the running snapshots
-     */
-    public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
-        SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
-        if (snapshots != null) {
-            for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-                if (repository.equals(snapshot.snapshot().getRepository())) {
-                    return true;
-                }
-            }
-        }
-        SnapshotDeletionsInProgress deletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress != null) {
-            for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
-                if (entry.getSnapshot().getRepository().equals(repository)) {
-                    return true;
-                }
-            }
-        }
-        final RepositoryCleanupInProgress repositoryCleanupInProgress = clusterState.custom(RepositoryCleanupInProgress.TYPE);
-        if (repositoryCleanupInProgress != null) {
-            for (RepositoryCleanupInProgress.Entry entry : repositoryCleanupInProgress.entries()) {
-                if (entry.repository().equals(repository)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**

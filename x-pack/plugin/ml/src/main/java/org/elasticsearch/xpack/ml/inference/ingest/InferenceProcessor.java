@@ -31,8 +31,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
@@ -71,7 +74,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final String modelId;
 
     private final String targetField;
-    private final InferenceConfig inferenceConfig;
+    private final InferenceConfigUpdate<? extends InferenceConfig> inferenceConfig;
     private final Map<String, String> fieldMap;
     private final InferenceAuditor auditor;
     private volatile boolean previouslyLicensed;
@@ -82,7 +85,7 @@ public class InferenceProcessor extends AbstractProcessor {
                               String tag,
                               String targetField,
                               String modelId,
-                              InferenceConfig inferenceConfig,
+                              InferenceConfigUpdate<? extends InferenceConfig> inferenceConfig,
                               Map<String, String> fieldMap) {
         super(tag);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
@@ -245,7 +248,8 @@ public class InferenceProcessor extends AbstractProcessor {
                     LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
-            InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
+            InferenceConfigUpdate<? extends InferenceConfig> inferenceConfig =
+                inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
 
             return new InferenceProcessor(client,
                 auditor,
@@ -262,7 +266,7 @@ public class InferenceProcessor extends AbstractProcessor {
             this.maxIngestProcessors = maxIngestProcessors;
         }
 
-        InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
+        InferenceConfigUpdate<? extends InferenceConfig> inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
             if (inferenceConfig.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
@@ -279,12 +283,12 @@ public class InferenceProcessor extends AbstractProcessor {
 
             if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
-                ClassificationConfig config = ClassificationConfig.fromMap(valueMap);
+                ClassificationConfigUpdate config = ClassificationConfigUpdate.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
                 return config;
             } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
-                RegressionConfig config = RegressionConfig.fromMap(valueMap);
+                RegressionConfigUpdate config = RegressionConfigUpdate.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField());
                 return config;
             } else {
@@ -298,6 +302,9 @@ public class InferenceProcessor extends AbstractProcessor {
             Set<String> duplicatedFieldNames = new HashSet<>();
             Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
             for(String fieldName : fieldNames) {
+                if (fieldName == null) {
+                    continue;
+                }
                 if (currentFieldNames.contains(fieldName)) {
                     duplicatedFieldNames.add(fieldName);
                 } else {

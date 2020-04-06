@@ -14,6 +14,19 @@
   - match: { nodes.$node_id.reload_exception.reason: "Provided keystore password was incorrect" }
 
 ---
+"node_reload_secure_settings test wrong(empty) password":
+
+  - do:
+      nodes.reload_secure_settings: {}
+
+  - set:
+    nodes._arbitrary_key_: node_id
+
+  - is_true: nodes
+  - is_true: cluster_name
+  - is_false: nodes.$node_id.reload_exception
+
+---
 "node_reload_secure_settings test correct password":
 
   - do:

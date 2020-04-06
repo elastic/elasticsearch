@@ -230,10 +230,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     && ((CircuitBreakingException) circuitBreakingException)
                     .getDurability() == CircuitBreaker.Durability.TRANSIENT) {
                     final long maxTotalDelay = request.masterNodeTimeout.millis();
-                    final long delay = Math.min(
-                        computeCircuitBreakerDelayMS(retryCount.incrementAndGet()), maxTotalDelay - totalDelay.get());
-                    if (totalDelay.getAndAdd(delay) < maxTotalDelay) {
+                    if (totalDelay.get() < maxTotalDelay) {
+                        final long delay = Math.min(
+                            computeCircuitBreakerDelayMS(retryCount.incrementAndGet()), maxTotalDelay - totalDelay.get());
                         logger.debug("Retrying request to [{}] for action [{}] with a delay of [{}ms]", masterNode, actionName, delay);
+                        totalDelay.addAndGet(delay);
                         threadPool.scheduleUnlessShuttingDown(
                             TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, () -> doStart(clusterService.state()));
                         return true;
@@ -241,7 +242,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     assert maxTotalDelay == totalDelay.get() : "[" + maxTotalDelay +
                         "] should have been fully exhausted but not overshot but waited for [" + totalDelay.get() + "] overall";
                     logger.debug("Timed out while retrying request to [{}] for action [{}] after [{}ms]",
-                        masterNode, actionName, totalDelay.get() - delay);
+                        masterNode, actionName, totalDelay.get());
                 }
             }
             return false;

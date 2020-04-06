@@ -353,8 +353,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     /** Return an instance on an unmapped field. */
     protected final T createUnmappedInstance(String name) {
         Map<String, Object> metadata = new HashMap<>();
-        int metaDataCount = randomBoolean() ? 0 : between(1, 10);
-        while (metadata.size() < metaDataCount) {
+        int metadataCount = randomBoolean() ? 0 : between(1, 10);
+        while (metadata.size() < metadataCount) {
             metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createUnmappedInstance(name, metadata);

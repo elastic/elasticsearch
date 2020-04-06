@@ -1761,11 +1761,11 @@ Contains circuit breaker statistics for the node.
 .Properties of `breakers`
 [%collapsible%open]
 ======
-<circuit_breaker_name>::
+`<circuit_breaker_name>`::
 (object)
 Contains statistics for the circuit breaker.
 +
-.Properties of `breakers`
+.Properties of `<circuit_breaker_name>`
 [%collapsible%open]
 =======
 `limit_size_in_bytes`::

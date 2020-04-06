@@ -3,6 +3,7 @@
 
   - do:
       nodes.reload_secure_settings:
+        node_id: _local
         body:
           secure_settings_password: awrongpasswordhere
   - set:
@@ -17,7 +18,8 @@
 "node_reload_secure_settings test wrong(empty) password":
 
   - do:
-      nodes.reload_secure_settings: {}
+      nodes.reload_secure_settings:
+        node_id: _local
 
   - set:
     nodes._arbitrary_key_: node_id
@@ -31,6 +33,7 @@
 
   - do:
       nodes.reload_secure_settings:
+        node_id: _local
         body:
           secure_settings_password: s3cr3t
 

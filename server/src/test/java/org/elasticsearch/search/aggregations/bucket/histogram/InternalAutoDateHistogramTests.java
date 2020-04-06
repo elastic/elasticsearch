@@ -338,7 +338,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         private final List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>();
         private final int targetBuckets;
 
-        public ReduceTestBuilder(int targetBuckets) {
+        ReduceTestBuilder(int targetBuckets) {
             this.targetBuckets = targetBuckets;
         }
 

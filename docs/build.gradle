@@ -54,6 +54,7 @@ testClusters.integTest {
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
       systemProperty 'es.eql_feature_flag_registered', 'true'
+      systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
     setting 'xpack.eql.enabled', 'true'

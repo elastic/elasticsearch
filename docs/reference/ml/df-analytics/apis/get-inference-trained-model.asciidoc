@@ -79,7 +79,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
 
-
+[role="child_attributes"]
 [[ml-get-inference-results]]
 ==== {api-response-body-title}
 

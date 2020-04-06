@@ -22,7 +22,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -266,7 +266,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testContextCacheStats() throws IOException {
         ScriptContext<?> contextA = randomFrom(contexts.values());
         String aRate = "2/10m";
-        ScriptContext<?> contextB = randomFrom(contexts.values());
+        ScriptContext<?> contextB = randomValueOtherThan(contextA, () -> randomFrom(contexts.values()));
         String bRate = "3/10m";
         BiFunction<String, String, String> msg = (rate, ctx) -> (
             "[script] Too many dynamic script compilations within, max: [" + rate +
@@ -276,9 +276,9 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.builder()
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
             .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), 1)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), "2/10m")
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), aRate)
             .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), 2)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), "3/10m")
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), bRate)
             .build());
 
         // Context A
@@ -327,21 +327,21 @@ public class ScriptServiceTests extends ESTestCase {
             .field("source", "abc")
             .endObject()
             .endObject());
-        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
-        assertNotNull(scriptMetaData);
-        assertEquals("abc", scriptMetaData.getStoredScript("_id").getSource());
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
+        assertNotNull(scriptMetadata);
+        assertEquals("abc", scriptMetadata.getStoredScript("_id").getSource());
     }
 
     public void testDeleteScript() throws Exception {
-        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id",
             StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), XContentType.JSON));
-        scriptMetaData = ScriptMetaData.deleteStoredScript(scriptMetaData, "_id");
-        assertNotNull(scriptMetaData);
-        assertNull(scriptMetaData.getStoredScript("_id"));
+        scriptMetadata = ScriptMetadata.deleteStoredScript(scriptMetadata, "_id");
+        assertNotNull(scriptMetadata);
+        assertNull(scriptMetadata.getStoredScript("_id"));
 
-        ScriptMetaData errorMetaData = scriptMetaData;
+        ScriptMetadata errorMetadata = scriptMetadata;
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
-            ScriptMetaData.deleteStoredScript(errorMetaData, "_id");
+            ScriptMetadata.deleteStoredScript(errorMetadata, "_id");
         });
         assertEquals("stored script [_id] does not exist and cannot be deleted", e.getMessage());
     }
@@ -349,9 +349,9 @@ public class ScriptServiceTests extends ESTestCase {
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder()
-                .putCustom(ScriptMetaData.TYPE,
-                    new ScriptMetaData.Builder(null).storeScript("_id",
+            .metadata(Metadata.builder()
+                .putCustom(ScriptMetadata.TYPE,
+                    new ScriptMetadata.Builder(null).storeScript("_id",
                         StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
                             XContentType.JSON)).build()))
             .build();

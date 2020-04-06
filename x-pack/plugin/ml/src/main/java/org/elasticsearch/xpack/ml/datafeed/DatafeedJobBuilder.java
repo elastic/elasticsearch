@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -46,6 +47,7 @@ public class DatafeedJobBuilder {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final AnomalyDetectionAuditor auditor;
+    private final AnnotationPersister annotationPersister;
     private final Supplier<Long> currentTimeSupplier;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
@@ -55,12 +57,14 @@ public class DatafeedJobBuilder {
     private final String nodeName;
 
     public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor,
-                              Supplier<Long> currentTimeSupplier, JobConfigProvider jobConfigProvider,
-                              JobResultsProvider jobResultsProvider, DatafeedConfigProvider datafeedConfigProvider,
-                              JobResultsPersister jobResultsPersister, Settings settings, String nodeName) {
+                              AnnotationPersister annotationPersister, Supplier<Long> currentTimeSupplier,
+                              JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider,
+                              DatafeedConfigProvider datafeedConfigProvider, JobResultsPersister jobResultsPersister, Settings settings,
+                              String nodeName) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);
+        this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
@@ -90,6 +94,7 @@ public class DatafeedJobBuilder {
                     context.timingStatsReporter,
                     client,
                     auditor,
+                    annotationPersister,
                     currentTimeSupplier,
                     delayedDataDetector,
                     datafeedConfigHolder.get().getMaxEmptySearches(),

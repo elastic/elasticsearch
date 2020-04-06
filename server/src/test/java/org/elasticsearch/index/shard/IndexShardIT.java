@@ -32,7 +32,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -81,6 +81,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -108,8 +109,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
@@ -137,7 +138,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
-        final Index index = cs.state().metaData().index("test").getIndex();
+        final Index index = cs.state().metadata().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
@@ -213,15 +214,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testUpdatePriority() {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 200)));
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 200)));
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         assertEquals(200,
-            indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+            indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_PRIORITY, 400)
             .build()).get();
         assertEquals(400,
-            indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
+            indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_PRIORITY, 0).intValue());
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
@@ -229,7 +230,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_DATA_PATH, idxPath)
+            .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
@@ -264,7 +265,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
-        createIndex(index, Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
@@ -303,7 +304,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
         assertAcked(client().admin().indices().prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
             .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true)));
 
         logger.info("--> settings updated and files moved, re-opening index");
@@ -318,6 +319,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.index.engine:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/52223")
     public void testMaybeFlush() throws Exception {
         createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build());
@@ -750,9 +754,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService indexService = indicesService.indexServiceSafe(indexMetaData.getIndex());
+        final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));

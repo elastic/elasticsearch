@@ -19,10 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -45,7 +41,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     public static final String NAME = "geo_bounds";
 
     public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new); 
+            ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
@@ -61,14 +57,14 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.wrapLongitude = clone.wrapLongitude;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -105,9 +101,14 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected GeoBoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                     AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

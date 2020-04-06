@@ -73,7 +73,7 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         ).get(10, TimeUnit.SECONDS);
 
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(snapMeta.getOperationMode(), is(OperationMode.RUNNING));
     }
 }

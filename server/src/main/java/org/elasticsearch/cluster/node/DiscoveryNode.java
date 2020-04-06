@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
@@ -37,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -48,18 +50,6 @@ import java.util.stream.Collectors;
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
-
-    public static boolean nodeRequiresLocalStorage(Settings settings) {
-        boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
-        if (localStorageEnable == false &&
-            (Node.NODE_DATA_SETTING.get(settings) ||
-                Node.NODE_MASTER_SETTING.get(settings))
-            ) {
-            // TODO: make this a proper setting validation logic, requiring multi-settings validation
-            throw new IllegalArgumentException("storage can not be disabled for master and data nodes");
-        }
-        return localStorageEnable;
-    }
 
     public static boolean isMasterNode(Settings settings) {
         return Node.NODE_MASTER_SETTING.get(settings);
@@ -85,7 +75,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final TransportAddress address;
     private final Map<String, String> attributes;
     private final Version version;
-    private final Set<DiscoveryNodeRole> roles;
+    private final SortedSet<DiscoveryNodeRole> roles;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -192,7 +182,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             return success;
         };
         assert predicate.test(attributes) : attributes;
-        this.roles = Set.copyOf(roles);
+        this.roles = roles.stream().collect(Sets.toUnmodifiableSortedSet());
     }
 
     /** Creates a DiscoveryNode representing the local node. */
@@ -259,7 +249,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
             }
         }
-        this.roles = Set.copyOf(roles);
+        this.roles = roles.stream().collect(Sets.toUnmodifiableSortedSet());
         this.version = Version.readVersion(in);
     }
 
@@ -370,8 +360,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Returns a set of all the roles that the node fulfills.
-     * If the node doesn't have any specific role, the set is returned empty, which means that the node is a coordinating only node.
+     * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
+     * <p>
+     * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
+     *
+     * @return the sorted set of roles
      */
     public Set<DiscoveryNodeRole> getRoles() {
         return roles;

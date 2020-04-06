@@ -66,8 +66,8 @@ public class ParentAggregationBuilder
     }
 
     protected ParentAggregationBuilder(ParentAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.childType = clone.childType;
         this.childFilter = clone.childFilter;
         this.parentFilter = clone.parentFilter;
@@ -79,8 +79,8 @@ public class ParentAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ParentAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ParentAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -97,12 +97,17 @@ public class ParentAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         return new ParentAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

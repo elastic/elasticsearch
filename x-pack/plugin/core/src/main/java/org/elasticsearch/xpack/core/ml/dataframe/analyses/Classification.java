@@ -239,6 +239,7 @@ public class Classification implements DataFrameAnalysis {
             params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
         }
         params.put(NUM_CLASSES, fieldInfo.getCardinality(dependentVariable));
+        params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         return params;
     }
 

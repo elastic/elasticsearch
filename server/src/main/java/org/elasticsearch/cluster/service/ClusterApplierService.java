@@ -473,9 +473,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
+        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
             logger.debug("applying settings from cluster state with version {}", newClusterState.version());
-            final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
+            final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
             try (Releasable ignored = stopWatch.timing("applying settings")) {
                 clusterSettings.applySettings(incomingSettings);
             }

@@ -113,6 +113,7 @@ subprojects {
 
     testClusters.integTest {
       testDistribution = 'DEFAULT'
+      setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
     }

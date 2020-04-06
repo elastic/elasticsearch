@@ -57,6 +57,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -358,7 +359,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        Template template = new Template(settings, mappings, Collections.singletonMap("alias", alias));
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         PutComponentTemplateRequest putComponentTemplateRequest =
             new PutComponentTemplateRequest().name(templateName).create(true).componentTemplate(componentTemplate);

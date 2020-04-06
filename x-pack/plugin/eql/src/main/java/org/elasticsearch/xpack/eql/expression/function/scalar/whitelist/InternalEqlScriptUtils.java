@@ -34,12 +34,11 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern);
     }
 
-    public static String substring(String s, Number start, Number end) {
-        return (String) SubstringFunctionProcessor.doProcess(s, start, end);
-    }
-
     public static Boolean stringContains(String string, String substring) {
         return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
     }
 
+    public static String substring(String s, Number start, Number end) {
+        return (String) SubstringFunctionProcessor.doProcess(s, start, end);
+    }
 }

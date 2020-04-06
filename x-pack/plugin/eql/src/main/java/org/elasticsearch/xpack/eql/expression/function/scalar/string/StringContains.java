@@ -29,7 +29,6 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 
 /**
  * EQL specific stringContains function.
- * https://eql.readthedocs.io/en/latest/query-guide/functions.html#stringContains
  * stringContains(a, b)
  * Returns true if b is a substring of a
  */

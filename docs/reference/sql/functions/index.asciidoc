@@ -59,6 +59,7 @@
 ** <<sql-functions-datetime-dow>>
 ** <<sql-functions-datetime-doy>>
 ** <<sql-functions-datetime-dayname>>
+** <<sql-functions-datetime-dateformat>>
 ** <<sql-functions-datetime-hour>>
 ** <<sql-functions-datetime-isodow>>
 ** <<sql-functions-datetime-isoweek>>

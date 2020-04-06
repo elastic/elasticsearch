@@ -404,6 +404,48 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
+[[sql-functions-datetime-dateformat]]
+==== `DATE_FORMAT/FORMAT/TO_CHAR/TOCHAR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_FORMAT(
+    datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression
+<2> format pattern
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or the pattern is an empty string a `null` is returned.
+
+NOTE::
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatTime]
+--------------------------------------------------
+
 [[sql-functions-datetime-part]]
 ==== `DATE_PART/DATEPART`
 

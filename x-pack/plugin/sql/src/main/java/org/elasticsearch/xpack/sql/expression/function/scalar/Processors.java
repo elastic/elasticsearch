@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDate
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToCharProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
@@ -84,6 +85,7 @@ public final class Processors {
         entries.add(new Entry(Processor.class, DateDiffProcessor.NAME, DateDiffProcessor::new));
         entries.add(new Entry(Processor.class, DatePartProcessor.NAME, DatePartProcessor::new));
         entries.add(new Entry(Processor.class, DateTruncProcessor.NAME, DateTruncProcessor::new));
+        entries.add(new Entry(Processor.class, ToCharProcessor.NAME, ToCharProcessor::new));
         // math
         entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
         entries.add(new Entry(Processor.class, BinaryOptionalMathProcessor.NAME, BinaryOptionalMathProcessor::new));

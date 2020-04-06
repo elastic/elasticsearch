@@ -243,6 +243,7 @@ DATEPART         |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_FORMAT      |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -256,7 +257,8 @@ DAY_OF_WEEK      |SCALAR
 DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
-DOY              |SCALAR         
+DOY              |SCALAR
+FORMAT           |SCALAR
 HOUR             |SCALAR         
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
@@ -283,7 +285,9 @@ TIMESTAMPADD     |SCALAR
 TIMESTAMPDIFF    |SCALAR
 TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
+TOCHAR           |SCALAR
 TODAY            |SCALAR
+TO_CHAR          |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
@@ -2548,6 +2552,35 @@ SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::date
 // end::dateDiffDateMinutes
 ;
 
+dateFormatDate
+// tag::dateFormatDate
+SELECT DATE_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateFormatDate
+;
+
+dateFormatDateTime
+// tag::dateFormatDateTime
+SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.SS') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::dateFormatDateTime
+;
+
+dateFormatTime
+// tag::dateFormatTime
+SELECT TO_CHAR(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::dateFormatDateTime
+;
 
 datePartDateTimeYears
 // tag::datePartDateTimeYears

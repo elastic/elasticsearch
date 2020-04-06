@@ -55,9 +55,6 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         if (isElectedMaster) {
             verify(licenseState).isMonitoringAllowed();
         }
-        if (settings.get(XPackSettings.ENRICH_ENABLED_SETTING.getKey()) != null) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
-        }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
@@ -123,6 +120,9 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
 
         verify(licenseState).isMonitoringAllowed();
+        if (settings.get(XPackSettings.ENRICH_ENABLED_SETTING.getKey()) != null) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
+        }
     }
 
     public void testDoCollect() throws Exception {

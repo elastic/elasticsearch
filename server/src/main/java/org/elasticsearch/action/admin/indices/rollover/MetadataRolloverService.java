@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findTemplates;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
@@ -161,10 +161,9 @@ public class MetadataRolloverService {
      * the rollover alias will point to multiple indices. This causes indexing requests to be rejected.
      * To avoid this, we make sure that there is no duplicated alias in index templates before creating a new index.
      */
-    static void checkNoDuplicatedAliasInIndexTemplate(
-            Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
-            @Nullable Boolean isHidden) {
-        final List<IndexTemplateMetadata> matchedTemplates = findTemplates(metadata, rolloverIndexName, isHidden);
+    static void checkNoDuplicatedAliasInIndexTemplate(Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
+                                                      @Nullable Boolean isHidden) {
+        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
         for (IndexTemplateMetadata template : matchedTemplates) {
             if (template.aliases().containsKey(rolloverRequestAlias)) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,

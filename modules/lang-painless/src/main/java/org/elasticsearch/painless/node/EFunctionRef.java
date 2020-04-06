@@ -50,7 +50,7 @@ public class EFunctionRef extends AExpression {
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
         Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(name);
-        Integer x = (Integer)(-128);
+
         if (name.equals("this") || type != null)  {
             if (input.write) {
                 throw createError(new IllegalArgumentException(

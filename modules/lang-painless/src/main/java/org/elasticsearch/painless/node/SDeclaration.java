@@ -50,7 +50,9 @@ public class SDeclaration extends AStatement {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(name)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + name + "] cannot be a name"));
+        }
 
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
@@ -75,6 +77,7 @@ public class SDeclaration extends AStatement {
         declarationNode.setName(name);
         declarationNode.setRequiresDefault(requiresDefault);
 
+        Output output = new Output();
         output.statementNode = declarationNode;
 
         return output;

@@ -103,19 +103,8 @@ abstract class PainlessLexer extends Lexer {
   }
 
 
-  /**
-   * Check against the current whitelist to determine whether a token is a type
-   * or not. Called by the {@code TYPE} token defined in {@code PainlessLexer.g4}.
-   * See also
-   * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
-   */
-  protected abstract boolean isType(String name);
-
-  /**
-   * Is the preceding {@code /} a the beginning of a regex (true) or a division
-   * (false).
-   */
-  protected abstract boolean slashIsRegex();
+  /** Is the preceding {@code /} a the beginning of a regex (true) or a division (false). */
+  protected abstract boolean isSlashRegex();
 
 
   public PainlessLexer(CharStream input) {
@@ -151,14 +140,14 @@ abstract class PainlessLexer extends Lexer {
   private boolean DIV_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 0:
-      return  false == slashIsRegex() ;
+      return  isSlashRegex() == false ;
     }
     return true;
   }
   private boolean REGEX_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return  slashIsRegex() ;
+      return  isSlashRegex() ;
     }
     return true;
   }

@@ -43,4 +43,5 @@ public abstract class DType {
     }
 
     public abstract DResolvedType resolveType(PainlessLookup painlessLookup);
+    public abstract String getCanonicalTypeName();
 }

@@ -83,6 +83,7 @@ public abstract class AExpression extends ANode {
         Class<?> actual = null;
 
         boolean isStaticType = false;
+        String partialCanonicalTypeName = null;
 
         /**
          * {@code true} if this node or a sub-node of this node can be optimized with

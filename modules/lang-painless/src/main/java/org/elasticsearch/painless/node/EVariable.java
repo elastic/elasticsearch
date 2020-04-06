@@ -65,7 +65,7 @@ public class EVariable extends AExpression {
             staticNode.setExpressionType(output.actual);
 
             output.expressionNode = staticNode;
-        } else {
+        } else if (scope.isVariableDefined(name)) {
             if (input.read == false && input.write == false) {
                 throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
             }
@@ -85,6 +85,8 @@ public class EVariable extends AExpression {
             variableNode.setName(name);
 
             output.expressionNode = variableNode;
+        } else {
+            output.partialCanonicalTypeName = name;
         }
 
         return output;

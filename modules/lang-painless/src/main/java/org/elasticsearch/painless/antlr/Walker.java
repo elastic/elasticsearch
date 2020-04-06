@@ -111,7 +111,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
@@ -212,29 +211,25 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
     // TODO: end remove
 
-    public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
-                                           String sourceText, CompilerSettings settings, PainlessLookup painlessLookup) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup).source;
+    public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName, String sourceText, CompilerSettings settings) {
+        return new Walker(mainMethod, sourceName, sourceText, settings).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
     private final SClass source;
     private final CompilerSettings settings;
     private final String sourceName;
-    private final PainlessLookup painlessLookup;
 
-    private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText,
-                   CompilerSettings settings, PainlessLookup painlessLookup) {
+    private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText, CompilerSettings settings) {
         this.scriptClassInfo = scriptClassInfo;
         this.settings = settings;
         this.sourceName = sourceName;
-        this.painlessLookup = painlessLookup;
         this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, painlessLookup);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 
@@ -247,9 +242,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         parser.setErrorHandler(strategy);
 
+        // TODO: remove
+
         if (true) {
             //throw new RuntimeException(toPrettyTree(parser.source(), parser));
         }
+
+        // TODO: end remove
 
         return parser.source();
     }
@@ -829,7 +828,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String type = ctx.decltype().getText();
         AExpression child = (AExpression)visit(ctx.unarynotaddsub());
 
-        return new EExplicit(location(ctx), type, child);
+        return new EExplicit(location(ctx), new DUnresolvedType(location(ctx.decltype()), type), child);
     }
 
     @Override

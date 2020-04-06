@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.function.scalar.SubstituteFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * EQL wildcard function. Matches the form:
  *     wildcard(field, "*wildcard*pattern*", ...)
  */
-public class Wildcard extends SubstituteFunction {
+public class Wildcard extends SurrogateFunction {
 
     private final Expression field;
     private final List<Expression> patterns;

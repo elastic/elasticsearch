@@ -13,15 +13,15 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
-public abstract class SubstituteFunction extends ScalarFunction {
+public abstract class SurrogateFunction extends ScalarFunction {
 
     private ScalarFunction lazySubstitute;
 
-    public SubstituteFunction(Source source) {
+    public SurrogateFunction(Source source) {
         super(source);
     }
 
-    public SubstituteFunction(Source source, List<Expression> fields) {
+    public SurrogateFunction(Source source, List<Expression> fields) {
         super(source, fields);
     }
 

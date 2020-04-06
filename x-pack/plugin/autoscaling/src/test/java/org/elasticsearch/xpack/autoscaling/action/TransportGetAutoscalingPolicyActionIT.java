@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
@@ -30,8 +31,8 @@ public class TransportGetAutoscalingPolicyActionIT extends AutoscalingIntegTestC
     public void testGetNonExistentPolicy() {
         final String name = randomAlphaOfLength(8);
         final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(name);
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
             () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet()
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));

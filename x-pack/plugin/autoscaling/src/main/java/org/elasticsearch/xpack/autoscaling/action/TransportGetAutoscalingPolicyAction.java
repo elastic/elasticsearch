@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -76,7 +77,7 @@ public class TransportGetAutoscalingPolicyAction extends TransportMasterNodeActi
             metadata = AutoscalingMetadata.EMPTY;
         }
         if (metadata.policies().containsKey(name) == false) {
-            throw new IllegalArgumentException("autoscaling policy with name [" + name + "] does not exist");
+            throw new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
         }
         return metadata.policies().get(name).policy();
     }

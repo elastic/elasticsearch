@@ -24,7 +24,7 @@
 ---
 "Test get non-existent autoscaling policy":
   - do:
-      catch: bad_request
+      catch: missing
       autoscaling.get_autoscaling_policy:
         name: does_not_exist
 

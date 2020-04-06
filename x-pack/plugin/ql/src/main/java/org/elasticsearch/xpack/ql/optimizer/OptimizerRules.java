@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.function.scalar.SubstituteFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
@@ -999,6 +1000,21 @@ public final class OptimizerRules {
             return false;
         }
 
+    }
+
+    public static class ReplaceSubstituteFunction extends OptimizerExpressionRule {
+
+        public ReplaceSubstituteFunction() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof SubstituteFunction) {
+                e = ((SubstituteFunction) e).substitute();
+            }
+            return e;
+        }
     }
     
     public static final class PruneFilters extends OptimizerRule<Filter> {

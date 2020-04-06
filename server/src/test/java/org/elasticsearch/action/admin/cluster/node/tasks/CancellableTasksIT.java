@@ -451,11 +451,23 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 new ActionHandler<>(TransportChildAction.ACTION, TransportChildAction.class)
             );
         }
+
+        @Override
+        public List<ActionType<? extends ActionResponse>> getClientActions() {
+            return Arrays.asList(TransportMainAction.ACTION, TransportChildAction.ACTION);
+        }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TaskPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.transportClientPlugins());
         plugins.add(TaskPlugin.class);
         return plugins;
     }

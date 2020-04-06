@@ -38,14 +38,7 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
 
-    public void testNotACompatibleApiRequest() {
-        // no body, and no Accept header - won't set compatible param. Not a compatible Request
-        FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
-        FakeRestRequest restRequest = builder.build();
-        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), nullValue());
-    }
-
-    public void testIncorrectCompatibleAcceptHeader() {
+    public void testAcceptAndContentTypeCombinations() {
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
             expect(requestCreated(), isCompatible()));
 

@@ -920,13 +920,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }, (source, e) -> {});
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
-            leader.disconnect();
-            cluster.runFor(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+            final ClusterNode removedNode = cluster.getAnyNode();
+
+            removedNode.disconnect();
+            cluster.runFor(
+                Math.max(defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING) + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING),
+                    defaultMillis(LEADER_CHECK_TIMEOUT_SETTING) + defaultMillis(LEADER_CHECK_INTERVAL_SETTING))
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "detecting disconnection");
 
-            assertThat(leader.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
+            assertThat(removedNode.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
 
-            // TODO reboot the leader and verify that the same block is applied when it restarts
+            removedNode.close();
+            final ClusterNode restartedNode = removedNode.restartedNode();
+            cluster.clusterNodes.replaceAll(cn -> cn == removedNode ? restartedNode : cn);
+            restartedNode.disconnect();
+
+            cluster.stabilise();
+            assertThat(restartedNode.getLastAppliedClusterState().blocks().global(), hasItem(expectedBlock));
         }
     }
 

@@ -264,7 +264,8 @@ public interface IndexAbstraction {
         private final List<IndexMetadata> dataStreamIndices;
         private final IndexMetadata writeIndex;
 
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices, IndexMetadata writeIndex) {
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
+                          List<IndexMetadata> dataStreamIndices, IndexMetadata writeIndex) {
             this.dataStream = dataStream;
             this.dataStreamIndices = dataStreamIndices;
             this.writeIndex = writeIndex;

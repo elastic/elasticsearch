@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
@@ -137,6 +139,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private void addCompatibleParameter() {
+        validateParameters();
         if (isRequestCompatible()) {
             String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
             params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
@@ -145,18 +148,31 @@ public class RestRequest implements ToXContent.Params {
         }
     }
 
+    private void validateParameters() {
+        String currentVersion = String.valueOf(Version.CURRENT.major);
+        String previousVersion = String.valueOf(Version.CURRENT.major - 1);
+        String acceptVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
+        String contentTypeVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER));
+
+        if (hasContent()) {
+            if ((previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion)) &&
+                acceptVersion.equals(contentTypeVersion)) {
+                return;
+            }
+
+        } else if (previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion)) {
+            return;
+        }
+        throw new CompatibleApiHeadersCombinationException(
+            String.format("Request with a body and compatible Accept=%s but incorrect Content-Type=%s",
+                String.valueOf(acceptVersion), String.valueOf(contentTypeVersion)));
+
+    }
+
     private boolean isRequestCompatible() {
         if (hasContent()) {
-            String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
-            String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
-            if (isHeaderCompatible(acceptHeader) && isHeaderCompatible(contentTypeHeader)) {
-                return true;
-            } else if (isHeaderCompatible(acceptHeader) && isHeaderCompatible(contentTypeHeader) == false) {
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format("Request with a body and compatible Accept={} but incorrect Content-Type={}",
-                        acceptHeader, contentTypeHeader));
-            }
-            return false;
+            return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER)) &&
+                isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER));
         }
         return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
     }

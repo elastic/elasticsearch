@@ -25,20 +25,19 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.junit.rules.ExpectedException;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.*;
 
 public class CompatibleHeaderCombinationTests extends ESTestCase {
+    int CURRENT_VERSION = Version.CURRENT.major;
+    int PREVIOUS_VERSION = Version.CURRENT.major - 1;
+
     public void testNotACompatibleApiRequest() {
         // no body, and no Accept header - won't set compatible param. Not a compatible Request
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
@@ -47,21 +46,64 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     }
 
     public void testIncorrectCompatibleAcceptHeader() {
-        testRestRequestCreation(correctV7Accept(), correctV7ContentType(), bodyPresent(),
+        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
             expect(requestCreated(), isCompatible()));
 
-        testRestRequestCreation(correctV7Accept(), correctV7ContentType(), bodyNotPresent(),
+        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
             expect(requestCreated(), isCompatible()));
 
-        testRestRequestCreation(correctV7Accept(), v8ContentType(), bodyPresent(),
+        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(CURRENT_VERSION), bodyNotPresent(),
+            expect(requestCreated(), isCompatible())); // no body - content-type is ignored
+
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible()))); // no body - content-type is ignored
+
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        //tests when body present and one of the headers missing
+        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        //tests when body NOT present and one of the headers missing
+        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyNotPresent(),
+            expect(requestCreated(), isCompatible()));
+
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+// test cases from the doc, but not sure why would these be ok when accept is null
+//        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
+//            expect(requestCreated(), isCompatible()));
+//        createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent(),
+//            expect(requestCreated(), isCompatible()));
     }
+
 
     private Matcher<FakeRestRequest.Builder> exceptionDuringCreation(Class<? extends Exception> exceptionClass) {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(builder -> {
             try {
                 builder.build();
             } catch (Exception e) {
+                e.printStackTrace();
                 return e;
             }
             return null;
@@ -74,10 +116,14 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     }
 
     private Matcher<FakeRestRequest.Builder> isCompatible() {
+        return requestHasVersion(Version.CURRENT.major - 1);
+    }
+
+    private Matcher<FakeRestRequest.Builder> requestHasVersion(int version) {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(builder -> {
             FakeRestRequest build = builder.build();
             return build.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY); //TODO to be refactored into getVersion
-        }, equalTo(String.valueOf(Version.CURRENT.major - 1)));
+        }, equalTo(String.valueOf(version)));
     }
 
     private String bodyNotPresent() {
@@ -88,30 +134,29 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         return "some body";
     }
 
-    private List<String> correctV7ContentType() {
-        return mediaType(7);
+    private List<String> contentTypeHeader(Integer version) {
+        return mediaType(version);
     }
 
-    private List<String> correctV7Accept() {
-        return mediaType(7);
+    private List<String> acceptHeader(Integer version) {
+        return mediaType(version);
     }
 
-    private List<String> v8ContentType() {
-        return mediaType(8);
-    }
-
-    private List<String> mediaType(int version) {
-        return List.of("application/vnd.elasticsearch+json;compatible-with=" + version);
+    private List<String> mediaType(Integer version) {
+        if (version != null) {
+            return List.of("application/vnd.elasticsearch+json;compatible-with=" + version);
+        }
+        return null;
     }
 
     private Matcher<FakeRestRequest.Builder> expect(Matcher<FakeRestRequest.Builder>... matchers) {
         return Matchers.allOf(matchers);
     }
 
-    private void testRestRequestCreation(List<String> accept,
-                                         List<String> contentType,
-                                         String body,
-                                         Matcher<FakeRestRequest.Builder> matcher) {
+    private void createRequestWith(List<String> accept,
+                                   List<String> contentType,
+                                   String body,
+                                   Matcher<FakeRestRequest.Builder> matcher) {
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
 
         builder.withHeaders(createHeaders(accept, contentType));

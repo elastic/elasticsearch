@@ -1177,9 +1177,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new ConcurrentSnapshotExecutionException(snapshot, "another snapshot is currently running cannot delete");
                 }
                 // add the snapshot deletion to the cluster state
-                return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE,
-                    SnapshotDeletionsInProgress.newInstance(
-                        new SnapshotDeletionsInProgress.Entry(snapshot, threadPool.absoluteTimeInMillis(), repositoryStateId))).build();
+                SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
+                    snapshot,
+                    threadPool.absoluteTimeInMillis(),
+                    repositoryStateId
+                );
+                if (deletionsInProgress != null) {
+                    deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
+                } else {
+                    deletionsInProgress = SnapshotDeletionsInProgress.newInstance(entry);
+                }
+                return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE, deletionsInProgress).build();
             }
 
             @Override

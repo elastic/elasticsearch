@@ -32,7 +32,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class CompatibleHeaderCombinationTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
@@ -96,7 +98,6 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
             try {
                 builder.build();
             } catch (Exception e) {
-                e.printStackTrace();
                 return e;
             }
             return null;

@@ -46,8 +46,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
@@ -164,9 +164,8 @@ public class RestRequest implements ToXContent.Params {
             return;
         }
         throw new CompatibleApiHeadersCombinationException(
-            String.format("Request with a body and compatible Accept=%s but incorrect Content-Type=%s",
-                String.valueOf(acceptVersion), String.valueOf(contentTypeVersion)));
-
+            String.format(Locale.ROOT, "Request with a body and compatible Accept=%s but incorrect Content-Type=%s",
+                acceptVersion, contentTypeVersion));
     }
 
     private boolean isRequestCompatible() {

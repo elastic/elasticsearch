@@ -69,7 +69,7 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_8_0)) {
             InferenceConfigUpdate update = null;
             if (instance.getUpdate() instanceof ClassificationConfigUpdate) {
                 update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) instance.getUpdate().toConfig());

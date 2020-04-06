@@ -19,7 +19,8 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_data_streams: {}
+      indices.get_data_streams:
+        name: "*"
   - match: { 0.name: simple-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - length: { 0.indices: 1 }
@@ -54,3 +55,67 @@
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Get data stream":
+  - skip:
+      version: " - 7.99.99"
+      reason: available only in 7.7+
+
+  - do:
+      indices.create_data_stream:
+        name: get-data-stream1
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: get-data-stream2
+        body:
+          timestamp_field: "@timestamp2"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_streams: {}
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 1.name: get-data-stream2 }
+  - match: { 1.timestamp_field: '@timestamp2' }
+
+  - do:
+      indices.get_data_streams:
+        name: get-data-stream1
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+
+  - do:
+      indices.get_data_streams:
+        name: get-data-*
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 1.name: get-data-stream2 }
+  - match: { 1.timestamp_field: '@timestamp2' }
+
+  - do:
+      indices.get_data_streams:
+        name: nonexistent-data-stream
+      catch: missing
+
+  - match: { status: 404 }
+  - match: { error.root_cause.0.type: "resource_not_found_exception" }
+
+  - do:
+      indices.get_data_streams:
+        name: nonexistent*
+  - match: { $body: [] }
+
+  - do:
+      indices.delete_data_stream:
+        name: get-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: get-data-stream2
+  - is_true: acknowledged

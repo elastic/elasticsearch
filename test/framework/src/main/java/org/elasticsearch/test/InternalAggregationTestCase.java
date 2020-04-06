@@ -296,7 +296,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // sometimes do an partial reduce
+            // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
@@ -313,8 +313,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
             toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             /*
-             * sometimes simulate cross cluster search by serializing and
-             * deserializing the partially reduced result.
+             * Sometimes serializing and deserializing the partially reduced
+             * result to simulate the compaction that we attempt after a
+             * partial reduce. And to simulate cross cluster search.
              */
             if (randomBoolean()) {
                 reduced = copyInstance(reduced);

@@ -199,7 +199,6 @@
   # scripted_metric
   - do:
       search:
-        rest_total_hits_as_int: true
         index: test_index,my_remote_cluster:test_index
         body:
           seq_no_primary_term: true
@@ -227,7 +226,7 @@
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
   - match: { _shards.total: 5 }
-  - match: { hits.total: 11 }
+  - match: { hits.total.value: 11 }
   - length: { aggregations.cluster.buckets: 2 }
   - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }

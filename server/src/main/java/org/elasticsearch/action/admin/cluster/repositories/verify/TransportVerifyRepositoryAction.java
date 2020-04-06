@@ -56,7 +56,7 @@ public class TransportVerifyRepositoryAction extends
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override

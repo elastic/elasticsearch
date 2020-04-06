@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -23,14 +24,11 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54162")
     public void testCloseFailedJob() throws Exception {
         startMlCluster(1, 1);
 
@@ -76,6 +74,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
+        ensureTemplatesArePresent();
         logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
         // Set our lazy node number
         assertTrue(client().admin()
@@ -210,6 +209,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
+        ensureTemplatesArePresent();
     }
 
     private long calculateMaxMlMemory() {

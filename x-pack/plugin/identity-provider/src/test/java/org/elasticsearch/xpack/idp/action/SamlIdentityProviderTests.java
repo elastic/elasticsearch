@@ -41,6 +41,8 @@ import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -49,6 +51,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -73,6 +76,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
+        registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
 
         // User login a.k.a exchange the user credentials for an API Key
@@ -96,13 +100,16 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Map<String, String> serviceProvider = objectPath.evaluate("service_provider");
         assertThat(serviceProvider, hasKey("entity_id"));
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
+
         assertContainsAttributeWithValue(body, "principal", SAMPLE_IDPUSER_NAME);
+        assertContainsAttributeWithValue(body, "roles", "superuser");
     }
 
     public void testIdPInitiatedSsoFailsForUnknownSP() throws Exception {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
+        registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // User login a.k.a exchange the user credentials for an API Key
         final String apiKeyCredentials = getApiKeyFromCredentials(SAMPLE_IDPUSER_NAME,
@@ -124,6 +131,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
+        registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // Make a request to init an SSO flow with the API Key as secondary authentication
         Request request = new Request("POST", "/_idp/saml/init");
@@ -137,6 +145,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
+        registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // Validate incoming authentication request
         Request validateRequest = new Request("POST", "/_idp/saml/validate");
@@ -182,6 +191,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
+
         final String body = initResponseObject.evaluate("saml_response").toString();
         assertThat(body, containsString("<saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Success\"/>"));
         assertThat(body, containsString("Destination=\"" + acsUrl + "\""));
@@ -192,6 +202,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(sp, hasKey("entity_id"));
         assertThat(sp.get("entity_id"), equalTo(entityId));
         assertContainsAttributeWithValue(body, "principal", SAMPLE_IDPUSER_NAME);
+        assertContainsAttributeWithValue(body, "roles", "superuser");
     }
 
     public void testSpInitiatedSsoFailsForUserWithNoAccess() throws Exception {
@@ -254,6 +265,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
+        registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // Validate incoming authentication request
         Request validateRequest = new Request("POST", "/_idp/saml/validate");
@@ -275,6 +287,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;
         registerServiceProvider(entityId, acsUrl);
+        registerApplicationPrivileges();
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // Validate incoming authentication request
         Request validateRequest = new Request("POST", "/_idp/saml/validate");
@@ -299,6 +312,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void registerServiceProvider(String entityId, String acsUrl) throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        ensureYellowAndNoInitializingShards();
+
         Map<String, Object> spFields = new HashMap<>();
         spFields.put(SamlServiceProviderDocument.Fields.ACS.getPreferredName(), acsUrl);
         spFields.put(SamlServiceProviderDocument.Fields.ENTITY_ID.getPreferredName(), entityId);
@@ -306,11 +322,10 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         spFields.put(SamlServiceProviderDocument.Fields.NAME.getPreferredName(), "Dummy SP");
         Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://saml.elasticsearch.org/attributes/principal");
+        attributeMap.put("roles", "https://saml.elasticsearch.org/attributes/roles");
         Map<String, Object> privilegeMap = new HashMap<>();
-        Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("superuser", "sso:superuser");
         privilegeMap.put("resource", entityId);
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Collections.singleton("sso:(\\w+)"));
         spFields.put("attributes", attributeMap);
         spFields.put("privileges", privilegeMap);
         Request request =
@@ -330,6 +345,39 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
         assertThat(serviceProvider, hasKey("enabled"));
         assertThat(serviceProvider.get("enabled"), equalTo(true));
+    }
+
+    private void registerApplicationPrivileges() throws IOException {
+        registerApplicationPrivileges(
+            org.elasticsearch.common.collect.Map.of(
+                "deployment_admin",
+                org.elasticsearch.common.collect.Set.of("sso:superuser"),
+                "deployment_viewer",
+                org.elasticsearch.common.collect.Set.of("sso:viewer")
+            ));
+    }
+
+    private void registerApplicationPrivileges(Map<String, Set<String>> privileges) throws IOException {
+        Request request = new Request("PUT", "/_security/privilege?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
+        request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.startObject("elastic-cloud"); // app-name
+        privileges.forEach((privName, actions) -> {
+            try {
+                builder.startObject(privName);
+                builder.field("actions", actions);
+                builder.endObject();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+        builder.endObject(); // app-name
+        builder.endObject(); // root
+        request.setJsonEntity(Strings.toString(builder));
+
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
     private String getApiKeyFromCredentials(String username, SecureString password) {

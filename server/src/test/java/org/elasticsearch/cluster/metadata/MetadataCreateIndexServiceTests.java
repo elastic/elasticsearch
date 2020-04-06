@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -73,6 +74,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -645,8 +647,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         });
         request.mappings(singletonMap("type", createMapping("mapping_from_request", "text").string()));
 
-        Map<String, Map<String, Object>> parsedMappings = parseMappings(request.mappings(), singletonList(templateMetadata),
-            NamedXContentRegistry.EMPTY);
+        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseMappings(request.mappings(),
+            Collections.singletonList(convertMappings(templateMetadata.getMappings())), NamedXContentRegistry.EMPTY);
 
         assertThat(parsedMappings, hasKey("type"));
         Map<String, Object> mappingType = parsedMappings.get("type");
@@ -671,7 +673,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
         request.settings(Settings.builder().put("request_setting", "value2").build());
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, singletonList(templateMetadata), emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(), emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
@@ -703,11 +705,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.aliases(singleton(new Alias("alias").searchRouting("fromRequest")));
         request.settings(Settings.builder().put("key1", "requestValue").build());
 
-        Map<String, Map<String, Object>> parsedMappings = parseMappings(request.mappings(), singletonList(templateMetadata),
-            xContentRegistry());
+        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseMappings(request.mappings(),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
-            singletonList(templateMetadata), Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, singletonList(templateMetadata),
+            MetadataIndexTemplateService.resolveAliases(Collections.singletonList(templateMetadata)),
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
             emptyMap(), null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
@@ -723,14 +726,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testDefaultSettings() {
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, emptyList(), emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() {
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, emptyList(), emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, emptyMap(),
             null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
@@ -753,9 +756,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10))
             .putAlias(AliasMetadata.builder("alias1").searchRouting("1").build())
         ));
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templates, emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request,
+            MetadataIndexTemplateService.resolveSettings(templates), emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
-        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(), templates,
+        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
+            MetadataIndexTemplateService.resolveAliases(templates),
             Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         AliasMetadata alias = resolvedAliases.get(0);
@@ -779,7 +784,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             createClusterState("sourceIndex", 1, 0,
                 Settings.builder().put("index.blocks.write", true).build());
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, singletonList(templateMetadata), emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(), emptyMap(),
             clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
 
         assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
@@ -842,7 +847,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         });
 
         Map<String, Map<String, Object>> mappings = parseMappings(singletonMap(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\":{}}"),
-            singletonList(templateMetadata), xContentRegistry());
+            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -855,7 +860,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseMappings(emptyMap(), singletonList(templateMetadata), xContentRegistry());
+        Map<String, Map<String, Object>> mappings = parseMappings(emptyMap(),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         assertThat(mappings, Matchers.hasKey("type"));
     }
 
@@ -867,7 +873,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseMappings(emptyMap(), singletonList(templateMetadata), xContentRegistry());
+        Map<String, Map<String, Object>> mappings = parseMappings(emptyMap(),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -935,7 +942,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testSoftDeletesDisabledDeprecation() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Collections.emptyList(), Collections.emptyMap(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Collections.emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
             + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
@@ -943,7 +950,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         if (randomBoolean()) {
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         }
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Collections.emptyList(), Collections.emptyMap(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Collections.emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
@@ -956,7 +963,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         request.settings(settings.build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Collections.emptyList(), Collections.emptyMap(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Collections.emptyMap(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
@@ -993,4 +1000,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
+    private static Map<String, CompressedXContent> convertMappings(ImmutableOpenMap<String, CompressedXContent> mappings) {
+        Map<String, CompressedXContent> converted = new HashMap<>(mappings.size());
+        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
+            converted.put(cursor.key, cursor.value);
+        }
+        return converted;
+    }
 }

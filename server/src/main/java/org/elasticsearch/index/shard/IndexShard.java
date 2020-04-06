@@ -1311,7 +1311,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void preRecovery() {
-        assert state == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + state;
+        final IndexShardState currentState = this.state; // single volatile read
+        if (currentState == IndexShardState.CLOSED) {
+            throw new IndexShardNotRecoveringException(shardId, currentState);
+        }
+        assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
         indexEventListener.beforeIndexShardRecovery(this, indexSettings);
     }
 

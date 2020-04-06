@@ -20,7 +20,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'xpack.security.enabled', 'false'
-      setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.license.self_generated.type', 'basic'

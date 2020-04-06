@@ -105,6 +105,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     @Override
     protected void onCancelled() {
         stop(getReasonCancelled(), TimeValue.ZERO);
+        markAsCompleted();
     }
 
     @Override

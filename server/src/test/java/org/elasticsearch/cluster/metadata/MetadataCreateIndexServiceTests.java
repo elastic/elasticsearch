@@ -73,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -861,11 +862,23 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata);
+
+        Map<String, Map<String, String>> customMetadata = new HashMap<>();
+        int numCustomMetadataItems = randomIntBetween(0, 2);
+        for (int k = 0; k < numCustomMetadataItems; k++) {
+            customMetadata.put(randomAlphaOfLength(6), Map.of(randomAlphaOfLength(6), randomAlphaOfLength(6)));
+        }
+        IndexMetadata indexMetadata =
+            buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, customMetadata);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
+        assertThat(indexMetadata.getCustomData().size(), is(numCustomMetadataItems));
+        for (String mdKey : customMetadata.keySet()) {
+            assertTrue(indexMetadata.getCustomData().containsKey(mdKey));
+            assertEquals(indexMetadata.getCustomData().get(mdKey), customMetadata.get(mdKey));
+        }
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

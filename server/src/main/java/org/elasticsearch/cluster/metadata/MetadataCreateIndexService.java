@@ -379,7 +379,7 @@ public class MetadataCreateIndexService {
             final IndexMetadata indexMetadata;
             try {
                 indexMetadata = buildIndexMetadata(request.index(), aliases, indexService.mapperService()::documentMapper,
-                    temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata);
+                    temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata, request.customMetadata());
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
                 throw e;
@@ -703,8 +703,9 @@ public class MetadataCreateIndexService {
 
     static IndexMetadata buildIndexMetadata(String indexName, List<AliasMetadata> aliases,
                                             Supplier<DocumentMapper> documentMapperSupplier, Settings indexSettings, int routingNumShards,
-                                            @Nullable IndexMetadata sourceMetadata) {
-        IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
+                                            @Nullable IndexMetadata sourceMetadata, @Nullable Map<String, Map<String, String>> metadata) {
+        IndexMetadata.Builder indexMetadataBuilder =
+            createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards, metadata);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper mapper = documentMapperSupplier.get();
@@ -732,10 +733,16 @@ public class MetadataCreateIndexService {
      * created index needs to be gte than the maximum term in the source index).
      */
     private static IndexMetadata.Builder createIndexMetadataBuilder(String indexName, @Nullable IndexMetadata sourceMetadata,
-                                                                    Settings indexSettings, int routingNumShards) {
+                                                                    Settings indexSettings, int routingNumShards,
+                                                                    @Nullable Map<String, Map<String, String>> customMetadata) {
         final IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
         builder.setRoutingNumShards(routingNumShards);
         builder.settings(indexSettings);
+        if (customMetadata != null) {
+            for (Map.Entry<String, Map<String, String>> metadata : customMetadata.entrySet()) {
+                builder.putCustom(metadata.getKey(), metadata.getValue());
+            }
+        }
 
         if (sourceMetadata != null) {
             /*

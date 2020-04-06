@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -42,6 +43,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private Map<String, Map<String, String>> customMetadata;
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -94,6 +96,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest customMetadata(Map<String, Map<String, String>> customMetadata) {
+        this.customMetadata = customMetadata;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -143,6 +150,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public boolean copySettings() {
         return copySettings;
+    }
+
+    public Map<String, Map<String, String>> customMetadata() {
+        return customMetadata;
     }
 
     @Override

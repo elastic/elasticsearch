@@ -21,8 +21,6 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.AbstractMap;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MapTests extends ESTestCase {
@@ -101,9 +99,9 @@ public class MapTests extends ESTestCase {
 
     public void testOfEntries() {
         final java.util.Map<String, Integer> map = Map.ofEntries(
-            new AbstractMap.SimpleEntry<>(numbers[0], 0),
-            new AbstractMap.SimpleEntry<>(numbers[1], 1),
-            new AbstractMap.SimpleEntry<>(numbers[2], 2)
+            Map.entry(numbers[0], 0),
+            Map.entry(numbers[1], 1),
+            Map.entry(numbers[2], 2)
         );
         validateMapContents(map, 3);
     }

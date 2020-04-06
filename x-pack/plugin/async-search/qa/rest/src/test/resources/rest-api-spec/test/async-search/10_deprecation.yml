@@ -1,8 +1,4 @@
----
-"Async search":
-  - skip:
-      features: "warnings"
-
+setup:
   - do:
       indices.create:
         index: test-1
@@ -42,6 +38,11 @@
   - do:
       indices.refresh: {}
 
+---
+"Deprecation when retrieved from task":
+  - skip:
+      features: "warnings"
+
   - do:
       warnings:
         - '[deprecated] query'
@@ -55,6 +56,11 @@
   - is_false: id
   - match:  { is_partial:                   false }
   - length: { response.hits.hits:               3 }
+
+---
+"Deprecation when retrieved from store":
+  - skip:
+      features: "warnings"
 
   - do:
       warnings:
@@ -95,5 +101,4 @@
       catch: missing
       async_search.delete:
         id: "$id"
-
 

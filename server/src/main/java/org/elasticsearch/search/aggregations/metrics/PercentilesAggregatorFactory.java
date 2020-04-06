@@ -46,8 +46,8 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     PercentilesAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double[] percents,
                                  PercentilesConfig percentilesConfig, boolean keyed, QueryShardContext queryShardContext,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                 Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
@@ -57,10 +57,10 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
 
         return percentilesConfig.createPercentilesAggregator(name, null, searchContext, parent, percents, keyed,
-            config.format(), pipelineAggregators, metaData);
+            config.format(), pipelineAggregators, metadata);
     }
 
     @Override
@@ -69,9 +69,9 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
 
         return percentilesConfig.createPercentilesAggregator(name, valuesSource, searchContext, parent, percents, keyed,
-                config.format(), pipelineAggregators, metaData);
+                config.format(), pipelineAggregators, metadata);
     }
 }

@@ -23,9 +23,6 @@ dependencies {
   testCompile project(xpackModule('ilm'))
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 configurations {
   testArtifacts.extendsFrom testRuntime
 }

@@ -209,7 +209,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 assertThat(exportedDoc.getCluster(), equalTo(clusterUUID));
             });
 
-            final ActionListener listener = (ActionListener) i.getArguments()[1];
+            final ActionListener<?> listener = (ActionListener) i.getArguments()[1];
             listener.onResponse(null);
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
@@ -348,7 +348,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             final Collection<MonitoringDoc> exportedDocs = (Collection) i.getArguments()[0];
             assertThat(exportedDocs, is(docs));
 
-            final ActionListener listener = (ActionListener) i.getArguments()[1];
+            final ActionListener<?> listener = (ActionListener) i.getArguments()[1];
             listener.onResponse(null);
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));

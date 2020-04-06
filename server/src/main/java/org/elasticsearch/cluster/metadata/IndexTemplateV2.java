@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -114,11 +115,15 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         return indexPatterns;
     }
 
+    @Nullable
     public Template template() {
         return template;
     }
 
     public List<String> composedOf() {
+        if (componentTemplates == null) {
+            return Collections.emptyList();
+        }
         return componentTemplates;
     }
 

@@ -65,13 +65,13 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
 
     private PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
                                               Builder factoriesBuilder,
-                                              Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                              Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**

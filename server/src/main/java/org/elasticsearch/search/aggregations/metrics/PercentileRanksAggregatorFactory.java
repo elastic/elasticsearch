@@ -47,8 +47,8 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
                                      QueryShardContext queryShardContext,
                                      AggregatorFactory parent,
                                      AggregatorFactories.Builder subFactoriesBuilder,
-                                     Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                     Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
@@ -58,10 +58,10 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
 
         return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
-                config.format(), pipelineAggregators, metaData);
+                config.format(), pipelineAggregators, metadata);
     }
 
     @Override
@@ -70,8 +70,8 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, keyed,
-            config.format(), pipelineAggregators, metaData);
+            config.format(), pipelineAggregators, metadata);
     }
 }

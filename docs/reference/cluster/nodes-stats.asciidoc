@@ -369,7 +369,7 @@ Contains statistics about search operations for the node.
 .Properties of `search`
 [%collapsible%open]
 =======
-`open_context`::
+`open_contexts`::
 (integer)
 Number of open search contexts.
 
@@ -1219,6 +1219,10 @@ Contains Java Virtual Machine (JVM) statistics for the node.
 `timestamp`::
 (integer)
 Last time JVM statistics were refreshed.
+
+`uptime`::
+(<<time-units,time value>>)
+JVM uptime.
 
 `uptime_in_millis`::
 (integer)

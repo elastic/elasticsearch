@@ -413,6 +413,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Determines if data streams are preserved upon completion of this test. The default implementation wipes data streams.
+     *
+     * @return whether or not to preserve data streams
+     */
+    protected boolean preserveDataStreamsUponCompletion() {
+        return false;
+    }
+
+    /**
      * Controls whether or not to preserve cluster settings upon completion of the test. The default implementation is to remove all cluster
      * settings.
      *
@@ -461,7 +470,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A set of ILM policies that should be preserved between runs.
      */
     protected Set<String> preserveILMPolicyIds() {
-        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy");
+        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy", "ml-size-based-ilm-policy");
     }
 
     /**
@@ -520,6 +529,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         } else {
             inProgressSnapshots.set(wipeSnapshots());
+        }
+
+        // wipe data streams before indices so that the backing indices for data streams are handled properly
+        if (preserveDataStreamsUponCompletion() == false) {
+            wipeDataStreams();
         }
 
         if (preserveIndicesUponCompletion() == false) {
@@ -595,6 +609,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    protected static void wipeDataStreams() throws IOException {
+        try {
+            adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+        } catch (ResponseException e) {
+            // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
+            if (e.getResponse().getStatusLine().getStatusCode() != 405) {
                 throw e;
             }
         }

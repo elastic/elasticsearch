@@ -951,7 +951,7 @@ Contains statistics about CPU usage for the node.
 (integer)
 Recent CPU usage for the whole system, or `-1` if not supported.
 
-`load_average`
+`load_average`::
 (object)
 Contains statistics about load averages on the system.
 +

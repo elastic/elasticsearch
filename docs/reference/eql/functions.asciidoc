@@ -12,6 +12,7 @@ experimental::[]
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
 * <<eql-fn-substring>>
+* <<eql-fn-wildcard>>
 
 [discrete]
 [[eql-fn-endswith]]
@@ -276,4 +277,82 @@ function returns the remaining string.
 Positions are zero-indexed. Negative offsets are supported.
 
 *Returns:* string
+====
+
+[discrete]
+[[eql-fn-wildcard]]
+=== `wildcard`
+Returns `true` if a source string matches one or more provided wildcard
+expressions. Matching is case sensitive.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// The following expressions are equivalent.
+process.command_line == "*start*" or process.command_line == "*config*"
+wildcard(process.command_line, "*start*", "*config*")
+
+// process.command_line = "start explorer.exe"
+wildcard(process.command_line, "*start*")                // returns true
+wildcard(process.command_line, "*start*", "*config*")    // returns true
+wildcard(process.command_line, "*config*")               // returns false
+wildcard(process.command_line, "*config*", "*create*")   // returns false
+
+// process.command_line = [ "start explorer.exe", "create regsvr32.exe" ]
+wildcard(process.command_line, "*create*")              // returns true
+wildcard(process.command_line, "*create*", "*config*")  // returns true
+wildcard(process.command_line, "*start*")               // returns false
+wildcard(process.command_line, "*start*", "*create*")   // returns true
+wildcard(process.command_line, "*start*", "*config*")   // returns false
+
+// case sensitivity
+wildcard("start explorer.exe", "*start*")                // returns true
+wildcard("start explorer.exe", "*Start*")                // returns false
+
+// null handling
+wildcard(null, "*start*")                                // returns false
+wildcard(null, null)                                     // returns 500 error
+wildcard("start explorer.exe", null)                     // returns 500 error
+wildcard("start explorer.exe", null, "*start*")          // returns 500 error
+wildcard("", null)                                       // returns 500 error
+wildcard("", "")                                         // returns true
+----
+
+*Syntax*
+
+[source,txt]
+----
+wildcard(<source>, <wildcard_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string)
+Source string.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing <<array,array values>> use the last array item only.
+--
+
+`<wildcard_exp>`::
++
+--
+(Required{multi-arg}, string)
+Wildcard expression used to match the source string. Fields are not supported as
+arguments. If `null`, the function returns a 500 error.
+-- 
+
+*Returns:* boolean
 ====

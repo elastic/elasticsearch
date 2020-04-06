@@ -119,3 +119,50 @@
       indices.delete_data_stream:
         name: get-data-stream2
   - is_true: acknowledged
+
+---
+"Delete data stream with backing indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "enable in 7.8+ after back-porting"
+
+  - do:
+      indices.create_data_stream:
+        name: delete-data-stream1
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      indices.get:
+        index: "*"
+        expand_wildcards: all
+
+  - is_true: test_index.settings
+  - is_true: delete-data-stream1-000001.settings
+
+  - do:
+      indices.get_data_streams: {}
+  - match: { 0.name: delete-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - length: { 0.indices: 1 }
+  - match: { 0.indices.0.index_name: 'delete-data-stream1-000001' }
+
+  - do:
+      indices.delete_data_stream:
+        name: delete-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: "delete-data-stream1-000001"
+        expand_wildcards: all

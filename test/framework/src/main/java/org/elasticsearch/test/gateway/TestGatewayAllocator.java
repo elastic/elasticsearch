@@ -95,13 +95,13 @@ public class TestGatewayAllocator extends GatewayAllocator {
     };
 
     @Override
-    public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
         allocation.routingNodes().shards(ShardRouting::active).forEach(this::addKnownAllocation);
     }
 
     @Override
-    public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
         for (FailedShard failedShard : failedShards) {
             final ShardRouting failedRouting = failedShard.getRoutingEntry();
@@ -116,9 +116,18 @@ public class TestGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void allocateUnassigned(RoutingAllocation allocation) {
+    public void beforeAllocation(RoutingAllocation allocation) {
+    }
+
+    @Override
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+    }
+
+    @Override
+    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
+                                   UnassignedAllocationHandler unassignedAllocationHandler) {
         currentNodes = allocation.nodes();
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
     /**

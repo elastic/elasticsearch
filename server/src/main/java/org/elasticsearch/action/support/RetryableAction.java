@@ -54,7 +54,15 @@ public abstract class RetryableAction<Response> {
     }
 
     public void run() {
-        tryAction(new RetryingListener(initialDelayMillis, null));
+        runTryAction(new RetryingListener(initialDelayMillis, null));
+    }
+
+    private void runTryAction(ActionListener<Response> listener) {
+        try {
+            tryAction(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     public abstract void tryAction(ActionListener<Response> listener);
@@ -89,7 +97,7 @@ public abstract class RetryableAction<Response> {
                     logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}",
                         TimeValue.timeValueMillis(nextDelayMillis)), e);
                     addExisting(e);
-                    Runnable runnable = () -> tryAction(new RetryingListener(nextDelayMillis * 2, e));
+                    Runnable runnable = () -> runTryAction(new RetryingListener(nextDelayMillis * 2, e));
                     final long midpoint = (nextDelayMillis / 2);
                     final int randomness = Randomness.get().nextInt((int) Math.min(midpoint, Integer.MAX_VALUE));
                     final long delayMillis = midpoint + randomness;

@@ -78,6 +78,18 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryShardContext context = queryShardContext.convertToShardContext();
+        if (context != null) {
+            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            if (!fieldName.contains("*") && fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            }
+        }
+        return super.doRewrite(queryShardContext);
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
@@ -129,6 +141,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
 
+//        MappedFieldType fieldType = context.fieldMapper(fieldPattern);
+//        if (fieldType == null) {
+//            return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
+//        }
+
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
@@ -165,7 +182,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (context.getObjectMapper(field) != null) {
                 return newObjectFieldExistsQuery(context, field);
             }
-            return Queries.newMatchNoDocsQuery("No field \"" + field + "\" exists in mappings.");
+            return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
         }
         Query filter = fieldType.existsQuery(context);
         return new ConstantScoreQuery(filter);

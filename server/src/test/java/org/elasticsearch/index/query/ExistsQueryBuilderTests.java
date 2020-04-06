@@ -66,8 +66,14 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         if (fields.size() == 1 && mappedFields.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(null),
-                    containsString("No field \"" + fields.iterator().next() + "\" exists in mappings."));
+//            if(fieldPattern.contains("*")) {
+                assertThat(matchNoDocsQuery.toString(null),
+                    containsString("User requested \"match_none\" query."));
+//            }
+//            else {
+//                assertThat(matchNoDocsQuery.toString(null),
+//                    containsString("No field \"" + fields.iterator().next() + "\" exists in mappings."));
+//            }
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;

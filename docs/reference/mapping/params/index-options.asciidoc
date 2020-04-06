@@ -14,11 +14,15 @@ It accepts the following values:
 
 `docs`::
 Only the doc number is indexed.  Can answer the question _Does this term
-exist in this field?_
+exist in this field?_ . This cannot be used for
+<<query-dsl-match-query-phrase,proximity or phrase queries>> and queries
+that attempt to use a `docs` index for that type of query will raise an error.
 
 `freqs`::
 Doc number and term frequencies are indexed.  Term frequencies are used to
-score repeated terms higher than single terms.
+score repeated terms higher than single terms. This cannot be used for
+<<query-dsl-match-query-phrase,proximity or phrase queries>> and queries
+that attempt to use a `freqs` index for that type of query will raise an error.
 
 `positions` (default)::
 Doc number, term frequencies, and term positions (or order) are indexed.

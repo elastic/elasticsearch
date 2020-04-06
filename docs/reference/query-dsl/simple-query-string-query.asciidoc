@@ -15,7 +15,9 @@ documents.
 While its syntax is more limited than the
 <<query-dsl-query-string-query,`query_string` query>>, the `simple_query_string`
 query does not return errors for invalid syntax. Instead, it ignores any invalid
-parts of the query string.
+parts of the query string. Note that it can still raise error if you attempt to
+use certain queries that are not valid for the index options. For example a
+phrase query that attempts to use a `docs` index will cause an error.
 
 [[simple-query-string-query-ex-request]]
 ==== Example request

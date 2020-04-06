@@ -1048,7 +1048,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             return new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
                         }
                         return existing;
-                    }).toArray(SnapshotsInProgress.Entry[]::new))).build();
+                    }).collect(Collectors.toUnmodifiableList()))).build();
             }
 
             @Override

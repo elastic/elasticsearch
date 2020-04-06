@@ -26,9 +26,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -62,7 +64,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
-        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
+        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", List.of(new Index("name", "uuid")));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);

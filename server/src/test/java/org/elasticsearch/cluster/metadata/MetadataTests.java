@@ -52,10 +52,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createBackingIndex;
 import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createFirstBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataTests extends ESTestCase {
@@ -914,7 +916,11 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
+            .put(IndexMetadata.builder(dataStreamName)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(), false)
             .put(new DataStream(dataStreamName, "ts", List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
@@ -940,7 +946,7 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         IndexMetadata validIdx = createFirstBackingIndex(dataStreamName).build();
         final String conflictingIndex = dataStreamName + "-000002";
-        IndexMetadata invalidIdx = createFirstBackingIndex(conflictingIndex).build();
+        IndexMetadata invalidIdx = createBackingIndex(dataStreamName, 2).build();
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
             .put(invalidIdx, false)
@@ -954,7 +960,9 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = dataStreamName + "-000002";
-        IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
+        IndexMetadata idx = createFirstBackingIndex(dataStreamName)
+            .putAlias(new AliasMetadata.Builder(conflictingName))
+            .build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
             .put(new DataStream(dataStreamName, "ts", List.of(idx.getIndex())));
@@ -985,6 +993,37 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+    }
+
+    public void testBuildIndicesLookupForDataStreams() {
+        Metadata.Builder b = Metadata.builder();
+        int numDataStreams = randomIntBetween(2, 8);
+        for (int i = 1; i <= numDataStreams; i++) {
+            String name = "data-stream-" + i;
+            int numBackingIndices = randomIntBetween(1, 4);
+            List<Index> indices = new ArrayList<>(numBackingIndices);
+            for (int j = 1; j <= numBackingIndices; j++) {
+                IndexMetadata idx = createBackingIndex(name, j).build();
+                indices.add(idx.getIndex());
+                b.put(idx, true);
+            }
+            b.put(new DataStream(name, "ts", indices));
+        }
+
+        Metadata metadata = b.build();
+        assertThat(metadata.dataStreams().size(), equalTo(numDataStreams));
+        for (int i = 1; i < numDataStreams; i++) {
+            String name = "data-stream-" + i;
+            IndexAbstraction value = metadata.getIndicesLookup().get(name);
+            assertThat(value, notNullValue());
+            DataStream ds = metadata.dataStreams().get(name);
+            assertThat(ds, notNullValue());
+
+            assertThat(value.isHidden(), is(false));
+            assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+            assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
+            assertThat(value.getWriteIndex().getIndex().getName(), equalTo(name + "-00000" + ds.getIndices().size()));
+        }
     }
 
     public void testSerialization() throws IOException {

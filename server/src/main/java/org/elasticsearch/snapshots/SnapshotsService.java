@@ -1074,7 +1074,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     },
                     e -> {
                         if (abortedDuringInit) {
-                            logger.debug(() -> new ParameterizedMessage("Snapshot [{}] was aborted during INIT", runningSnapshot), e);
+                            logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
                             listener.onResponse(null);
                         } else {
                             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
@@ -1295,6 +1295,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (failure != null) {
                         listener.onFailure(failure);
                     } else {
+                        logger.info("Successfully deleted snapshot [{}]", snapshot);
                         listener.onResponse(null);
                     }
                 }

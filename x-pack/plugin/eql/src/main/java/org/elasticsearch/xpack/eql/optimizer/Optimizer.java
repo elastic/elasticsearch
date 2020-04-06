@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
+import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
@@ -14,7 +16,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -48,6 +49,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new ReplaceWildcardFunction(),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy()
@@ -60,6 +62,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
 
+    private static class ReplaceWildcardFunction extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            return filter.transformExpressionsUp(e -> e instanceof Wildcard ? ((Wildcard) e).asLikes() : e);
+        }
+    }
+
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
@@ -68,18 +78,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return value instanceof String && value.toString().contains("*");
             }
             return false;
-        }
-
-        private static LikePattern toLikePattern(String s) {
-            // pick a character that is guaranteed not to be in the string, because it isn't allowed to escape itself
-            char escape = 1;
-
-            // replace wildcards with % and escape special characters
-            String likeString = s.replace("%", escape + "%")
-                .replace("_", escape + "_")
-                .replace("*", "%");
-
-            return new LikePattern(likeString, escape);
         }
 
         @Override
@@ -91,7 +89,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                     if (isWildcard(cmp.right())) {
                         String wcString = cmp.right().fold().toString();
-                        Expression like = new Like(e.source(), cmp.left(), toLikePattern(wcString));
+                        Expression like = new Like(e.source(), cmp.left(), StringUtils.toLikePattern(wcString));
 
                         if (e instanceof NotEquals) {
                             like = new Not(e.source(), like);

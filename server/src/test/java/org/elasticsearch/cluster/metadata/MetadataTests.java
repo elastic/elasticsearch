@@ -52,8 +52,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createBackingIndex;
-import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createFirstBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

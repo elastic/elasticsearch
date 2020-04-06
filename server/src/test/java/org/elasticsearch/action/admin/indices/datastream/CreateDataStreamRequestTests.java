@@ -35,7 +35,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createFirstBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

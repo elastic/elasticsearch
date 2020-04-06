@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.admin.indices.datastream.GetDataStreamsRequestTests.createBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;

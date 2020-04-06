@@ -101,13 +101,14 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
             ));
         assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style include/exclude settings as " +
             "they can only be applied to string fields. Use an array of values for include/exclude clauses"));
+    }
 
-        e = expectThrows(AggregationExecutionException.class, () -> testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.field(BINARY_FIELD).includeExclude(includeExclude),
+    public void testBadUserValueTypeHint() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testBothCases(new MatchNoDocsQuery(), dataset,
+            aggregation -> aggregation.field(BINARY_FIELD),
             agg -> fail("test should have failed with exception"), ValueType.NUMERIC // numeric type hint
         ));
-        assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style include/exclude settings as " +
-            "they can only be applied to string fields. Use an array of values for include/exclude clauses"));
+        assertThat(e.getMessage(), equalTo("Expected numeric type on field [binary], but got [binary]"));
     }
 
     private void testSearchCase(Query query, List<Long> dataset,

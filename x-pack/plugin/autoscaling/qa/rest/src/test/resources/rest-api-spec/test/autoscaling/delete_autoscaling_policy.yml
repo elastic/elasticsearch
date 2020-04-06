@@ -21,8 +21,13 @@
         name: my_autoscaling_policy
 
 ---
-"Test delete non-existent policy":
+"Test delete non-existent autoscaling policy":
   - do:
-      catch: bad_request
+      catch: missing
+      autoscaling.delete_autoscaling_policy:
+        name: does_not_exist
+
+  - do:
+      catch: /autoscaling policy with name \[does_not_exist\] does not exist/
       autoscaling.delete_autoscaling_policy:
         name: does_not_exist

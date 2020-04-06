@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -100,8 +101,8 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
         }
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         final String name = randomValueOtherThanMany(metadata.policies().keySet()::contains, () -> randomAlphaOfLength(8));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
             () -> TransportGetAutoscalingPolicyAction.getAutoscalingPolicy(state, name)
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));

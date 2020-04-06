@@ -477,5 +477,4 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
             indexMetadata.getIndex().getName())));
     }
-
 }

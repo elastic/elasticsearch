@@ -290,7 +290,7 @@ expressions. Matching is case sensitive.
 *Example*
 [source,eql]
 ----
-// The following expressions are equivalent.
+// The two following expressions are equivalent.
 process.command_line == "*start*" or process.command_line == "*config*"
 wildcard(process.command_line, "*start*", "*config*")
 
@@ -307,7 +307,7 @@ wildcard(process.command_line, "*start*")               // returns false
 wildcard(process.command_line, "*start*", "*create*")   // returns true
 wildcard(process.command_line, "*start*", "*config*")   // returns false
 
-// case sensitivity
+// case sensitive matching
 wildcard("start explorer.exe", "*start*")                // returns true
 wildcard("start explorer.exe", "*Start*")                // returns false
 

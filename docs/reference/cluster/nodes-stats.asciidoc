@@ -1033,7 +1033,7 @@ Amount of used swap space in bytes.
 
 `cgroup` (Linux only)::
 (object)
-Contains statistics about the CPU control group for the node.
+Contains cgroup statistics for the node.
 +
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into the
 kernel, the `cpu` and `cpuacct` cgroup subsystems must be configured and stats
@@ -1062,7 +1062,7 @@ as the {es} process.
 
 `cpu` (Linux only)::
 (object)
-Contains statistics about CPU for the node.
+Contains statistics about `cpu` control group for the node.
 +
 .Properties of `cpu`
 [%collapsible%open]

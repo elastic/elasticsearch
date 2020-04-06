@@ -2579,7 +2579,7 @@ SELECT TO_CHAR(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
       time
 ------------------
 11 22 33.9
-// end::dateFormatDateTime
+// end::dateFormatTime
 ;
 
 datePartDateTimeYears

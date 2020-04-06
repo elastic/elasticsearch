@@ -143,7 +143,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     }
 
     public static void ensureValidLicense(XPackLicenseState licenseState) {
-        if (licenseState.isAllowedByLicense(License.OperationMode.ENTERPRISE) == false) {
+        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }

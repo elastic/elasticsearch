@@ -27,11 +27,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.InMemoryNoOpCommitDirectory;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
@@ -42,6 +45,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult> {
 
     private final IndicesService indicesService;
+    private final XPackLicenseState licenseState;
 
     AbstractTransportSearchableSnapshotsAction(
         String actionName,
@@ -51,10 +55,12 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         IndexNameExpressionResolver resolver,
         Writeable.Reader<Request> request,
         String executor,
-        IndicesService indicesService
+        IndicesService indicesService,
+        XPackLicenseState licenseState
     ) {
         super(actionName, clusterService, transportService, actionFilters, resolver, request, executor);
         this.indicesService = indicesService;
+        this.licenseState = Objects.requireNonNull(licenseState);
     }
 
     AbstractTransportSearchableSnapshotsAction(
@@ -66,10 +72,12 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         Writeable.Reader<Request> request,
         String executor,
         IndicesService indicesService,
+        XPackLicenseState licenseState,
         boolean canTripCircuitBreaker
     ) {
         super(actionName, clusterService, transportService, actionFilters, resolver, request, executor, canTripCircuitBreaker);
         this.indicesService = indicesService;
+        this.licenseState = Objects.requireNonNull(licenseState);
     }
 
     @Override
@@ -102,6 +110,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
 
     @Override
     protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException {
+        SearchableSnapshots.ensureValidLicense(licenseState);
         final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
         final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
         assert directory != null;

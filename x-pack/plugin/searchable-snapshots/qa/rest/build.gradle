@@ -20,6 +20,7 @@ testClusters.integTest {
     systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
   }
   setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.license.self_generated.type', 'trial'
 }
 
 restResources {

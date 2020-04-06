@@ -31,6 +31,9 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -137,6 +140,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         this.repositoriesService = new SetOnce<>();
         this.cacheService = new SetOnce<>();
         this.settings = settings;
+    }
+
+    public static void ensureValidLicense(XPackLicenseState licenseState) {
+        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM) == false) {
+            throw LicenseUtils.newComplianceException("searchable-snapshots");
+        }
     }
 
     @Override

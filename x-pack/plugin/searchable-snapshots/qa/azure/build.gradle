@@ -77,6 +77,8 @@ testClusters.integTest {
   keystore 'azure.client.searchable_snapshots.key', azureKey
   keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
 
+  setting 'xpack.license.self_generated.type', 'trial'
+
   if (useFixture) {
     def fixtureAddress = { fixtureName ->
       assert useFixture: 'closure should not be used without a fixture'

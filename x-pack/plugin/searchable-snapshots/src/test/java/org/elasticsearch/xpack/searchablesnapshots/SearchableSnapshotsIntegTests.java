@@ -24,21 +24,17 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -53,39 +49,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
-
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(SearchableSnapshots.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        if (randomBoolean()) {
-            builder.put(
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-            );
-        }
-        if (randomBoolean()) {
-            builder.put(
-                CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-            );
-        }
-        return builder.build();
-    }
+public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);

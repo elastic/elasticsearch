@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -122,7 +123,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
-        return IndexMetadata.builder(String.format("%s-%06d", dataStreamName, generation))
+        return IndexMetadata.builder(String.format(Locale.ROOT, "%s-%06d", dataStreamName, generation))
             .settings(settings(Version.CURRENT).put("index.hidden", true))
             .numberOfShards(1)
             .numberOfReplicas(1);

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.analysis.VerificationException;
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
@@ -47,5 +48,36 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testWildcardNotEnoughArguments() {
+        ParsingException e = expectThrows(ParsingException.class,
+            () -> plan("process where wildcard(process_name)"));
+        String msg = e.getMessage();
+        assertEquals("line 1:16: error building [wildcard]: expects at least two arguments", msg);
+    }
+
+    public void testWildcardAgainstVariable() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where wildcard(process_name, parent_process_name)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: second argument of [wildcard(process_name, parent_process_name)] " +
+            "must be a constant, received [parent_process_name]", msg);
+    }
+
+    public void testWildcardWithNumericPattern() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where wildcard(process_name, 1)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: second argument of [wildcard(process_name, 1)] must be [string], found value [1] type [integer]", msg);
+    }
+
+    public void testWildcardWithNumericField() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where wildcard(pid, '*.exe')"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
     }
 }

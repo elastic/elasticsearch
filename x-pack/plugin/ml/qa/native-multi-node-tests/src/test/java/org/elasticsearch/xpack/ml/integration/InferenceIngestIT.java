@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,6 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -67,7 +69,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", "_ml/inference/test_regression"));
     }
 
-    public void testPipelineCreationAndDeletion() throws Exception {
+    public void testPathologicalPipelineCreationAndDeletion() throws Exception {
 
         for (int i = 0; i < 10; i++) {
             client().performRequest(putPipeline("simple_classification_pipeline", CLASSIFICATION_PIPELINE));
@@ -78,6 +80,24 @@ public class InferenceIngestIT extends ESRestTestCase {
             client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
             client().performRequest(new Request("DELETE", "_ingest/pipeline/simple_regression_pipeline"));
         }
+        client().performRequest(new Request("POST", "index_for_inference_test/_refresh"));
+
+        Response searchResponse = client().performRequest(searchRequest("index_for_inference_test",
+            QueryBuilders.boolQuery()
+                .filter(
+                    QueryBuilders.existsQuery("ml.inference.regression.predicted_value"))));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+
+        searchResponse = client().performRequest(searchRequest("index_for_inference_test",
+            QueryBuilders.boolQuery()
+                .filter(
+                    QueryBuilders.existsQuery("ml.inference.classification.predicted_value"))));
+
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+    }
+
+
+    public void testPipelineIngest() throws Exception {
 
         client().performRequest(putPipeline("simple_classification_pipeline", CLASSIFICATION_PIPELINE));
         client().performRequest(putPipeline("simple_regression_pipeline", REGRESSION_PIPELINE));
@@ -87,24 +107,42 @@ public class InferenceIngestIT extends ESRestTestCase {
             client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
         }
 
+        for (int i = 0; i < 5; i++) {
+            client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
+        }
+
         client().performRequest(new Request("DELETE", "_ingest/pipeline/simple_regression_pipeline"));
         client().performRequest(new Request("DELETE", "_ingest/pipeline/simple_classification_pipeline"));
 
         client().performRequest(new Request("POST", "index_for_inference_test/_refresh"));
 
-
         Response searchResponse = client().performRequest(searchRequest("index_for_inference_test",
             QueryBuilders.boolQuery()
                 .filter(
                     QueryBuilders.existsQuery("ml.inference.regression.predicted_value"))));
-        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":20"));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":15"));
 
         searchResponse = client().performRequest(searchRequest("index_for_inference_test",
             QueryBuilders.boolQuery()
                 .filter(
                     QueryBuilders.existsQuery("ml.inference.classification.predicted_value"))));
 
-        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":20"));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+
+        assertBusy(() -> {
+            try {
+                Response statsResponse = client().performRequest(new Request("GET", "_ml/inference/test_classification/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/inference/test_regression/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
+                // can get both
+                statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+            } catch (ResponseException ex) {
+                //this could just mean shard failures.
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSimulate() throws IOException {

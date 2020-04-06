@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.util.Map;
 
@@ -43,4 +44,6 @@ public interface Model<T extends InferenceConfig> {
             });
         }
     }
+
+    InferenceStats getLatestStatsAndReset();
 }

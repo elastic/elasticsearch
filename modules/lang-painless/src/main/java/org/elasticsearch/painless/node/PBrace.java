@@ -60,6 +60,10 @@ public class PBrace extends AStoreable {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
+        }
+
         Output output = new Output();
 
         Input prefixInput = new Input();

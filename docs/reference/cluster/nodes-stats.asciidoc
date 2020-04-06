@@ -1346,7 +1346,7 @@ Contains statistics about memory usage by the survivor space for the node.
 .Properties of `survivor`
 [%collapsible%open]
 =========
-`used_in_bytes`::
+`used`::
 (<<byte-units,byte value>>)
 Memory used by the survivor space.
 

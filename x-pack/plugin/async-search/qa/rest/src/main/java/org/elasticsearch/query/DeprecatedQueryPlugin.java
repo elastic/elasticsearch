@@ -15,8 +15,7 @@ import static java.util.Collections.singletonList;
 
 public class DeprecatedQueryPlugin extends Plugin implements SearchPlugin {
 
-    public DeprecatedQueryPlugin() {
-    }
+    public DeprecatedQueryPlugin() {}
 
     @Override
     public List<QuerySpec<?>> getQueries() {

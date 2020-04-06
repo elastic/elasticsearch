@@ -26,8 +26,7 @@ public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQuery
 
     public static final String NAME = "deprecated";
 
-    public DeprecatedQueryBuilder() {
-    }
+    public DeprecatedQueryBuilder() {}
 
     DeprecatedQueryBuilder(StreamInput in) throws IOException {
         super(in);

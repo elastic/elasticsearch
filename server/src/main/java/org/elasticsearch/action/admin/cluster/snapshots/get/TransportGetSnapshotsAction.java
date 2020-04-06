@@ -91,7 +91,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -110,16 +110,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final String[] repositories = request.repositories();
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         transportService.sendChildRequest(transportService.getLocalNode(), GetRepositoriesAction.NAME,
-                new GetRepositoriesRequest(repositories), task, TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                        ActionListener.wrap(
-                                response ->
-                                        // switch to GENERIC thread pool because it might be long running operation
-                                        threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                                                () -> getMultipleReposSnapshotInfo(snapshotsInProgress, response.repositories(),
-                                                    request.snapshots(), request.ignoreUnavailable(), request.verbose(), listener)),
-                                listener::onFailure),
-                        GetRepositoriesResponse::new));
+            new GetRepositoriesRequest(repositories), task, TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.wrap(response -> getMultipleReposSnapshotInfo(snapshotsInProgress, response.repositories(),
+                    request.snapshots(), request.ignoreUnavailable(), request.verbose(), listener), listener::onFailure),
+                GetRepositoriesResponse::new));
     }
 
     private void getMultipleReposSnapshotInfo(@Nullable SnapshotsInProgress snapshotsInProgress, List<RepositoryMetadata> repos,

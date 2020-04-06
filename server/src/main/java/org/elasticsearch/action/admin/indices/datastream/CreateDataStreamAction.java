@@ -125,9 +125,9 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               MetadataCreateIndexService metaDataCreateIndexService) {
+                               MetadataCreateIndexService metadataCreateIndexService) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
-            this.metadataCreateIndexService = metaDataCreateIndexService;
+            this.metadataCreateIndexService = metadataCreateIndexService;
         }
 
         @Override

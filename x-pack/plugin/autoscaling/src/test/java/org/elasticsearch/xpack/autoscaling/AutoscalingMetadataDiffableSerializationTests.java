@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
@@ -29,12 +28,12 @@ public class AutoscalingMetadataDiffableSerializationTests extends AbstractDiffa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new Autoscaling(Settings.EMPTY).getNamedWriteables());
+        return AutoscalingTestCase.getAutoscalingNamedWriteableRegistry();
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new Autoscaling(Settings.EMPTY).getNamedXContent());
+        return AutoscalingTestCase.getAutoscalingXContentRegistry();
     }
 
     @Override

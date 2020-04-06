@@ -1568,11 +1568,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(index, alias), equalTo(false));
         assertThat(aliasExists(index, alias2), equalTo(true));
     }
-
-    //{"index_patterns":["pattern"],"template":{"settings":{"index":{"number_of_shards":"1"}},"mappings":{"properties":{"host_name":{"type":"keyword"}}},"aliases":{"alias":{"is_write_index":true}}},"priority":1,"version":1,"_meta":{}}>
-    //{"index_patterns":["pattern"],"template":{"settings":{"index":{"number_of_shards":"1"}},"mappings":{"properties":{"host_name":{"type":"keyword"}}},"aliases":{"alias":{"is_write_index":true}}},"composed_of":[],"priority":1,"version":1,"_meta":{}}>
-
-
+    
     public void testIndexTemplates() throws Exception {
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();

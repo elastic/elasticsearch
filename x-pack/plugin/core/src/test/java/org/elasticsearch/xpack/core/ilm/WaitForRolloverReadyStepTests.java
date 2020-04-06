@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -22,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.test.client.NoOpClient;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -207,6 +211,64 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         }, MASTER_TIMEOUT);
 
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionWriteIndexIsFalse() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                fail("expecting failure as the write index must be set to true or null");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e.getMessage(), is(String.format(Locale.ROOT, "index [%s] is not the write index for alias [%s]",
+                    indexMetadata.getIndex().getName(), alias)));
+            }
+        }, MASTER_TIMEOUT);
+    }
+
+    public void testPerformActionWriteIndexIsNullOrTrue() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(randomFrom(true, null)))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        try (NoOpClient noOpClient = new NoOpClient(getTestName()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
+                                                                                                      Request request,
+                                                                                                      ActionListener<Response> listener) {
+                listener.onResponse((Response) new RolloverResponse(null, null, Map.of("condition", true), true, true, true, true));
+            }
+        }) {
+            WaitForRolloverReadyStep step = new WaitForRolloverReadyStep(randomStepKey(), randomStepKey(), noOpClient,
+                new ByteSizeValue(0L),
+                TimeValue.timeValueMillis(0L), 0L);
+            step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+
+                @Override
+                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                    assertThat(complete, is(true));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("expecting step to succeed as rollover is supported when the alias write index is true or null");
+                }
+            }, MASTER_TIMEOUT);
+        }
     }
 
     public void testPerformActionWithIndexingComplete() {
@@ -415,4 +477,5 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
             indexMetadata.getIndex().getName())));
     }
+
 }

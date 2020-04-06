@@ -31,6 +31,7 @@ endif::[]
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
+* <<searchable-snapshots-apis, Searchable snapshots APIs>>
 * <<security-api,Security APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<transform-apis,{transform-cap} APIs>>
@@ -59,6 +60,7 @@ include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
+include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
 include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
 include::{es-repo-dir}/transform/apis/index.asciidoc[]

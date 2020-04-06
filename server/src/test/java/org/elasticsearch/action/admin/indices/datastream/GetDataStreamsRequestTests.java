@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {
@@ -42,31 +43,72 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Request createTestInstance() {
-        return new Request(generateRandomStringArray(8, 8, false));
+        final String searchParameter;
+        switch (randomIntBetween(1, 4)) {
+            case 1:
+                searchParameter = randomAlphaOfLength(8);
+                break;
+            case 2:
+                searchParameter = randomAlphaOfLength(8) + "*";
+                break;
+            case 3:
+                searchParameter = "*";
+                break;
+            default:
+                searchParameter = null;
+                break;
+        }
+        return new Request(searchParameter);
     }
 
-    public void testValidateRequest() {
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{});
-        ActionRequestValidationException e = req.validate();
-        assertNull(e);
-    }
-
-    public void testGetDataStreams() {
+    public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
         List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
     }
 
+    public void testGetDataStreamsWithWildcards() {
+        final String[] dataStreamNames = {"my-data-stream", "another-data-stream"};
+        DataStream ds1 = new DataStream(dataStreamNames[0], "timestamp", Collections.emptyList());
+        DataStream ds2 = new DataStream(dataStreamNames[1], "timestamp", Collections.emptyList());
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().dataStreams(
+                Map.of(dataStreamNames[0], ds1, dataStreamNames[1], ds2)).build())
+            .build();
+
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamNames[1].substring(0, 5) + "*");
+        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+
+        req = new GetDataStreamsAction.Request("*");
+        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(2));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+
+        req = new GetDataStreamsAction.Request((String) null);
+        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(2));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+
+        req = new GetDataStreamsAction.Request("matches-none*");
+        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(0));
+    }
+
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
-        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
-        assertThat(dataStreams.size(), equalTo(0));
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
+            () -> GetDataStreamsAction.TransportAction.getDataStreams(cs, req));
+        assertThat(e.getMessage(), containsString("data_stream matching [" + dataStreamName + "] not found"));
     }
 }

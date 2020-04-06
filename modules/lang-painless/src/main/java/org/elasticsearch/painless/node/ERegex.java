@@ -36,6 +36,7 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -45,24 +46,22 @@ import java.util.regex.PatternSyntaxException;
 public class ERegex extends AExpression {
 
     protected final String pattern;
-    protected final int flags;
+    protected final String flags;
 
-    public ERegex(Location location, String pattern, String flagsString) {
+    public ERegex(Location location, String pattern, String flags) {
         super(location);
 
-        this.pattern = pattern;
-
-        int flags = 0;
-
-        for (int c = 0; c < flagsString.length(); c++) {
-            flags |= flagForChar(flagsString.charAt(c));
-        }
-
+        this.pattern = Objects.requireNonNull(pattern);
         this.flags = flags;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
+        }
+
         Output output = new Output();
 
         if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
@@ -71,8 +70,10 @@ public class ERegex extends AExpression {
                     + "recursion and long loops."));
         }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
+        int flags = 0;
+
+        for (int c = 0; c < this.flags.length(); c++) {
+            flags |= flagForChar(this.flags.charAt(c));
         }
 
         try {

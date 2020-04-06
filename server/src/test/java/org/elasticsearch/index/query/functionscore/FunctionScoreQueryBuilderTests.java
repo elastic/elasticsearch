@@ -553,11 +553,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
         QueryShardContext context = createShardContext();
-        Query parsedQuery = parseQuery(functionScoreQuery(termQuery(STRING_FIELD_NAME_2, "banon"), weightFactorFunction(1.3f)))
+        Query parsedQuery = parseQuery(functionScoreQuery(termQuery(KEYWORD_FIELD_NAME, "banon"), weightFactorFunction(1.3f)))
                 .rewrite(context).toQuery(context);
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "banon")));
+        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "banon")));
         assertThat((double) (functionScoreQuery.getFunctions()[0]).getWeight(), closeTo(1.3, 0.001));
     }
 
@@ -643,14 +643,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testRewrite() throws IOException {
         FunctionScoreQueryBuilder functionScoreQueryBuilder =
-            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder(STRING_FIELD_NAME, "bar").toString()))
+            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString()))
                 .boostMode(CombineFunction.REPLACE)
                 .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
                 .setMinScore(1)
                 .maxBoost(100);
         FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
-        assertEquals(rewrite.query(), new TermQueryBuilder(STRING_FIELD_NAME, "bar"));
+        assertEquals(rewrite.query(), new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         assertEquals(rewrite.boostMode(), CombineFunction.REPLACE);
         assertEquals(rewrite.scoreMode(), FunctionScoreQuery.ScoreMode.SUM);
         assertEquals(rewrite.getMinScore(), 1f, 0.0001);
@@ -658,18 +658,18 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testRewriteWithFunction() throws IOException {
-        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder(STRING_FIELD_NAME_2, "1").toString());
-        TermQueryBuilder secondFunction = new TermQueryBuilder(STRING_FIELD_NAME_2, "2");
-        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder(STRING_FIELD_NAME, "bar").toString())
-                : new TermQueryBuilder(STRING_FIELD_NAME, "bar");
+        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder(KEYWORD_FIELD_NAME, "1").toString());
+        TermQueryBuilder secondFunction = new TermQueryBuilder(KEYWORD_FIELD_NAME, "2");
+        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString())
+                : new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
         FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
-        assertEquals(rewrite.query(), new TermQueryBuilder(STRING_FIELD_NAME, "bar"));
-        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder(STRING_FIELD_NAME_2, "1"));
+        assertEquals(rewrite.query(), new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
+        assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder(KEYWORD_FIELD_NAME, "1"));
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
     }
 

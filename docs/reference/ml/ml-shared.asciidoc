@@ -1225,11 +1225,6 @@ importance] values per document. By default, it is zero and no feature
 importance calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
-tag::inference-config-classification-results-field[]
-The field that is added to incoming documents to contain the inference
-prediction. Defaults to `predicted_value`.
-end::inference-config-classification-results-field[]
-
 tag::inference-config-classification-top-classes-results-field[]
 Specifies the field to which the top classes are written. Defaults to
 `top_classes`.
@@ -1242,10 +1237,10 @@ importance] values per document. By default, it is zero and no feature importanc
 calculation occurs.
 end::inference-config-regression-num-top-feature-importance-values[]
 
-tag::inference-config-regression-results-field[]
-Specifies the field to which the inference prediction is written. Defaults to
-`predicted_value`.
-end::inference-config-regression-results-field[]
+tag::inference-config-results-field[]
+The field that is added to incoming documents to contain the inference
+prediction. Defaults to `predicted_value`.
+end::inference-config-results-field[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 

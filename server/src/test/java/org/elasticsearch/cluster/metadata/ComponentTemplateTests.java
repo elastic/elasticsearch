@@ -98,7 +98,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     private static CompressedXContent randomMappings() {
         try {
-            return new CompressedXContent("{\"" + randomAlphaOfLength(3) + "\":\"" + randomAlphaOfLength(7) + "\"}");
+            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -107,7 +107,12 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     private static Settings randomSettings() {
         return Settings.builder()
-            .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
+            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
     }
 

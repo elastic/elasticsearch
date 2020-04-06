@@ -359,6 +359,7 @@ final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard) throws IndexShardRecoveryException {
+        indexShard.preRecovery();
         final RecoveryState recoveryState = indexShard.recoveryState();
         final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
         indexShard.prepareForIndexRecovery();
@@ -449,6 +450,7 @@ final class StoreRecovery {
     private void restore(IndexShard indexShard, Repository repository, SnapshotRecoverySource restoreSource,
                          ActionListener<Boolean> listener) {
         logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
+        indexShard.preRecovery();
         final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
         if (restoreSource == null) {
             listener.onFailure(new IndexShardRestoreFailedException(shardId, "empty restore source"));

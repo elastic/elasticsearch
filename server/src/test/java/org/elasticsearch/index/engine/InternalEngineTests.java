@@ -983,16 +983,16 @@ public class InternalEngineTests extends EngineTestCase {
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get));
-        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
-        engine.index(indexForDoc(doc));
-        engine.flush();
+        List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 50), false, randomBoolean(), randomBoolean());
+        applyOperations(engine, ops);
+        engine.flush(true, true);
         final CheckedRunnable<IOException> checker = () -> {
             assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(0));
-            assertThat(engine.getLastSyncedGlobalCheckpoint(), equalTo(0L));
+            assertThat(engine.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpoint.get()));
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
                 SequenceNumbers.CommitInfo commitInfo =
                     SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getIndexCommit().getUserData().entrySet());
-                assertThat(commitInfo.localCheckpoint, equalTo(0L));
+                assertThat(commitInfo.localCheckpoint, equalTo(engine.getProcessedLocalCheckpoint()));
             }
         };
         final Thread[] threads = new Thread[randomIntBetween(2, 4)];

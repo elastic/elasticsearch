@@ -437,7 +437,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        }, 20, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 

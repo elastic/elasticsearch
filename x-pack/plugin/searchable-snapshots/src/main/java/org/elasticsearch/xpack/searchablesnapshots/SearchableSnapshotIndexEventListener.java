@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +26,20 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+        ensureSnapshotIsLoaded(indexShard);
         associateNewEmptyTranslogWithIndex(indexShard);
+    }
+
+    private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
+        final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
+        assert directory != null;
+
+        final boolean success = directory.loadSnapshot();
+        assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
+        assert success
+            || indexShard.routingEntry()
+                .recoverySource()
+                .getType() == RecoverySource.Type.PEER : "loading snapshot must not be called twice unless we are retrying a peer recovery";
     }
 
     private static void associateNewEmptyTranslogWithIndex(IndexShard indexShard) {

@@ -36,6 +36,8 @@ import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
@@ -88,6 +90,11 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         cacheDir
                     )
                 ) {
+                    final boolean loaded = directory.loadSnapshot();
+                    assertThat("Failed to load snapshot", loaded, is(true));
+                    assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
+                    assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
+
                     try (IndexInput indexInput = directory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
@@ -152,6 +159,11 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     cacheDir
                 )
             ) {
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
+                assertThat("Failed to load snapshot", loaded, is(true));
+                assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
+                assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
+
                 try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, newIOContext(random()))) {
                     final byte[] buffer = new byte[input.length + 1];
                     final IOException exception = expectThrows(IOException.class, () -> indexInput.readBytes(buffer, 0, buffer.length));
@@ -294,5 +306,4 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             this.container.totalBytes.add(bytesRead);
         }
     }
-
 }

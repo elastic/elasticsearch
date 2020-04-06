@@ -951,20 +951,28 @@ Contains statistics about CPU usage for the node.
 (integer)
 Recent CPU usage for the whole system, or `-1` if not supported.
 
-`load_average.1m`::
+`load_average`
+(object)
+Contains statistics about load averages on the system.
++
+.Properties of `load_average`
+[%collapsible%open]
+========
+`1m`::
 (float)
 One-minute load average on the system (field is not present if one-minute load
 average is not available).
 
-`load_average.5m`::
+`5m`::
 (float)
 Five-minute load average on the system (field is not present if five-minute load
 average is not available).
 
-`load_average.15m`::
+`15m`::
 (float)
 Fifteen-minute load average on the system (field is not present if
 fifteen-minute load average is not available).
+========
 =======
 
 `mem`::

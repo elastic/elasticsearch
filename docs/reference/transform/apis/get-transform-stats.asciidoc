@@ -31,9 +31,9 @@ Retrieves usage information for {transforms}.
 If the {es} {security-features} are enabled, you must have the following 
 privileges:
 
-* `manage_transform` 
+* `monitor_transform` 
 
-The built-in `transform_admin` role has this privilege. 
+The built-in `transform_user` role has this privilege. 
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 

@@ -182,7 +182,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         } else {
             this.defaultFieldMap = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
         } else {
             this.inferenceConfig = null;
@@ -296,7 +296,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 out.writeBoolean(false);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalNamedWriteable(inferenceConfig);
         }
     }

@@ -41,6 +41,11 @@ import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuild
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.ttest.InternalTTest;
+import org.elasticsearch.xpack.analytics.ttest.PairedTTestState;
+import org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder;
+import org.elasticsearch.xpack.analytics.ttest.TTestState;
+import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -94,7 +99,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
-                .addResultReader(InternalTopMetrics::new)
+                .addResultReader(InternalTopMetrics::new),
+            new AggregationSpec(
+                TTestAggregationBuilder.NAME,
+                TTestAggregationBuilder::new,
+                usage.track(AnalyticsUsage.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
+                .addResultReader(InternalTTest::new)
         );
     }
 
@@ -128,6 +138,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver) {
         return singletonList(new AnalyticsUsage());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(
+            new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
+            new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
+        );
     }
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {

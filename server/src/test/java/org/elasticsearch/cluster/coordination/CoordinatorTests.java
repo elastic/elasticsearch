@@ -74,6 +74,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -692,20 +693,28 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksFromFollowerInHigherTerm() {
-        // TODO: needs proper term bumping
-//        final Cluster cluster = new Cluster(3);
-//        cluster.runRandomly();
-//        cluster.stabilise();
-//        final ClusterNode leader = cluster.getAnyLeader();
-//        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
-//        final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
-//
-//        follower0.coordinator.joinLeaderInTerm(new StartJoinRequest(follower0.localNode, follower0.coordinator.getCurrentTerm() + 1));
-//        AckCollector ackCollector = leader.submitValue(randomLong());
-//        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-//        assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
-//        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
-//        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+        try (Cluster cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
+            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
+
+            final long originalTerm = leader.coordinator.getCurrentTerm();
+            follower0.coordinator.onFollowerCheckRequest(new FollowersChecker.FollowerCheckRequest(
+                originalTerm + 1,
+                leader.coordinator.getLocalNode()
+            ));
+
+            AckCollector ackCollector = leader.submitValue(randomLong());
+            cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "cluster state update");
+            assertTrue("expected ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
+            assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+            assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
+
+            cluster.stabilise();
+            assertThat(cluster.getAnyLeader().coordinator.getCurrentTerm(), greaterThanOrEqualTo(originalTerm + 1));
+        }
     }
 
     public void testSettingInitialConfigurationTriggersElection() {

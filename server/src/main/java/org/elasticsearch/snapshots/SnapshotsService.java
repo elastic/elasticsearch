@@ -990,17 +990,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                SnapshotsInProgress.Entry snapshotEntry = null;
-                if (snapshots != null) {
-                    for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                        if (entry.repository().equals(repositoryName)
-                            && entry.snapshot().getSnapshotId().getName().equals(snapshotName)) {
-                            snapshotEntry = entry;
-                            break;
-                        }
-                    }
-                }
+                final SnapshotsInProgress.Entry snapshotEntry = findInProgressSnapshot(currentState, snapshotName, repositoryName);
                 if (snapshotEntry == null) {
                     return currentState;
                 }
@@ -1119,6 +1109,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }, l::onFailure))));
             }
         });
+    }
+
+    // Return in-progress snapshot entry by name and repository in the given cluster state or null if none is found
+    @Nullable
+    private static SnapshotsInProgress.Entry findInProgressSnapshot(ClusterState state, String snapshotName, String repositoryName) {
+        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress.Entry snapshotEntry = null;
+        if (snapshots != null) {
+            for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+                if (entry.repository().equals(repositoryName)
+                    && entry.snapshot().getSnapshotId().getName().equals(snapshotName)) {
+                    snapshotEntry = entry;
+                    break;
+                }
+            }
+        }
+        return snapshotEntry;
     }
 
     /**

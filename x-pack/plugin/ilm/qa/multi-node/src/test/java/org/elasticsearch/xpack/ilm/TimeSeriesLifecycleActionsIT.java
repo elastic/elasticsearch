@@ -28,10 +28,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
-import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
-import org.elasticsearch.xpack.core.ilm.FreezeStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -215,7 +213,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_READ_ONLY, true)
             .put("index.lifecycle.name", policy));
 
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(DeleteStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
         assertTrue(indexExists(index));
 
         Request request = new Request("PUT", index + "/_settings");
@@ -234,7 +233,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_READ_ONLY, true)
             .put("index.lifecycle.name", policy));
 
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(FreezeStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(index).containsKey("index.frozen"));
 
         Request request = new Request("PUT", index + "/_settings");
@@ -1750,6 +1750,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return new StepKey(phase, action, step);
     }
 
+    @Nullable
     private String getFailedStepForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {

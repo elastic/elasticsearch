@@ -508,7 +508,7 @@ never be larger than `32`.
 (array of objects)
 Contains statistics about operating systems used by selected nodes.
 +
-.Properties of `pretty_names`
+.Properties of `names`
 [%collapsible%open]
 ======
 `name`:::
@@ -524,7 +524,7 @@ Number of selected nodes using the operating system.
 (array of objects)
 Contains statistics about operating systems used by selected nodes.
 +
-.Properties of `names`
+.Properties of `pretty_names`
 [%collapsible%open]
 ======
 `pretty_name`:::

@@ -296,7 +296,7 @@ Number of deletion operations currently running.
 (integer)
 Total number of noop operations.
 
-`.is_throttled`::
+`is_throttled`::
 (boolean)
 Number of times
 operations were throttled.
@@ -352,7 +352,7 @@ Total number of failed get operations.
 (<<time-units,time value>>)
 Time spent performing failed get operations.
 
-`.missing_time_in_millis`::
+`missing_time_in_millis`::
 (integer)
 Time in milliseconds
 spent performing failed get operations.
@@ -811,18 +811,26 @@ type filters for <<parent-join,join>> fields.
 Time of the most recently retried indexing request. Recorded in milliseconds
 since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 
-`file_sizes.size`::
+`file_sizes`::
+(object)
+Contains statistics about the size of the segment file.
++
+.Properties of `file_sizes`
+[%collapsible%open]
+========
+`size`::
 (<<byte-units,byte value>>)
 Size of the segment file.
 
-`file_sizes.size_in_bytes`::
+`size_in_bytes`::
 (integer)
 Size, in bytes,
 of the segment file.
 
-`file_sizes.description`::
+`description`::
 (string)
 Description of the segment file.
+========
 =======
 
 `translog`::
@@ -1283,19 +1291,35 @@ node.
 .Properties of `young`
 [%collapsible%open]
 =========
+`used`::
+(<<byte-units,byte value>>)
+Memory used by the young generation heap.
+
 `used_in_bytes`::
 (integer)
 Memory, in bytes, used by the young generation heap.
+
+`max`::
+(<<byte-units,byte value>>)
+Maximum amount of memory available for use by the young generation heap.
 
 `max_in_bytes`::
 (integer)
 Maximum amount of memory, in bytes, available for use by the young generation
 heap.
 
+`peak_used`::
+(<<byte-units,byte value>>)
+Largest amount of memory historically used by the young generation heap.
+
 `peak_used_in_bytes`::
 (integer)
 Largest amount of memory, in bytes, historically used by the young generation
 heap.
+
+`peak_max`::
+(<<byte-units,byte value>>)
+Largest amount of memory historically used by the young generation heap.
 
 `peak_max_in_bytes`::
 (integer)
@@ -1311,16 +1335,32 @@ Contains statistics about memory usage by the survivor space for the node.
 [%collapsible%open]
 =========
 `used_in_bytes`::
+(<<byte-units,byte value>>)
+Memory used by the survivor space.
+
+`used_in_bytes`::
 (integer)
 Memory, in bytes, used by the survivor space.
+
+`max`::
+(<<byte-units,byte value>>)
+Maximum amount of memory available for use by the survivor space.
 
 `max_in_bytes`::
 (integer)
 Maximum amount of memory, in bytes, available for use by the survivor space.
 
+`peak_used`::
+(<<byte-units,byte value>>)
+Largest amount of memory historically used by the survivor space.
+
 `peak_used_in_bytes`::
 (integer)
 Largest amount of memory, in bytes, historically used by the survivor space.
+
+`peak_max`::
+(<<byte-units,byte value>>)
+Largest amount of memory historically used by the survivor space.
 
 `peak_max_in_bytes`::
 (integer)
@@ -1334,19 +1374,35 @@ Contains statistics about memory usage by the old generation heap for the node.
 .Properties of `old`
 [%collapsible%open]
 =========
+`used`::
+(<<byte-units,byte value>>)
+Memory used by the old generation heap.
+
 `used_in_bytes`::
 (integer)
 Memory, in bytes, used by the old generation heap.
+
+`max`::
+(<<byte-units,byte value>>)
+Maximum amount of memory available for use by the old generation heap.
 
 `max_in_bytes`::
 (integer)
 Maximum amount of memory, in bytes, available for use by the old generation
 heap.
 
+`peak_used`::
+(<<byte-units,byte value>>)
+Largest amount of memory historically used by the old generation heap.
+
 `peak_used_in_bytes`::
 (integer)
 Largest amount of memory, in bytes, historically used by the old generation
 heap.
+
+`peak_max`::
+(<<byte-units,byte value>>)
+Highest memory limit historically available for use by the old generation heap.
 
 `peak_max_in_bytes`::
 (integer)
@@ -1398,6 +1454,10 @@ objects for the node.
 (integer)
 Number of JVM garbage collectors that collect young generation objects.
 
+`collection_time`::
+(<<time-units,time value>>)
+Total time spent by JVM collecting young generation objects.
+
 `collection_time_in_millis`::
 (integer)
 Total time in milliseconds spent by JVM collecting young generation objects.
@@ -1414,6 +1474,10 @@ objects for the node.
 `collection_count`::
 (integer)
 Number of JVM garbage collectors that collect old generation objects.
+
+`collection_time`::
+(<<time-units,time value>>)
+Total time spent by JVM collecting old generation objects.
 
 `collection_time_in_millis`::
 (integer)
@@ -1440,9 +1504,17 @@ Contains statistics about mapped JVM buffer pools for the node.
 (integer)
 Number of mapped buffer pools.
 
+`used`::
+(<<byte-units,byte value>>)
+Size of mapped buffer pools.
+
 `used_in_bytes`::
 (integer)
 Size, in bytes, of mapped buffer pools.
+
+`total_capacity`::
+(<<byte-units,byte value>>)
+Total capacity of mapped buffer pools.
 
 `total_capacity_in_bytes`::
 (integer)
@@ -1460,9 +1532,17 @@ Contains statistics about direct JVM buffer pools for the node.
 (integer)
 Number of direct buffer pools.
 
+`used`::
+(<<byte-units,byte value>>)
+Size of direct buffer pools.
+
 `used_in_bytes`::
 (integer)
 Size, in bytes, of direct buffer pools.
+
+`total_capacity`::
+(<<byte-units,byte value>>)
+Total capacity of direct buffer pools.
 
 `total_capacity_in_bytes`::
 (integer)

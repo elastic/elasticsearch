@@ -1,5 +1,5 @@
 ---
-"Test delete autoscaling policy":
+"Test get autoscaling policy":
   - do:
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
@@ -11,23 +11,24 @@
   - match: { "acknowledged": true }
 
   - do:
-      autoscaling.delete_autoscaling_policy:
-        name: my_autoscaling_policy
-
-  # validate the policy does not exist
-  - do:
-      catch: /autoscaling policy with name \[my_autoscaling_policy\] does not exist/
       autoscaling.get_autoscaling_policy:
         name: my_autoscaling_policy
 
+  - match: { policy.deciders.always: {} }
+
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+
 ---
-"Test delete non-existent autoscaling policy":
+"Test get non-existent autoscaling policy":
   - do:
       catch: missing
-      autoscaling.delete_autoscaling_policy:
+      autoscaling.get_autoscaling_policy:
         name: does_not_exist
 
   - do:
       catch: /autoscaling policy with name \[does_not_exist\] does not exist/
-      autoscaling.delete_autoscaling_policy:
+      autoscaling.get_autoscaling_policy:
         name: does_not_exist

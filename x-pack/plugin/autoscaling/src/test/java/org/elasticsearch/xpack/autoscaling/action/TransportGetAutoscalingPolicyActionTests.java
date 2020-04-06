@@ -6,38 +6,36 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
+import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
-import java.util.Map;
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTestCase {
+public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCase {
 
-    public void testWriteBlock() {
-        final TransportDeleteAutoscalingPolicyAction action = new TransportDeleteAutoscalingPolicyAction(
+    public void testReadBlock() {
+        final TransportGetAutoscalingPolicyAction action = new TransportGetAutoscalingPolicyAction(
             mock(TransportService.class),
             mock(ClusterService.class),
             mock(ThreadPool.class),
@@ -46,20 +44,24 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         );
         final ClusterBlocks blocks = ClusterBlocks.builder()
             .addGlobalBlock(
-                randomFrom(
-                    Metadata.CLUSTER_READ_ONLY_BLOCK,
-                    Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK,
-                    NoMasterBlockService.NO_MASTER_BLOCK_WRITES
+                new ClusterBlock(
+                    randomIntBetween(128, 256),
+                    "metadata read block",
+                    false,
+                    false,
+                    false,
+                    RestStatus.SERVICE_UNAVAILABLE,
+                    EnumSet.of(ClusterBlockLevel.METADATA_READ)
                 )
             )
             .build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(new GetAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
         assertThat(e, not(nullValue()));
     }
 
-    public void testNoWriteBlock() {
-        final TransportDeleteAutoscalingPolicyAction action = new TransportDeleteAutoscalingPolicyAction(
+    public void testNoReadBlock() {
+        final TransportGetAutoscalingPolicyAction action = new TransportGetAutoscalingPolicyAction(
             mock(TransportService.class),
             mock(ClusterService.class),
             mock(ThreadPool.class),
@@ -68,59 +70,42 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(new GetAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
         assertThat(e, nullValue());
     }
 
-    public void testDeletePolicy() {
-        final ClusterState currentState;
+    public void testGetPolicy() {
+        final ClusterState state;
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
             builder.metadata(
                 Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
-            currentState = builder.build();
+            state = builder.build();
         }
-        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
-        final String name = randomFrom(currentMetadata.policies().keySet());
-        final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(currentState, name, mockLogger);
-
-        // ensure the policy is deleted from the cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
-        assertNotNull(metadata);
-        assertThat(metadata.policies(), not(hasKey(name)));
-        verify(mockLogger).info("deleting autoscaling policy [{}]", name);
-        verifyNoMoreInteractions(mockLogger);
+        final String name = randomFrom(metadata.policies().keySet());
+        final AutoscalingPolicy policy = TransportGetAutoscalingPolicyAction.getAutoscalingPolicy(state, name);
 
-        // ensure that existing policies were otherwise preserved
-        for (final Map.Entry<String, AutoscalingPolicyMetadata> entry : currentMetadata.policies().entrySet()) {
-            if (entry.getKey().equals(name)) {
-                continue;
-            }
-            assertThat(metadata.policies(), hasKey(entry.getKey()));
-            assertThat(metadata.policies().get(entry.getKey()).policy(), equalTo(entry.getValue().policy()));
-        }
+        assertThat(metadata.policies().get(name).policy(), equalTo(policy));
     }
 
-    public void testDeleteNonExistentPolicy() {
-        final ClusterState currentState;
+    public void testGetNonExistentPolicy() {
+        final ClusterState state;
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
             builder.metadata(
                 Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
-            currentState = builder.build();
+            state = builder.build();
         }
-        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
-        final String name = randomValueOtherThanMany(currentMetadata.policies().keySet()::contains, () -> randomAlphaOfLength(8));
-        final Logger mockLogger = mock(Logger.class);
+        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        final String name = randomValueOtherThanMany(metadata.policies().keySet()::contains, () -> randomAlphaOfLength(8));
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(currentState, name, mockLogger)
+            () -> TransportGetAutoscalingPolicyAction.getAutoscalingPolicy(state, name)
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));
-        verifyNoMoreInteractions(mockLogger);
     }
 
 }

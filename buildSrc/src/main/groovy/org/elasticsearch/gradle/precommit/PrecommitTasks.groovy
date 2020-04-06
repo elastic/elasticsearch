@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.precommit
 
-
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
@@ -32,7 +31,6 @@ import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.tasks.SourceSet
-import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -146,22 +144,18 @@ class PrecommitTasks {
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
 
+            //parse out the sourceSetName
             String[] parts = name.split(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
             String sourceSetName = 'main'
             if (parts.length == 2) {
-                sourceSetName = parts[1].toLowerCase(Locale.ROOT)
+                char[] chars = parts[1].toCharArray()
+                chars[0] = Character.toLowerCase(chars[0])
+                sourceSetName = new String(chars)
             }
-            //add the sourceSet's compile classPath if it exists
-            SourceSetContainer sourceSets = project.sourceSets
-            if (sourceSetName) {
-                SourceSet sourceSet = sourceSets.findByName(sourceSetName)
-                if (sourceSet) {
-                    FileCollection runtime = sourceSet.runtimeClasspath
-                    if (runtime) {
-                        classpath = runtime.plus(sourceSet.compileClasspath)
-                    }
-                }
-            }
+
+            SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
+            FileCollection runtime = sourceSet.runtimeClasspath
+            classpath = runtime.plus(sourceSet.compileClasspath)
 
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {

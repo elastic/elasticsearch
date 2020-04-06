@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 

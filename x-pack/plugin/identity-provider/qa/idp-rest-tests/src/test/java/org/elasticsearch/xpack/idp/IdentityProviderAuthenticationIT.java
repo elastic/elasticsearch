@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -44,8 +45,12 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private final String REALM_NAME = "cloud-saml";
 
     @Before
-    public void createUsers() throws IOException {
+    public void setupSecurityData() throws IOException {
         setUserPassword("kibana", new SecureString("kibana".toCharArray()));
+        createApplicationPrivileges("elastic-cloud", org.elasticsearch.common.collect.Map.of(
+            "deployment_admin", Set.of("sso:admin"),
+            "deployment_viewer", Set.of("sso:viewer"))
+        );
     }
 
     public void testRegistrationAndIdpInitiatedSso() throws Exception {
@@ -54,10 +59,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         request.put("acs", SP_ACS);
         final Map<String, Object> privilegeMap = new HashMap<>();
         privilegeMap.put("resource", SP_ENTITY_ID);
-        final Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("superuser", "role:superuser");
-        roleMap.put("viewer", "role:viewer");
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Set.of("sso:(\\w+)"));
         request.put("privileges", privilegeMap);
         final Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");
@@ -78,10 +80,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         request.put("acs", SP_ACS);
         final Map<String, Object> privilegeMap = new HashMap<>();
         privilegeMap.put("resource", SP_ENTITY_ID);
-        final Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("superuser", "role:superuser");
-        roleMap.put("viewer", "role:viewer");
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Set.of("sso:(\\w+)"));
         request.put("privileges", privilegeMap);
         final Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");

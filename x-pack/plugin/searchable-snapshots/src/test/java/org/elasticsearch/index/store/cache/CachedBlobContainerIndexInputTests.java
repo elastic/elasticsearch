@@ -27,10 +27,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
@@ -61,7 +61,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
                     0L,
-                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(partSize))),
+                    singletonList(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(partSize))),
                     0L,
                     0L,
                     0,
@@ -136,7 +136,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),
                 0L,
-                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(input.length + 1))),
+                singletonList(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(input.length + 1))),
                 0L,
                 0L,
                 0,

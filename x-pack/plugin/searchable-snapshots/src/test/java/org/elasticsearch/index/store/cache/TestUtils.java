@@ -25,6 +25,7 @@ import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
+import static java.util.Arrays.asList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,7 +35,7 @@ public final class TestUtils {
     public static CacheService createCacheService(final Random random) {
         final ByteSizeValue cacheSize = new ByteSizeValue(
             randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
+            randomFrom(random, asList(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
         );
         return new CacheService(cacheSize, randomCacheRangeSize(random));
     }
@@ -42,7 +43,7 @@ public final class TestUtils {
     public static ByteSizeValue randomCacheRangeSize(final Random random) {
         return new ByteSizeValue(
             randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB))
+            randomFrom(random, asList(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB))
         );
     }
 

@@ -15,13 +15,18 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 
 import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+
 public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
-            new Route(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
+        return unmodifiableList(
+            asList(
+                new Route(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
+                new Route(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
+            )
         );
     }
 

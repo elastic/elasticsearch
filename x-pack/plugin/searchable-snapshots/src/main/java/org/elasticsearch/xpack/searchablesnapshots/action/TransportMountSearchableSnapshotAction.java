@@ -30,7 +30,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -121,7 +120,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
 
     @Override
     protected void masterOperation(
-        Task task,
         final MountSearchableSnapshotRequest request,
         final ClusterState state,
         final ActionListener<RestoreSnapshotResponse> listener
@@ -148,7 +146,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .stream()
                 .filter(s -> snapName.equals(s.getName()))
                 .findFirst();
-            if (matchingSnapshotId.isEmpty()) {
+            if (matchingSnapshotId.isPresent() == false) {
                 throw new ElasticsearchException("snapshot [" + snapName + "] not found in repository [" + repoName + "]");
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();

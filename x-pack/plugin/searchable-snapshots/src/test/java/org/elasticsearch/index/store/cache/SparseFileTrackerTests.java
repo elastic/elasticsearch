@@ -195,7 +195,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final AtomicBoolean listenerCalled = new AtomicBoolean();
         listenerCalledConsumer.accept(listenerCalled);
 
-        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(start, end, new ActionListener<>() {
+        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(start, end, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 for (long i = start; i < end; i++) {

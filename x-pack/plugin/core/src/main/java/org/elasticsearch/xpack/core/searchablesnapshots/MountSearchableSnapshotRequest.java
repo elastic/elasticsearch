@@ -33,12 +33,12 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RestRequest> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot", true,
         (a, request) -> new MountSearchableSnapshotRequest(
-            Objects.requireNonNullElse((String)a[1], (String)a[0]),
+            (String) ((a[1] != null) ? a[1] : Objects.requireNonNull(a[0])),
             request.param("repository"),
             request.param("snapshot"),
-            (String)a[0],
-            Objects.requireNonNullElse((Settings)a[2], Settings.EMPTY),
-            Objects.requireNonNullElse((String[])a[3], Strings.EMPTY_ARRAY),
+            (String) a[0],
+            (Settings) ((a[2] != null) ? a[2] : Settings.EMPTY),
+            (String[]) ((a[3] != null) ? a[3] : Strings.EMPTY_ARRAY),
             request.paramAsBoolean("wait_for_completion", false)));
 
     private static final ParseField INDEX_FIELD = new ParseField("index");

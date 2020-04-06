@@ -90,6 +90,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.allOf;
@@ -153,7 +154,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
                     {
-                        Query query = new TermInSetQuery("text", List.of(new BytesRef("quick"), new BytesRef("lazy")));
+                        Query query = new TermInSetQuery("text", asList(new BytesRef("quick"), new BytesRef("lazy")));
                         assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
                         CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
@@ -328,7 +329,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
             try (IndexWriter writer = new IndexWriter(directory, indexWriterConfig)) {
                 final int nbDocs = scaledRandomIntBetween(0, 1_000);
-                final List<String> words = List.of("the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog");
+                final List<String> words = asList("the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog");
                 for (int i = 0; i < nbDocs; i++) {
                     final Document doc = new Document();
                     doc.add(new StringField("id", "" + i, Field.Store.YES));
@@ -460,7 +461,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
-            for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
+            for (String fileName : randomSubsetOf(asList(snapshotDirectory.listAll()))) {
                 final IOContext context = newIOContext(random());
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();

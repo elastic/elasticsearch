@@ -66,6 +66,12 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
@@ -118,7 +124,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     // The file extensions that are excluded from the cache
     public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
         "index.store.snapshot.cache.excluded_file_types",
-        Collections.emptyList(),
+        emptyList(),
         Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.NodeScope
@@ -151,19 +157,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public List<Setting<?>> getSettings() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return List.of(
-                SNAPSHOT_REPOSITORY_SETTING,
-                SNAPSHOT_SNAPSHOT_NAME_SETTING,
-                SNAPSHOT_SNAPSHOT_ID_SETTING,
-                SNAPSHOT_INDEX_ID_SETTING,
-                SNAPSHOT_CACHE_ENABLED_SETTING,
-                SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
-                SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
-                CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
+            return unmodifiableList(
+                asList(
+                    SNAPSHOT_REPOSITORY_SETTING,
+                    SNAPSHOT_SNAPSHOT_NAME_SETTING,
+                    SNAPSHOT_SNAPSHOT_ID_SETTING,
+                    SNAPSHOT_INDEX_ID_SETTING,
+                    SNAPSHOT_CACHE_ENABLED_SETTING,
+                    SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
+                    SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
+                    CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+                    CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
+                )
             );
         } else {
-            return List.of();
+            return emptyList();
         }
     }
 
@@ -183,9 +191,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             final CacheService cacheService = new CacheService(settings);
             this.cacheService.set(cacheService);
-            return List.of(cacheService);
+            return singletonList(cacheService);
         } else {
-            return List.of();
+            return emptyList();
         }
     }
 
@@ -205,7 +213,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
+            return singletonMap(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
                 final RepositoriesService repositories = repositoriesService.get();
                 assert repositories != null;
                 final CacheService cache = cacheService.get();
@@ -213,7 +221,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
                 return SearchableSnapshotDirectory.create(repositories, cache, indexSettings, shardPath, System::nanoTime);
             });
         } else {
-            return Map.of();
+            return emptyMap();
         }
     }
 
@@ -230,13 +238,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return List.of(
+            return org.elasticsearch.common.collect.List.of(
                 new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
                 new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
                 new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class)
             );
         } else {
-            return List.of();
+            return emptyList();
         }
     }
 
@@ -250,13 +258,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return List.of(
-                new RestSearchableSnapshotsStatsAction(),
-                new RestClearSearchableSnapshotsCacheAction(),
-                new RestMountSearchableSnapshotAction()
+            return unmodifiableList(
+                asList(
+                    new RestSearchableSnapshotsStatsAction(),
+                    new RestClearSearchableSnapshotsCacheAction(),
+                    new RestMountSearchableSnapshotAction()
+                )
             );
         } else {
-            return List.of();
+            return emptyList();
         }
     }
 

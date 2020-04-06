@@ -88,7 +88,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             IndexMetadata.Builder indexMetadataBuilder =
                 IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-            Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
+            Map<String, String> ilmCustom = org.elasticsearch.common.collect.Map.of("snapshot_repository", "repository_name");
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
             IndexMetadata indexMetaData = indexMetadataBuilder.build();
@@ -116,7 +116,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         String snapshotName = indexName + "-" + policyName;
-        Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName);
+        Map<String, String> ilmCustom = org.elasticsearch.common.collect.Map.of("snapshot_name", snapshotName);
 
         IndexMetadata.Builder indexMetadataBuilder =
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))

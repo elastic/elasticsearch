@@ -69,7 +69,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         createIndex(indexName);
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+            indexRequestBuilders.add(client().prepareIndex(indexName, "_doc").setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
         // TODO NORELEASE no dummy docs since that includes deletes, yet we always copy the .liv file in peer recovery
         indexRandom(true, false, indexRequestBuilders);

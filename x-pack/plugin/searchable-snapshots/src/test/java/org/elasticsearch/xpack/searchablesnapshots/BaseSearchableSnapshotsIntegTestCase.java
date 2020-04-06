@@ -34,7 +34,9 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.util.Collection;
-import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCase {
     @Override
@@ -44,7 +46,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class);
+        return unmodifiableList(asList(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class));
     }
 
     @Override

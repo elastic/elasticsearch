@@ -97,7 +97,8 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
             true
         );
 
-        client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
         assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest()).get());

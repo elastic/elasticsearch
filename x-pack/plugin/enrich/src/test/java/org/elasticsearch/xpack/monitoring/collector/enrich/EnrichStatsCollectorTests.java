@@ -56,7 +56,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             verify(licenseState).isMonitoringAllowed();
         }
         if (settings.get(XPackSettings.ENRICH_ENABLED_SETTING.getKey()) != null) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.ENRICH_ENABLED_SETTING});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
         }
     }
 

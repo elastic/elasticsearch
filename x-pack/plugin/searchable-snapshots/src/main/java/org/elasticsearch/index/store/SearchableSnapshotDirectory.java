@@ -52,8 +52,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -122,8 +122,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     private synchronized boolean invariant() {
-        assert loaded ^ snapshot == null;
-        assert loaded ^ blobContainer == null;
+        assert loaded != (snapshot == null);
+        assert loaded != (blobContainer == null);
         return true;
     }
 
@@ -161,23 +161,22 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Nullable
     public BlobContainer blobContainer() {
         final BlobContainer blobContainer = this.blobContainer;
-        assert invariant();
+        assert blobContainer != null;
         return blobContainer;
     }
 
     @Nullable
     public BlobStoreIndexShardSnapshot snapshot() {
         final BlobStoreIndexShardSnapshot snapshot = this.snapshot;
-        assert invariant();
+        assert snapshot != null;
         return snapshot;
     }
 
     private List<BlobStoreIndexShardSnapshot.FileInfo> files() {
-        final BlobStoreIndexShardSnapshot snapshot = snapshot();
-        if (snapshot == null) {
+        if (loaded == false) {
             return List.of();
         }
-        final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshot.indexFiles();
+        final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshot().indexFiles();
         assert files != null;
         assert files.size() > 0;
         return files;

@@ -530,9 +530,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(T aggregationBuilder, Query query,
-                                                                                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                                                                                          Consumer<V> verify, MappedFieldType fieldType) throws IOException {
+    protected <T extends AggregationBuilder,
+               V extends InternalAggregation> void testCase(T aggregationBuilder, Query query,
+                                                            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                                                            Consumer<V> verify, MappedFieldType fieldType) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);

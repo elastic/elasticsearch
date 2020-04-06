@@ -9,13 +9,15 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -31,6 +33,14 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
     // From SAMLConstants
     private final String REDIRECT_BINDING = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect";
 
+    @Before
+    public void defineApplicationPrivileges() throws IOException {
+        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.common.collect.Map.of(
+            "deployment_admin", Set.of("sso:superuser"),
+            "deployment_viewer", Set.of("sso:viewer")
+        ));
+    }
+
     public void testCreateAndDeleteServiceProvider() throws Exception {
         final String entityId = "ec:" + randomAlphaOfLength(8) + ":" + randomAlphaOfLength(12);
         final Map<String, Object> request = new HashMap<>();
@@ -38,10 +48,7 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         request.put("acs", "https://sp1.test.es.elasticsearch.org/saml/acs");
         final Map<String, Object> privilegeMap = new HashMap<>();
         privilegeMap.put("resource", entityId);
-        final Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("superuser", "role:superuser");
-        roleMap.put("viewer", "role:viewer");
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Set.of("role:(\\w+)"));
         request.put("privileges", privilegeMap);
         final Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");

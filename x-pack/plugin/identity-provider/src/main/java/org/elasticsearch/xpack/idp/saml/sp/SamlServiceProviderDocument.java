@@ -39,11 +39,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.collect.Set.copyOf;
 
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
@@ -56,14 +57,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
     public static class Privileges {
         public String resource;
-        public Map<String, String> roleActions = Collections.emptyMap();
+        public Set<String> rolePatterns = Collections.emptySet();
 
         public void setResource(String resource) {
             this.resource = resource;
         }
 
-        public void setRoleActions(Map<String, String> roleActions) {
-            this.roleActions = roleActions;
+        public void setRolePatterns(Collection<String> rolePatterns) {
+            this.rolePatterns = copyOf(rolePatterns);
         }
 
         @Override
@@ -72,12 +73,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             if (o == null || getClass() != o.getClass()) return false;
             final Privileges that = (Privileges) o;
             return Objects.equals(resource, that.resource) &&
-                Objects.equals(roleActions, that.roleActions);
+                Objects.equals(rolePatterns, that.rolePatterns);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(resource, roleActions);
+            return Objects.hash(resource, rolePatterns);
         }
     }
 
@@ -267,7 +268,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.resource = in.readString();
-        privileges.roleActions = in.readMap(StreamInput::readString, StreamInput::readString);
+        privileges.rolePatterns = in.readSet(StreamInput::readString);
 
         attributeNames.principal = in.readString();
         attributeNames.email = in.readOptionalString();
@@ -292,8 +293,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalVLong(authenticationExpiryMillis);
 
         out.writeString(privileges.resource);
-        out.writeMap(privileges.roleActions == null ? Collections.emptyMap() : privileges.roleActions,
-            StreamOutput::writeString, StreamOutput::writeString);
+        out.writeStringCollection(privileges.rolePatterns == null ? Collections.emptySet() : privileges.rolePatterns);
 
         out.writeString(attributeNames.principal);
         out.writeOptionalString(attributeNames.email);
@@ -415,9 +415,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (parser, doc) -> PRIVILEGES_PARSER.parse(parser, doc.privileges, null), Fields.PRIVILEGES);
         PRIVILEGES_PARSER.declareString(Privileges::setResource, Fields.Privileges.RESOURCE);
-        PRIVILEGES_PARSER.declareField(Privileges::setRoleActions,
-            (parser, ignore) -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.mapStrings(),
-            Fields.Privileges.ROLES, ObjectParser.ValueType.OBJECT_OR_NULL);
+        PRIVILEGES_PARSER.declareStringArray(Privileges::setRolePatterns, Fields.Privileges.ROLES);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (p, doc) -> ATTRIBUTES_PARSER.parse(p, doc.attributeNames, null), Fields.ATTRIBUTES);
         ATTRIBUTES_PARSER.declareString(AttributeNames::setPrincipal, Fields.Attributes.PRINCIPAL);
@@ -491,7 +489,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
         builder.startObject(Fields.PRIVILEGES.getPreferredName());
         builder.field(Fields.Privileges.RESOURCE.getPreferredName(), privileges.resource);
-        builder.field(Fields.Privileges.ROLES.getPreferredName(), privileges.roleActions);
+        builder.field(Fields.Privileges.ROLES.getPreferredName(), privileges.rolePatterns);
         builder.endObject();
 
         builder.startObject(Fields.ATTRIBUTES.getPreferredName());

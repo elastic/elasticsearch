@@ -311,7 +311,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             int reducedBucketCount = countInnerBucket(reduced);
             //check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
-            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             /*
              * Sometimes serializing and deserializing the partially reduced
              * result to simulate the compaction that we attempt after a
@@ -320,6 +319,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             if (randomBoolean()) {
                 reduced = copyInstance(reduced);
             }
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,

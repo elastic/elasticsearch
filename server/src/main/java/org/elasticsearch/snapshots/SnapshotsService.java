@@ -990,7 +990,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final SnapshotsInProgress.Entry snapshotEntry = findInProgressSnapshot(currentState, snapshotName, repositoryName);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                final SnapshotsInProgress.Entry snapshotEntry = findInProgressSnapshot(snapshots, snapshotName, repositoryName);
                 if (snapshotEntry == null) {
                     return currentState;
                 }
@@ -1042,7 +1043,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failure = snapshotEntry.failure();
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                    new SnapshotsInProgress(new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure))).build();
+                    new SnapshotsInProgress(snapshots.entries().stream().map(existing -> {
+                        if (existing.equals(snapshotEntry)) {
+                            return new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
+                        }
+                        return existing;
+                    }).toArray(SnapshotsInProgress.Entry[]::new))).build();
             }
 
             @Override
@@ -1113,16 +1119,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     // Return in-progress snapshot entry by name and repository in the given cluster state or null if none is found
     @Nullable
-    private static SnapshotsInProgress.Entry findInProgressSnapshot(ClusterState state, String snapshotName, String repositoryName) {
-        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+    private static SnapshotsInProgress.Entry findInProgressSnapshot(@Nullable SnapshotsInProgress snapshots, String snapshotName,
+                                                                    String repositoryName) {
+        if (snapshots == null) {
+            return null;
+        }
         SnapshotsInProgress.Entry snapshotEntry = null;
-        if (snapshots != null) {
-            for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                if (entry.repository().equals(repositoryName)
-                    && entry.snapshot().getSnapshotId().getName().equals(snapshotName)) {
-                    snapshotEntry = entry;
-                    break;
-                }
+        for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+            if (entry.repository().equals(repositoryName)
+                && entry.snapshot().getSnapshotId().getName().equals(snapshotName)) {
+                snapshotEntry = entry;
+                break;
             }
         }
         return snapshotEntry;

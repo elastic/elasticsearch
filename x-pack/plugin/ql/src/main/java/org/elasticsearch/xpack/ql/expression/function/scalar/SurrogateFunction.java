@@ -6,51 +6,7 @@
 
 package org.elasticsearch.xpack.ql.expression.function.scalar;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.Source;
+public interface SurrogateFunction {
 
-import java.util.List;
-
-public abstract class SurrogateFunction extends ScalarFunction {
-
-    private ScalarFunction lazySubstitute;
-
-    public SurrogateFunction(Source source) {
-        super(source);
-    }
-
-    public SurrogateFunction(Source source, List<Expression> fields) {
-        super(source, fields);
-    }
-
-    public ScalarFunction substitute() {
-        if (lazySubstitute == null) {
-            lazySubstitute = makeSubstitute();
-        }
-        return lazySubstitute;
-    }
-
-    protected abstract ScalarFunction makeSubstitute();
-
-    @Override
-    public boolean foldable() {
-        return substitute().foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return substitute().fold();
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return substitute().asPipe();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        return substitute().asScript();
-    }
+    ScalarFunction substitute();
 }

@@ -90,10 +90,10 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                     .field(PARENT_DOC, CHILD_DOC)
                 .endObject()
             .endObject()
-            .startObject(STRING_FIELD_NAME)
+            .startObject(TEXT_FIELD_NAME)
                 .field("type", "text")
             .endObject()
-                .startObject(STRING_FIELD_NAME_2)
+                .startObject(KEYWORD_FIELD_NAME)
             .field("type", "keyword")
             .endObject()
             .startObject(INT_FIELD_NAME)
@@ -133,7 +133,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+                    .addSort(new FieldSortBuilder(KEYWORD_FIELD_NAME).order(SortOrder.ASC)));
         }
         return hqb;
     }

@@ -19,12 +19,12 @@ Previews a {transform}.
 ==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
-
-* `transform_admin`
+privileges:
 
 * `manage_transform` 
 * source index: `read`, `view_index_metadata`
+
+The built-in `transform_admin` role has the `manage_transform` privilege.
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 

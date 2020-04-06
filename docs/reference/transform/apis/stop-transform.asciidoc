@@ -27,9 +27,9 @@ Stops one or more {transforms}.
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
 
-* `transform_admin`
-
 * `manage_transform` 
+
+The built-in `transform_admin` role has this privilege. 
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 

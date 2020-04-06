@@ -23,7 +23,7 @@ built-in roles and privileges:
 
 * `transform_admin`
 
-* `manage_transform`
+* `manage_transform` (the built-in `transform_admin` role has this privilege)
 * source index: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `index`
 

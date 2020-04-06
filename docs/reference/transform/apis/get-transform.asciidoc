@@ -27,11 +27,11 @@ Retrieves configuration information for {transforms}.
 ==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
-
-* `transform_user`
+privileges:
 
 * `monitor_transform` 
+
+The built-in `transform_user` role has this privilege. 
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 

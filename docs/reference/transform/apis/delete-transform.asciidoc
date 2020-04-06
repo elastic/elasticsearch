@@ -21,11 +21,11 @@ Deletes an existing {transform}.
 * Before you can delete the {transform}, you must stop it.
 
 If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
-
-* `transform_admin`
+privileges:
 
 * `manage_transform` 
+
+The built-in `transform_admin` role has this privilege. 
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 

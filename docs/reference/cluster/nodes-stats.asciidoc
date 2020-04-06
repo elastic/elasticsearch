@@ -1223,6 +1223,10 @@ Contains JVM memory usage statistics for the node.
 .Properties of `mem`
 [%collapsible%open]
 =======
+`heap_used`::
+(<<byte-units,byte value>>)
+Memory currently in use by the heap.
+
 `heap_used_in_bytes`::
 (integer)
 Memory, in bytes, currently in use by the heap.
@@ -1231,17 +1235,33 @@ Memory, in bytes, currently in use by the heap.
 (integer)
 Percentage of memory currently in use by the heap.
 
+`heap_committed`::
+(<<byte-units,byte value>>)
+Amount of memory available for use by the heap.
+
 `heap_committed_in_bytes`::
 (integer)
 Amount of memory, in bytes, available for use by the heap.
+
+`heap_max`::
+(<<byte-units,byte value>>)
+Maximum amount of memory available for use by the heap.
 
 `heap_max_in_bytes`::
 (integer)
 Maximum amount of memory, in bytes, available for use by the heap.
 
+`non_heap_used`::
+(<<byte-units,byte value>>)
+Non-heap memory used.
+
 `non_heap_used_in_bytes`::
 (integer)
 Non-heap memory used, in bytes.
+
+`non_heap_committed`::
+(<<byte-units,byte value>>)
+Amount of non-heap memory available.
 
 `non_heap_committed_in_bytes`::
 (integer)

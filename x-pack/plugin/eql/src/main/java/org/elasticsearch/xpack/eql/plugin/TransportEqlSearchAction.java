@@ -50,11 +50,12 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), clusterName(clusterService), listener);
+        operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), clusterName(clusterService),
+            clusterService.localNode().getId(), listener);
     }
 
     public static void operation(PlanExecutor planExecutor, EqlSearchTask task, EqlSearchRequest request, String username,
-                                 String clusterName, ActionListener<EqlSearchResponse> listener) {
+                                 String clusterName, String nodeId, ActionListener<EqlSearchResponse> listener) {
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
         QueryBuilder filter = request.filter();
@@ -68,7 +69,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .implicitJoinKey(request.implicitJoinKeyField());
 
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-                includeFrozen, clientId, task);
+                includeFrozen, clientId, nodeId, task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 

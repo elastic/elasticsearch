@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BasicSearchableSnapshotsIntegTests extends SearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);

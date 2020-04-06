@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import java.util.Collection;
 import java.util.List;
 
-public abstract class SearchableSnapshotsIntegTestCase extends ESIntegTestCase {
+public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;

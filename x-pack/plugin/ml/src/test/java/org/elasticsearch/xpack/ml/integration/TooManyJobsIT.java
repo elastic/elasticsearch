@@ -76,6 +76,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
+        ensureTemplatesArePresent();
         logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
         // Set our lazy node number
         assertTrue(client().admin()
@@ -210,6 +211,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
+        ensureTemplatesArePresent();
     }
 
     private long calculateMaxMlMemory() {

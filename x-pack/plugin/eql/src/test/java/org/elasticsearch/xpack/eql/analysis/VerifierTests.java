@@ -99,18 +99,6 @@ public class VerifierTests extends ESTestCase {
                         "  and child of [file where file_name=\"svchost.exe\" and opcode=0]"));
     }
 
-    public void testSequencesUnsupported() {
-        assertEquals("1:1: Sequence is not supported", errorParsing("sequence\n" +
-                "  [process where serial_event_id = 1]\n" +
-                "  [process where serial_event_id = 2]"));
-    }
-
-    public void testJoinUnsupported() {
-        assertEquals("1:1: Join is not supported", errorParsing("join by user_name\n" +
-                "  [process where opcode in (1,3) and process_name=\"smss.exe\"]\n" +
-                "  [process where opcode in (1,3) and process_name == \"python.exe\"]"));
-    }
-
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
         assertEquals("1:16: Unknown function [arrayContains]",

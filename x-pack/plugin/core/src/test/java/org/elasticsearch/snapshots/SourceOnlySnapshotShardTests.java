@@ -38,7 +38,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -86,7 +85,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
             .settings(settings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("{\"_source\":{\"enabled\": false}}", XContentType.JSON).build();
+            .putMapping("{\"_source\":{\"enabled\": false}}").build();
         IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 

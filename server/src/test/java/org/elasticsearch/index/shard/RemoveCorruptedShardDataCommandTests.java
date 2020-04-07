@@ -46,7 +46,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -145,7 +144,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
             .putRolloverInfo(new RolloverInfo("test", Collections.singletonList(rolloverCondition), randomNonNegativeLong()))
-            .putMapping("{ \"properties\": {} }", XContentType.JSON);
+            .putMapping("{ \"properties\": {} }");
         indexMetadata = metadata.build();
 
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();

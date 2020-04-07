@@ -34,10 +34,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -305,7 +305,7 @@ public class MetadataMappingService {
                 // update mapping metadata on all types
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
-                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource(), XContentType.JSON));
+                    indexMetadataBuilder.putMapping(new MappingMetadata(new BytesArray(mapper.mappingSource().uncompressed())));
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());

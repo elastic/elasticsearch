@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
@@ -60,13 +61,12 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
-    // xcontent is always wrapped in a type object
-    public MappingMetadata(CompressedXContent mapping, XContentType xContentType) {
-        this.source = mapping;
+    // xcontent is always of type JSON and wrapped in a type object
+    public MappingMetadata(BytesReference mapping) {
         String type = null;
         boolean routingRequired = false;
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.IGNORE_DEPRECATIONS, mapping.uncompressed())) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS, mapping.streamInput())) {
             while (parser.nextToken() != null) {
                 if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                     if (type != null) {
@@ -80,6 +80,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
                     }
                 }
             }
+            this.source = new CompressedXContent(mapping);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -91,18 +92,18 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     }
 
     public MappingMetadata(String type, Map<String, Object> mapping) {
-        this(buildXContent(type, mapping), XContentType.JSON);
+        this(buildXContent(type, mapping));
     }
 
-    private static CompressedXContent buildXContent(String type, Map<String, Object> mapping) {
+    private static BytesReference buildXContent(String type, Map<String, Object> mapping) {
         try {
             if (mapping.isEmpty()) {
-                return new CompressedXContent("{\"" + type + "\":{}}");
+                return new BytesArray("{\"" + type + "\":{}}");
             }
             if (mapping.size() > 1 || mapping.keySet().iterator().next().equals(type) == false) {
                 mapping = Map.of(type, mapping);
             }
-            return new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().map(mapping)));
+            return BytesReference.bytes(XContentFactory.jsonBuilder().map(mapping));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

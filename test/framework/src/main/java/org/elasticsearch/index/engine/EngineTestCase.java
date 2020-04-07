@@ -1169,7 +1169,7 @@ public abstract class EngineTestCase extends ESTestCase {
             .settings(Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .putMapping("{\"properties\": {}}", XContentType.JSON)
+            .putMapping("{\"properties\": {}}")
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
             createTempDir(), Settings.EMPTY, "test");

@@ -256,7 +256,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexMetadata.Builder metadata = IndexMetadata.builder(shardRouting.getIndexName())
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("{ \"properties\": {} }", XContentType.JSON);
+            .putMapping("{ \"properties\": {} }");
         return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
@@ -741,7 +741,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 updateMappings(shard, IndexMetadata.builder(shard.indexSettings().getIndexMetadata())
-                    .putMapping(result.getRequiredMappingUpdate().toString(), XContentType.JSON).build());
+                    .putMapping(result.getRequiredMappingUpdate().toString()).build());
                 result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }

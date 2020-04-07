@@ -384,6 +384,10 @@ public class XContentHelper {
         return XContentFactory.xContentType(br.bytes, br.offset, br.length);
     }
 
+    public static BytesReference childBytes(XContentParser parser) throws IOException {
+        return childBytes(parser, parser.contentType());
+    }
+
     /**
      * Returns the contents of an object as an unparsed BytesReference
      *
@@ -391,14 +395,14 @@ public class XContentHelper {
      * actually need to parse their contents, and so avoids building large maps of maps
      * unnecessarily
      */
-    public static BytesReference childBytes(XContentParser parser) throws IOException {
+    public static BytesReference childBytes(XContentParser parser, XContentType toXContentType) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new XContentParseException(parser.getTokenLocation(),
                     "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
             }
         }
-        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        XContentBuilder builder = XContentBuilder.builder(toXContentType.xContent());
         builder.copyCurrentStructure(parser);
         return BytesReference.bytes(builder);
     }

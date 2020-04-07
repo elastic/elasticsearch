@@ -129,7 +129,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return buildIndexMetadata(replicas, Settings.EMPTY, mappings);
     }
 
-    protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, String mappings) throws IOException {
+    protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, String mappings) {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -138,7 +138,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             .build();
         IndexMetadata.Builder metadata = IndexMetadata.builder(index.getName())
             .settings(settings)
-            .putMapping(mappings, XContentType.JSON)
+            .putMapping(mappings)
             .primaryTerm(0, randomIntBetween(1, 100));
         return metadata.build();
     }

@@ -943,12 +943,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(XContentBuilder builder) throws IOException {
-            return putMapping(new MappingMetadata(new CompressedXContent(BytesReference.bytes(builder)), builder.contentType()));
+        public Builder putMapping(XContentBuilder builder) {
+            return putMapping(new MappingMetadata(BytesReference.bytes(builder)));
         }
 
-        public Builder putMapping(String source, XContentType xContentType) throws IOException {
-            return putMapping(new MappingMetadata(new CompressedXContent(source), xContentType));
+        public Builder putMapping(String source) {
+            return putMapping(new MappingMetadata(new BytesArray(source)));
         }
 
         public Builder putMapping(MappingMetadata mappingMd) {
@@ -1323,7 +1323,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 builder.putMapping(
-                                    new MappingMetadata(new CompressedXContent(XContentHelper.childBytes(parser)), parser.contentType()));
+                                    new MappingMetadata(XContentHelper.childBytes(parser, XContentType.JSON)));
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }
@@ -1374,10 +1374,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue()), XContentType.JSON));
+                                // stored as a compressed binary value, so we need to read it out into
+                                // a CompressedXContent and then decompress to partially parse, alas
+                                CompressedXContent mappings = new CompressedXContent(parser.binaryValue());
+                                builder.putMapping(new MappingMetadata(new BytesArray(mappings.uncompressed())));
                             } else {
-                                builder.putMapping(new MappingMetadata(
-                                    new CompressedXContent(XContentHelper.childBytes(parser)), parser.contentType()));
+                                builder.putMapping(new MappingMetadata(XContentHelper.childBytes(parser, XContentType.JSON)));
                             }
                         }
                     } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {

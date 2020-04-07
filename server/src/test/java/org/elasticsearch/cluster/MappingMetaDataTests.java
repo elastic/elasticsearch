@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 public class MappingMetaDataTests extends ESTestCase {
 
     public void testEmptyMappings() throws IOException {
-        MappingMetadata mmd = new MappingMetadata(new CompressedXContent("{\"_doc\":{}}"), XContentType.JSON);
+        MappingMetadata mmd = new MappingMetadata(new BytesArray("{\"_doc\":{}}"));
         assertEquals("_doc", mmd.type());
         assertEquals(new CompressedXContent("{\"_doc\":{}}"), mmd.source());
         assertFalse(mmd.routingRequired());
@@ -42,7 +42,7 @@ public class MappingMetaDataTests extends ESTestCase {
 
     public void testRoutingRequired() throws IOException {
         String mappings = "{\"_doc\":{\"_source\":\"enabled\",\"_routing\":{\"required\":true},\"properties\":{}}}";
-        MappingMetadata mmd = new MappingMetadata(new CompressedXContent(mappings), XContentType.JSON);
+        MappingMetadata mmd = new MappingMetadata(new BytesArray(mappings));
         assertTrue(mmd.routingRequired());
         assertEquals("_doc", mmd.type());
         assertEquals(new CompressedXContent(mappings), mmd.source());
@@ -50,7 +50,7 @@ public class MappingMetaDataTests extends ESTestCase {
 
     public void testNoType() {
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> new MappingMetadata(new CompressedXContent("{}"), XContentType.JSON));
+            () -> new MappingMetadata(new BytesArray("{}")));
         assertEquals("Mappings must contain a single type root", e.getMessage());
     }
 

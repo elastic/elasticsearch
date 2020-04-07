@@ -373,7 +373,8 @@ public class IndexResolver {
         return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexNames[0], emptyMap()) : indices.get(0));
     }
 
-    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName,
+    private static EsField createField(DataTypeRegistry typeRegistry, String fieldName, String aliasOrIndexName,
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases,
             Map<String, Map<String, FieldCapabilities>> globalCaps,
             Map<String, EsField> hierarchicalMapping,
             Map<String, EsField> flattedMapping,
@@ -398,16 +399,38 @@ public class IndexResolver {
                     // as such, create the field manually, marking the field to also be an alias
                     fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true);
                 } else {
+                    List<String> indices = new ArrayList<>();
+                    // this is a field to be built for an alias
+                    if (aliases != null) {
+                        Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = aliases.iterator();
+                        Map<String, Set<String>> aliasToIndices = new HashMap<>();
+                        while (iter.hasNext()) {
+                            ObjectObjectCursor<String, List<AliasMetadata>> index = iter.next();
+                            for (AliasMetadata aliasMetadata : index.value) {
+                                String aliasName = aliasMetadata.alias();
+                                aliasToIndices.putIfAbsent(aliasName, new HashSet<>());
+                                aliasToIndices.get(aliasName).add(index.key);
+                            }
+                        }
+                        if (aliasToIndices.containsKey(aliasOrIndexName)) {
+                            indices.addAll(aliasToIndices.get(aliasOrIndexName));
+                        }
+                    }
+                    
+                    indices.add(aliasOrIndexName);
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
-                    if (iterator.hasNext() && UNMAPPED.equals(parentCap.getType())) {
+                    while (iterator.hasNext()
+                            && ((parentCap.indices().length > 0 && Collections.disjoint(indices, Arrays.asList(parentCap.indices()))) 
+                                    || UNMAPPED.equals(parentCap.getType()))) {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
                     fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
                 }
 
-                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
+                parent = createField(typeRegistry, parentName, aliasOrIndexName, aliases, globalCaps, hierarchicalMapping, flattedMapping,
+                        fieldFunction);
             }
             parentProps = parent.getProperties();
         }
@@ -544,6 +567,8 @@ public class IndexResolver {
 
         sortedFields.addAll(fieldCaps.entrySet());
 
+        Map<String, List<InvalidMappedField>> invalidFieldsPerAlias = new HashMap<>();
+        
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
             String fieldName = entry.getKey();
 
@@ -557,6 +582,16 @@ public class IndexResolver {
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
             // apply verification for fields belonging to index aliases
             Map<String, InvalidMappedField> invalidFieldsForAliases = getInvalidFieldsForAliases(fieldName, types, aliases);
+            
+            for(Entry<String, InvalidMappedField> invalidFieldForAlias : invalidFieldsForAliases.entrySet()) {
+                String aliasName = invalidFieldForAlias.getKey();
+                InvalidMappedField f = invalidFieldForAlias.getValue();
+                if (invalidFieldsPerAlias.containsKey(aliasName) == false) {
+                    invalidFieldsPerAlias.put(aliasName, new ArrayList<>());
+                }
+                
+                invalidFieldsPerAlias.get(aliasName).add(f);
+            }
 
             // filter meta fields and unmapped
             FieldCapabilities unmapped = types.get(UNMAPPED);
@@ -644,7 +679,8 @@ public class IndexResolver {
                                 }
                             }
 
-                            createField(typeRegistry, fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
+                            createField(typeRegistry, fieldName, indexName, aliases, fieldCaps, indexFields.hierarchicalMapping,
+                                    indexFields.flattedMapping,
                                     s -> invalidField != null ? invalidField :
                                         createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(),
                                                 isAliasFieldType.get()));
@@ -657,7 +693,32 @@ public class IndexResolver {
         // return indices in ascending order
         List<EsIndex> foundIndices = new ArrayList<>(indices.size());
         for (Entry<String, Fields> entry : indices.entrySet()) {
-            foundIndices.add(new EsIndex(entry.getKey(), entry.getValue().hierarchicalMapping));
+            // for an alias, check its list of invalid fields and remove them from the mapping
+            String name = entry.getKey();
+            Map<String, EsField> hierarchicalMapping = entry.getValue().hierarchicalMapping;
+            if (resolvedAliases.contains(name) && invalidFieldsPerAlias.containsKey(name)) {
+                List<InvalidMappedField> fields = invalidFieldsPerAlias.get(name);
+                
+                for(InvalidMappedField f : fields) {
+                    String fieldName = f.getName();
+                    // remove the already created hierarchy under this field because the field is invalid for this alias
+                    if (fieldName.contains(".")) {
+                        int dot = fieldName.indexOf(".");
+                        String tempFieldName = fieldName.substring(dot + 1);
+                        EsField tempField = hierarchicalMapping.get(fieldName.substring(0, dot));
+                        
+                        while (tempFieldName.contains(".")) {
+                            dot = tempFieldName.indexOf(".");
+                            tempField = tempField.getProperties().get(tempFieldName.substring(0, dot));
+                            tempFieldName = tempFieldName.substring(dot + 1);
+                        }
+                        tempField.getProperties().remove(tempFieldName);
+                    } else {
+                        hierarchicalMapping.remove(fieldName);
+                    }
+                }
+            }
+            foundIndices.add(new EsIndex(name, hierarchicalMapping));
         }
         foundIndices.sort(Comparator.comparing(EsIndex::name));
         return foundIndices;

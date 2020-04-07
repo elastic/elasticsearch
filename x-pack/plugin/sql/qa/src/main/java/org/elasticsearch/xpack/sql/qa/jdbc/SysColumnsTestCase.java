@@ -237,8 +237,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             {"test_alias" ,"value.raw","TEXT"},
         });
     }
-    
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53445")
+
     public void testAliasWithSubfieldsAndDifferentRootFields() throws Exception {
         createIndexWithMapping("test1", builder -> {
             builder.startObject("id").field("type", "keyword").endObject();
@@ -265,6 +264,236 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             {"test2"      ,"name"    ,"KEYWORD"},
             {"test2"      ,"name.raw","KEYWORD"},
             {"test_alias" ,"id"      ,"KEYWORD"}
+        });
+    }
+
+    public void testAliasWithSubfieldsAndDifferentRootFields_AndObjects() throws Exception {
+        createIndexWithMapping("test1", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name")
+                .field("type", "text")
+                .startObject("fields")
+                    .startObject("raw")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("address")
+                .startObject("properties")
+                    .startObject("city")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("raw")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("county")
+                        .field("type", "keyword")
+                        .startObject("fields")
+                            .startObject("raw")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+               .endObject()
+            .endObject();
+        });
+        
+        createIndexWithMapping("test2", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name")
+                .field("type", "keyword")                               // <-------- first difference in mapping
+                .startObject("fields")
+                    .startObject("raw")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("address")
+                .startObject("properties")
+                    .startObject("city")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("raw")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("county")
+                        .field("type", "text")                          // <-------- second difference in mapping
+                        .startObject("fields")
+                            .startObject("raw")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+               .endObject()
+            .endObject();
+        });
+
+        createAliases(builder -> {
+            builder.startObject().startObject("add").field("index", "test1").field("alias", "test_alias").endObject().endObject();
+            builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
+        });
+        
+        assertResultsForQuery("SYS COLUMNS", new String[][] {
+            {"test1"      ,"address.city"      ,"TEXT"},
+            {"test1"      ,"address.city.raw"  ,"KEYWORD"},
+            {"test1"      ,"address.county"    ,"KEYWORD"},
+            {"test1"      ,"address.county.raw","KEYWORD"},
+            {"test1"      ,"id"                ,"KEYWORD"},
+            {"test1"      ,"name"              ,"TEXT"},
+            {"test1"      ,"name.raw"          ,"KEYWORD"},
+            {"test2"      ,"address.city"      ,"TEXT"},
+            {"test2"      ,"address.city.raw"  ,"KEYWORD"},
+            {"test2"      ,"address.county"    ,"TEXT"},
+            {"test2"      ,"address.county.raw","KEYWORD"},
+            {"test2"      ,"id"                ,"KEYWORD"},
+            {"test2"      ,"name"              ,"KEYWORD"},
+            {"test2"      ,"name.raw"          ,"KEYWORD"},
+            {"test_alias" ,"address.city"      ,"TEXT"},
+            {"test_alias" ,"address.city.raw"  ,"KEYWORD"},
+            {"test_alias" ,"id"                ,"KEYWORD"}
+            // address.county gets removed since it has conflicting mappings
+        });
+    }
+
+    public void testAliasWithSubfieldsAndDifferentRootFields_AndObjects_2() throws Exception {
+        createIndexWithMapping("test1", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name")
+                .field("type", "text")
+                .startObject("fields")
+                    .startObject("raw")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("address")
+                .startObject("properties")
+                    .startObject("home")
+                        .startObject("properties")
+                            .startObject("city")
+                                .field("type", "text")
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject("county")
+                                .field("type", "keyword")
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("work")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "keyword")
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "text")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject("location")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                   .endObject()
+               .endObject()
+            .endObject();
+        });
+        
+        createIndexWithMapping("test2", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name")
+                .field("type", "keyword")                               // <-------- first difference in mapping
+                .startObject("fields")
+                    .startObject("raw")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("address")
+                .startObject("properties")
+                    .startObject("home")
+                        .startObject("properties")
+                            .startObject("city")
+                                .field("type", "text")
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject("county")
+                                .field("type", "text")                  // <-------- second difference in mapping
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("work")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "keyword")
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "keyword")       // <-------- third difference in mapping
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject("location")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                   .endObject()
+               .endObject()
+            .endObject();
+        });
+
+        createAliases(builder -> {
+            builder.startObject().startObject("add").field("index", "test1").field("alias", "test_alias").endObject().endObject();
+            builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
+        });
+        
+        assertResultsForQuery("SYS COLUMNS", new String[][] {
+            {"test1"          ,"address.home.city"      ,"TEXT"},
+            {"test1"          ,"address.home.city.raw"  ,"KEYWORD"},
+            {"test1"          ,"address.home.county"    ,"KEYWORD"},// field type is different and its children will not make it in alias
+            {"test1"          ,"address.home.county.raw","KEYWORD"},
+            {"test1"          ,"address.work.location"  ,"TEXT"},
+            {"test1"          ,"address.work.name"      ,"KEYWORD"},
+            {"test1"          ,"address.work.name.raw"  ,"TEXT"},   // field type is different and it will not make it in alias
+            {"test1"          ,"id"                     ,"KEYWORD"},
+            {"test1"          ,"name"                   ,"TEXT"},
+            {"test1"          ,"name.raw"               ,"KEYWORD"},
+            {"test2"          ,"address.home.city"      ,"TEXT"},
+            {"test2"          ,"address.home.city.raw"  ,"KEYWORD"},
+            {"test2"          ,"address.home.county"    ,"TEXT"},   // field type is different and its children will not make it in alias
+            {"test2"          ,"address.home.county.raw","KEYWORD"},
+            {"test2"          ,"address.work.location"  ,"TEXT"},
+            {"test2"          ,"address.work.name"      ,"KEYWORD"},
+            {"test2"          ,"address.work.name.raw"  ,"KEYWORD"},// field type is different and it will not make it in alias
+            {"test2"          ,"id"                     ,"KEYWORD"},
+            {"test2"          ,"name"                   ,"KEYWORD"},
+            {"test2"          ,"name.raw"               ,"KEYWORD"},
+            {"test_alias"     ,"address.home.city"      ,"TEXT"},
+            {"test_alias"     ,"address.home.city.raw"  ,"KEYWORD"},
+            {"test_alias"     ,"address.work.location"  ,"TEXT"},
+            {"test_alias"     ,"address.work.name"      ,"KEYWORD"},
+            {"test_alias"     ,"id"                     ,"KEYWORD"}
+            // address.county gets removed since it has conflicting mappings
         });
     }
     

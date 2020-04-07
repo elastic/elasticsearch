@@ -88,10 +88,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
+        return Arrays.asList(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES);
     }
 
+    /* NOTE - commented out instead of deleted, because we probably need to backport this function in AggregatorTestCase
     @Override
     protected List<String> unsupportedMappedFieldTypes() {
         return List.of(
@@ -101,6 +102,8 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they cannot be searched
         );
     }
+
+     */
 
     /**
      * For each provided field type, we also register an alias with name {@code <field>-alias}.

@@ -51,6 +51,7 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -195,7 +196,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            List.of(aggFieldType, anotherFieldType)
+            Arrays.asList(aggFieldType, anotherFieldType)
         );
     }
 

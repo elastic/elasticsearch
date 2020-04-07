@@ -40,14 +40,14 @@ class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBackedTDi
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalTDigestPercentileRanks(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalTDigestPercentileRanks(name, keys, state, keyed, formatter, pipelineAggregators(), metadata());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed,
-            formatter, pipelineAggregators(), metaData());
+            formatter, pipelineAggregators(), metadata());
     }
 
     @Override

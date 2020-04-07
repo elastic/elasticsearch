@@ -65,7 +65,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
         fieldType.setName(fieldName);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name", null).field(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
         Set<RangeFieldMapper.Range> multiRecord = new HashSet<>(2);
         multiRecord.add(range1);
         multiRecord.add(range2);

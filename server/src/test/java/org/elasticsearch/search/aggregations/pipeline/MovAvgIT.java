@@ -73,7 +73,7 @@ public class MovAvgIT extends ESIntegTestCase {
     static int period;
     static HoltWintersModel.SeasonalityType seasonalityType;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceAggregationBuilder<? extends ValuesSource, ? extends ValuesSourceAggregationBuilder<?, ?>> metric;
+    static ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -655,7 +655,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         SearchResponse response = client()
                 .prepareSearch("neg_idx")
-                
+
                 .addAggregation(
                         histogram("histo")
                                 .field(INTERVAL_FIELD)
@@ -877,7 +877,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testTwoMovAvgsWithPredictions() {
         SearchResponse response = client()
                 .prepareSearch("double_predict")
-                
+
                 .addAggregation(
                         histogram("histo")
                                 .field(INTERVAL_FIELD)
@@ -1221,7 +1221,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         SearchResponse response = client()
             .prepareSearch("predict_non_empty")
-            
+
             .addAggregation(
                 histogram("histo")
                     .field(INTERVAL_FIELD)
@@ -1324,8 +1324,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceAggregationBuilder<? extends ValuesSource,
-        ? extends ValuesSourceAggregationBuilder<?, ?>> randomMetric(String name, String field) {
+    private ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {

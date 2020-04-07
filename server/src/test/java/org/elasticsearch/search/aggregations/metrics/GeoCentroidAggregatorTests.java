@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
@@ -189,6 +190,6 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.GEOPOINT);
+        return Arrays.asList(CoreValuesSourceType.GEOPOINT);
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -31,7 +32,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(BoxplotAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
+            Arrays.asList(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
             (BoxplotAggregatorSupplier) BoxplotAggregator::new);
     }
 

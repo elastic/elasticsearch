@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -89,14 +90,10 @@ public class DataStreamIT extends ESIntegTestCase {
         getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
 
-        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-bar-000001")).actionGet();
-        assertThat(getIndexResponse.getSettings().isEmpty(), is(true));
-        assertThat(getIndexResponse.getMappings().isEmpty(), is(true));
-        assertThat(getIndexResponse.getAliases().isEmpty(), is(true));
-        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-foo-000001")).actionGet();
-        assertThat(getIndexResponse.getSettings().isEmpty(), is(true));
-        assertThat(getIndexResponse.getMappings().isEmpty(), is(true));
-        assertThat(getIndexResponse.getAliases().isEmpty(), is(true));
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-bar-000001")).actionGet());
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-foo-000001")).actionGet());
     }
 
     private static void indexDocs(String dataStream, int numDocs) {

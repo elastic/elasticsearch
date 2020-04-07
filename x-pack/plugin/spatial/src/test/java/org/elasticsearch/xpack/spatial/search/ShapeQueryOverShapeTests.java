@@ -260,11 +260,13 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTests {
             .execute().actionGet();
 
         String doc = "{\"location\" : {\"type\":\"envelope\", \"coordinates\":[ [-100.0, 100.0], [100.0, -100.0]]}}";
-        client().prepareIndex("test_contains", defaultFieldType).setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test_contains", defaultFieldType).setId("1")
+            .setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection
         EnvelopeBuilder queryShape = new EnvelopeBuilder(new Coordinate(-50, 50), new Coordinate(50, -50));
-        ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder("location", queryShape.buildGeometry()).relation(ShapeRelation.CONTAINS);
+        ShapeQueryBuilder queryBuilder =
+            new ShapeQueryBuilder("location", queryShape.buildGeometry()).relation(ShapeRelation.CONTAINS);
         SearchResponse response = client().prepareSearch("test_contains").setQuery(queryBuilder).get();
         assertSearchResponse(response);
 

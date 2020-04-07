@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -101,6 +102,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testStateTemplateWithNoIlm() {
@@ -121,6 +124,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), is(nullValue()));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), is(nullValue()));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testStatsTemplateWithIlm() {
@@ -141,6 +146,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-stats-write"));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testStatsTemplateWithNoIlm() {
@@ -161,6 +168,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), is(nullValue()));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), is(nullValue()));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     @SuppressWarnings("unchecked")

@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -48,8 +47,8 @@ import org.elasticsearch.test.NotEqualMessageBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -59,7 +58,6 @@ import java.util.Set;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
@@ -131,7 +129,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
         TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
 
-        return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, emptyList(), metadata);
+        return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, metadata);
     }
 
     /**
@@ -330,7 +328,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         int size = instance.getSize();
         TopDocsAndMaxScore topDocs = instance.getTopDocs();
         SearchHits searchHits = instance.getHits();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
         case 0:
@@ -361,6 +358,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTopHits(name, from, size, topDocs, searchHits, pipelineAggregators, metadata);
+        return new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
     }
 }

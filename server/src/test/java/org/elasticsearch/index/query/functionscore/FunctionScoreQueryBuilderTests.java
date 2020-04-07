@@ -53,6 +53,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -88,7 +89,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

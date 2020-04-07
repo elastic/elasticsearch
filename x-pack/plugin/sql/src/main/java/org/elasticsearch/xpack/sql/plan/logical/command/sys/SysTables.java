@@ -85,7 +85,7 @@ public class SysTables extends Command {
                 return;
             }
         }
-        
+
         boolean includeFrozen = session.configuration().includeFrozen();
 
         // enumerate types
@@ -98,7 +98,7 @@ public class SysTables extends Command {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else is made of empty strings
                 // NB: since the types are sent in SQL, frozen doesn't have to be taken into account since
-                // it's just another BASE TABLE
+                // it's just another TABLE
                 Set<IndexType> typeSet = IndexType.VALID_REGULAR;
                 for (IndexType type : typeSet) {
                     Object[] enumeration = new Object[10];

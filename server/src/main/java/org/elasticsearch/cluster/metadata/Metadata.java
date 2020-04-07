@@ -74,7 +74,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -1281,13 +1283,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
-            final Set<String> allIndices = new HashSet<>(indices.size());
+            final SortedSet<String> allIndices = new TreeSet<>();
             final List<String> visibleIndices = new ArrayList<>();
             final List<String> allOpenIndices = new ArrayList<>();
             final List<String> visibleOpenIndices = new ArrayList<>();
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
             final Set<String> duplicateAliasesIndices = new HashSet<>();
+            final SortedSet<String> allAliases = new TreeSet<>();
             for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
                 final IndexMetadata indexMetadata = cursor.value;
                 final String name = indexMetadata.getIndex().getName();
@@ -1308,7 +1311,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         visibleClosedIndices.add(name);
                     }
                 }
-                indexMetadata.getAliases().keysIt().forEachRemaining(duplicateAliasesIndices::add);
+                indexMetadata.getAliases().keysIt().forEachRemaining(alias -> {
+                    duplicateAliasesIndices.add(alias);
+                    allAliases.add(alias);
+                });
             }
             duplicateAliasesIndices.retainAll(allIndices);
             if (duplicateAliasesIndices.isEmpty() == false) {
@@ -1327,9 +1333,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             }
 
-            SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
+            validateDataStreams(allIndices, allAliases);
 
-            validateDataStreams(indicesLookup);
+            SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndexAbstractionsLookup());
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1347,17 +1353,68 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, indicesLookup);
         }
 
-        private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-            SortedMap<String, IndexAbstraction> aliasAndIndexLookup = new TreeMap<>();
+        private SortedMap<String, IndexAbstraction> buildIndexAbstractionsLookup() {
+            SortedMap<String, IndexAbstraction> indexAbstractionLookup = new TreeMap<>();
+            Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
+            DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+            if (dsMetadata != null) {
+                for (DataStream ds : dsMetadata.dataStreams().values()) {
+                    IndexAbstraction ia = new IndexAbstraction() {
+                        @Override
+                        public Type getType() {
+                            return Type.DATA_STREAM;
+                        }
+
+                        @Override
+                        public String getName() {
+                            return ds.getName();
+                        }
+
+                        @Override
+                        public List<IndexMetadata> getIndices() {
+                            List<IndexMetadata> indices = ds.getIndices()
+                                .stream()
+                                .map(i ->
+                                        IndexMetadata.builder(i.getName())
+                                            .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, i.getUUID()))
+                                    .build())
+                                .collect(Collectors.toList());
+                            return indices;
+                        }
+
+                        @Override
+                        public IndexMetadata getWriteIndex() {
+                            return null;
+                        }
+
+                        @Override
+                        public DataStream getDataStream() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isHidden() {
+                            return false;
+                        }
+                    };
+
+                    indexAbstractionLookup.put(ds.getName(), ia);
+                    for (Index i : ds.getIndices()) {
+                        indexToDataStreamLookup.put(i.getName(), ds);
+                    }
+                }
+            }
+
             for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
                 IndexMetadata indexMetadata = cursor.value;
-                IndexAbstraction existing =
-                    aliasAndIndexLookup.put(indexMetadata.getIndex().getName(), new IndexAbstraction.Index(indexMetadata));
+                IndexAbstraction existing = indexAbstractionLookup.put(
+                    indexMetadata.getIndex().getName(),
+                    new IndexAbstraction.Index(indexMetadata, indexToDataStreamLookup.get(indexMetadata.getIndex().getName())));
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
                     AliasMetadata aliasMetadata = aliasCursor.value;
-                    aliasAndIndexLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
+                    indexAbstractionLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
                             return new IndexAbstraction.Alias(aliasMetadata, indexMetadata);
                         } else {
@@ -1369,36 +1426,42 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
-            aliasAndIndexLookup.values().stream()
-                .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
+            indexAbstractionLookup.values().stream()
+                .filter(indexAbstraction -> indexAbstraction.getType() == IndexAbstraction.Type.ALIAS)
                 .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
-            return aliasAndIndexLookup;
+            return indexAbstractionLookup;
         }
 
-        private void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup) {
+        private void validateDataStreams(SortedSet<String> allIndices, SortedSet<String> allAliases) {
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    IndexAbstraction existing = indicesLookup.get(ds.getName());
-                    if (existing != null && existing.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                    if (allIndices.contains(ds.getName()) || allAliases.contains(ds.getName())) {
                         throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
                     }
 
-                    SortedMap<String, IndexAbstraction> potentialConflicts =
-                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
-                    if (potentialConflicts.size() != 0) {
+                    final String fromName = ds.getName() + "-";
+                    final String toName = ds.getName() + "."; // '.' is the char after '-'
+                    SortedSet<String> aliasConflicts = allAliases.subSet(fromName, toName);
+                    if (aliasConflicts.size() != 0) {
+                        throw new IllegalStateException("data stream [" + ds.getName() +
+                            "] could create backing indices that conflict with " + aliasConflicts.size() + " existing alias(s)" +
+                            " including '" + aliasConflicts.first() + "'");
+                    }
+
+                    SortedSet<String> potentialIndexConflicts = allIndices.subSet(fromName, toName);
+                    if (potentialIndexConflicts.size() != 0) {
                         List<String> indexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
                         List<String> conflicts = new ArrayList<>();
-                        for (Map.Entry<String, IndexAbstraction> entry : potentialConflicts.entrySet()) {
-                            if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX ||
-                                indexNames.contains(entry.getKey()) == false) {
-                                conflicts.add(entry.getKey());
+                        for (String indexName : potentialIndexConflicts) {
+                            if (indexNames.contains(indexName) == false) {
+                                conflicts.add(indexName);
                             }
                         }
 
                         if (conflicts.size() > 0) {
                             throw new IllegalStateException("data stream [" + ds.getName() +
-                                "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
+                                "] could create backing indices that conflict with " + conflicts.size() + " existing index(s)" +
                                 " including '" + conflicts.get(0) + "'");
                         }
                     }

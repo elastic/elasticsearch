@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -939,7 +940,7 @@ public class MetadataTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] conflicts with existing index or alias"));
     }
 
-    public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
+    public void testBuilderRejectsDataStreamWithBackingIndicesThatConflictWithIndex() {
         final String dataStreamName = "my-data-stream";
         final String conflictingIndex = dataStreamName + "-000001";
         Metadata.Builder b = Metadata.builder()
@@ -952,7 +953,24 @@ public class MetadataTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
-            "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingIndex + "'"));
+            "] could create backing indices that conflict with 1 existing index(s) including '" + conflictingIndex + "'"));
+    }
+
+    public void testBuilderRejectsDataStreamWithBackingIndicesThatConflictWithAlias() {
+        final String dataStreamName = "my-data-stream";
+        final String conflictingAlias = dataStreamName + "-000001";
+        Metadata.Builder b = Metadata.builder()
+            .put(IndexMetadata.builder("foo")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .putAlias(AliasMetadata.builder(conflictingAlias).build())
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
+            "] could create backing indices that conflict with 1 existing alias(s) including '" + conflictingAlias + "'"));
     }
 
     public void testBuilderForDataStreamWithRandomlyNumberedBackingIndices() {
@@ -976,6 +994,54 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+    }
+
+    public void testIndicesLookupRecordsDataStreamForBackingIndices() {
+        // create some indices that do not back a data stream
+        final List<Index> indices = new ArrayList<>();
+        final int numIndices = randomIntBetween(2, 5);
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (int k = 1; k <= numIndices; k++) {
+            IndexMetadata im = IndexMetadata.builder(String.format(Locale.ROOT, "%s-%06d", "index", lastIndexNum))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            indices.add(im.getIndex());
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        // create some backing indices for a data stream
+        final String dataStreamName = "my-data-stream";
+        final List<Index> backingIndices = new ArrayList<>();
+        final int numBackingIndices = randomIntBetween(2, 5);
+        int lastBackingIndexNum = randomIntBetween(9, 50);
+        for (int k = 1; k <= numBackingIndices; k++) {
+            IndexMetadata im = IndexMetadata.builder(String.format(Locale.ROOT, "%s-%06d", dataStreamName, lastBackingIndexNum))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            backingIndices.add(im.getIndex());
+            lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
+        }
+        b.put(new DataStream(dataStreamName, "ts", backingIndices));
+        Metadata metadata = b.build();
+
+        SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+        assertThat(indicesLookup.size(), equalTo(indices.size() + backingIndices.size() + 1));
+        for (Index index : indices) {
+            assertTrue(indicesLookup.containsKey(index.getName()));
+            assertNull(indicesLookup.get(index.getName()).getDataStream());
+        }
+        for (Index index : backingIndices) {
+            assertTrue(indicesLookup.containsKey(index.getName()));
+            assertNotNull(indicesLookup.get(index.getName()).getDataStream());
+            assertThat(indicesLookup.get(index.getName()).getDataStream().getName(), equalTo(dataStreamName));
+        }
     }
 
     public void testSerialization() throws IOException {

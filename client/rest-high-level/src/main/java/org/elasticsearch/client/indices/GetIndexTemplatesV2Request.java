@@ -25,7 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
- * A request to read the content of component templates
+ * A request to read the content of index templates
  */
 public class GetIndexTemplatesV2Request implements Validatable {
 

@@ -26,6 +26,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -38,11 +39,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-
 
 public class TransportGetTrainedModelsStatsAction extends HandledTransportAction<GetTrainedModelsStatsAction.Request,
                                                                                  GetTrainedModelsStatsAction.Response> {
@@ -73,13 +74,21 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
+        ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
+            inferenceStats -> listener.onResponse(responseBuilder.setInferenceStatsByModelId(inferenceStats.stream()
+                    .collect(Collectors.toMap(InferenceStats::getModelId, Function.identity())))
+                    .build()),
+            listener::onFailure
+        );
+
         ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(
             nodesStatsResponse -> {
-                Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByPipelineId(nodesStatsResponse,
+                Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByModelId(nodesStatsResponse,
                     pipelineIdsByModelIds(clusterService.state(),
                         ingestService,
                         responseBuilder.getExpandedIds()));
-                listener.onResponse(responseBuilder.setIngestStatsByModelId(modelIdIngestStats).build());
+                responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
+                trainedModelProvider.getInferenceStats(responseBuilder.getExpandedIds().toArray(new String[0]), inferenceStatsListener);
             },
             listener::onFailure
         );
@@ -103,8 +112,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             idsListener);
     }
 
-    static Map<String, IngestStats> inferenceIngestStatsByPipelineId(NodesStatsResponse response,
-                                                                     Map<String, Set<String>> modelIdToPipelineId) {
+    static Map<String, IngestStats> inferenceIngestStatsByModelId(NodesStatsResponse response,
+                                                                  Map<String, Set<String>> modelIdToPipelineId) {
 
         Map<String, IngestStats> ingestStatsMap = new HashMap<>();
 

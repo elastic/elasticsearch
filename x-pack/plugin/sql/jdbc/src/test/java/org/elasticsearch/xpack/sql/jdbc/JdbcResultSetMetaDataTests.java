@@ -23,30 +23,30 @@ public class JdbcResultSetMetaDataTests extends ESTestCase {
                 new JdbcColumnInfo("test_double", EsType.DOUBLE, EMPTY, EMPTY, EMPTY, EMPTY, 25),
                 new JdbcColumnInfo("test_long", EsType.LONG, "test_table", "test", "schema", "custom_label", 20)
             );
-    private final JdbcResultSetMetaData metadata = new JdbcResultSetMetaData(null, columns);
+    private final JdbcResultSetMetaData metaData = new JdbcResultSetMetaData(null, columns);
 
     public void testColumnsProperties() throws SQLException {
         int maxColumnIndex = columns.size();
-        assertEquals(false, metadata.isAutoIncrement(randomIntBetween(1, maxColumnIndex)));
-        assertEquals(true, metadata.isCaseSensitive(randomIntBetween(1, maxColumnIndex)));
-        assertEquals(true, metadata.isSearchable(randomIntBetween(1, maxColumnIndex)));
-        assertEquals(false, metadata.isCurrency(randomIntBetween(1, maxColumnIndex)));
-        assertEquals(ResultSetMetaData.columnNullableUnknown, metadata.isNullable(randomIntBetween(1, maxColumnIndex)));
-        assertEquals(false, metadata.isSigned(1));
-        assertEquals(true, metadata.isSigned(2));
-        assertEquals(true, metadata.isSigned(3));
-        assertEquals(true, metadata.isSigned(4));
+        assertEquals(false, metaData.isAutoIncrement(randomIntBetween(1, maxColumnIndex)));
+        assertEquals(true, metaData.isCaseSensitive(randomIntBetween(1, maxColumnIndex)));
+        assertEquals(true, metaData.isSearchable(randomIntBetween(1, maxColumnIndex)));
+        assertEquals(false, metaData.isCurrency(randomIntBetween(1, maxColumnIndex)));
+        assertEquals(ResultSetMetaData.columnNullableUnknown, metaData.isNullable(randomIntBetween(1, maxColumnIndex)));
+        assertEquals(false, metaData.isSigned(1));
+        assertEquals(true, metaData.isSigned(2));
+        assertEquals(true, metaData.isSigned(3));
+        assertEquals(true, metaData.isSigned(4));
     }
 
     public void testColumnNamesAndLabels() throws SQLException {
-        assertEquals("test_keyword", metadata.getColumnName(1));
-        assertEquals("test_integer", metadata.getColumnName(2));
-        assertEquals("test_double", metadata.getColumnName(3));
-        assertEquals("test_long", metadata.getColumnName(4));
+        assertEquals("test_keyword", metaData.getColumnName(1));
+        assertEquals("test_integer", metaData.getColumnName(2));
+        assertEquals("test_double", metaData.getColumnName(3));
+        assertEquals("test_long", metaData.getColumnName(4));
 
-        assertEquals("test_keyword", metadata.getColumnLabel(1));
-        assertEquals("test_integer", metadata.getColumnLabel(2));
-        assertEquals("test_double", metadata.getColumnLabel(3));
-        assertEquals("custom_label", metadata.getColumnLabel(4));
+        assertEquals("test_keyword", metaData.getColumnLabel(1));
+        assertEquals("test_integer", metaData.getColumnLabel(2));
+        assertEquals("test_double", metaData.getColumnLabel(3));
+        assertEquals("custom_label", metaData.getColumnLabel(4));
     }
 }

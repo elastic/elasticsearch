@@ -69,17 +69,16 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.testClusters.integTest.plugin(project.tasks.bundlePlugin.archiveFile)
         }
 
-        project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
-            // Auto add dependent modules to the test cluster
-            if (project.findProject(":modules:${pluginName}") != null) {
-                project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
-                project.testClusters.integTest.module(
-                    project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
-                )
-            }
-        }
-
         project.afterEvaluate {
+            project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
+                // Auto add dependent modules to the test cluster
+                if (project.findProject(":modules:${pluginName}") != null) {
+                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
+                    project.testClusters.integTest.module(
+                        project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
+                    )
+                }
+            }
             PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
             configurePublishing(project, extension1)
             String name = extension1.name

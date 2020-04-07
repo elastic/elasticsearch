@@ -165,8 +165,9 @@ include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 === Avoid scripts
 
 If possible, avoid using <<modules-scripting,scripts>> or
-<<request-body-search-script-fields,scripted fields>> in searches. Using scripts
-in search queries can result in slower search speeds.
+<<request-body-search-script-fields,scripted fields>> in searches. Because
+scripts can't make use of index structures, using scripts in search queries can
+result in slower search speeds.
 
 If you often use scripts to transform indexed data, you can speed up search by
 making these changes during ingest instead. However, that often means slower

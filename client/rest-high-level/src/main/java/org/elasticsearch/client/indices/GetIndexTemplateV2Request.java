@@ -45,7 +45,7 @@ public class GetIndexTemplateV2Request implements Validatable {
     }
 
     /**
-     * @return the name of component template this request is requesting
+     * @return the name of index template this request is requesting
      */
     public String name() {
         return name;

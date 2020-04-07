@@ -18,7 +18,7 @@
 "node_reload_secure_settings test correct(empty) password":
 
   - do:
-      nodes.reload_secure_settings:
+      nodes.reload_secure_settings: {}
 
   - set:
     nodes._arbitrary_key_: node_id

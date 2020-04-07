@@ -22,7 +22,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.common.Strings;
 
 /**
- * A request to check for the existence of component templates
+ * A request to check for the existence of index templates
  */
 public class IndexTemplateV2ExistRequest extends GetComponentTemplatesRequest {
 

@@ -71,7 +71,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
     }
 
     /**
-     * The component template to create.
+     * The index template to create.
      */
     public PutIndexTemplateV2Request indexTemplate(IndexTemplateV2 indexTemplate) {
         this.indexTemplate = indexTemplate;

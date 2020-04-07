@@ -25,7 +25,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -73,10 +72,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected InternalHistogram createTestInstance(String name,
-                                                   List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metadata,
-                                                   InternalAggregations aggregations) {
+    protected InternalHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final double base = round(randomInt(50) - 30);
         final int numBuckets = randomNumberOfBuckets();
         List<InternalHistogram.Bucket> buckets = new ArrayList<>();
@@ -88,7 +84,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators, metadata);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     // issue 26787
@@ -169,7 +165,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         List<InternalHistogram.Bucket> buckets = instance.getBuckets();
         BucketOrder order = instance.getOrder();
         long minDocCount = instance.getMinDocCount();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         switch (between(0, 4)) {
@@ -199,6 +194,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators, metadata);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 }

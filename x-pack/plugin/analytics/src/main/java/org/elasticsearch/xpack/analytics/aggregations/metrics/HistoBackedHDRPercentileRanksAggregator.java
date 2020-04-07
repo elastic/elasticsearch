@@ -34,7 +34,7 @@ class HistoBackedHDRPercentileRanksAggregator extends AbstractHistoBackedHDRPerc
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalHDRPercentileRanks(name, keys, state, keyed, format, pipelineAggregators(), metadata());
+            return new InternalHDRPercentileRanks(name, keys, state, keyed, format, metadata());
         }
     }
 
@@ -43,8 +43,7 @@ class HistoBackedHDRPercentileRanksAggregator extends AbstractHistoBackedHDRPerc
         DoubleHistogram state;
         state = new DoubleHistogram(numberOfSignificantValueDigits);
         state.setAutoResize(true);
-        return new InternalHDRPercentileRanks(name, keys, state,
-            keyed, format, pipelineAggregators(), metadata());
+        return new InternalHDRPercentileRanks(name, keys, state, keyed, format, metadata());
     }
 
     @Override

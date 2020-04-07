@@ -16,15 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.test
+
+
+package org.elasticsearch.index.analysis;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+
 
 /**
- * Any object that can produce an accompanying stop task, meant to tear down
- * a previously instantiated service.
+ * Builds an analyzer for normalization that lowercases terms.  
  */
-public interface Fixture {
+public class LowercaseNormalizerProvider extends AbstractIndexAnalyzerProvider<LowercaseNormalizer> {
 
-    /** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
-    public Object getStopTask()
+    private final LowercaseNormalizer analyzer;
 
+    public LowercaseNormalizerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(indexSettings, name, settings);
+        this.analyzer = new LowercaseNormalizer();
+    }
+
+    @Override
+    public LowercaseNormalizer get() {
+        return analyzer;
+    }
 }

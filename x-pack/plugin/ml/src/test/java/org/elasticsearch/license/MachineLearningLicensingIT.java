@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
@@ -614,7 +615,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
             modelId,
             Collections.singletonList(Collections.emptyMap()),
-            RegressionConfig.EMPTY_PARAMS,
+            RegressionConfigUpdate.EMPTY_PARAMS,
             false
         ), inferModelSuccess);
         InternalInferModelAction.Response response = inferModelSuccess.actionGet();
@@ -631,7 +632,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
-                RegressionConfig.EMPTY_PARAMS,
+                RegressionConfigUpdate.EMPTY_PARAMS,
                 false
             )).actionGet();
         });
@@ -644,7 +645,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
             modelId,
             Collections.singletonList(Collections.emptyMap()),
-            RegressionConfig.EMPTY_PARAMS,
+            RegressionConfigUpdate.EMPTY_PARAMS,
             true
         ), inferModelSuccess);
         response = inferModelSuccess.actionGet();
@@ -660,7 +661,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
             modelId,
             Collections.singletonList(Collections.emptyMap()),
-            RegressionConfig.EMPTY_PARAMS,
+            RegressionConfigUpdate.EMPTY_PARAMS,
             false
         ), listener);
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
@@ -680,6 +681,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .setModelId(modelId)
             .setDescription("test model for classification")
             .setInput(new TrainedModelInput(Arrays.asList("feature1")))
+            .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
         client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();
     }

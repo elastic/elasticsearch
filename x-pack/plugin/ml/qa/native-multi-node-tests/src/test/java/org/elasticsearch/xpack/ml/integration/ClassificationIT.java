@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -632,7 +631,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Assert that all the class probabilities lie within [0, 1] interval.
         classProbabilities.forEach(p -> assertThat(p, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
         // Assert that the top classes are listed in the order of decreasing scores.
-        assertThat(Ordering.natural().reverse().isOrdered(classScores), is(true));
+        double prevScore = classScores.get(0);
+        for (int i = 1; i < classScores.size(); ++i) {
+            double score = classScores.get(i);
+            assertThat("class " + i, score, lessThanOrEqualTo(prevScore));
+        }
     }
 
     private <T> void assertEvaluation(String dependentVariable, List<T> dependentVariableValues, String predictedClassField) {

@@ -28,10 +28,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
-import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
@@ -61,15 +57,14 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalCardinality createTestInstance(String name,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected InternalCardinality createTestInstance(String name, Map<String, Object> metadata) {
         HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(p,
                 new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 1);
         algos.add(hllpp);
         for (int i = 0; i < 100; i++) {
             hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
         }
-        return new InternalCardinality(name, hllpp, pipelineAggregators, metadata);
+        return new InternalCardinality(name, hllpp, metadata);
     }
 
     @Override
@@ -103,7 +98,6 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     protected InternalCardinality mutateInstance(InternalCardinality instance) {
         String name = instance.getName();
         HyperLogLogPlusPlus state = instance.getState();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -131,6 +125,6 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalCardinality(name, state, pipelineAggregators, metadata);
+        return new InternalCardinality(name, state, metadata);
     }
 }

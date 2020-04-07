@@ -14,13 +14,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.junit.After;
 import org.junit.Before;
@@ -131,6 +129,5 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
             long followerIndexDocs = followerClient().search(followerSearchRequest).actionGet().getHits().getTotalHits().value;
             assertThat(followerIndexDocs, equalTo(leaderIndexDocs));
         }, 30L, TimeUnit.SECONDS);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.MONITORING_ENABLED } );
     }
 }

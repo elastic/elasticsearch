@@ -33,10 +33,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   keystorePassword 's3cr3t'
-  setting 'xpack.monitoring.exporters.example1.type', 'http'
-  setting 'xpack.monitoring.exporters.example1.host', 'localhost'
-  setting 'xpack.monitoring.exporters.example1.auth.username', 'something'
-  keystore 'xpack.monitoring.exporters.example1.auth.secure_password', 'somethingelse'
 
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.anonymous.roles', 'anonymous'

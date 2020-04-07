@@ -33,6 +33,22 @@ built-in roles and privileges:
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
+[[ml-start-dfanalytics-desc]]
+==== {api-description-title}
+
+A {dfanalytics-job} can be started and stopped multiple times throughout its 
+lifecycle.
+
+If the destination index does not exist, it is created automatically the first
+time you start the {dfanalytics-job}. The `index.number_of_shards` and
+`index.number_of_replicas` settings for the destination index are copied from
+the source index. If there are multiple source indices, the destination index
+copies the highest setting values. The mappings for the destination index are
+also copied from the source indices. If there any mapping conflicts, the job
+fails to start.
+
+If the destination index exists, it is used as is. You can therefore set up the
+destination index in advance with custom settings and mappings.
 
 [[ml-start-dfanalytics-path-params]]
 ==== {api-path-parms-title}

@@ -19,11 +19,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.core.analytics.EnumCounters;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Response> {
@@ -35,7 +34,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     }
 
     /**
-     * Items to track.
+     * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
      */
     public enum Item {
         BOXPLOT,
@@ -43,10 +42,6 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         STRING_STATS,
         TOP_METRICS,
         T_TEST;
-
-        public String statName() {
-            return name().toLowerCase(Locale.ROOT);
-        }
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
@@ -115,9 +110,9 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-        private final Counters counters;
+        private final EnumCounters<Item> counters;
 
-        public NodeResponse(DiscoveryNode node, Counters counters) {
+        public NodeResponse(DiscoveryNode node, EnumCounters<Item> counters) {
             super(node);
             this.counters = counters;
         }
@@ -125,23 +120,17 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                counters = new Counters(in);
+                counters = new EnumCounters<>(in, Item.class);
             } else {
-                counters = new Counters();
+                counters = new EnumCounters<>(Item.class);
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.BOXPLOT.statName(), in.readLong());
-                } else {
-                    counters.set(Item.BOXPLOT.statName());
+                    counters.inc(Item.BOXPLOT, in.readLong());
                 }
-                counters.inc(Item.CUMULATIVE_CARDINALITY.statName(), in.readZLong());
+                counters.inc(Item.CUMULATIVE_CARDINALITY, in.readZLong());
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.STRING_STATS.statName(), in.readVLong());
-                    counters.inc(Item.TOP_METRICS.statName(), in.readVLong());
-                } else {
-                    counters.set(Item.STRING_STATS.statName());
-                    counters.set(Item.TOP_METRICS.statName());
+                    counters.inc(Item.STRING_STATS, in.readVLong());
+                    counters.inc(Item.TOP_METRICS, in.readVLong());
                 }
-                counters.set(Item.T_TEST.statName());
             }
         }
 
@@ -152,17 +141,17 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 counters.writeTo(out);
             } else {
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeVLong(counters.get(Item.BOXPLOT.statName()));
+                    out.writeVLong(counters.get(Item.BOXPLOT));
                 }
-                out.writeZLong(counters.get(Item.CUMULATIVE_CARDINALITY.statName()));
+                out.writeZLong(counters.get(Item.CUMULATIVE_CARDINALITY));
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeVLong(counters.get(Item.STRING_STATS.statName()));
-                    out.writeVLong(counters.get(Item.TOP_METRICS.statName()));
+                    out.writeVLong(counters.get(Item.STRING_STATS));
+                    out.writeVLong(counters.get(Item.TOP_METRICS));
                 }
             }
         }
 
-        public Counters getStats() {
+        public EnumCounters<Item> getStats() {
             return counters;
         }
     }

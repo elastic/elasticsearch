@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.analytics.EnumCounters;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
-import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.util.Collections;
 import java.util.List;
@@ -59,11 +59,11 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     static AnalyticsFeatureSetUsage usageFeatureResponse(boolean available, boolean enabled, AnalyticsStatsAction.Response r) {
-        List<Counters> countersPerNode = r.getNodes()
+        List<EnumCounters<AnalyticsStatsAction.Item>> countersPerNode = r.getNodes()
             .stream()
             .map(AnalyticsStatsAction.NodeResponse::getStats)
             .collect(Collectors.toList());
-        Counters mergedCounters = Counters.merge(countersPerNode);
-        return new AnalyticsFeatureSetUsage(available, enabled, mergedCounters.toNestedMap());
+        EnumCounters<AnalyticsStatsAction.Item> mergedCounters = EnumCounters.merge(AnalyticsStatsAction.Item.class, countersPerNode);
+        return new AnalyticsFeatureSetUsage(available, enabled, mergedCounters.toMap());
     }
 }

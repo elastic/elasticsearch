@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
+import java.util.Locale;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -204,33 +206,45 @@ class IndexLifecycleRunner {
             int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ? 1 : 1 + lifecycleState.getFailedStepRetryCount();
             logger.info("policy [{}] for index [{}] on an error step due to a transitive error, moving back to the failed " +
                 "step [{}] for execution. retry attempt [{}]", policy, index, lifecycleState.getFailedStep(), currentRetryAttempt);
-            clusterService.submitStateUpdateTask("ilm-retry-failed-step", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(currentState, index,
-                        nowSupplier, stepRegistry, true);
-                }
+            clusterService.submitStateUpdateTask(
+                String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
+                    failedStep.getKey()),
+                new ClusterStateUpdateTask() {
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
-                        failedStep.getKey().getName(), index), e);
-                }
+                    @Override
+                    public TimeValue timeout() {
+                        // we can afford to drop these requests if they timeout as on the next {@link
+                        // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
+                        // to move it back into the failed step, so we'll try again
+                        return MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+                    }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (oldState.equals(newState) == false) {
-                        IndexMetadata newIndexMeta = newState.metadata().index(index);
-                        Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
-                        StepKey stepKey = indexMetaCurrentStep.getKey();
-                        if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
-                            logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
-                                "retry. Attempting to execute the failed step [{}] if it's an async action", policy, index, stepKey);
-                            maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(currentState, index,
+                            nowSupplier, stepRegistry, true);
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
+                            failedStep.getKey().getName(), index), e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        if (oldState.equals(newState) == false) {
+                            IndexMetadata newIndexMeta = newState.metadata().index(index);
+                            Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
+                            StepKey stepKey = indexMetaCurrentStep.getKey();
+                            if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
+                                logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
+                                    "retry. Attempting to execute the failed step [{}] if it's an async action", policy, index, stepKey);
+                                maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
+                            }
                         }
                     }
-                }
-            });
+                });
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
         }

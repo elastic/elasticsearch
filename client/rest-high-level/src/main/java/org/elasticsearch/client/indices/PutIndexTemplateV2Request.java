@@ -40,7 +40,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
     private IndexTemplateV2 indexTemplate;
 
     /**
-     * Sets the name of the component template.
+     * Sets the name of the index template.
      */
     public PutIndexTemplateV2Request name(String name) {
         if (Strings.isNullOrEmpty(name)) {

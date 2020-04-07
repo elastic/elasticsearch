@@ -90,7 +90,10 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Arrays.asList(
             CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.IP,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE
         );

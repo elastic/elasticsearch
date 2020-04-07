@@ -705,7 +705,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 v = HalfFloatPoint.halfFloatToSortableShort(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {
-                v = randomLong();
+                // smallest numeric is a byte so we select the smallest
+                v = Math.abs(randomByte());
                 json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
             }
             doc.add(new SortedNumericDocValuesField(fieldName, v));

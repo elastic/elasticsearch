@@ -82,13 +82,13 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         return new SignificantTermsAggregationBuilder("foo").field(fieldName);
     }
 
+    /* NOTE - commented out instead of deleted, we need to backport https://github.com/elastic/elasticsearch/pull/52851 to support this.
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Arrays.asList(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES);
     }
 
-    /* NOTE - commented out instead of deleted, because we probably need to backport this function in AggregatorTestCase
     @Override
     protected List<String> unsupportedMappedFieldTypes() {
         return List.of(

@@ -65,12 +65,6 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
         return Collections.singleton(SpatialPlugin.class);
     }
 
-    @Override
-    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-            fieldName(), "type=shape"))), MapperService.MergeReason.MAPPING_UPDATE);
-    }
-
     protected String fieldName() {
         return SHAPE_FIELD_NAME;
     }
@@ -220,7 +214,7 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
 
     public void testWrongFieldType() {
         Geometry shape = getGeometry();
-        final ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder(STRING_FIELD_NAME, shape);
+        final ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder(TEXT_FIELD_NAME, shape);
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [shape or point] but of type [text]"));
     }

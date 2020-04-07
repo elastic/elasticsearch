@@ -112,6 +112,7 @@ policy definition.
   - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
+  - <<ilm-searchable-snapshot-action, Searchable Snapshot>>
 * Delete
   - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete-action,Delete>>
@@ -271,7 +272,15 @@ Phases allowed: delete.
 
 The Delete Action does just that, it deletes the index.
 
-This action does not have any options associated with it.
+[[ilm-delete-action-options]]
+.Delete
+[options="header"]
+|======
+| Name                         | Required  | Default             | Description
+| `delete_searchable_snapshot` | no        | true                | Deletes the searchable snapshot created in the cold phase, if a
+                                                                   snapshot was created (ie. if the <<ilm-searchable-snapshot-action,
+                                                                   Searchable Snapshot Action>> was used in the cold phase)
+|======
 
 [source,console]
 --------------------------------------------------
@@ -585,6 +594,43 @@ The above example illustrates a policy which attempts to delete an
 index one day after the index has been rolled over. It does not
 delete the index one day after it has been created.
 
+[[ilm-searchable-snapshot-action]]
+==== Searchable Snapshot
+
+Phases allowed: cold.
+
+This action takes a snapshot of the managed index in the configured repository
+and mounts it as a searchable snapshot.
+
+[[ilm-searchable-snapshot-options]]
+.Searchable Snapshot Options
+[options="header"]
+|======
+| Name                  | Required  | Default     | Description
+| `snapshot_repository` | yes       | -           | Repository used to store the snapshot created by this action. The snapshot will be,
+                                                    by default, deleted by the <<ilm-delete-action, Delete Action>> in the delete phase, if
+                                                    configured, but the user can configure the <<ilm-delete-action, Delete Action>> to keep
+                                                    the snapshot using the `delete_searchable_snapshot` option.
+
+|======
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "searchable_snapshot" : {
+            "snapshot_repository" : "backing_repo"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 [[ilm-set-priority-action]]
 ==== Set Priority
 

@@ -114,11 +114,15 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         return indexPatterns;
     }
 
+    @Nullable
     public Template template() {
         return template;
     }
 
     public List<String> composedOf() {
+        if (componentTemplates == null) {
+            return List.of();
+        }
         return componentTemplates;
     }
 

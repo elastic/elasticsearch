@@ -93,7 +93,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 "        \"queries\":[\n" +
                 "            {\n" +
                 "                \"prefix\":{\n" +
-                "                    \"" + STRING_FIELD_NAME + "\":{\n" +
+                "                    \"" + TEXT_FIELD_NAME + "\":{\n" +
                 "                        \"value\":\"sh\",\n" +
                 "                        \"boost\":1.2\n" +
                 "                    }\n" +
@@ -115,7 +115,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertThat(boostQuery.getQuery(), instanceOf(PrefixQuery.class));
         PrefixQuery firstQ = (PrefixQuery) boostQuery.getQuery();
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(firstQ.getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat(firstQ.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
 
     }
 

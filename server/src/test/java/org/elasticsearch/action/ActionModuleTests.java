@@ -132,7 +132,14 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new RestMainAction());
+                return singletonList(new RestMainAction() {
+
+                    @Override
+                    public String getName() {
+                        return "duplicated_" + super.getName();
+                    }
+
+                });
             }
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);

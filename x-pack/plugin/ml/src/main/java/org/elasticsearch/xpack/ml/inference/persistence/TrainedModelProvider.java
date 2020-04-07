@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -52,14 +53,19 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -67,7 +73,9 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -356,7 +364,7 @@ public class TrainedModelProvider {
         }
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
 
-        request.indices(InferenceIndexConstants.INDEX_PATTERN);
+        request.indices(InferenceIndexConstants.INDEX_PATTERN, MlStatsIndex.indexPattern());
         QueryBuilder query = QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         request.setQuery(query);
         request.setRefresh(true);
@@ -451,6 +459,99 @@ public class TrainedModelProvider {
                 idsListener::onFailure
             ),
             client::search);
+    }
+
+    public void getInferenceStats(String[] modelIds, ActionListener<List<InferenceStats>> listener) {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        Arrays.stream(modelIds).map(this::buildStatsSearchRequest).forEach(multiSearchRequest::add);
+        if (multiSearchRequest.requests().isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            multiSearchRequest,
+            ActionListener.<MultiSearchResponse>wrap(
+                responses -> {
+                    List<InferenceStats> allStats = new ArrayList<>(modelIds.length);
+                    int modelIndex = 0;
+                    assert responses.getResponses().length == modelIds.length :
+                        "mismatch between search response size and models requested";
+                    for (MultiSearchResponse.Item response : responses.getResponses()) {
+                        if (response.isFailure()) {
+                            if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
+                                modelIndex++;
+                                continue;
+                            }
+                            logger.error(new ParameterizedMessage("[{}] search failed for models",
+                                    Strings.arrayToCommaDelimitedString(modelIds)),
+                                response.getFailure());
+                            listener.onFailure(ExceptionsHelper.serverError("Searching for stats for models [{}] failed",
+                                response.getFailure(),
+                                Strings.arrayToCommaDelimitedString(modelIds)));
+                            return;
+                        }
+                        try {
+                            InferenceStats inferenceStats = handleMultiNodeStatsResponse(response.getResponse(), modelIds[modelIndex++]);
+                            if (inferenceStats != null) {
+                                allStats.add(inferenceStats);
+                            }
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
+                        }
+                    }
+                    listener.onResponse(allStats);
+                },
+                e -> {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ResourceNotFoundException) {
+                        listener.onResponse(Collections.emptyList());
+                        return;
+                    }
+                    listener.onFailure((Exception)unwrapped);
+                }
+            ),
+            client::multiSearch);
+    }
+
+    private SearchRequest buildStatsSearchRequest(String modelId) {
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
+            .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME));
+        return new SearchRequest(MlStatsIndex.indexPattern())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
+            .allowPartialSearchResults(false)
+            .source(SearchSourceBuilder.searchSource()
+                .size(0)
+                .aggregation(AggregationBuilders.sum(InferenceStats.FAILURE_COUNT.getPreferredName())
+                    .field(InferenceStats.FAILURE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName())
+                    .field(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.INFERENCE_COUNT.getPreferredName())
+                    .field(InferenceStats.INFERENCE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.max(InferenceStats.TIMESTAMP.getPreferredName())
+                    .field(InferenceStats.TIMESTAMP.getPreferredName()))
+                .query(queryBuilder));
+    }
+
+    private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
+        if (response.getAggregations() == null) {
+            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
+            return null;
+        }
+        Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
+        Sum missing = response.getAggregations().get(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName());
+        Sum count = response.getAggregations().get(InferenceStats.INFERENCE_COUNT.getPreferredName());
+        Max timeStamp = response.getAggregations().get(InferenceStats.TIMESTAMP.getPreferredName());
+        return new InferenceStats(
+            missing == null ? 0L : Double.valueOf(missing.getValue()).longValue(),
+            count == null ? 0L : Double.valueOf(count.getValue()).longValue(),
+            failures == null ? 0L : Double.valueOf(failures.getValue()).longValue(),
+            modelId,
+            null,
+            timeStamp == null ? Instant.now() : Instant.ofEpochMilli(Double.valueOf(timeStamp.getValue()).longValue())
+        );
     }
 
     static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs) {

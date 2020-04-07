@@ -70,8 +70,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
                                 QueryShardContext queryShardContext,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactories,
-                                Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         this.from = from;
         this.size = size;
         this.explain = explain;
@@ -91,7 +91,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(searchContext);
         subSearchContext.parsedQuery(searchContext.parsedQuery());
         subSearchContext.explain(explain);
@@ -119,7 +119,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
         }
         return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent,
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
 }

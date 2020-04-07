@@ -48,6 +48,10 @@ public class EConditional extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
+        }
+
         Output output = new Output();
 
         Input conditionInput = new Input();
@@ -98,10 +102,5 @@ public class EConditional extends AExpression {
         output.expressionNode = conditionalNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, left, right);
     }
 }

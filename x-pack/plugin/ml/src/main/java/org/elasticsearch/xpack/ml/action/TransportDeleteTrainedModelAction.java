@@ -82,7 +82,7 @@ public class TransportDeleteTrainedModelAction
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
-        IngestMetadata currentIngestMetadata = state.metaData().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata);
 
         if (referencedModels.contains(id)) {

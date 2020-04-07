@@ -57,7 +57,7 @@ import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.random
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiLettersOfLength;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public final class RandomObjects {

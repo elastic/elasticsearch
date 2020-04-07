@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -166,9 +165,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+        super(name, metadata);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
     }

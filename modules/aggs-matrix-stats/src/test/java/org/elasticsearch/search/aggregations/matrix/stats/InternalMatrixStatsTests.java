@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -69,8 +68,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalMatrixStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metadata) {
+    protected InternalMatrixStats createTestInstance(String name, Map<String, Object> metadata) {
         double[] values = new double[fields.length];
         for (int i = 0; i < fields.length; i++) {
             values[i] = randomDouble();
@@ -79,7 +77,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         RunningStats runningStats = new RunningStats();
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
-        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metadata);
+        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata);
     }
 
     @Override
@@ -125,7 +123,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         }
-        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metadata);
+        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, metadata);
     }
 
     @Override
@@ -149,14 +147,14 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
             runningStats.add(new String[]{"a", "b"}, new double[]{valueA, valueB});
             if (++valuePerShardCounter == valuesPerShard) {
-                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyList(), Collections.emptyMap()));
+                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
                 runningStats = new RunningStats();
                 valuePerShardCounter = 0;
             }
         }
 
         if (valuePerShardCounter != 0) {
-            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyList(), Collections.emptyMap()));
+            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
         }
         MultiPassStats multiPassStats = new MultiPassStats("a", "b");
         multiPassStats.computeStats(aValues, bValues);

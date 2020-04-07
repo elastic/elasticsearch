@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -62,10 +61,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metadata);
+        return new ExtendedStatsAggregator(name, null, config.format(), searchContext, parent, sigma, metadata);
     }
 
     @Override
@@ -73,7 +70,6 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             ExtendedStatsAggregationBuilder.NAME);
@@ -83,6 +79,6 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, (Numeric) valuesSource, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metadata);
+            parent, sigma, metadata);
     }
 }

@@ -66,7 +66,8 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
             // the task is not running anymore so we throw a not found exception if
             // the search id is also not present in the index (already deleted) or if the user
             // is not allowed to access it.
-            store.getResponse(searchId, ActionListener.wrap(res -> store.deleteResponse(searchId, true, listener), listener::onFailure));
+            store.getResponse(searchId, false,
+                ActionListener.wrap(res -> store.deleteResponse(searchId, true, listener), listener::onFailure));
         }
     }
 }

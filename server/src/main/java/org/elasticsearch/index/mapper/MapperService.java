@@ -130,6 +130,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
+    static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no " +
+        "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html" +
+        "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -449,11 +452,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         if (defaultMapper != null) {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException("The [default] mapping cannot be updated on index [" + index().getName() +
-                        "]: defaults mappings are not useful anymore now that indices can have at most one type.");
+                throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
-                        "cannot have more than one type");
+                deprecationLogger.deprecated(DEFAULT_MAPPING_ERROR_MESSAGE);
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);
             results.put(DEFAULT_MAPPING, defaultMapper);

@@ -86,7 +86,7 @@ public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
         }
         final MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.merge("_default_", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes cannot have more than one type");
+        assertWarnings(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE);
     }
 
 }

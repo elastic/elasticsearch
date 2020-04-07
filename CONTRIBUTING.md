@@ -170,6 +170,8 @@ Finally, set up import order:
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
  - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that
 
 IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.

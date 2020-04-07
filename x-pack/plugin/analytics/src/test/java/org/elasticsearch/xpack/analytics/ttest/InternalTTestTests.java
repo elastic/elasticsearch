@@ -51,7 +51,13 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
     }
 
     private TTestStats randomStats() {
-        return new TTestStats(randomNonNegativeLong(), randomDouble(), randomDouble());
+        /*
+         * Use a count significantly less than Long.MAX_VALUE so the reduce
+         * phase doesn't wrap to a negative number. If it *did* then we'd
+         * try to serialize a negative number with writeVLong which throws
+         * an assertion in tests.
+         */
+        return new TTestStats(randomLongBetween(0, Integer.MAX_VALUE), randomDouble(), randomDouble());
     }
 
     @Override

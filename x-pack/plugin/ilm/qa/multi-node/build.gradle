@@ -18,7 +18,6 @@ testClusters.integTest {
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

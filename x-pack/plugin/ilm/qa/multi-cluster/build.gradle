@@ -23,7 +23,6 @@ task 'leader-cluster'(type: RestIntegTestTask) {
 testClusters.'leader-cluster' {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.ccr.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'

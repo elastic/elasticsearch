@@ -46,7 +46,7 @@ import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Request;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
@@ -463,7 +463,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request getIndexTemplates(GetIndexTemplatesV2Request getIndexTemplatesRequest) {
+    static Request getIndexTemplates(GetIndexTemplateV2Request getIndexTemplatesRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_index_template")
             .addPathPart(getIndexTemplatesRequest.name())

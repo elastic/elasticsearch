@@ -56,7 +56,7 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Request;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
@@ -939,7 +939,7 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable putIndexTemplateAsync(PutIndexTemplateV2Request putIndexTemplateRequest,
-                                        RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+                                             RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
@@ -987,7 +987,7 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetIndexTemplatesV2Response getIndexTemplate(GetIndexTemplatesV2Request getIndexTemplatesRequest,
+    public GetIndexTemplatesV2Response getIndexTemplate(GetIndexTemplateV2Request getIndexTemplatesRequest,
                                                         RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest, IndicesRequestConverters::getIndexTemplates,
             options, GetIndexTemplatesV2Response::fromXContent, emptySet());
@@ -1002,7 +1002,7 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getIndexTemplateAsync(GetIndexTemplatesV2Request getIndexTemplatesRequest, RequestOptions options,
+    public Cancellable getIndexTemplateAsync(GetIndexTemplateV2Request getIndexTemplatesRequest, RequestOptions options,
                                              ActionListener<GetIndexTemplatesV2Response> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
             IndicesRequestConverters::getIndexTemplates, options, GetIndexTemplatesV2Response::fromXContent, listener, emptySet());
@@ -1080,7 +1080,7 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public boolean existsIndexTemplate(IndexTemplateV2ExistRequest indexTemplatesRequest,
-                                  RequestOptions options) throws IOException {
+                                       RequestOptions options) throws IOException {
         return restHighLevelClient.performRequest(indexTemplatesRequest,
             IndicesRequestConverters::templatesExist, options,
             RestHighLevelClient::convertExistsResponse, emptySet());
@@ -1094,8 +1094,8 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable existsIndexTemplateAsync(IndexTemplateV2ExistRequest indexTemplatesExistRequest,
-                                                  RequestOptions options,
-                                                  ActionListener<Boolean> listener) {
+                                                RequestOptions options,
+                                                ActionListener<Boolean> listener) {
 
         return restHighLevelClient.performRequestAsync(indexTemplatesExistRequest,
             IndicesRequestConverters::templatesExist, options,
@@ -1232,7 +1232,7 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable deleteIndexTemplateAsync(DeleteIndexTemplateV2Request request, RequestOptions options,
-                                           ActionListener<AcknowledgedResponse> listener) {
+                                                ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }

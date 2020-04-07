@@ -69,7 +69,7 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Request;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
@@ -1568,7 +1568,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(index, alias), equalTo(false));
         assertThat(aliasExists(index, alias2), equalTo(true));
     }
-    
+
     public void testIndexTemplates() throws Exception {
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
@@ -1590,8 +1590,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(exist);
 
-        GetIndexTemplatesV2Request getIndexTemplatesV2Request = new GetIndexTemplatesV2Request(templateName);
-        GetIndexTemplatesV2Response getResponse = execute(getIndexTemplatesV2Request,
+        GetIndexTemplateV2Request getIndexTemplateV2Request = new GetIndexTemplateV2Request(templateName);
+        GetIndexTemplatesV2Response getResponse = execute(getIndexTemplateV2Request,
             highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync);
 
         assertThat(getResponse.getIndexTemplates().size(), equalTo(1));
@@ -1604,7 +1604,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isAcknowledged(), equalTo(true));
 
         ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(getIndexTemplatesV2Request,
+            () -> execute(getIndexTemplateV2Request,
                 highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync));
 
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));

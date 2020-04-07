@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -46,7 +47,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
 
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (DateHistogramAggregationSupplier) (String name,
                                                 AggregatorFactories factories,
                                                 Rounding rounding,
@@ -133,7 +134,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, shardRounding, order, keyed,
-            minDocCount, extendedBounds, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+            minDocCount, extendedBounds, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override

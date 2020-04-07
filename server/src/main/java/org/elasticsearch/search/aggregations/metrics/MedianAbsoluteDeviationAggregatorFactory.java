@@ -47,7 +47,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                              QueryShardContext queryShardContext,
                                              AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metaData,
+                                             Map<String, Object> metadata,
                                              double compression) throws IOException {
 
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);

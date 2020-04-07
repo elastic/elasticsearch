@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -65,11 +66,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     // TODO: Registration should happen on the actual aggregator classes
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             TermsAggregatorFactory.bytesSupplier());
 
         valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             TermsAggregatorFactory.numericSupplier());
     }
 

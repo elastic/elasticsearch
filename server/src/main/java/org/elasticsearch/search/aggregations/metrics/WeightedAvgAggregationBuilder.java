@@ -109,7 +109,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
                                                             DocValueFormat format,
                                                             AggregatorFactory parent,
                                                             Builder subFactoriesBuilder) throws IOException {
-        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

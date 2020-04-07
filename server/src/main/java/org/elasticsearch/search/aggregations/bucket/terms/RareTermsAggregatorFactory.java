@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -49,11 +50,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(RareTermsAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             RareTermsAggregatorFactory.bytesSupplier());
 
         valuesSourceRegistry.register(RareTermsAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             RareTermsAggregatorFactory.numericSupplier());
     }
 
@@ -173,7 +174,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         return ((RareTermsAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, config.format(),
-            maxDocCount, precision, includeExclude, searchContext, parent, pipelineAggregators, metaData);
+            maxDocCount, precision, includeExclude, searchContext, parent, pipelineAggregators, metadata);
     }
 
     public enum ExecutionMode {

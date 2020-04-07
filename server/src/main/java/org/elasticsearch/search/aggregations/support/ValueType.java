@@ -28,6 +28,8 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 public enum ValueType implements Writeable {
@@ -73,9 +75,9 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
-    private static Set<ValueType> numericValueTypes = Set.of(ValueType.DOUBLE, ValueType.DATE, ValueType.LONG, ValueType.NUMBER,
+    private static List<ValueType> numericValueTypes = Arrays.asList(ValueType.DOUBLE, ValueType.DATE, ValueType.LONG, ValueType.NUMBER,
         ValueType.NUMERIC, ValueType.BOOLEAN);
-    private static Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
+    private static List<ValueType> stringValueTypes = Arrays.asList(ValueType.STRING, ValueType.IP);
 
     /**
      * This is a bit of a hack to mirror the old {@link ValueType} behavior, which would allow a rough compatibility between types.  This

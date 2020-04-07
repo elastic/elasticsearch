@@ -59,6 +59,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -80,11 +81,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(SignificantTermsAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             SignificantTermsAggregatorFactory.bytesSupplier());
 
         valuesSourceRegistry.register(SignificantTermsAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             SignificantTermsAggregatorFactory.numericSupplier());
     }
 
@@ -326,7 +327,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         // TODO we should refactor so that we don't need to use this Factory as a singleton (e.g. stop passing `this` to the aggregators)
         return sigTermsAggregatorSupplier.build(name, factories, valuesSource, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
-            significanceHeuristic, this, pipelineAggregators, metaData);
+            significanceHeuristic, this, pipelineAggregators, metadata);
     }
 
     public enum ExecutionMode {

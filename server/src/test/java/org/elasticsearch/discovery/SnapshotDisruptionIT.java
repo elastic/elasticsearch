@@ -149,17 +149,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(4, masterNode1);
         logger.info("--> done");
 
-        try {
-            future.get();
-        } catch (Exception ex) {
-            Throwable cause = ex.getCause();
-            if (cause.getCause() instanceof ConcurrentSnapshotExecutionException) {
-                logger.info("--> got exception from race in master operation retries");
-            } else {
-                logger.info("--> got exception from hanged master", ex);
-            }
-        }
-
+        future.get();
         assertAllSnapshotsCompleted();
     }
 

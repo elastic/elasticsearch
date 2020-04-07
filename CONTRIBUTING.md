@@ -152,6 +152,7 @@ dependencies. Fix them:
 
  - Select **Window > Preferences**
  - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
  - Set **Circular dependencies** to **Warning**
  - Apply that and let the build spin away for a while
 
@@ -167,15 +168,8 @@ Finally, set up import order:
 
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
- - Set it to
-    *
-    com
-    org
-    java
-    javax
-    static *
- - Set the **Number of imports needed for `.*`** to ***9999***
- - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
  - Apply that
 
 IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.

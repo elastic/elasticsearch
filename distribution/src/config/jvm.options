@@ -79,6 +79,10 @@
 # exceptions because stack traces are important for debugging
 -XX:-OmitStackTraceInFastThrow
 
+# enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if
+# they are supported
+14-:-XX:+ShowCodeDetailsInExceptionMessages
+
 # flags to configure Netty
 -Dio.netty.noUnsafe=true
 -Dio.netty.noKeySetOptimization=true

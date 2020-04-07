@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -129,9 +128,8 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     private final String separator;
 
     public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
-            Weight[] filters, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metadata);
+            Weight[] filters, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
         this.separator = separator;
         this.keys = keys;
         this.filters = filters;
@@ -210,13 +208,13 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 pos++;
             }
         }
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators(), metadata());
+        return new InternalAdjacencyMatrix(name, buckets, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(0);
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators(), metadata());
+        return new InternalAdjacencyMatrix(name, buckets, metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

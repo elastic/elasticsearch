@@ -15,12 +15,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_FIELD;
@@ -32,9 +30,9 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
     private final boolean homoscedastic;
 
     UnpairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, boolean homoscedastic,
-                            DocValueFormat format, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                            DocValueFormat format, SearchContext context, Aggregator parent,
                             Map<String, Object> metadata) throws IOException {
-        super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metadata);
+        super(name, valuesSources, tails, format, context, parent, metadata);
         BigArrays bigArrays = context.bigArrays();
         a = new TTestStatsBuilder(bigArrays);
         b = new TTestStatsBuilder(bigArrays);

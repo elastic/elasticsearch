@@ -448,7 +448,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-        assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+        if (waitForSnapshot) {
+            assertThat(snapshotIds, hasSize(0));
+        } else {
+            assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+        }
     }
 
     public void testConcurrentSnapshotCreateAndDelete() {

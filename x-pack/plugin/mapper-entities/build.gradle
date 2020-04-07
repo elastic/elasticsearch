@@ -1,0 +1,24 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  name 'entities'
+  description 'Module for the entities field type, which allows multiple terms to be treated as a single entity in search and aggregations.'
+  classname 'org.elasticsearch.xpack.entities.EntityMapperPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-entities'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTest.enabled = false

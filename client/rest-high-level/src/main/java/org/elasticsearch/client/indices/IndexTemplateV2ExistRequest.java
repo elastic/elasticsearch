@@ -27,7 +27,7 @@ import org.elasticsearch.common.Strings;
 public class IndexTemplateV2ExistRequest extends GetComponentTemplatesRequest {
 
     /**
-     * Create a request to check for the existence of component template. Name must be provided
+     * Create a request to check for the existence of index template. Name must be provided
      *
      * @param name the name of template to check for the existence of
      */

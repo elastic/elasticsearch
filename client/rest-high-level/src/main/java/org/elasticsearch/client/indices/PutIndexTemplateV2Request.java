@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * A request to create an component template.
+ * A request to create an index template.
  */
 public class PutIndexTemplateV2Request extends TimedRequest implements ToXContentObject {
 

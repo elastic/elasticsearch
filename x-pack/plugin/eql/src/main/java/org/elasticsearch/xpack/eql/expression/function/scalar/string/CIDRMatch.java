@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * Returns true if the source address matches any of the provided CIDR blocks.
  * Refer to: https://eql.readthedocs.io/en/latest/query-guide/functions.html#cidrMatch
  */
-public class CIDRMatch extends ScalarFunction {
+public class CIDRMatch extends BaseSurrogateFunction {
 
     private final Expression field;
     private final List<Expression> addresses;
@@ -40,6 +40,24 @@ public class CIDRMatch extends ScalarFunction {
         super(source, CollectionUtils.combine(singletonList(field), addresses));
         this.field = field;
         this.addresses = addresses;
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, CIDRMatch::new, field, addresses);
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() < 2) {
+            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
+        }
+        return new CIDRMatch(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -53,7 +71,7 @@ public class CIDRMatch extends ScalarFunction {
             return resolution;
         }
 
-        for (Expression addr: addresses) {
+        for (Expression addr : addresses) {
             // Currently we have limited enum for ordinal numbers
             // So just using default here for error messaging
             resolution = isStringAndExact(addr, sourceText(), ParamOrdinal.DEFAULT);
@@ -64,7 +82,7 @@ public class CIDRMatch extends ScalarFunction {
 
         int index = 1;
 
-        for (Expression addr: addresses) {
+        for (Expression addr : addresses) {
 
             resolution = isFoldable(addr, sourceText(), ParamOrdinal.fromIndex(index));
             if (resolution.unresolved()) {
@@ -83,42 +101,10 @@ public class CIDRMatch extends ScalarFunction {
     }
 
     @Override
-    public boolean foldable() {
-        return field.foldable() && asFunction().foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return asFunction().fold();
-    }
-
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CIDRMatch::new, field, addresses);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataTypes.BOOLEAN;
-    }
-
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
-        return new CIDRMatch(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
-    }
-
-    public ScalarFunction asFunction() {
+    public ScalarFunction makeSubstitute() {
         ScalarFunction func = null;
 
-        for (Expression address: addresses) {
+        for (Expression address : addresses) {
             final Equals eq = new Equals(source(), field, address);
             func = (func == null) ? eq : new Or(source(), func, eq);
         }

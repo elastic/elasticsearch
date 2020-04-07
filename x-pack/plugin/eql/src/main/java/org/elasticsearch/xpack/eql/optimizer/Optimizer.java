@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -53,7 +52,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
-                new ReplaceCIDRMatchFunction(),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy()
@@ -120,14 +118,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 return e;
             });
-        }
-    }
-
-    private static class ReplaceCIDRMatchFunction extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> e instanceof CIDRMatch ? ((CIDRMatch) e).asFunction() : e);
         }
     }
 }

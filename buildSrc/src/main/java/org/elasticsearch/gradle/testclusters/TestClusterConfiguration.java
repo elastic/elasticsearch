@@ -20,7 +20,9 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -46,7 +48,13 @@ public interface TestClusterConfiguration {
 
     void plugin(File plugin);
 
+    void plugin(Supplier<URI> plugin);
+
+    void plugin(Provider<RegularFile>  plugin);
+
     void module(File module);
+
+    void module(Provider<RegularFile> module);
 
     void keystore(String key, String value);
 

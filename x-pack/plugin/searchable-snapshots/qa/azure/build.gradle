@@ -71,7 +71,7 @@ integTest {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin file(repositoryPlugin.bundlePlugin.archiveFile)
+  plugin repositoryPlugin.bundlePlugin.archiveFile
 
   keystore 'azure.client.searchable_snapshots.account', azureAccount
   keystore 'azure.client.searchable_snapshots.key', azureKey

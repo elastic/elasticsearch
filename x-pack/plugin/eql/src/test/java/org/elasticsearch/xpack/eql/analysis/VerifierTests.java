@@ -101,7 +101,7 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unknown function [arrayContains]",
+        assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
                 error("registry where arrayContains(bytes_written_string_list, 'En')"));
         assertEquals("1:16: Unknown function [arraySearch]",
             error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
@@ -119,8 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:25: Unknown function [stringContains]",
-                error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
         assertEquals("1:25: Unknown function [indexOf]",
                 error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",

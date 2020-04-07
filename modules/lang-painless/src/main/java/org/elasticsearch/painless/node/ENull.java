@@ -37,11 +37,11 @@ public class ENull extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from null constant."));
+            throw createError(new IllegalArgumentException("not a statement: null constant not used"));
         }
+
+        Output output = new Output();
 
         if (input.expected != null) {
             if (input.expected.isPrimitive()) {

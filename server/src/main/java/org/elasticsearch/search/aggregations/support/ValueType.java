@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 public enum ValueType implements Writeable {
 

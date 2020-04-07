@@ -34,6 +34,7 @@ import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -56,7 +57,7 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
-        return List.of(CoreValuesSourceType.NUMERIC,
+        return Arrays.asList(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
             AnalyticsValuesSourceType.HISTOGRAM);

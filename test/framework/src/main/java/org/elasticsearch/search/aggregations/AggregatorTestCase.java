@@ -123,7 +123,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singleton;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -178,7 +177,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     @BeforeClass
     public static void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.EMPTY_LIST);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 

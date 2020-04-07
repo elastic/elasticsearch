@@ -34,7 +34,7 @@
       }
     },
     "body": {
-      "description": "The password for the elasticsearch keystore",
+      "description": "An object containing the password for the elasticsearch keystore",
       "required": false
     }
   }

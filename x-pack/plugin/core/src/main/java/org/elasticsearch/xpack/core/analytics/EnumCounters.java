@@ -36,7 +36,7 @@ public class EnumCounters<E extends Enum<E>> implements Writeable {
         enums = enumClass.getEnumConstants();
         long[] vals = new long[enums.length];
         for (int i = 0; i < size; i++) {
-            long val = in.readZLong();
+            long val = in.readVLong();
             if (i < vals.length) {
                 vals[i] = val;
             }
@@ -48,7 +48,7 @@ public class EnumCounters<E extends Enum<E>> implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(counters.length());
         for (int i = 0; i < counters.length(); i++) {
-            out.writeZLong(counters.get(i));
+            out.writeVLong(counters.get(i));
         }
     }
 

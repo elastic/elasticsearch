@@ -5,7 +5,6 @@ dependencies {
   compile project(':test:framework')
   compile project(path: xpackModule('core'), configuration: 'default')
   compile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  compile project(path: xpackModule('ql'), configuration: 'default')
 
   // TOML parser for EqlActionIT tests
   compile 'io.ous:jtoml:2.0.0'

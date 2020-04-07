@@ -32,7 +32,3 @@ integTest.runner {
     systemProperty 'tests.logfile', '--external--'
   }
 }
-
-testClusters.integTest{
-  keystorePassword 's3cr3t'
-}

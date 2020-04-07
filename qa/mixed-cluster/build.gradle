@@ -48,7 +48,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      keystorePassword 's3cr3t'
     }
   }
 

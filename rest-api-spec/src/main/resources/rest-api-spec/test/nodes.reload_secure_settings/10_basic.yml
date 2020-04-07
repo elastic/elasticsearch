@@ -15,27 +15,10 @@
   - match: { nodes.$node_id.reload_exception.reason: "Provided keystore password was incorrect" }
 
 ---
-"node_reload_secure_settings test wrong(empty) password":
+"node_reload_secure_settings test correct(empty) password":
 
   - do:
       nodes.reload_secure_settings:
-        node_id: _local
-
-  - set:
-    nodes._arbitrary_key_: node_id
-
-  - is_true: nodes
-  - is_true: cluster_name
-  - is_false: nodes.$node_id.reload_exception
-
----
-"node_reload_secure_settings test correct password":
-
-  - do:
-      nodes.reload_secure_settings:
-        node_id: _local
-        body:
-          secure_settings_password: s3cr3t
 
   - set:
     nodes._arbitrary_key_: node_id

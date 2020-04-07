@@ -31,7 +31,6 @@ File repo = file("$buildDir/testclusters/repo")
 testClusters.integTest {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
-  keystorePassword 's3cr3t'
 }
 
 integTest.runner {

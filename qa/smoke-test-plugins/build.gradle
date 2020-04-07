@@ -36,7 +36,6 @@ testClusters.integTest {
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1
   }
-  keystorePassword 's3cr3t'
 }
 assert pluginsCount > 0
 

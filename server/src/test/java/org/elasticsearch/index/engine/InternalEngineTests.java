@@ -977,6 +977,45 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(5L));
     }
 
+    public void testSyncTranslogConcurrently() throws Exception {
+        IOUtils.close(engine, store);
+        final Path translogPath = createTempDir();
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get));
+        List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 50), false, randomBoolean(), randomBoolean());
+        applyOperations(engine, ops);
+        engine.flush(true, true);
+        final CheckedRunnable<IOException> checker = () -> {
+            assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+            assertThat(engine.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpoint.get()));
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                SequenceNumbers.CommitInfo commitInfo =
+                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getIndexCommit().getUserData().entrySet());
+                assertThat(commitInfo.localCheckpoint, equalTo(engine.getProcessedLocalCheckpoint()));
+            }
+        };
+        final Thread[] threads = new Thread[randomIntBetween(2, 4)];
+        final Phaser phaser = new Phaser(threads.length);
+        globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                phaser.arriveAndAwaitAdvance();
+                try {
+                    engine.syncTranslog();
+                    checker.run();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        checker.run();
+    }
+
     public void testSyncedFlushSurvivesEngineRestart() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         IOUtils.close(store, engine);

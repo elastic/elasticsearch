@@ -30,8 +30,8 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     public static final String NAME = "hdr_percentiles";
 
     public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+                                   Map<String, Object> metaData) {
+        super(name, percents, state, keyed, formatter,  metaData);
     }
 
     /**

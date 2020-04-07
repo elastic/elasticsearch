@@ -65,7 +65,7 @@ import static java.util.Collections.unmodifiableMap;
  * A builder for histograms on date fields.
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder, DateIntervalConsumer {
+        implements DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
 
@@ -152,7 +152,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        order = InternalOrder.Streams.readHistogramOrder(in);
+        order = InternalOrder.Streams.readHistogramOrder(in, true);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         dateHistogramInterval = new DateIntervalWrapper(in);

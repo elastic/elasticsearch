@@ -50,8 +50,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");

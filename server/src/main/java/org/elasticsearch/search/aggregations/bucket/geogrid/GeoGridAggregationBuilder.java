@@ -44,8 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder> {
     /* recognized field names in JSON */
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");

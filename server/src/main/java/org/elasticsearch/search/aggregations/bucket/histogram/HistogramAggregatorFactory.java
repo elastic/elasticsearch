@@ -34,9 +34,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -74,7 +77,9 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         );
 
         valuesSourceRegistry.register(HistogramAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            Collections.unmodifiableList(Arrays.asList(CoreValuesSourceType.NUMERIC,
+                                                       CoreValuesSourceType.DATE,
+                                                       CoreValuesSourceType.BOOLEAN)),
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
@@ -135,7 +140,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         }
         HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
         return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override

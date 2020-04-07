@@ -47,8 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");

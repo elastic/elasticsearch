@@ -47,8 +47,7 @@ import java.util.Objects;
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
  * fields are unsupported, and will throw at the factory layer.
  */
-public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
 
     private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
@@ -121,7 +120,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        order = InternalOrder.Streams.readHistogramOrder(in);
+        order = InternalOrder.Streams.readHistogramOrder(in, true);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         interval = in.readDouble();

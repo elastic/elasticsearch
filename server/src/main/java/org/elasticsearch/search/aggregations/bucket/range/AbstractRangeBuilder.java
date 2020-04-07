@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
-        extends ValuesSourceAggregationBuilder<AB> implements MultiBucketAggregationBuilder {
+        extends ValuesSourceAggregationBuilder<AB> {
 
     protected final InternalRange.Factory<?, ?> rangeFactory;
     protected List<R> ranges = new ArrayList<>();

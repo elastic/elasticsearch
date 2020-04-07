@@ -453,7 +453,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     throw new TestClustersException("supplied keystore file " + file + " does not exist, require for " + this);
                 }
                 runKeystoreCommandWithPassword(keystorePassword, "", "add-file", entry.getKey(), file.getAbsolutePath());
-                runElasticsearchBinScript("elasticsearch-keystore", "add-file", entry.getKey(), file.getAbsolutePath());
             }
         }
 

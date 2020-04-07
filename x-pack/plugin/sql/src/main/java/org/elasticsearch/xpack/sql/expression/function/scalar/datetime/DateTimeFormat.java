@@ -19,9 +19,9 @@ import java.time.ZoneId;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrTime;
 
-public class ToChar extends BinaryDateTimeFunction {
+public class DateTimeFormat extends BinaryDateTimeFunction {
 
-    public ToChar(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
+    public DateTimeFormat(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
     }
 
@@ -36,7 +36,7 @@ public class ToChar extends BinaryDateTimeFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-         resolution = isString(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isString(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -45,26 +45,26 @@ public class ToChar extends BinaryDateTimeFunction {
 
     @Override
     protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
-        return new ToChar(source(), timestamp, pattern, zoneId());
+        return new DateTimeFormat(source(), timestamp, pattern, zoneId());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToChar::new, left(), right(), zoneId());
+        return NodeInfo.create(this, DateTimeFormat::new, left(), right(), zoneId());
     }
 
     @Override
     protected String scriptMethodName() {
-        return "toChar";
+        return "dateTimeFormat";
     }
 
     @Override
     public Object fold() {
-        return ToCharProcessor.process(left().fold(), right().fold(), zoneId());
+        return DateTimeFormatProcessor.process(left().fold(), right().fold(), zoneId());
     }
 
     @Override
     protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new ToCharPipe(source(), this, timestamp, pattern, zoneId);
+        return new DateTimeFormatPipe(source(), this, timestamp, pattern, zoneId);
     }
 }

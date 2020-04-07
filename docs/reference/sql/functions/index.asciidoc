@@ -53,13 +53,13 @@
 ** <<sql-functions-current-timestamp>>
 ** <<sql-functions-datetime-add>>
 ** <<sql-functions-datetime-diff>>
+** <<sql-functions-datetime-datetimeformat>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>
 ** <<sql-functions-datetime-day>>
 ** <<sql-functions-datetime-dow>>
 ** <<sql-functions-datetime-doy>>
 ** <<sql-functions-datetime-dayname>>
-** <<sql-functions-datetime-dateformat>>
 ** <<sql-functions-datetime-hour>>
 ** <<sql-functions-datetime-isodow>>
 ** <<sql-functions-datetime-isoweek>>

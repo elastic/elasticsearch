@@ -320,21 +320,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_PART('ms', date) FROM test");
     }
 
-    public void testToCharValidArgs() {
-        accept("SELECT TOCHAR(date, 'MM/dd/YYYY') FROM test");
-        accept("SELECT TO_CHAR(date, 'HH:mm:ss') FROM test");
-        accept("SELECT FORMAT(date::time, 'HH:mm:ss.SSS Z') FROM test");
-        accept("SELECT DATE_FORMAT(date, 'HH:mm:ss.SSS VV') FROM test");
+    public void testDateTimeFormatValidArgs() {
+        accept("SELECT DATETIME_FORMAT(date, 'HH:mm:ss.SSS VV') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::time, 'HH:mm:ss Z') FROM test");
     }
 
-    public void testToCharInvalidArgs() {
+    public void testDateTimeFormatInvalidArgs() {
         assertEquals(
-            "1:8: first argument of [TO_CHAR(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
-            error("SELECT TO_CHAR(int, keyword) FROM test")
+            "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
         );
         assertEquals(
-            "1:8: second argument of [TO_CHAR(date, int)] must be [string], found value [int] type [integer]",
-            error("SELECT TO_CHAR(date, int) FROM test")
+            "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(date, int) FROM test")
         );
     }
 

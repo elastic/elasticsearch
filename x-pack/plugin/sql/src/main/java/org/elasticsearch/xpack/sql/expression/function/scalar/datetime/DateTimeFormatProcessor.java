@@ -20,15 +20,15 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
-public class ToCharProcessor extends BinaryDateTimeProcessor {
+public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
-    public static final String NAME = "dtochar";
+    public static final String NAME = "dtformat";
 
-    public ToCharProcessor(Processor source1, Processor source2, ZoneId zoneId) {
+    public DateTimeFormatProcessor(Processor source1, Processor source2, ZoneId zoneId) {
         super(source1, source2, zoneId);
     }
 
-    public ToCharProcessor(StreamInput in) throws IOException {
+    public DateTimeFormatProcessor(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -59,7 +59,12 @@ public class ToCharProcessor extends BinaryDateTimeProcessor {
         try {
             return DateTimeFormatter.ofPattern((String) pattern, Locale.ROOT).format(ta);
         } catch (IllegalArgumentException | DateTimeException e) {
-            throw new SqlIllegalArgumentException("Invalid date/time pattern is received [{}]; {}", pattern, e.getMessage());
+            throw new SqlIllegalArgumentException(
+                "Invalid pattern [{}] is received for formatting date/time [{}]; {}",
+                pattern,
+                timestamp,
+                e.getMessage()
+            );
         }
     }
 

@@ -404,13 +404,13 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
-[[sql-functions-datetime-dateformat]]
-==== `DATE_FORMAT/FORMAT/TO_CHAR/TOCHAR`
+[[sql-functions-datetime-datetimeformat]]
+==== `DATETIME_FORMAT`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DATE_FORMAT(
+DATETIME_FORMAT(
     datetime_exp/time_exp, <1>
     string_exp) <2>
 --------------------------------------------------
@@ -433,17 +433,17 @@ If the 1st argument is of type `time`, then pattern specified by the 2nd argumen
 
 [source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDate]
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDate]
 --------------------------------------------------
 
 [source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDateTime]
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDateTime]
 --------------------------------------------------
 
 [source, sql]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatTime]
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatTime]
 --------------------------------------------------
 
 [[sql-functions-datetime-part]]

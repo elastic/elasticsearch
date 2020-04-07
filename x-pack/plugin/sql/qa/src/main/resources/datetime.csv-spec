@@ -476,20 +476,20 @@ null       | 430
 F          | 391
 ;
 
-selectDateFormat
+selectDateTimeFormat
 schema::df_date:s|df_datetime:s|df_time:s
-SELECT DATE_FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.SSS') AS df_date,
-DATE_FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.SS') AS df_datetime,
-DATE_FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.SS') AS df_time;
+SELECT DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.SSS') AS df_date,
+DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.SS') AS df_datetime,
+DATETIME_FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.SS') AS df_time;
 
        df_date          |    df_datetime         |   df_time
 ------------------------+------------------------+----------------
 05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
 ;
 
-selectDateFormatWithField
+selectDateTimeFormatWithField
 schema::birth_date:ts|df_birth_date1:s|df_birth_date2:s
-SELECT birth_date, DATE_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date1, DATE_FORMAT(birth_date, concat(gender, 'M/dd')) AS df_birth_date2
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date1, DATETIME_FORMAT(birth_date, concat(gender, 'M/dd')) AS df_birth_date2
 FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
 
        birth_date        | df_birth_date1 | df_birth_date2
@@ -507,10 +507,10 @@ null                     | null           | null
 1961-02-26 00:00:00.000Z | 02/26/1961     | 02/26
 ;
 
-dateFormatWhere
+dateTimeFormatWhere
 schema::birth_date:ts|df_birth_date:s
-SELECT birth_date, FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp
-WHERE FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp
+WHERE DATETIME_FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 
        birth_date        | df_birth_date
 -------------------------+---------------
@@ -526,9 +526,9 @@ WHERE FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 1962-11-26 00:00:00.000Z | 11
 ;
 
-dateFormatOrderBy
+dateTimeFormatOrderBy
 schema::birth_date:ts|df_birth_date:s
-SELECT birth_date, DATE_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
 
        birth_date        | df_birth_date
 -------------------------+---------------
@@ -544,9 +544,9 @@ SELECT birth_date, DATE_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date FROM t
 1962-11-19 00:00:00.000Z | 11/19/1962
 ;
 
-dateFormatGroupBy
+dateTimeFormatGroupBy
 schema::count:l|df_birth_date:s
-SELECT count(*) AS count, DATE_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
+SELECT count(*) AS count, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
 
  count | df_birth_date
 -------+---------------
@@ -565,10 +565,10 @@ SELECT count(*) AS count, DATE_FORMAT(birth_date, 'MM') AS df_birth_date FROM te
 2      | 03
 ;
 
-dateFormatHaving
+dateTimeFormatHaving
 schema::max:ts|df_birth_date:s
-SELECT MAX(birth_date) AS max, TO_CHAR(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
-HAVING TO_CHAR(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
+SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING DATETIME_FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
 
           max            | df_birth_date
 -------------------------+---------------

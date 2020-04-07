@@ -13,24 +13,24 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.ZoneId;
 
-public class ToCharPipe extends BinaryDateTimePipe {
+public class DateTimeFormatPipe extends BinaryDateTimePipe {
 
-    public ToCharPipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId) {
+    public DateTimeFormatPipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId) {
         super(source, expression, left, right, zoneId);
     }
 
     @Override
-    protected NodeInfo<ToCharPipe> info() {
-        return NodeInfo.create(this, ToCharPipe::new, expression(), left(), right(), zoneId());
+    protected NodeInfo<DateTimeFormatPipe> info() {
+        return NodeInfo.create(this, DateTimeFormatPipe::new, expression(), left(), right(), zoneId());
     }
 
     @Override
-    protected ToCharPipe replaceChildren(Pipe left, Pipe right) {
-        return new ToCharPipe(source(), expression(), left, right, zoneId());
+    protected DateTimeFormatPipe replaceChildren(Pipe left, Pipe right) {
+        return new DateTimeFormatPipe(source(), expression(), left, right, zoneId());
     }
 
     @Override
     protected Processor makeProcessor(Processor left, Processor right, ZoneId zoneId) {
-        return new ToCharProcessor(left, right, zoneId);
+        return new DateTimeFormatProcessor(left, right, zoneId);
     }
 }

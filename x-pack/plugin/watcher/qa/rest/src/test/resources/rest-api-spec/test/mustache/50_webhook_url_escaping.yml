@@ -1,16 +1,11 @@
 ---
 "Test url escaping with url mustache function":
-  - skip:
-      features: warnings
-
   - do:
       index:
         index:   <date-index-{now/d}>
         id:      1
         refresh: true
         body:    { foo: bar }
-      warnings:
-        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   # extract http host and port from master node
   - do:

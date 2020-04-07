@@ -18,7 +18,6 @@ restResources {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

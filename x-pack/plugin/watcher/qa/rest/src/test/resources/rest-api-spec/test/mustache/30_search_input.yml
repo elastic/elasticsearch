@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      features: warnings
-
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -16,8 +13,6 @@ setup:
             "date" : "2015-01-01T00:00:00",
             "value" : "val_1"
           }
-      warnings:
-        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
   - do:
       index:
         index: idx
@@ -102,8 +97,6 @@ setup:
 
 ---
 "Test search input mustache integration (using request template)":
-  - skip:
-      features: warnings
 
   - do:
       put_script:
@@ -126,9 +119,6 @@ setup:
                   }
                 }
               }
-      warnings:
-        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
-
   - match: { acknowledged: true }
 
   - do:
@@ -225,9 +215,6 @@ setup:
 
 ---
 "Test search input mustache integration (using request template and rest_total_hits_as_int)":
-  - skip:
-      features: warnings
-
   - do:
       put_script:
         id: "search-template"
@@ -249,9 +236,6 @@ setup:
             }
           }
         }
-      warnings:
-        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
-
   - match: { acknowledged: true }
 
   - do:

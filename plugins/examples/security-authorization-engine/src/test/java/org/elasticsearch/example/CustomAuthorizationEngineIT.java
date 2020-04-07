@@ -25,13 +25,16 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
@@ -97,6 +100,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                 basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE); // TODO: Remove this when xpack.ilm.enabled setting is removed
             Request request = new Request("PUT", "/index");
             request.setOptions(options);
             Response response = client().performRequest(request);

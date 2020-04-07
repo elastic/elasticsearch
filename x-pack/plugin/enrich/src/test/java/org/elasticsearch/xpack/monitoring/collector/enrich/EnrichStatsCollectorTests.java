@@ -75,7 +75,8 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = enrichDisabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
+        boolean isMonitoringAllowed = randomBoolean();
+        when(licenseState.isMonitoringAllowed()).thenReturn(isMonitoringAllowed);
         when(licenseState.isEnrichAllowed()).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
@@ -88,12 +89,16 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         if (isElectedMaster) {
             verify(licenseState).isMonitoringAllowed();
         }
+        if (isElectedMaster && isMonitoringAllowed) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.ENRICH_ENABLED_SETTING});
+        }
     }
 
     public void testShouldCollectReturnsFalseIfEnrichIsNotAllowed() {
         final Settings settings = randomFrom(enrichEnabledSettings(), enrichDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
+        boolean isMonitoringAllowed = randomBoolean();
+        when(licenseState.isMonitoringAllowed()).thenReturn(isMonitoringAllowed);
         // this is controls the blockage
         when(licenseState.isEnrichAllowed()).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
@@ -105,6 +110,9 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         if (isElectedMaster) {
             verify(licenseState).isMonitoringAllowed();
+        }
+        if (isElectedMaster && isMonitoringAllowed && settings.get(XPackSettings.ENRICH_ENABLED_SETTING.getKey()) != null) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.ENRICH_ENABLED_SETTING});
         }
     }
 

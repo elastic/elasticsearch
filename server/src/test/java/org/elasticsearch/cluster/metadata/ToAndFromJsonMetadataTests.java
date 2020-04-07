@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
@@ -52,18 +53,8 @@ import static org.hamcrest.Matchers.is;
 public class ToAndFromJsonMetadataTests extends ESTestCase {
 
     public void testSimpleJsonFromAndTo() throws IOException {
-        IndexMetadata idx1 = IndexMetadata.builder("data-stream1-000001")
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-
-        IndexMetadata idx2 = IndexMetadata.builder("data-stream2-000001")
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-
+        IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
+        IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
         Metadata metadata = Metadata.builder()
                 .put(IndexTemplateMetadata.builder("foo")
                         .patterns(Collections.singletonList("bar"))

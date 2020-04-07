@@ -122,11 +122,32 @@ InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),p
 ;
 
 betweenFunction
-process where between(process_name, "s", "e") == "yst";
-
+process where between(process_name, "s", "e") == "yst"
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
 "params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+;
+
+cidrMatchFunctionOne
+process where cidrMatch(source_address, "10.0.0.0/8")
+;
+"term":{"source_address":{"value":"10.0.0.0/8"
+;
+
+cidrMatchFunctionTwo
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
+;
+"term":{"source_address":{"value":"10.0.0.0/8"
+"term":{"source_address":{"value":"192.168.0.0/16"
+;
+
+cidrMatchFunctionThree
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
+;
+"term":{"source_address":{"value":"10.0.0.0/8"
+"term":{"source_address":{"value":"192.168.0.0/16"
+"term":{"source_address":{"value":"2001:db8::/32"
 ;
 
 wildcardFunctionSingleArgument

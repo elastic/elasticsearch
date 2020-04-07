@@ -358,7 +358,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         MappingMetadata mappingMetadata = getIndexResponse.getMappings().get(indexName);
         assertNotNull(mappingMetadata);
         assertEquals("_doc", mappingMetadata.type());
-        assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetadata.source().string());
+        // TODO this feels wrong - should we fork MappingMetadata to HLRC like we have done with other
+        // metadata classes? and what does that mean for backporting?
+        assertEquals("{\"_doc\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}}", mappingMetadata.source().string());
         Object o = mappingMetadata.getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         //noinspection unchecked

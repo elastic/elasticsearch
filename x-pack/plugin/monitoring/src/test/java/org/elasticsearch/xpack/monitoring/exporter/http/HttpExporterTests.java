@@ -314,8 +314,10 @@ public class HttpExporterTests extends ESTestCase {
         // use basic auth
         final boolean useBasicAuth = randomBoolean();
         if (useBasicAuth) {
-            builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
-                   .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+            builder.put("xpack.monitoring.exporters._http.auth.username", "_user");
+            MockSecureSettings mockSecureSettings  = new MockSecureSettings();
+            mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", "securePassword");
+            builder.setSecureSettings(mockSecureSettings);
         }
 
         // use headers
@@ -328,10 +330,6 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
-        if (useBasicAuth) {
-            assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version.");
-        }
     }
 
     public void testCreateSnifferDisabledByDefault() {

@@ -85,13 +85,30 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
 
-// test cases from the doc, but not sure why would these be ok when accept is null
-//        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
-//            expect(requestCreated(), isCompatible()));
-//        createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent(),
-//            expect(requestCreated(), isCompatible()));
+        //body not present - ignoring content-type. Accept header = null defaults to JSON and current version (non compatible)
+        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        //Accept header = application/json means current version. If body is provided then accept and content-Type should be the same
+        createRequestWith(acceptHeader("application/json"), contentTypeHeader(null), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/json"), bodyPresent(),
+            expect(requestCreated(), not(isCompatible())));
     }
 
+    public void testMediaTypeCombinations(){
+        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/smile"), bodyPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/something+json"), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+        createRequestWith(acceptHeader("application/something+json"), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+    }
 
     private Matcher<FakeRestRequest.Builder> exceptionDuringCreation(Class<? extends Exception> exceptionClass) {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(builder -> {
@@ -128,12 +145,27 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         return "some body";
     }
 
-    private List<String> contentTypeHeader(Integer version) {
+    private List<String> contentTypeHeader(int version) {
         return mediaType(version);
     }
 
-    private List<String> acceptHeader(Integer version) {
+    private List<String> acceptHeader(int version) {
         return mediaType(version);
+    }
+
+    private List<String> acceptHeader(String value) {
+        return headerValue(value);
+    }
+
+    private List<String> contentTypeHeader(String value) {
+        return headerValue(value);
+    }
+
+    private List<String> headerValue(String value) {
+        if (value != null) {
+            return List.of(value);
+        }
+        return null;
     }
 
     private List<String> mediaType(Integer version) {

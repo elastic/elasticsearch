@@ -126,7 +126,9 @@ public enum XContentType {
      * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
      * format query string parameter. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaTypeOrFormat(String mediaType) {
+    public static XContentType fromMediaTypeOrFormat(String mediaTypeHeaderValue) {
+        String mediaType = parseMediaType(mediaTypeHeaderValue);
+
         if (mediaType == null) {
             return null;
         }
@@ -165,7 +167,8 @@ public enum XContentType {
         return null;
     }
 
-    public static String parseMediaType(String mediaType) {
+    //default scope for testing
+    static String parseMediaType(String mediaType) {
         if (mediaType != null) {
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find()) {

@@ -139,7 +139,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private void addCompatibleParameter() {
-        validateParameters();
+        validateAcceptContentTypeHeaders();
         if (isRequestCompatible()) {
             String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
             params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
@@ -148,24 +148,37 @@ public class RestRequest implements ToXContent.Params {
         }
     }
 
-    private void validateParameters() {
+    private void validateAcceptContentTypeHeaders() {
         String currentVersion = String.valueOf(Version.CURRENT.major);
         String previousVersion = String.valueOf(Version.CURRENT.major - 1);
-        String acceptVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
-        String contentTypeVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER));
+        String acceptVersion = getVersion(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
+        String contentTypeVersion = getVersion(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
 
         if (hasContent()) {
-            if ((previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion)) &&
+            if ((previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion) ) &&
                 acceptVersion.equals(contentTypeVersion)) {
                 return;
             }
 
-        } else if (previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion)) {
+        } else if ( previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion) || acceptVersion == null) {
             return;
         }
         throw new CompatibleApiHeadersCombinationException(
-            String.format(Locale.ROOT, "Request with a body and compatible Accept=%s but incorrect Content-Type=%s",
-                acceptVersion, contentTypeVersion));
+            String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
+                    "Accept=%s Content-Type=%s", acceptVersion, contentTypeVersion));
+    }
+
+    private String getVersion(String headerName) {
+        String headerValue = header(headerName);
+        String version = XContentType.parseVersion(headerValue);
+        if(version != null){
+            return version;
+        }
+        // if version was not provided but mediaType is parsable - return Current
+        if(XContentType.fromMediaTypeOrFormat(headerValue) != null){
+            return String.valueOf(Version.CURRENT.major);
+        }
+        return headerValue;
     }
 
     private boolean isRequestCompatible() {

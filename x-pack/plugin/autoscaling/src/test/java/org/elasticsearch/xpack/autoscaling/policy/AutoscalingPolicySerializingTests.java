@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.autoscaling.policy;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.autoscaling.Autoscaling;
+import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingPolicy;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicyOfName;
@@ -23,12 +22,12 @@ public class AutoscalingPolicySerializingTests extends AbstractSerializingTestCa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new Autoscaling(Settings.EMPTY).getNamedWriteables());
+        return AutoscalingTestCase.getAutoscalingNamedWriteableRegistry();
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new Autoscaling(Settings.EMPTY).getNamedXContent());
+        return AutoscalingTestCase.getAutoscalingXContentRegistry();
     }
 
     @Override

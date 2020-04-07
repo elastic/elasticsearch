@@ -81,7 +81,6 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -319,9 +318,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.index.engine:DEBUG",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/52223")
     public void testMaybeFlush() throws Exception {
         createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build());

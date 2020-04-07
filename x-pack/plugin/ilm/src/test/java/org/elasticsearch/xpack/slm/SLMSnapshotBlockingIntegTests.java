@@ -24,7 +24,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -368,24 +367,18 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             logger.info("--> waiting for {} snapshot [{}] to be deleted", expectedUnsuccessfulState, failedSnapshotName.get());
             assertBusy(() -> {
                 try {
-                    try {
-                        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                            .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                        assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
-                    } catch (SnapshotMissingException e) {
-                        // This is what we want to happen
-                    }
-                    logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
-                        expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
-                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
-                    assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                } catch (RepositoryException re) {
-                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
-                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
-                    throw new AssertionError(re);
+                        .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
+                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                } catch (SnapshotMissingException e) {
+                    // This is what we want to happen
                 }
+                logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
+                    expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
+                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                    .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             });
         }
     }
@@ -435,19 +428,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         logger.info("--> waiting for {} snapshot to be deleted", snapshotName);
         assertBusy(() -> {
             try {
-                try {
-                    GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
-                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
-                } catch (SnapshotMissingException e) {
-                    // This is what we want to happen
-                }
-                logger.info("--> snapshot [{}] has been deleted", snapshotName);
-            } catch (RepositoryException re) {
-                // Concurrent status calls and write operations may lead to failures in determining the current repository generation
-                // TODO: Remove this hack once tracking the current repository generation has been made consistent
-                throw new AssertionError(re);
+                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                    .prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
+                assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+            } catch (SnapshotMissingException e) {
+                // This is what we want to happen
             }
+            logger.info("--> snapshot [{}] has been deleted", snapshotName);
         });
 
         // Cancel/delete the snapshot
@@ -459,15 +446,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {
-        try {
-            return client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
-        } catch (RepositoryException e) {
-            // Convert this to an AssertionError so that it can be retried in an assertBusy - this is often a transient error because
-            // concurrent status calls and write operations may lead to failures in determining the current repository generation
-            // TODO: Remove this hack once tracking the current repository generation has been made consistent
-            logger.warn(e);
-            throw new AssertionError(e);
-        }
+        return client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
     }
 
     private void createAndPopulateIndex(String indexName) throws InterruptedException {

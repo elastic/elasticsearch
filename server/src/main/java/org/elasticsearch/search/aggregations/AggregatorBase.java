@@ -24,7 +24,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -53,7 +52,6 @@ public abstract class AggregatorBase extends Aggregator {
     protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
-    private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
 
@@ -67,9 +65,8 @@ public abstract class AggregatorBase extends Aggregator {
      * @param metadata              The metadata associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+            Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.pipelineAggregators = pipelineAggregators;
         this.metadata = metadata;
         this.parent = parent;
         this.context = context;
@@ -150,10 +147,6 @@ public abstract class AggregatorBase extends Aggregator {
 
     public Map<String, Object> metadata() {
         return this.metadata;
-    }
-
-    public List<PipelineAggregator> pipelineAggregators() {
-        return this.pipelineAggregators;
     }
 
     /**

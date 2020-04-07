@@ -144,13 +144,13 @@ thread_pool:
 --------------------------------------------------
 
 [float]
-[[processors]]
-=== Processors setting
+[[node.processors]]
+=== Allocated processors setting
 
-The number of processors is automatically detected, and the thread pool
-settings are automatically set based on it. In some cases it can be
-useful to override the number of detected processors. This can be done
-by explicitly setting the `node.processors` setting.
+The number of processors is automatically detected, and the thread pool settings
+are automatically set based on it. In some cases it can be useful to override
+the number of detected processors. This can be done by explicitly setting the
+`node.processors` setting.
 
 [source,yaml]
 --------------------------------------------------

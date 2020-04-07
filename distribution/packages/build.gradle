@@ -117,7 +117,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
       if (architecture == 'x64') {
         arch('X86_64')
       } else {
-        assert architecture == 'aarch64' : architecture-a
+        assert architecture == 'aarch64' : architecture
         arch('aarch64')
       }
     }

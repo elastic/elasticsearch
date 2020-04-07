@@ -267,7 +267,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final AtomicBoolean cleanedUp = new AtomicBoolean(false);
             continueOrDie(cleanupResponse, r -> cleanedUp.set(true));
 
-            runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(1L));
+            runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(5L));
 
             if (blobStoreContext != null) {
                 blobStoreContext.forceConsistent();
@@ -448,11 +448,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-        if (waitForSnapshot) {
-            assertThat(snapshotIds, hasSize(0));
-        } else {
-            assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
-        }
+        assertThat(snapshotIds, hasSize(0));
     }
 
     public void testConcurrentSnapshotCreateAndDelete() {

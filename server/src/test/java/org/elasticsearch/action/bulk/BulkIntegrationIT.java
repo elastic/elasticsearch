@@ -30,7 +30,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -82,7 +82,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
      * an alias pointing to multiple indices, while a write index exits.
      */
     public void testBulkWithWriteIndexAndRouting() {
-        Map<String, Integer> twoShardsSettings = Collections.singletonMap(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2);
+        Map<String, Integer> twoShardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
         client().admin().indices().prepareCreate("index1")
             .addAlias(new Alias("alias1").indexRouting("0")).setSettings(twoShardsSettings).get();
         client().admin().indices().prepareCreate("index2")

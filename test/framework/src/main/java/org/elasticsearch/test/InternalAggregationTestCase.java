@@ -273,17 +273,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return namedXContents;
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata);
 
     /** Return an instance on an unmapped field. */
-    protected T createUnmappedInstance(String name,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    protected T createUnmappedInstance(String name, Map<String, Object> metadata) {
         // For most impls, we use the same instance in the unmapped case and in the mapped case
-        return createTestInstance(name, pipelineAggregators, metaData);
+        return createTestInstance(name, metadata);
     }
 
-    public void testReduceRandom() {
+    public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();
@@ -298,7 +296,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // sometimes do an incremental reduce
+            // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
@@ -313,6 +311,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             int reducedBucketCount = countInnerBucket(reduced);
             //check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
+            /*
+             * Sometimes serializing and deserializing the partially reduced
+             * result to simulate the compaction that we attempt after a
+             * partial reduce. And to simulate cross cluster search.
+             */
+            if (randomBoolean()) {
+                reduced = copyInstance(reduced);
+            }
             toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
@@ -341,29 +347,25 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     private T createTestInstance(String name) {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
-        // TODO populate pipelineAggregators
-        Map<String, Object> metaData = null;
+        Map<String, Object> metadata = null;
         if (randomBoolean()) {
-            metaData = new HashMap<>();
-            int metaDataCount = between(0, 10);
-            while (metaData.size() < metaDataCount) {
-                metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            metadata = new HashMap<>();
+            int metadataCount = between(0, 10);
+            while (metadata.size() < metadataCount) {
+                metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, pipelineAggregators, metaData);
+        return createTestInstance(name, metadata);
     }
 
     /** Return an instance on an unmapped field. */
     protected final T createUnmappedInstance(String name) {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
-        // TODO populate pipelineAggregators
-        Map<String, Object> metaData = new HashMap<>();
-        int metaDataCount = randomBoolean() ? 0 : between(1, 10);
-        while (metaData.size() < metaDataCount) {
-            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, Object> metadata = new HashMap<>();
+        int metadataCount = randomBoolean() ? 0 : between(1, 10);
+        while (metadata.size() < metadataCount) {
+            metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
-        return createUnmappedInstance(name, pipelineAggregators, metaData);
+        return createUnmappedInstance(name, metadata);
     }
 
     @Override
@@ -483,7 +485,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
             Aggregation agg = parsedAggregation.get();
             assertEquals(aggregation.getName(), agg.getName());
-            assertEquals(aggregation.getMetaData(), agg.getMetaData());
+            assertEquals(aggregation.getMetadata(), agg.getMetadata());
 
             assertTrue(agg instanceof ParsedAggregation);
             assertEquals(aggregation.getType(), agg.getType());

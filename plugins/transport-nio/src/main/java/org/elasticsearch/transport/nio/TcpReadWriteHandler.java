@@ -29,6 +29,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -41,7 +42,9 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
-        this.pipeline = new InboundPipeline(transport.getVersion(), recycler, transport::inboundMessage, transport::inboundDecodeException);
+        final ThreadPool threadPool = transport.getThreadPool();
+        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
+            transport::inboundMessage, transport::inboundDecodeException);
     }
 
     @Override

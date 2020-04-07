@@ -24,8 +24,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -130,15 +128,6 @@ public class AggregationPhase implements SearchPhase {
                 aggregations.add(aggregator.buildAggregation(0));
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
-            }
-        }
-        List<PipelineAggregator> pipelineAggregators = context.aggregations().factories().createPipelineAggregators();
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            if (false == pipelineAggregator instanceof SiblingPipelineAggregator) {
-                // TODO move this to request validation after #53669
-                throw new AggregationExecutionException("Invalid pipeline aggregation named [" + pipelineAggregator.name()
-                    + "] of type [" + pipelineAggregator.getWriteableName() + "]. Only sibling pipeline aggregations are "
-                    + "allowed at the top level");
             }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations,

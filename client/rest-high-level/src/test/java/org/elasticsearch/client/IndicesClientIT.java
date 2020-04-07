@@ -2035,8 +2035,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, Map.of("alias", alias));
-        List<String> pattern = List.of("pattern");
+        Template template = new Template(settings, mappings, Collections.singletonMap("alias", alias));
+        List<String> pattern = Collections.singletonList("pattern");
         IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
         PutIndexTemplateV2Request putIndexTemplateV2Request =
             new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);

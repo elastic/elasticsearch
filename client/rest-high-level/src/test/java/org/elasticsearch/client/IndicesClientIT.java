@@ -1609,7 +1609,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
 
-        exist = exist = execute(indexTemplateV2ExistRequest,
+        exist = execute(indexTemplateV2ExistRequest,
             highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
 
         assertFalse(exist);

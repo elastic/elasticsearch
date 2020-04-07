@@ -145,27 +145,26 @@ thread_pool:
 The number of processors is automatically detected, and the thread pool
 settings are automatically set based on it. In some cases it can be
 useful to override the number of detected processors. This can be done
-by explicitly setting the `processors` setting.
+by explicitly setting the `node.processors` setting.
 
 [source,yaml]
 --------------------------------------------------
-processors: 2
+node.processors: 2
 --------------------------------------------------
 
-There are a few use-cases for explicitly overriding the `processors`
+There are a few use-cases for explicitly overriding the `node.processors`
 setting:
 
-. If you are running multiple instances of {es} on the same host but want {es}
-to size its thread pools as if it only has a fraction of the CPU, you should
-override the `processors` setting to the desired fraction, for example, if
-you're running two instances of {es} on a 16-core machine, set `processors` to 8.
-Note that this is an expert-level use case and there's a lot more involved
-than just setting the `processors` setting as there are other considerations
-like changing the number of garbage collector threads, pinning processes to
-cores, and so on.
-. Sometimes the number of processors is wrongly detected and in such
-cases explicitly setting the `processors` setting will workaround such
-issues.
+. If you are running multiple instances of {es} on the same host but want want
+{es} to size its thread pools as if it only has a fraction of the CPU, you
+should override the `node.processors` setting to the desired fraction, for
+example, if you're running two instances of {es} on a 16-core machine, set
+`node.processors` to 8.  Note that this is an expert-level use case and there's
+a lot more involved than just setting the `node.processors` setting as there are
+other considerations like changing the number of garbage collector threads,
+pinning processes to cores, and so on.
+. Sometimes the number of processors is wrongly detected and in such cases
+explicitly setting the `node.processors` setting will workaround such issues.
 
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

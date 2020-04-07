@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+import org.elasticsearch.gradle.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -72,6 +72,10 @@ integTest {
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   plugin file(repositoryPlugin.bundlePlugin.archiveFile)
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 
   keystore 'azure.client.searchable_snapshots.account', azureAccount
   keystore 'azure.client.searchable_snapshots.key', azureKey

@@ -35,7 +35,7 @@ public class GetIndexTemplateV2Request implements Validatable {
     private boolean local = false;
 
     /**
-     * Create a request to read the content of component template. If no template name is provided, all templates will
+     * Create a request to read the content of index template. If no template name is provided, all templates will
      * be read
      *
      * @param name the name of template to read

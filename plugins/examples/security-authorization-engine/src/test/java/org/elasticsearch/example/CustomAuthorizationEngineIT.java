@@ -30,11 +30,9 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;

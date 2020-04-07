@@ -20,8 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.Set;
@@ -36,24 +35,21 @@ public final class TcpTransportChannel implements TransportChannel {
     private final long requestId;
     private final Version version;
     private final Set<String> features;
-    private final CircuitBreakerService breakerService;
-    private final long reservedBytes;
     private final boolean compressResponse;
     private final boolean isHandshake;
+    private final Releasable breakerRelease;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        Set<String> features, CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse,
-                        boolean isHandshake) {
+                        Set<String> features, boolean compressResponse, boolean isHandshake, Releasable breakerRelease) {
         this.version = version;
         this.features = features;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;
         this.requestId = requestId;
-        this.breakerService = breakerService;
-        this.reservedBytes = reservedBytes;
         this.compressResponse = compressResponse;
         this.isHandshake = isHandshake;
+        this.breakerRelease = breakerRelease;
     }
 
     @Override
@@ -84,7 +80,7 @@ public final class TcpTransportChannel implements TransportChannel {
     private void release(boolean isExceptionResponse) {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
-            breakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS).addWithoutBreaking(-reservedBytes);
+            breakerRelease.close();
         } else if (isExceptionResponse == false) {
             // only fail if we are not sending an error - we might send the error triggered by the previous
             // sendResponse call

@@ -1642,9 +1642,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 latch.await();
                 assertFalse(requestProcessed.get());
+            }
 
-                service.acceptIncomingRequests();
-
+            service.acceptIncomingRequests();
+            try (Transport.Connection connection = serviceA.openConnection(node, null)) {
                 CountDownLatch latch2 = new CountDownLatch(1);
                 serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<TestResponse>() {
@@ -2026,25 +2027,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        try (MockTransportService service = buildService("TS_BAD", Version.CURRENT, Settings.EMPTY)) {
-            service.addMessageListener(new TransportMessageListener() {
-                @Override
-                public void onRequestReceived(long requestId, String action) {
-                    if (TransportHandshaker.HANDSHAKE_ACTION_NAME.equals(action)) {
-                        throw new ActionNotFoundTransportException(action);
-                    }
-                }
-            });
-            service.start();
-            service.acceptIncomingRequests();
-            // this acts like a node that doesn't have support for handshakes
-            DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
-            assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
-            assertEquals("handshake failed", exception.getCause().getMessage());
-        }
-
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),

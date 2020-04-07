@@ -103,6 +103,13 @@ InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),p
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
 
 
+betweenFunction
+process where between(process_name, "s", "e") == "yst"
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
+"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+
+
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
@@ -119,4 +126,3 @@ process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
 "wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
 "wildcard":{"process_path":{"wildcard":"*def*"
-

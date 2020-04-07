@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -44,6 +45,10 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
 
     public String[] indices() {
         return indices;
+    }
+
+    public String indexAsWildcard() {
+        return Strings.arrayToCommaDelimitedString(indices);
     }
 
     public TimeValue requestTimeout() {

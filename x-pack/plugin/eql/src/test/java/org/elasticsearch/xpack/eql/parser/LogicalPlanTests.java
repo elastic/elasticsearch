@@ -11,7 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
+import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
@@ -81,18 +83,18 @@ public class LogicalPlanTests extends ESTestCase {
         assertEquals(Join.class, plan.getClass());
         Join join = (Join) plan;
         assertEquals(KeyedFilter.class, join.until().getClass());
-        KeyedFilter f = (KeyedFilter) join.until();
+        KeyedFilter f = join.until();
         Expression key = f.keys().get(0);
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("pid", ((UnresolvedAttribute) key).name());
 
-        List<LogicalPlan> queries = join.queries();
+        List<? extends LogicalPlan> queries = join.queries();
         assertEquals(4, queries.size());
         LogicalPlan subPlan = queries.get(0);
         assertEquals(KeyedFilter.class, subPlan.getClass());
         KeyedFilter kf = (KeyedFilter) subPlan;
 
-        List<Expression> keys = kf.keys();
+        List<? extends NamedExpression> keys = kf.keys();
         key = keys.get(0);
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("pid", ((UnresolvedAttribute) key).name());
@@ -108,18 +110,17 @@ public class LogicalPlanTests extends ESTestCase {
 
         assertEquals(Sequence.class, plan.getClass());
         Sequence seq = (Sequence) plan;
-        assertEquals(Filter.class, seq.until().getClass());
-        Filter f = (Filter) seq.until();
-        assertEquals(false, f.condition().fold());
+        assertEquals(KeyedFilter.class, seq.until().getClass());
+        assertEquals(LocalRelation.class, seq.until().child().getClass());
 
-        List<LogicalPlan> queries = seq.queries();
-        assertEquals(1, queries.size());
+        List<? extends LogicalPlan> queries = seq.queries();
+        assertEquals(2, queries.size());
         LogicalPlan subPlan = queries.get(0);
         assertEquals(KeyedFilter.class, subPlan.getClass());
         KeyedFilter kf = (KeyedFilter) subPlan;
 
-        List<Expression> keys = kf.keys();
-        Expression key = keys.get(0);
+        List<? extends NamedExpression> keys = kf.keys();
+        NamedExpression key = keys.get(0);
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("pid", ((UnresolvedAttribute) key).name());
 

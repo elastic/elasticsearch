@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.rule.RuleExecutionException;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -1019,7 +1018,7 @@ public final class OptimizerRules {
         }
     }
     
-    public static final class PruneFilters extends OptimizerRule<Filter> {
+    public static abstract class PruneFilters extends OptimizerRule<Filter> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
@@ -1030,9 +1029,7 @@ public final class OptimizerRules {
                     return filter.child();
                 }
                 if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    //TODO: re-visit this branch when it's decided if EQL needs a LocalRelation-like class
-                    //return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
-                    throw new RuleExecutionException("Does not know how to handle a local relation");
+                    return nonMatchingFilter(filter);
                 }
             }
 
@@ -1041,6 +1038,8 @@ public final class OptimizerRules {
             }
             return filter;
         }
+
+        protected abstract LogicalPlan nonMatchingFilter(Filter filter);
 
         private static Expression foldBinaryLogic(Expression expression) {
             if (expression instanceof Or) {

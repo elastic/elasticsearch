@@ -74,6 +74,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -1117,7 +1118,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
+                    assertFalse("recovery request was set already", startRecoveryRequestFuture.isDone());
                     startRecoveryRequestFuture.onResponse((StartRecoveryRequest) request);
+                }
+                if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                    RetentionLeases retentionLeases = internalCluster().getInstance(IndicesService.class, node)
+                        .indexServiceSafe(resolveIndex(indexName))
+                        .getShard(0).getRetentionLeases();
+                    throw new AssertionError("expect an operation-based recovery:" +
+                        "retention leases" + Strings.toString(retentionLeases) + "]");
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
@@ -1133,6 +1142,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();
         shard.failShard("test", new IOException("simulated"));
         StartRecoveryRequest startRecoveryRequest = startRecoveryRequestFuture.actionGet();
+        logger.info("--> start recovery request: starting seq_no {}, commit {}", startRecoveryRequest.startingSeqNo(),
+            startRecoveryRequest.metadataSnapshot().getCommitUserData());
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet());
         assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
@@ -1141,6 +1152,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen(indexName);
         for (RecoveryState recoveryState : client().admin().indices().prepareRecoveries().get().shardRecoveryStates().get(indexName)) {
             if (startRecoveryRequest.targetNode().equals(recoveryState.getTargetNode())) {
+                assertThat("expect an operation-based recovery", recoveryState.getIndex().fileDetails(), empty());
                 assertThat("total recovered translog operations must include both local and remote recovery",
                     recoveryState.getTranslog().recoveredOperations(),
                     greaterThanOrEqualTo(Math.toIntExact(maxSeqNo - localCheckpointOfSafeCommit)));

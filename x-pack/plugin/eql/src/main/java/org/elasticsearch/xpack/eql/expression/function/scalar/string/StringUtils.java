@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 
 final class StringUtils {
 
@@ -18,7 +19,49 @@ final class StringUtils {
 
     /**
      * Extracts a substring from string between left and right strings.
-     * Port of "stringContains" function from the original EQL python implementation.
+     * Port of "between" function from the original EQL python implementation.
+     *
+     * @param string        string to search.
+     * @param left          left bounding substring to search for.
+     * @param right         right bounding substring to search for.
+     * @param greedy        match the longest substring if true.
+     * @param caseSensitive match case when searching for {@code left} and {@code right} strings.
+     * @return the substring in between {@code left} and {@code right} strings.
+     */
+    static String between(String string, String left, String right, boolean greedy, boolean caseSensitive) {
+        if (hasLength(string) == false || hasLength(left) == false || hasLength(right) == false) {
+            return string;
+        }
+
+        String matchString = string;
+        if (caseSensitive == false) {
+            matchString = matchString.toLowerCase(Locale.ROOT);
+            left = left.toLowerCase(Locale.ROOT);
+            right = right.toLowerCase(Locale.ROOT);
+        }
+
+        int idx = matchString.indexOf(left);
+        if (idx == -1) {
+            return EMPTY;
+        }
+
+        int start = idx + left.length();
+
+        if (greedy) {
+            idx = matchString.lastIndexOf(right);
+        } else {
+            idx = matchString.indexOf(right, start);
+        }
+
+        if (idx == -1) {
+            return EMPTY;
+        }
+
+        return string.substring(start, idx);
+    }
+
+    /**
+     * Checks if {@code string} contains {@code substring} string.
      *
      * @param string    string to search through.
      * @param substring string to search for.

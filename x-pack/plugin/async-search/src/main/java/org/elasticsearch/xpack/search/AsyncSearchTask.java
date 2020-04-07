@@ -61,7 +61,7 @@ final class AsyncSearchTask extends SearchTask {
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
-    private AtomicReference<MutableSearchResponse> searchResponse;
+    private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -98,7 +98,6 @@ final class AsyncSearchTask extends SearchTask {
         this.threadPool = threadPool;
         this.aggReduceContextSupplier = aggReduceContextSupplier;
         this.progressListener = new Listener();
-        this.searchResponse = new AtomicReference<>();
         setProgressListener(progressListener);
     }
 
@@ -183,7 +182,7 @@ final class AsyncSearchTask extends SearchTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponse());
+            listener.onResponse(getResponseWithHeaders());
         }
     }
 
@@ -201,7 +200,7 @@ final class AsyncSearchTask extends SearchTask {
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponse());
+            listener.accept(getResponseWithHeaders());
         }
     }
 
@@ -221,7 +220,7 @@ final class AsyncSearchTask extends SearchTask {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.onResponse(getResponse());
+                            listener.onResponse(getResponseWithHeaders());
                         }
                     }, waitForCompletion, "generic");
                 } catch (EsRejectedExecutionException exc) {
@@ -238,7 +237,7 @@ final class AsyncSearchTask extends SearchTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponse());
+            listener.onResponse(getResponseWithHeaders());
         }
     }
 
@@ -284,6 +283,8 @@ final class AsyncSearchTask extends SearchTask {
             }
             hasCompleted = true;
         }
+        // we don't need to restore the response headers, they should be included in the current
+        // context since we are called by the search action listener.
         AsyncSearchResponse finalResponse = getResponse();
         for (Consumer<AsyncSearchResponse> listener : completionListeners.values()) {
             listener.accept(finalResponse);
@@ -291,10 +292,24 @@ final class AsyncSearchTask extends SearchTask {
         completionListeners.clear();
     }
 
+    /**
+     * Returns the current {@link AsyncSearchResponse}.
+     */
     private AsyncSearchResponse getResponse() {
         assert searchResponse.get() != null;
         return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
     }
+
+    /**
+     * Returns the current {@link AsyncSearchResponse} and restores the response headers
+     * in the local thread context.
+     */
+    private AsyncSearchResponse getResponseWithHeaders() {
+        assert searchResponse.get() != null;
+        return searchResponse.get().toAsyncSearchResponseWithHeaders(this, expirationTimeMillis);
+    }
+
+
 
     // checks if the search task should be cancelled
     private void checkCancellation() {
@@ -336,7 +351,8 @@ final class AsyncSearchTask extends SearchTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.compareAndSet(null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, aggReduceContextSupplier));
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters,
+                    aggReduceContextSupplier, threadPool.getThreadContext()));
             executeInitListeners();
         }
 
@@ -369,7 +385,8 @@ final class AsyncSearchTask extends SearchTask {
             if (searchResponse.get() == null) {
                 // if the failure occurred before calling onListShards
                 searchResponse.compareAndSet(null,
-                    new MutableSearchResponse(-1, -1, null, aggReduceContextSupplier));
+                    new MutableSearchResponse(-1, -1, null,
+                        aggReduceContextSupplier, threadPool.getThreadContext()));
             }
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();

@@ -51,20 +51,20 @@ final class JdbcTestUtils {
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     static void logResultSetMetaData(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metadata = rs.getMetaData();
+        ResultSetMetaData metaData = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
 
-        int columns = metadata.getColumnCount();
+        int columns = metaData.getColumnCount();
         for (int i = 1; i <= columns; i++) {
             if (i > 1) {
                 sb.append(" | ");
             }
             column.setLength(0);
-            column.append(metadata.getColumnName(i));
+            column.append(metaData.getColumnName(i));
             column.append("(");
-            column.append(metadata.getColumnTypeName(i));
+            column.append(metaData.getColumnTypeName(i));
             column.append(")");
 
             sb.append(trimOrPad(column));
@@ -81,9 +81,9 @@ final class JdbcTestUtils {
     }
 
     static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
-        ResultSetMetaData metadata = rs.getMetaData();
+        ResultSetMetaData metaData = rs.getMetaData();
 
-        int columns = metadata.getColumnCount();
+        int columns = metaData.getColumnCount();
 
         while (rs.next()) {
             log.info(rowAsString(rs, columns));
@@ -91,8 +91,8 @@ final class JdbcTestUtils {
     }
 
     static String resultSetCurrentData(ResultSet rs) throws SQLException {
-        ResultSetMetaData metadata = rs.getMetaData();
-        return rowAsString(rs, metadata.getColumnCount());
+        ResultSetMetaData metaData = rs.getMetaData();
+        return rowAsString(rs, metaData.getColumnCount());
     }
 
     private static String rowAsString(ResultSet rs, int columns) throws SQLException {
@@ -122,14 +122,14 @@ final class JdbcTestUtils {
     }
 
     public static void logLikeCLI(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetaData metadata = rs.getMetaData();
-        int columns = metadata.getColumnCount();
+        ResultSetMetaData metaData = rs.getMetaData();
+        int columns = metaData.getColumnCount();
 
         List<ColumnInfo> cols = new ArrayList<>(columns);
 
         for (int i = 1; i <= columns; i++) {
-            cols.add(new ColumnInfo(metadata.getTableName(i), metadata.getColumnName(i), metadata.getColumnTypeName(i),
-                    metadata.getColumnDisplaySize(i)));
+            cols.add(new ColumnInfo(metaData.getTableName(i), metaData.getColumnName(i), metaData.getColumnTypeName(i),
+                    metaData.getColumnDisplaySize(i)));
         }
 
 

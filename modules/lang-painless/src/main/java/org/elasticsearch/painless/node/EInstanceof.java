@@ -46,6 +46,11 @@ public class EInstanceof extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                "not a statement: result not used from instanceof with target type [" + type + "]"));
+        }
+
         Class<?> resolvedType;
         Class<?> expressionType;
         boolean primitiveExpression;

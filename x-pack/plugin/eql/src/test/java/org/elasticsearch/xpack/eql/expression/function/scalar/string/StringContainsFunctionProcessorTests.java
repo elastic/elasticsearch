@@ -16,7 +16,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StringContainsFunctionProcessorTests extends ESTestCase {
 
-    // TODO (AM): consolidate with other functions tests in previous PRs where I already used this pattern once they are merged
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     protected static void run(Callable<Void> callable) throws Exception {
@@ -39,10 +38,10 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
             if ((string != null) && (substring == null)) {
                 EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
                         () -> StringContainsFunctionProcessor.doProcess(string, substring));
-                    assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
+                assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
             } else {
                 assertThat(StringContainsFunctionProcessor.doProcess(string, substring),
-                        equalTo(string == null? null : true));
+                        equalTo(string == null ? null : true));
             }
             return null;
         });

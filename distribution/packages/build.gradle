@@ -105,7 +105,22 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     }
     dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
-    arch(architecture == 'aarch64' ? 'aarch64' : type == 'deb' ? 'amd64' : 'X86_64')
+    if (type == 'deb') {
+      if (architecture == 'x64') {
+        arch('amd64')
+      } else {
+        assert architecture == 'aarch64' : architecture
+        arch('arm64')
+      }
+    } else {
+      assert type == 'rpm' : type
+      if (architecture == 'x64') {
+        arch('X86_64')
+      } else {
+        assert architecture == 'aarch64' : architecture
+        arch('aarch64')
+      }
+    }
     // Follow elasticsearch's file naming convention
     String jdkString = jdk ? "" : "no-jdk-"
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"

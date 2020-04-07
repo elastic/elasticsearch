@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -114,8 +115,8 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final String name = randomValueOtherThanMany(currentMetadata.policies().keySet()::contains, () -> randomAlphaOfLength(8));
         final Logger mockLogger = mock(Logger.class);
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
             () -> TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(currentState, name, mockLogger)
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));

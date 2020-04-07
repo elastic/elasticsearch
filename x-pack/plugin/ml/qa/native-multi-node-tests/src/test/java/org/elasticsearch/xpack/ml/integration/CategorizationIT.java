@@ -206,7 +206,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "Java" : "C++") + " took " + duration + "ms");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/issues/1121")
     public void testNumMatchesAndCategoryPreference() throws Exception {
         String index = "hadoop_logs";
         client().admin().indices().prepareCreate(index)

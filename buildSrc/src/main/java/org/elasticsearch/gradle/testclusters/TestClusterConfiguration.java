@@ -50,7 +50,7 @@ public interface TestClusterConfiguration {
 
     void plugin(Supplier<URI> plugin);
 
-    void plugin(Provider<RegularFile>  plugin);
+    void plugin(Provider<RegularFile> plugin);
 
     void module(File module);
 

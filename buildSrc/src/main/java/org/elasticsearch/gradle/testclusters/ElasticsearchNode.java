@@ -40,7 +40,6 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
@@ -437,9 +436,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (plugins.isEmpty() == false) {
             if (getVersion().onOrAfter("7.6.0")) {
                 logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
-                final String[] arguments = Stream.concat(Stream.of("install", "--batch"),
-                    plugins.stream().map(Supplier::get).map(URI::toString))
-                    .toArray(String[]::new);
+                final String[] arguments = Stream.concat(
+                    Stream.of("install", "--batch"),
+                    plugins.stream().map(Supplier::get).map(URI::toString)
+                ).toArray(String[]::new);
                 runElasticsearchBinScript("elasticsearch-plugin", arguments);
             } else {
                 logToProcessStdout("installing " + plugins.size() + " plugins sequentially");
@@ -1128,8 +1128,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
-        return Stream.concat(plugins.stream().map(Supplier::get).filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
-            modules.stream().map(p -> p.get().getAsFile()))
+        return Stream.concat(
+            plugins.stream().map(Supplier::get).filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
+            modules.stream().map(p -> p.get().getAsFile())
+        )
             .filter(File::exists)
             // TODO: We may be able to simplify this with Gradle 5.6
             // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
@@ -1141,7 +1143,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Input
     public Set<URI> getRemotePlugins() {
-        Set<URI> file = plugins.stream().map(Supplier::get).filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false)
+        Set<URI> file = plugins.stream()
+            .map(Supplier::get)
+            .filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false)
             .collect(Collectors.toSet());
         return file;
     }

@@ -144,11 +144,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void plugin(Supplier<URI>  plugin) {
+    public void plugin(Supplier<URI> plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
+
     @Override
-    public void plugin(Provider<RegularFile>  plugin) {
+    public void plugin(Provider<RegularFile> plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
 

@@ -15,9 +15,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -33,6 +35,15 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
     private final String IDP_ENTITY_ID = "https://idp.test.es.elasticsearch.org/";
     // From SAMLConstants
     private final String REDIRECT_BINDING = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect";
+
+    @Before
+    public void defineApplicationPrivileges() throws IOException {
+        super.createApplicationPrivileges("elastic-cloud", MapBuilder.<String, Collection<String>>newMapBuilder()
+            .put("deployment_admin", Collections.singleton("sso:admin"))
+            .put("deployment_viewer", Collections.singleton("sso:viewer"))
+            .map()
+        );
+    }
 
     public void testGetWildcardServiceProviderMetadata() throws Exception {
         final String owner = randomAlphaOfLength(8);

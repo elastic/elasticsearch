@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -25,6 +26,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,8 +47,13 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private final String REALM_NAME = "cloud-saml";
 
     @Before
-    public void createUsers() throws IOException {
+    public void setupSecurityData() throws IOException {
         setUserPassword("kibana", new SecureString("kibana".toCharArray()));
+        createApplicationPrivileges("elastic-cloud", MapBuilder.<String, Collection<String>>newMapBuilder()
+            .put("deployment_admin", Collections.singleton("sso:admin"))
+            .put("deployment_viewer", Collections.singleton("sso:viewer"))
+            .map()
+        );
     }
 
     public void testRegistrationAndIdpInitiatedSso() throws Exception {
@@ -54,10 +62,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         request.put("acs", SP_ACS);
         final Map<String, Object> privilegeMap = new HashMap<>();
         privilegeMap.put("resource", SP_ENTITY_ID);
-        final Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("superuser", "role:superuser");
-        roleMap.put("viewer", "role:viewer");
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Collections.singleton("sso:(\\w+)"));
         request.put("privileges", privilegeMap);
         final Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");
@@ -78,10 +83,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         request.put("acs", SP_ACS);
         final Map<String, Object> privilegeMap = new HashMap<>();
         privilegeMap.put("resource", SP_ENTITY_ID);
-        final Map<String, String> roleMap = new HashMap<>();
-        roleMap.put("superuser", "role:superuser");
-        roleMap.put("viewer", "role:viewer");
-        privilegeMap.put("roles", roleMap);
+        privilegeMap.put("roles", Collections.singleton("sso:(\\w+)"));
         request.put("privileges", privilegeMap);
         final Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");

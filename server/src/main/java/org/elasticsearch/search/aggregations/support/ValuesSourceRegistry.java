@@ -27,7 +27,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
+import java.lang.reflect.Array;
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -40,7 +44,7 @@ import java.util.function.Predicate;
  */
 public class ValuesSourceRegistry {
     // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
-    private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry = Map.of();
+    private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
 
     /**
      * Register a ValuesSource to Aggregator mapping.
@@ -59,15 +63,14 @@ public class ValuesSourceRegistry {
      */
     public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
                                       AggregatorSupplier aggregatorSupplier) {
-        AbstractMap.SimpleEntry[] mappings;
+        AbstractMap.SimpleEntry newSupplier = new AbstractMap.SimpleEntry<>(appliesTo, aggregatorSupplier);
         if (aggregatorRegistry.containsKey(aggregationName)) {
-            List currentMappings = aggregatorRegistry.get(aggregationName);
-            mappings = (AbstractMap.SimpleEntry[]) currentMappings.toArray(new AbstractMap.SimpleEntry[currentMappings.size() + 1]);
+            aggregatorRegistry.get(aggregationName).add(newSupplier);
         } else {
-            mappings = new AbstractMap.SimpleEntry[1];
+            List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>> supplierList = new ArrayList<>();
+            supplierList.add(newSupplier);
+            aggregatorRegistry.put(aggregationName, supplierList);
         }
-        mappings[mappings.length - 1] = new AbstractMap.SimpleEntry<>(appliesTo, aggregatorSupplier);
-        aggregatorRegistry = copyAndAdd(aggregatorRegistry,new AbstractMap.SimpleEntry<>(aggregationName, List.of(mappings)));
     }
 
     /**
@@ -168,26 +171,4 @@ public class ValuesSourceRegistry {
             }
         }
     }
-
-    private static <K, V> Map copyAndAdd(Map<K, V>  source, Map.Entry<K, V>  newValue) {
-        Map.Entry[] entries;
-        if (source.containsKey(newValue.getKey())) {
-            // Replace with new value
-            entries = new Map.Entry[source.size()];
-            int i = 0;
-            for (Map.Entry entry : source.entrySet()) {
-                if (entry.getKey() == newValue.getKey()) {
-                    entries[i] = newValue;
-                } else {
-                    entries[i] = entry;
-                }
-                i++;
-            }
-        } else {
-            entries = source.entrySet().toArray(new Map.Entry[source.size() + 1]);
-            entries[entries.length - 1] = newValue;
-        }
-        return Map.ofEntries(entries);
-    }
-
 }

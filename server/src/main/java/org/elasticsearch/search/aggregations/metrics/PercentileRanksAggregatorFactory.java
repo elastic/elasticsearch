@@ -23,14 +23,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
@@ -57,11 +55,10 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
 
         return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
-                config.format(), pipelineAggregators, metadata);
+                config.format(), metadata);
     }
 
     @Override
@@ -69,9 +66,8 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metadata) throws IOException {
         return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, keyed,
-            config.format(), pipelineAggregators, metadata);
+            config.format(), metadata);
     }
 }

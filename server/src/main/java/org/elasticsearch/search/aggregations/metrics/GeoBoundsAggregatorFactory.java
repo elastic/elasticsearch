@@ -23,14 +23,12 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
@@ -51,9 +49,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSou
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, pipelineAggregators, metadata);
+        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, metadata);
     }
 
     @Override
@@ -61,8 +58,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSou
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metadata);
+        return new GeoBoundsAggregator(name, searchContext, parent, valuesSource, wrapLongitude, metadata);
     }
 }

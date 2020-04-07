@@ -27,14 +27,12 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -60,10 +58,9 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, emptyList(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
+        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -76,13 +73,12 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, Geohash::longEncode);
         return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-            searchContext, parent, pipelineAggregators, metadata);
+            searchContext, parent, metadata);
     }
 }

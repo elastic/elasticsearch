@@ -79,7 +79,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
     }
 
     /**
-     * The cause for this component template creation.
+     * The cause for this index template creation.
      */
     public PutIndexTemplateV2Request cause(String cause) {
         this.cause = cause;

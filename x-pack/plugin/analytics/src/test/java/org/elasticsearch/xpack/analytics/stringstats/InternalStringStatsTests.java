@@ -42,8 +42,16 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         if (randomBoolean()) {
             return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW, emptyList(), metadata);
         }
-        return new InternalStringStats(name, randomLongBetween(1, Long.MAX_VALUE),
-                randomNonNegativeLong(), between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
+        /*
+         * Pick random count and length that are *much* less than
+         * Long.MAX_VALUE because reduction adds them together and sometimes
+         * serializes them and that serialization would fail if the sum has
+         * wrapped to a negative number.
+         */
+        long count = randomLongBetween(1, Integer.MAX_VALUE);
+        long totalLength = randomLongBetween(0, count * 10);
+        return new InternalStringStats(name, count, totalLength,
+                between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
                 randomBoolean(), DocValueFormat.RAW,
                 emptyList(), metadata);
     };

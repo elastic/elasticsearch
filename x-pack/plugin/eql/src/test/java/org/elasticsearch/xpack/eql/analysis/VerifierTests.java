@@ -135,12 +135,8 @@ public class VerifierTests extends ESTestCase {
                 error("process where serial_event_id == number('5')"));
         assertEquals("1:15: Unknown function [concat]",
                 error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
-        assertEquals("1:15: Unknown function [between]",
-                error("process where between(process_name, \"s\", \"e\") == \"yst\""));
         assertEquals("1:15: Unknown function [cidrMatch]",
                 error("network where cidrMatch(source_address, \"192.168.0.0/16\", \"10.6.48.157/8\")"));
-        assertEquals("1:22: Unknown function [between]",
-                error("process where length(between(process_name, 'g', 'e')) > 0"));
     }
 
     // Test unsupported array indexes

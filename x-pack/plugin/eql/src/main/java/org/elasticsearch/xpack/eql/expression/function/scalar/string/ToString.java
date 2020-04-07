@@ -33,11 +33,11 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class ToString extends ScalarFunction {
 
-    private final Expression source;
+    private final Expression value;
 
     public ToString(Source source, Expression src) {
         super(source, Collections.singletonList(src));
-        this.source = src;
+        this.value = src;
     }
 
     @Override
@@ -46,32 +46,32 @@ public class ToString extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isExact(source, sourceText(), ParamOrdinal.DEFAULT);
+        return isExact(value, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new ToStringFunctionPipe(source(), this, Expressions.pipe(source));
+        return new ToStringFunctionPipe(source(), this, Expressions.pipe(value));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable();
+        return value.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold());
+        return doProcess(value.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToString::new, source);
+        return NodeInfo.create(this, ToString::new, value);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate sourceScript = asScript(value);
 
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
                 "string",

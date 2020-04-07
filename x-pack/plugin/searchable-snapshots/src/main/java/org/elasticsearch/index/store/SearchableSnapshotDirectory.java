@@ -174,7 +174,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private List<BlobStoreIndexShardSnapshot.FileInfo> files() {
         if (loaded == false) {
-            return Collections.emptyList();
+            return org.elasticsearch.common.collect.List.of();
         }
         final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshot().indexFiles();
         assert files != null;

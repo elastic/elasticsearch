@@ -108,20 +108,13 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
         // TODO: Can delete test on 9.0
-        boolean isRequest = randomBoolean();
         boolean isCompressed = randomBoolean();
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         final Version preHeaderVariableInt = Version.V_7_5_0;
-        OutboundMessage message;
         final String contentValue = randomAlphaOfLength(100);
-        if (isRequest) {
-            message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(contentValue),
-                preHeaderVariableInt, action, requestId, false, isCompressed);
-        } else {
-            message = new OutboundMessage.Response(threadContext, Collections.emptySet(), new TestResponse(contentValue),
-                preHeaderVariableInt, requestId, false, isCompressed);
-        }
+        final OutboundMessage message = new OutboundMessage.Request(threadContext,  new String[0], new TestRequest(contentValue),
+            preHeaderVariableInt, action, requestId, true, isCompressed);
 
         final BytesReference totalBytes = message.serialize(new BytesStreamOutput());
         int partialHeaderSize = TcpHeader.headerSize(preHeaderVariableInt);
@@ -137,12 +130,8 @@ public class InboundDecoderTests extends ESTestCase {
         assertEquals(requestId, header.getRequestId());
         assertEquals(preHeaderVariableInt, header.getVersion());
         assertEquals(isCompressed, header.isCompressed());
-        assertFalse(header.isHandshake());
-        if (isRequest) {
-            assertTrue(header.isRequest());
-        } else {
-            assertTrue(header.isResponse());
-        }
+        assertTrue(header.isHandshake());
+        assertTrue(header.isRequest());
         assertTrue(header.needsToReadVariableHeader());
         fragments.clear();
 
@@ -290,25 +279,13 @@ public class InboundDecoderTests extends ESTestCase {
             incompatibleVersion, action, requestId, false, true);
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
-        int totalHeaderSize = TcpHeader.headerSize(incompatibleVersion);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();
         final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
-        int bytesConsumed = decoder.decode(releasable1, fragments::add);
-        assertEquals(totalHeaderSize, bytesConsumed);
+        expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, fragments::add));
+        // No bytes are retained
         assertEquals(1, releasable1.refCount());
-
-        final Header header = (Header) fragments.get(0);
-        assertEquals(requestId, header.getRequestId());
-        assertEquals(incompatibleVersion, header.getVersion());
-        fragments.clear();
-
-        final int remaining = bytes.length() - bytesConsumed;
-        final BytesReference bytes2 = bytes.slice(bytesConsumed, remaining);
-        final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
-        bytesConsumed = decoder.decode(releasable2, fragments::add);
-        assertEquals(remaining, bytesConsumed);
     }
 
     public void testEnsureVersionCompatibility() throws IOException {

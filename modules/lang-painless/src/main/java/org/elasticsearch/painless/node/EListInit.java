@@ -50,12 +50,11 @@ public class EListInit extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from list initializer."));
+            throw createError(new IllegalArgumentException("not a statement: result not used from list initializer"));
         }
 
+        Output output = new Output();
         output.actual = ArrayList.class;
 
         PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);

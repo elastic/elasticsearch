@@ -13,6 +13,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether a type should be expected in the body of the mappings."
+        },
         "local": {
           "type": "boolean",
           "description": "Return local information, do not retrieve the state from master node (default: false)"

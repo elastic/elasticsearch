@@ -141,11 +141,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
 
-//        MappedFieldType fieldType = context.fieldMapper(fieldPattern);
-//        if (fieldType == null) {
-//            return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
-//        }
-
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {

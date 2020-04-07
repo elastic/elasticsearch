@@ -114,6 +114,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
         static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
         static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
+        static final ParseField T_TEST_USAGE = new ParseField("t_test_usage");
 
         private final long boxplotUsage;
         private final long cumulativeCardinalityUsage;
@@ -146,7 +147,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 stringStatsUsage = 0;
                 topMetricsUsage = 0;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 ttestUsage = in.readVLong();
             } else {
                 ttestUsage = 0;
@@ -164,7 +165,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeVLong(ttestUsage);
             }
         }
@@ -176,6 +177,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
             builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
             builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
+            builder.field(T_TEST_USAGE.getPreferredName(), ttestUsage);
             builder.endObject();
             return builder;
         }

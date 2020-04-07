@@ -85,7 +85,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
             .settings(settings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("{\"_source\":{\"enabled\": false}}").build();
+            .putMapping("{\"_doc\":{\"_source\":{\"enabled\": false}}}").build();
         IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 

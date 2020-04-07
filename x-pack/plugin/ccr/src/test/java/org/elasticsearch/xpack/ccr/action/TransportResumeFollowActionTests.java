@@ -254,7 +254,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             .state(state)
             .numberOfReplicas(0)
             .setRoutingNumShards(numberOfShards)
-            .putMapping(mapping);
+            .putMapping("{\"_doc\":" + mapping + "}");
 
         if (custom != null) {
             builder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, custom);

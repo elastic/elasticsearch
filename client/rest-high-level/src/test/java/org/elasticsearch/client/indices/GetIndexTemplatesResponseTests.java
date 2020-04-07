@@ -136,7 +136,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             || field.endsWith("aliases")
             || field.endsWith("settings")
             || field.endsWith("settings.index")
-            || field.endsWith("mappings") // uses parser.map()
+            || field.contains(".mappings") // uses parser.map()
             || field.contains("mappings.properties") // cannot have extra properties
         ;
     }

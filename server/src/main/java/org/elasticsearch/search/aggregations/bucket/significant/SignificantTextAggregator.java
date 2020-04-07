@@ -41,7 +41,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -72,12 +71,12 @@ public class SignificantTextAggregator extends BucketsAggregator {
 
 
     public SignificantTextAggregator(String name, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            SearchContext context, Aggregator parent,
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude,
             SignificanceHeuristic significanceHeuristic, SignificantTextAggregatorFactory termsAggFactory,
             String fieldName, String [] sourceFieldNames, boolean filterDuplicateText,
             Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metadata);
+        super(name, factories, context, parent, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
         this.significanceHeuristic = significanceHeuristic;

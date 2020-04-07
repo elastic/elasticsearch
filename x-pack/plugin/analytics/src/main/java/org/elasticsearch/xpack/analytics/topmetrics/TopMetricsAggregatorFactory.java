@@ -12,7 +12,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -50,7 +49,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
 
     @Override
     protected TopMetricsAggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+            Map<String, Object> metadata) throws IOException {
         int maxBucketSize = MAX_BUCKET_SIZE.get(searchContext.getQueryShardContext().getIndexSettings().getSettings());
         if (size > maxBucketSize) {
             throw new IllegalArgumentException("[top_metrics.size] must not be more than [" + maxBucketSize + "] but was [" + size
@@ -64,7 +63,6 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                     return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
                             resolved.toValuesSource(searchContext.getQueryShardContext()));
                 }).collect(toList());
-        return new TopMetricsAggregator(name, searchContext, parent, pipelineAggregators, metadata, size,
-                sortBuilders.get(0), metricSources);
+        return new TopMetricsAggregator(name, searchContext, parent, metadata, size, sortBuilders.get(0), metricSources);
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -34,7 +33,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
@@ -58,10 +56,9 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
+        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -74,13 +71,12 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, geoBoundingBox, GeoTileUtils::longEncode);
         return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-            searchContext, parent, pipelineAggregators, metadata);
+            searchContext, parent, metadata);
     }
 }

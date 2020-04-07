@@ -23,14 +23,12 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric> {
@@ -51,10 +49,9 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
+        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, metadata);
     }
 
     @Override
@@ -62,8 +59,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new MatrixStatsAggregator(name, valuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
+        return new MatrixStatsAggregator(name, valuesSources, searchContext, parent, multiValueMode, metadata);
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -50,21 +49,18 @@ public class BinaryRangeAggregatorFactory
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, pipelineAggregators, metadata);
+                ranges, keyed, searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Bytes valuesSource,
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, valuesSource, config.format(),
-                ranges, keyed, searchContext, parent, pipelineAggregators, metadata);
+                ranges, keyed, searchContext, parent, metadata);
     }
 
 }

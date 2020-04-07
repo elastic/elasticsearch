@@ -26,18 +26,15 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public final class DateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource> {
+public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final BucketOrder order;
     private final boolean keyed;
@@ -78,20 +75,19 @@ public final class DateHistogramAggregatorFactory
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return createAggregator((ValuesSource.Numeric) valuesSource, searchContext, parent, pipelineAggregators, metadata);
+            return createAggregator((ValuesSource.Numeric) valuesSource, searchContext, parent, metadata);
         } else if (valuesSource instanceof ValuesSource.Range) {
             ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
             if (rangeValueSource.rangeType() != RangeType.DATE) {
                 throw new IllegalArgumentException("Expected date range type but found range type [" + rangeValueSource.rangeType().name
                     + "]");
             }
-            return createRangeAggregator((ValuesSource.Range) valuesSource, searchContext, parent, pipelineAggregators, metadata);
+            return createRangeAggregator((ValuesSource.Range) valuesSource, searchContext, parent, metadata);
         }
         else {
             throw new IllegalArgumentException("Expected one of [Date, Range] values source, found ["
@@ -100,26 +96,23 @@ public final class DateHistogramAggregatorFactory
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, SearchContext searchContext,
-                                        Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) throws IOException {
+                                        Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
-                valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
+                valuesSource, config.format(), searchContext, parent, metadata);
     }
 
     private Aggregator createRangeAggregator(ValuesSource.Range valuesSource,
                                              SearchContext searchContext,
                                              Aggregator parent,
-                                             List<PipelineAggregator> pipelineAggregators,
                                              Map<String, Object> metadata) throws IOException {
         return new DateRangeHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
-            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
+            valuesSource, config.format(), searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return createAggregator(null, searchContext, parent, pipelineAggregators, metadata);
+        return createAggregator(null, searchContext, parent, metadata);
     }
 }

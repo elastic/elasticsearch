@@ -47,7 +47,7 @@ public abstract class AggregatorBase extends Aggregator {
     protected final String name;
     protected final Aggregator parent;
     protected final SearchContext context;
-    private final Map<String, Object> metaData;
+    private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
     protected BucketCollector collectableSubAggregators;
@@ -64,13 +64,13 @@ public abstract class AggregatorBase extends Aggregator {
      * @param factories             The factories for all the sub-aggregators under this aggregator
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
-     * @param metaData              The metaData associated with this aggregator
+     * @param metadata              The metadata associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
-        this.metaData = metaData;
+        this.metadata = metadata;
         this.parent = parent;
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
@@ -148,8 +148,8 @@ public abstract class AggregatorBase extends Aggregator {
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    public Map<String, Object> metaData() {
-        return this.metaData;
+    public Map<String, Object> metadata() {
+        return this.metadata;
     }
 
     public List<PipelineAggregator> pipelineAggregators() {

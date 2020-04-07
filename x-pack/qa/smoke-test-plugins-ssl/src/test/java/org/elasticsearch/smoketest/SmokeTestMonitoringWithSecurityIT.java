@@ -257,6 +257,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         assertThat(settings, not(hasKey("ssl")));
     }
 
+    @SuppressWarnings("unchecked")
     private String randomNodeHttpAddress() throws IOException {
         Response response = client().performRequest(new Request("GET", "/_nodes"));
         assertOK(response);

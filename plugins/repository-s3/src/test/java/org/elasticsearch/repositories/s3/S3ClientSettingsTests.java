@@ -22,7 +22,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -130,13 +130,13 @@ public class S3ClientSettingsTests extends ESTestCase {
             Settings.builder().setSecureSettings(secureSettings).build()).get("default");
 
         {
-            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetaData("name", "type", Settings.EMPTY));
+            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type", Settings.EMPTY));
             assertTrue(refinedSettings == baseSettings);
         }
 
         {
             final String endpoint = "some.host";
-            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetaData("name", "type",
+            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type",
                 Settings.builder().put("endpoint", endpoint).build()));
             assertThat(refinedSettings.endpoint, is(endpoint));
             S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;

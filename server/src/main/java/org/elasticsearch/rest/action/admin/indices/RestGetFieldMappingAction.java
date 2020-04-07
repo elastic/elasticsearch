@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -68,7 +68,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                        Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex = response.mappings();
+                        Map<String, Map<String, FieldMappingMetadata>> mappingsByIndex = response.mappings();
 
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {

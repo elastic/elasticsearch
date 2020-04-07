@@ -21,6 +21,12 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 dependencyLicenses {
   mapping from: /google-.*/, to: 'google'
 }

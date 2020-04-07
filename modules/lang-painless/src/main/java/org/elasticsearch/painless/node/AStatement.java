@@ -30,66 +30,77 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 public abstract class AStatement extends ANode {
 
-    /**
-     * Set to true when the final statement in an {@link SClass} is reached.
-     * Used to determine whether or not an auto-return is necessary.
-     */
-    boolean lastSource = false;
+    public static class Input {
 
-    /**
-     * Set to true when a loop begins.  Used by {@link SBlock} to help determine
-     * when the final statement of a loop is reached.
-     */
-    boolean beginLoop = false;
+        /**
+         * Set to true when the final statement in an {@link SClass} is reached.
+         * Used to determine whether or not an auto-return is necessary.
+         */
+        boolean lastSource = false;
 
-    /**
-     * Set to true when inside a loop.  Used by {@link SBreak} and {@link SContinue}
-     * to determine if a break/continue statement is legal.
-     */
-    boolean inLoop = false;
+        /**
+         * Set to true when a loop begins.  Used by {@link SBlock} to help determine
+         * when the final statement of a loop is reached.
+         */
+        boolean beginLoop = false;
 
-    /**
-     * Set to true when on the last statement of a loop.  Used by {@link SContinue}
-     * to prevent extraneous continue statements.
-     */
-    boolean lastLoop = false;
+        /**
+         * Set to true when inside a loop.  Used by {@link SBreak} and {@link SContinue}
+         * to determine if a break/continue statement is legal.
+         */
+        boolean inLoop = false;
 
-    /**
-     * Set to true if a statement would cause the method to exit.  Used to
-     * determine whether or not an auto-return is necessary.
-     */
-    boolean methodEscape = false;
+        /**
+         * Set to true when on the last statement of a loop.  Used by {@link SContinue}
+         * to prevent extraneous continue statements.
+         */
+        boolean lastLoop = false;
+    }
 
-    /**
-     * Set to true if a statement would cause a loop to exit.  Used to
-     * prevent unreachable statements.
-     */
-    boolean loopEscape = false;
+    public static class Output {
 
-    /**
-     * Set to true if all current paths escape from the current {@link SBlock}.
-     * Used during the analysis phase to prevent unreachable statements and
-     * the writing phase to prevent extraneous bytecode gotos from being written.
-     */
-    boolean allEscape = false;
+        /**
+         * Set to true if a statement would cause the method to exit.  Used to
+         * determine whether or not an auto-return is necessary.
+         */
+        boolean methodEscape = false;
 
-    /**
-     * Set to true if any continue statement occurs in a loop.  Used to prevent
-     * unnecessary infinite loops.
-     */
-    boolean anyContinue = false;
+        /**
+         * Set to true if a statement would cause a loop to exit.  Used to
+         * prevent unreachable statements.
+         */
+        boolean loopEscape = false;
 
-    /**
-     * Set to true if any break statement occurs in a loop.  Used to prevent
-     * extraneous loops.
-     */
-    boolean anyBreak = false;
+        /**
+         * Set to true if all current paths escape from the current {@link SBlock}.
+         * Used during the analysis phase to prevent unreachable statements and
+         * the writing phase to prevent extraneous bytecode gotos from being written.
+         */
+        boolean allEscape = false;
 
-    /**
-     * Set to the approximate number of statements in a loop block to prevent
-     * infinite loops during runtime.
-     */
-    int statementCount = 0;
+        /**
+         * Set to true if any continue statement occurs in a loop.  Used to prevent
+         * unnecessary infinite loops.
+         */
+        boolean anyContinue = false;
+
+        /**
+         * Set to true if any break statement occurs in a loop.  Used to prevent
+         * extraneous loops.
+         */
+        boolean anyBreak = false;
+
+        /**
+         * Set to the approximate number of statements in a loop block to prevent
+         * infinite loops during runtime.
+         */
+        int statementCount = 1;
+
+        /**
+         * The {@link StatementNode}(s) generated from this expression.
+         */
+        StatementNode statementNode = null;
+    }
 
     /**
      * Standard constructor with location used for error tracking.
@@ -101,10 +112,7 @@ public abstract class AStatement extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(ScriptRoot scriptRoot, Scope scope);
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract StatementNode write(ClassNode classNode);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        throw new UnsupportedOperationException();
+    }
 }

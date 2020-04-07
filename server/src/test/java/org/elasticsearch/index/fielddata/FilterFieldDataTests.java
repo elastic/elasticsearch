@@ -70,7 +70,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(2L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
@@ -85,7 +85,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(1L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
@@ -100,7 +100,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(2L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
@@ -116,7 +116,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                     .build(builderCtx).fieldType();
             IndexOrdinalsFieldData fieldData = shardContext.getForField(ft);
             for (LeafReaderContext context : contexts) {
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+                LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
                 assertThat(2L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));

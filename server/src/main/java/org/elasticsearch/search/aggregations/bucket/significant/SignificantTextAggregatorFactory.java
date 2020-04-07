@@ -77,12 +77,16 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
                                                 String fieldName,
                                                 String [] sourceFieldNames,
                                                 boolean filterDuplicateText,
-                                                Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
         this.fieldType = queryShardContext.fieldMapper(fieldName);
+        if (fieldType != null && fieldType.indexAnalyzer() == null) {
+            throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
+                "requires an analyzed field");
+        }
         this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
         this.sourceFieldNames = sourceFieldNames == null
             ? new String[] { indexedFieldName }
@@ -124,6 +128,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
     }
 
     private long getBackgroundFrequency(String value) throws IOException {
+        // fieldType can be null if the field is unmapped, but theoretically this method should only be called
+        // when constructing buckets.  Assert to ensure this is the case
+        // TODO this is a bad setup and it should be refactored
+        assert fieldType != null;
         Query query = fieldType.termQuery(value, queryShardContext);
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a caching terms
@@ -165,7 +173,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata)
             throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
@@ -192,7 +200,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
         return new SignificantTextAggregator(name, factories, searchContext, parent, pipelineAggregators, bucketCountThresholds,
-                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
+                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metadata);
 
     }
 }

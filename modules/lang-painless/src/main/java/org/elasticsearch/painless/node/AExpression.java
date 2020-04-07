@@ -66,19 +66,24 @@ public abstract class AExpression extends ANode {
     public static class Output {
 
         /**
-         * Set to true when an expression can be considered a stand alone
-         * statement.  Used to prevent extraneous bytecode. This is always
-         * set by the node as output.
-         */
-        boolean statement = false;
-
-        /**
          * Set to the actual type this node is.  Note this variable is always
          * set by the node as output and should only be read from outside of the
          * node itself.  <b>Also, actual can always be read after a cast is
          * called on this node to get the type of the node after the cast.</b>
          */
         Class<?> actual = null;
+
+        /**
+         * The {@link PainlessCast} to convert this expression's actual type
+         * to the parent expression's expected type. {@code null} if no cast
+         * is required.
+         */
+        PainlessCast painlessCast = null;
+
+        /**
+         * The {@link ExpressionNode}(s) generated from this expression.
+         */
+        ExpressionNode expressionNode = null;
     }
 
     /**
@@ -89,15 +94,6 @@ public abstract class AExpression extends ANode {
      * analyzed.
      */
     AExpression prefix;
-
-    // TODO: remove placeholders once analysis and write are combined into build
-    // This are used to support the transition from a mutable to immutable state.
-    // Currently, the IR tree is built during the user tree "write" phase, so
-    // these are stored on the node to set during the "semantic" phase and then
-    // use during the "write" phase.
-    Input input = null;
-    Output output = null;
-    PainlessCast cast = null;
 
     /**
      * Standard constructor with location used for error tracking.
@@ -120,29 +116,24 @@ public abstract class AExpression extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract ExpressionNode write(ClassNode classNode);
-
-    void cast() {
-        cast = AnalyzerCaster.getLegalCast(location, output.actual, input.expected, input.explicit, input.internal);
+    void cast(Input input, Output output) {
+        output.painlessCast = AnalyzerCaster.getLegalCast(location, output.actual, input.expected, input.explicit, input.internal);
     }
 
-    ExpressionNode cast(ExpressionNode expressionNode) {
-        if (cast == null) {
-            return expressionNode;
+    ExpressionNode cast(Output output) {
+        if (output.painlessCast == null) {
+            return output.expressionNode;
         }
 
         CastNode castNode = new CastNode();
         castNode.setLocation(location);
-        castNode.setExpressionType(cast.targetType);
-        castNode.setCast(cast);
-        castNode.setChildNode(expressionNode);
+        castNode.setExpressionType(output.painlessCast.targetType);
+        castNode.setCast(output.painlessCast);
+        castNode.setChildNode(output.expressionNode);
 
         return castNode;
     }

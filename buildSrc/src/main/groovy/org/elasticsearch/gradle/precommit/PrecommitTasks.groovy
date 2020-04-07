@@ -24,9 +24,11 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.tasks.TaskProvider
@@ -37,8 +39,6 @@ import org.gradle.api.tasks.TaskProvider
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
-
-    public static final String CHECKSTYLE_VERSION = '8.20'
 
     public static TaskProvider create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
@@ -143,16 +143,26 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
-            doFirst {
-                // we need to defer this configuration since we don't know the runtime java version until execution time
-                targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
-                if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                    project.logger.warn(
-                            "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
-                            BuildParams.runtimeJavaVersion
-                    )
-                    targetCompatibility = JavaVersion.VERSION_13.majorVersion
+
+            //  use the runtime classpath if we have it, but some qa projects don't have one...
+            if (name.endsWith('Test')) {
+                FileCollection runtime = project.sourceSets.test.runtimeClasspath
+                if (runtime != null) {
+                    classpath = runtime.plus(project.sourceSets.test.compileClasspath)
                 }
+            } else {
+                FileCollection runtime = project.sourceSets.main.runtimeClasspath
+                if (runtime != null) {
+                    classpath = runtime.plus(project.sourceSets.main.compileClasspath)
+                }
+            }
+            targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
+            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
+                project.logger.warn(
+                        "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
+                        BuildParams.runtimeJavaVersion
+                )
+                targetCompatibility = JavaVersion.VERSION_13.majorVersion
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
@@ -235,7 +245,10 @@ class PrecommitTasks {
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             configDir = checkstyleDir
-            toolVersion = CHECKSTYLE_VERSION
+        }
+        project.dependencies {
+            checkstyle "com.puppycrawl.tools:checkstyle:${VersionProperties.versions.checkstyle}"
+            checkstyle project.files(Util.buildSrcCodeSource)
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->

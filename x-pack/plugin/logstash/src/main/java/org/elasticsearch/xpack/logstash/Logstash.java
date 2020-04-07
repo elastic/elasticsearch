@@ -9,12 +9,10 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -37,11 +35,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_VARIABLE = "logstash.template.version";
 
-    private final boolean enabled;
-
-    public Logstash(Settings settings) {
-        this.enabled = XPackSettings.LOGSTASH_ENABLED.get(settings);
-    }
+    public Logstash() {}
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -51,7 +45,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         );
     }
 
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
             TemplateUtils.loadTemplateIntoMap(
@@ -68,7 +62,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Collections.singletonList(
             new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management")
         );

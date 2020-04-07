@@ -48,6 +48,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Perce
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.ByteArrayInputStream;
@@ -101,6 +102,9 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
+        if (version.before(Version.V_7_8_0)) {
+            sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
+        }
         out.writeNamedWriteable(sigTerms);
 
         // read
@@ -126,13 +130,11 @@ public class SignificanceHeuristicTests extends ESTestCase {
         if (randomBoolean()) {
             SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY,
                     DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
-            return new SignificantLongTerms("some_name", 1, 1, emptyList(), null, DocValueFormat.RAW, 10, 20, heuristic,
-                    singletonList(bucket));
+            return new SignificantLongTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         } else {
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(new BytesRef("someterm"), 1, 2, 3, 4,
                     InternalAggregations.EMPTY, DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
-            return new SignificantStringTerms("some_name", 1, 1, emptyList(), null, DocValueFormat.RAW, 10, 20, heuristic,
-                    singletonList(bucket));
+            return new SignificantStringTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         }
     }
 
@@ -147,7 +149,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+        InternalAggregation.ReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).reduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
@@ -188,7 +190,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         @Override
         SignificantStringTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
                 List<SignificantStringTerms.Bucket> buckets) {
-            return new SignificantStringTerms("sig_terms", 2, -1, emptyList(),
+            return new SignificantStringTerms("sig_terms", 2, -1,
                     emptyMap(), DocValueFormat.RAW, subsetSize, supersetSize, significanceHeuristic, buckets);
         }
 
@@ -202,7 +204,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         @Override
         SignificantLongTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
                 List<SignificantLongTerms.Bucket> buckets) {
-            return new SignificantLongTerms("sig_terms", 2, -1, new ArrayList<PipelineAggregator>(), emptyMap(), DocValueFormat.RAW,
+            return new SignificantLongTerms("sig_terms", 2, -1, emptyMap(), DocValueFormat.RAW,
                     subsetSize, supersetSize, significanceHeuristic, buckets);
         }
 

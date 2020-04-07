@@ -646,7 +646,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchHit.getFields().get("binary_field").getValue(), equalTo(new BytesArray("testing text" .getBytes("UTF8"))));
     }
 
-    public void testSearchFieldsMetaData() throws Exception {
+    public void testSearchFieldsMetadata() throws Exception {
         client().prepareIndex("my-index").setId("1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())

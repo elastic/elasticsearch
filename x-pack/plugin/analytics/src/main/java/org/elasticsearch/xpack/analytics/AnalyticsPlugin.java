@@ -24,11 +24,13 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
@@ -39,6 +41,11 @@ import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuild
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.ttest.InternalTTest;
+import org.elasticsearch.xpack.analytics.ttest.PairedTTestState;
+import org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder;
+import org.elasticsearch.xpack.analytics.ttest.TTestState;
+import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -50,6 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
@@ -79,17 +87,24 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
-                .addResultReader(InternalStringStats::new),
+                .addResultReader(InternalStringStats::new)
+                .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
-                .addResultReader(InternalBoxplot::new),
+                .addResultReader(InternalBoxplot::new)
+                .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
-                .addResultReader(InternalTopMetrics::new)
+                .addResultReader(InternalTopMetrics::new),
+            new AggregationSpec(
+                TTestAggregationBuilder.NAME,
+                TTestAggregationBuilder::new,
+                usage.track(AnalyticsUsage.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
+                .addResultReader(InternalTTest::new)
         );
     }
 
@@ -112,11 +127,25 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
+    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+        return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
+            AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
+    }
+
+    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver) {
         return singletonList(new AnalyticsUsage());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(
+            new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
+            new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
+        );
     }
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {

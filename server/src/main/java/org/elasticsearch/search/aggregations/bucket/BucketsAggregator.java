@@ -46,8 +46,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
         if (context.aggregations() != null) {
@@ -176,7 +176,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     @Override
     public BucketComparator bucketComparator(String key, SortOrder order) {
-        if (key == null || false == "doc_count".equals(key)) {
+        if (key == null || "doc_count".equals(key)) {
             return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }
         throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +

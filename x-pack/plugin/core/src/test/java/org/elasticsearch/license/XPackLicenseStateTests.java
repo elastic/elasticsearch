@@ -82,7 +82,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
+        assertThat(licenseState.areAllRealmsAllowed(), is(true));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
 
         licenseState = new XPackLicenseState(Settings.EMPTY);
@@ -105,13 +105,12 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(false));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(false));
 
         assertThat(licenseState.isSecurityAvailable(), is(true));
-        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
     }
 
     public void testSecurityBasicWithExplicitSecurityEnabled() {
@@ -124,13 +123,12 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NATIVE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(false));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
 
         assertThat(licenseState.isSecurityAvailable(), is(true));
-        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(false));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
     }
 
     public void testSecurityDefaultBasicExpired() {
@@ -142,7 +140,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(false));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(false));
@@ -158,7 +155,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NATIVE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(false));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
@@ -174,7 +170,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NATIVE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
@@ -188,7 +183,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NATIVE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
@@ -202,7 +196,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.DEFAULT));
+        assertThat(licenseState.areStandardRealmsAllowed(), is(true));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(true));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
@@ -218,7 +212,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.DEFAULT));
+        assertThat(licenseState.areStandardRealmsAllowed(), is(true));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(true));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
@@ -234,7 +228,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
+        assertThat(licenseState.areAllRealmsAllowed(), is(true));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
         assertThat(licenseState.isTokenServiceAllowed(), is(true));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
@@ -250,7 +244,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
+        assertThat(licenseState.areAllRealmsAllowed(), is(true));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(true));
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
@@ -260,7 +254,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(TRIAL, true, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
 
-        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
         assertSecurityNotAllowed(licenseState);
     }
 
@@ -270,7 +264,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 

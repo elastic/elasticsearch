@@ -7,42 +7,58 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Wait Step for index based on color
+ * Wait Step for index based on color. Optionally derives the index name using the provided prefix (if any).
  */
-
 class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     static final String NAME = "wait-for-index-color";
 
+    private static final Logger logger = LogManager.getLogger(WaitForIndexColorStep.class);
+
     private final ClusterHealthStatus color;
+    @Nullable
+    private final String indexNamePrefix;
 
     WaitForIndexColorStep(StepKey key, StepKey nextStepKey, ClusterHealthStatus color) {
+        this(key, nextStepKey, color, null);
+    }
+
+    WaitForIndexColorStep(StepKey key, StepKey nextStepKey, ClusterHealthStatus color, @Nullable String indexNamePrefix) {
         super(key, nextStepKey);
         this.color = color;
+        this.indexNamePrefix = indexNamePrefix;
     }
 
     public ClusterHealthStatus getColor() {
         return this.color;
     }
 
+    public String getIndexNamePrefix() {
+        return indexNamePrefix;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), this.color);
+        return Objects.hash(super.hashCode(), this.color, this.indexNamePrefix);
     }
 
     @Override
@@ -54,13 +70,23 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             return false;
         }
         WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
-        return super.equals(obj) && Objects.equals(this.color, other.color);
+        return super.equals(obj) && Objects.equals(this.color, other.color) && Objects.equals(this.indexNamePrefix, other.indexNamePrefix);
     }
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        RoutingTable routingTable = clusterState.routingTable();
-        IndexRoutingTable indexRoutingTable = routingTable.index(index);
+        String indexName = indexNamePrefix != null ? indexNamePrefix + index.getName() : index.getName();
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+
+        if (indexMetadata == null) {
+            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
+                getKey().getAction(), indexName);
+            // Index must have been since deleted
+            logger.debug(errorMessage);
+            return new Result(false, new Info(errorMessage));
+        }
+
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
         Result result;
         switch (this.color) {
             case GREEN:

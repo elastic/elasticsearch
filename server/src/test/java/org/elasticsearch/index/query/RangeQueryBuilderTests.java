@@ -92,7 +92,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 break;
             case 2:
             default:
-                query = new RangeQueryBuilder(randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME));
+                query = new RangeQueryBuilder(randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME));
                 query.from("a" + randomAlphaOfLengthBetween(1, 10));
                 query.to("z" + randomAlphaOfLengthBetween(1, 10));
                 break;
@@ -554,13 +554,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertEquals(ShapeRelation.WITHIN, builder.relation());
         builder.relation("intersects");
         assertEquals(ShapeRelation.INTERSECTS, builder.relation());
-    }
-
-    public void testTypeField() throws IOException {
-        RangeQueryBuilder builder = QueryBuilders.rangeQuery("_type")
-            .from("value1");
-        builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**

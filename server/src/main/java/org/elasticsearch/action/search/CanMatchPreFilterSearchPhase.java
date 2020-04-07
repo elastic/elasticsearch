@@ -32,11 +32,9 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.transport.Transport;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -128,7 +126,18 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {
-        return Arrays.stream(minAndMaxes).anyMatch(Objects::nonNull);
+        Class<?> clazz = null;
+        for (MinAndMax<?> minAndMax : minAndMaxes) {
+            if (clazz == null) {
+                clazz = minAndMax == null ? null : minAndMax.getMin().getClass();
+            } else if (minAndMax != null && clazz != minAndMax.getMin().getClass()) {
+                // we don't support sort values that mix different types (e.g.: long/double, numeric/keyword).
+                // TODO: we could fail the request because there is a high probability
+                //  that the merging of topdocs will fail later for the same reason ?
+                return false;
+            }
+        }
+        return clazz != null;
     }
 
     private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,

@@ -11,7 +11,7 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM elasticsearch/centos-base:7 AS builder
+FROM ${base_image} AS builder
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -36,7 +36,7 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Add entrypoint
 ################################################################################
 
-FROM elasticsearch/centos-base:7
+FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 

@@ -81,8 +81,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryShardContext context = queryShardContext.convertToShardContext();
         if (context != null) {
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
-            if (!fieldName.contains("*") && fieldType == null) {
+            if (isFieldMapped(context, fieldName) == false) {
                 return new MatchNoneQueryBuilder();
             }
         }
@@ -116,11 +115,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                        "] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                    "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 
@@ -142,7 +141,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
 
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
+            .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
@@ -191,6 +190,46 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());
+    }
+
+    /**
+     * Helper method to validate whether field is mapped
+     *
+     * @return true if the field is unmapped, false otherwise
+     */
+
+    private static boolean isFieldMapped(QueryShardContext context, String fieldPattern) {
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+            .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
+
+        if (fieldNamesFieldType == null) {
+            // can only happen when no types exist, so no docs exist either
+            return false;
+        }
+
+        final Collection<String> fields;
+        if (context.getObjectMapper(fieldPattern) != null) {
+            // the _field_names field also indexes objects, so we don't have to
+            // do any more work to support exists queries on whole objects
+            fields = Collections.singleton(fieldPattern);
+        } else {
+            fields = context.simpleMatchToIndexNames(fieldPattern);
+        }
+
+        if (fields.size() == 1) {
+            String field = fields.iterator().next();
+            MappedFieldType fieldType = context.getMapperService().fieldType(field);
+            if (fieldType == null) {
+                // The field does not exist as a leaf but could be an object so
+                // check for an object mapper
+                if (context.getObjectMapper(field) != null) {
+                    return false;
+                }
+                return false; // no field mapped
+            }
+        }
+
+        return true;
     }
 
     @Override

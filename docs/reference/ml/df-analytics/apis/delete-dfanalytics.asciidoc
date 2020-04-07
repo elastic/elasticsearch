@@ -25,7 +25,7 @@ If the {es} {security-features} are enabled, you must have the following
 built-in roles or equivalent privileges:
 
 * `machine_learning_admin`
-* `kibana_user` (UI only)
+* `kibana_admin` (UI only)
 
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 

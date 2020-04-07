@@ -273,12 +273,6 @@ public class Node implements Closeable {
             Settings tmpSettings = Settings.builder().put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
-            nodeEnvironment = new NodeEnvironment(tmpSettings, initialEnvironment);
-            resourcesToClose.add(nodeEnvironment);
-            logger.info("node name [{}], node ID [{}], cluster name [{}]",
-                    NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(),
-                    ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value());
-
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
@@ -312,6 +306,7 @@ public class Node implements Closeable {
             this.pluginsService = new PluginsService(tmpSettings, initialEnvironment.configFile(), initialEnvironment.modulesFile(),
                 initialEnvironment.pluginsFile(), classpathPlugins);
             final Settings settings = pluginsService.updatedSettings();
+
             final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
                     DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
                     pluginsService.filterPlugins(Plugin.class)
@@ -320,12 +315,18 @@ public class Node implements Closeable {
                             .flatMap(Set::stream))
                     .collect(Collectors.toSet());
             DiscoveryNode.setPossibleRoles(possibleRoles);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
-            // create the environment based on the finalized (processed) view of the settings
-            // this is just to makes sure that people get the same settings, no matter where they ask them from
+            /*
+             * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
+             * values, no matter they ask for them from.
+             */
             this.environment = new Environment(settings, initialEnvironment.configFile());
             Environment.assertEquivalent(initialEnvironment, this.environment);
+            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            logger.info("node name [{}], node ID [{}], cluster name [{}]",
+                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value());
+            resourcesToClose.add(nodeEnvironment);
+            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 

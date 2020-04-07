@@ -42,6 +42,7 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static String string(Object s) {
         return (String) ToStringFunctionProcessor.doProcess(s);
+    }
 
     public static Boolean stringContains(String string, String substring) {
         return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);

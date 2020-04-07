@@ -37,7 +37,7 @@ public class ToStringFunctionProcessor implements Processor {
     }
 
     public static Object doProcess(Object source) {
-        return source == null ? "null" : source.toString();
+        return source == null ? null : source.toString();
     }
 
     protected Processor source() {

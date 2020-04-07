@@ -45,8 +45,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
         Aggregator parent,
         List<PipelineAggregator> pipelineAggregators,
         Map<String, Object> metaData
-    )
-        throws IOException {
+    ) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -107,12 +106,12 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, pipelineAggregators(), metaData());
+        return new InternalMax(name, maxes.get(bucket), formatter, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metadata());
     }
 
     @Override

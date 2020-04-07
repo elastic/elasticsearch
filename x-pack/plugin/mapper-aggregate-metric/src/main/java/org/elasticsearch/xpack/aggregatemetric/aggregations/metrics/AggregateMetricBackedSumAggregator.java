@@ -44,8 +44,7 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
         Aggregator parent,
         List<PipelineAggregator> pipelineAggregators,
         Map<String, Object> metaData
-    )
-        throws IOException {
+    ) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -106,12 +105,12 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalSum(name, sums.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, format, pipelineAggregators(), metaData());
+        return new InternalSum(name, 0.0, format, metadata());
     }
 
     @Override

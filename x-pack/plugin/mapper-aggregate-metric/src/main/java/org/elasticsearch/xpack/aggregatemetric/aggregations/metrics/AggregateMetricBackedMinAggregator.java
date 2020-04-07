@@ -45,8 +45,7 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
         Aggregator parent,
         List<PipelineAggregator> pipelineAggregators,
         Map<String, Object> metaData
-    )
-        throws IOException {
+    ) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -107,12 +106,12 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
         if (valuesSource == null || bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalMin(name, mins.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, format, pipelineAggregators(), metaData());
+        return new InternalMin(name, Double.POSITIVE_INFINITY, format, metadata());
     }
 
     @Override

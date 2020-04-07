@@ -46,8 +46,7 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
         Aggregator parent,
         List<PipelineAggregator> pipelineAggregators,
         Map<String, Object> metaData
-    )
-        throws IOException {
+    ) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -129,12 +128,12 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0L, format, pipelineAggregators(), metaData());
+        return new InternalAvg(name, 0.0, 0L, format, metadata());
     }
 
     @Override

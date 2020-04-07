@@ -149,7 +149,7 @@ public class AllocationServiceTests extends ESTestCase {
         nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
         nodesBuilder.add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT));
 
-        final Metadata.Builder metaData = Metadata.builder()
+        final Metadata.Builder metadata = Metadata.builder()
             // create 3 indices with different priorities. The high and low priority indices use the default allocator which (in this test)
             // does not allocate any replicas, whereas the medium priority one uses the unrealistic allocator which does allocate replicas
             .put(indexMetadata("highPriority", Settings.builder()
@@ -166,14 +166,14 @@ public class AllocationServiceTests extends ESTestCase {
                 .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "unknown")));
 
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder()
-            .addAsRecovery(metaData.get("highPriority"))
-            .addAsRecovery(metaData.get("mediumPriority"))
-            .addAsRecovery(metaData.get("lowPriority"))
-            .addAsRecovery(metaData.get("invalid"));
+            .addAsRecovery(metadata.get("highPriority"))
+            .addAsRecovery(metadata.get("mediumPriority"))
+            .addAsRecovery(metadata.get("lowPriority"))
+            .addAsRecovery(metadata.get("invalid"));
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
-            .metadata(metaData)
+            .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .build();
 

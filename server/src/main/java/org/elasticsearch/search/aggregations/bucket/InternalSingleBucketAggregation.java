@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -53,8 +52,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
     protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }

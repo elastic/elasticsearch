@@ -19,10 +19,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
@@ -41,12 +44,14 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
@@ -71,6 +76,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -105,6 +111,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -171,7 +178,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     @BeforeClass
     public static void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.EMPTY_LIST);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
@@ -684,7 +691,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Document doc = new Document();
         String json;
 
-
         if (vst.equals(CoreValuesSourceType.NUMERIC)) {
             long v;
             if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
@@ -710,7 +716,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 doc.add(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes));
                 json = "{ \"" + fieldName + "\" : \"a\" }";
             } else {
-                iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef("a"))));
+                doc.add(new SortedSetDocValuesField(fieldName, new BytesRef("a")));
+                json = "{ \"" + fieldName + "\" : \"a\" }";
             }
         } else if (vst.equals(CoreValuesSourceType.DATE)) {
             // positive integer because date_nanos gets unhappy with large longs

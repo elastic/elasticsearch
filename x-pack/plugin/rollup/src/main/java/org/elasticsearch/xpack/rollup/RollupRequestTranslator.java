@@ -357,7 +357,7 @@ public class RollupRequestTranslator {
      * @param <T> The type of ValueSourceAggBuilder that we are working with
      * @return the translated multi-bucket ValueSourceAggBuilder
      */
-    private static <T extends ValuesSourceAggregationBuilder<?, ?>> List<AggregationBuilder>
+    private static <T extends ValuesSourceAggregationBuilder<?>> List<AggregationBuilder>
         translateVSAggBuilder(T source, NamedWriteableRegistry registry, Supplier<T> factory) {
 
         T rolled = factory.get();
@@ -483,8 +483,8 @@ public class RollupRequestTranslator {
                      NamedWriteableAwareStreamInput in =
                              new NamedWriteableAwareStreamInput(stream, registry)) {
 
-                    ValuesSourceAggregationBuilder<?, ?> serialized
-                            = ((ValuesSourceAggregationBuilder<?,?>)in.readNamedWriteable(AggregationBuilder.class))
+                    ValuesSourceAggregationBuilder<?> serialized
+                            = ((ValuesSourceAggregationBuilder<?>)in.readNamedWriteable(AggregationBuilder.class))
                             .field(RollupField.formatFieldName(metric, RollupField.VALUE));
 
                     return Collections.singletonList(serialized);

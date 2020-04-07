@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      features: warnings
+
   - do:
       cluster.health:
         wait_for_status: yellow
@@ -13,6 +16,8 @@ setup:
           {
             "key": "value"
           }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
 ---
 "Test search input includes hits by default":

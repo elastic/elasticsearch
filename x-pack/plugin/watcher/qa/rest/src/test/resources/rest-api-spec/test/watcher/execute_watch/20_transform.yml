@@ -6,6 +6,9 @@ setup:
 
 ---
 "Test execute watch api with configured search transform":
+  - skip:
+      features: warnings
+
   - do:
       index:
         index: my_test_index
@@ -15,6 +18,8 @@ setup:
           {
             "key": "value"
           }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       watcher.execute_watch:
@@ -68,6 +73,9 @@ setup:
 
 ---
 "Test execute watch api with configured search transform using DFS_QUERY_THEN_FETCH":
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: my_test_index
@@ -75,6 +83,8 @@ setup:
           settings:
             number_of_shards: "2"
             number_of_replicas: "0"
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       index:
@@ -141,9 +151,14 @@ setup:
 ---
 "Test execute watch api with misconfigured search transform on failure":
 
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: my_test_index
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       watcher.execute_watch:

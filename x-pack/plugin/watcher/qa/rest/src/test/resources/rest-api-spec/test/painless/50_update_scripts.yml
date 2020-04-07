@@ -19,6 +19,8 @@
               "source":"return [ 'email': 'foo@bar.org' ]"
             }
           }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       watcher.put_watch:
@@ -67,6 +69,8 @@
               "source":"return [ 'email': 'foo@example.org' ]"
             }
           }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       watcher.execute_watch:
@@ -95,6 +99,8 @@
               "source": "return false"
             }
           }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       watcher.put_watch:
@@ -142,6 +148,8 @@
               "source": "return true"
             }
           }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       watcher.execute_watch:

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -97,10 +99,14 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
     private static void deleteWatcherIndices() throws IOException {
         Request deleteWatchesIndexRequest = new Request("DELETE", ".watches");
         deleteWatchesIndexRequest.addParameter("ignore_unavailable", "true");
+        // TODO restore default warnings handling when xpack.ilm.enabled setting is removed
+        deleteWatchesIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         adminClient().performRequest(deleteWatchesIndexRequest);
 
         Request deleteWatchHistoryRequest = new Request("DELETE", ".watcher-history-*");
         deleteWatchHistoryRequest.addParameter("ignore_unavailable", "true");
+        // TODO restore default warnings handling when xpack.ilm.enabled setting is removed
+        deleteWatchHistoryRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         adminClient().performRequest(deleteWatchHistoryRequest);
     }
 }

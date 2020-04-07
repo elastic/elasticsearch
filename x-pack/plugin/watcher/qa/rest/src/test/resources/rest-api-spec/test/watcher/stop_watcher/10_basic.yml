@@ -1,11 +1,22 @@
 ---
 "Test stop watcher api":
+  - skip:
+      features: warnings
+
   - do:
       cluster.health:
           wait_for_status: yellow
 
-  - do: {watcher.stop: {}}
+  - do:
+      watcher.stop: {}
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+
   - match: { acknowledged: true }
 
-  - do: {watcher.start: {}}
+  - do:
+      watcher.start: {}
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+
   - match: { acknowledged: true }

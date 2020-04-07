@@ -1,5 +1,7 @@
 ---
 "Basic array_compare watch":
+  - skip:
+      features: warnings
 
   - do:
       cluster.health:
@@ -10,6 +12,8 @@
           index:  test_1
           id:     1
           body:   { level: 0 }
+      warnings:
+        - "[xpack.ilm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       index:

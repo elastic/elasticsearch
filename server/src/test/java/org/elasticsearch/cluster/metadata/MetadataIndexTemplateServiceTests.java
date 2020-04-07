@@ -303,7 +303,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         IndexTemplateV2 newTemplate = IndexTemplateV2Tests.randomInstance();
 
-        final ClusterState throwState = state;
+        final ClusterState throwState = ClusterState.builder(state).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> metadataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", newTemplate));
         assertThat(e.getMessage(), containsString("index template [foo] already exists"));

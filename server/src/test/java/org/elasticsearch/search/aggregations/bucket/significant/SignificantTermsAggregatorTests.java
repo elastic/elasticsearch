@@ -50,8 +50,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.junit.Before;
 
 import java.io.IOException;

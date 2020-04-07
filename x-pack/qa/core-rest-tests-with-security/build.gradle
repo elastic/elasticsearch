@@ -27,7 +27,6 @@ integTest {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  keystorePassword 's3cr3t'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'

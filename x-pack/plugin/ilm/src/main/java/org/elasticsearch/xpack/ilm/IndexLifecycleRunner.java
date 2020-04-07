@@ -367,7 +367,7 @@ class IndexLifecycleRunner {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
         clusterService.submitStateUpdateTask(
             String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
-                index.getName(), currentStepKey.getName(), newStepKey.getName()),
+                index.getName(), currentStepKey, newStepKey),
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
             {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -386,7 +386,7 @@ class IndexLifecycleRunner {
             policy, index.getName(), currentStepKey), e);
         clusterService.submitStateUpdateTask(
             String.format(Locale.ROOT, "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
-                currentStepKey.getName()),
+                currentStepKey),
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
@@ -397,10 +397,10 @@ class IndexLifecycleRunner {
      * Set step info for the given index inside of its {@link LifecycleExecutionState} without
      * changing other execution state.
      */
-    private void setStepInfo(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
+    private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
         clusterService.submitStateUpdateTask(
             String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
-                currentStepKey.getName()),
+                currentStepKey),
             new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 

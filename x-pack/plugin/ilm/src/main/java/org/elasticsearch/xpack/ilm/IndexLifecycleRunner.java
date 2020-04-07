@@ -365,7 +365,9 @@ class IndexLifecycleRunner {
      */
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
-        clusterService.submitStateUpdateTask("ilm-move-to-step",
+        clusterService.submitStateUpdateTask(
+            String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
+                index.getName(), currentStepKey.getName(), newStepKey.getName()),
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
             {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -382,7 +384,9 @@ class IndexLifecycleRunner {
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
             policy, index.getName(), currentStepKey), e);
-        clusterService.submitStateUpdateTask("ilm-move-to-error-step",
+        clusterService.submitStateUpdateTask(
+            String.format(Locale.ROOT, "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
+                currentStepKey.getName()),
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
@@ -394,7 +398,10 @@ class IndexLifecycleRunner {
      * changing other execution state.
      */
     private void setStepInfo(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        clusterService.submitStateUpdateTask("ilm-set-step-info", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
+        clusterService.submitStateUpdateTask(
+            String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
+                currentStepKey.getName()),
+            new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 
     /**

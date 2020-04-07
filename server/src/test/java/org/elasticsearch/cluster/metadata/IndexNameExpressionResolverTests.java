@@ -1888,4 +1888,31 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*"));
         }
     }
+
+    public void testDataStreamsWithRegularIndexAndAlias() {
+        final String dataStream1 = "logs-foobar";
+        IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
+        IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
+        IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
+            .settings(ESTestCase.settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
+            .build();
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder()
+                .put(index1, false)
+                .put(index2, false)
+                .put(justAnIndex, false)
+                .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))).build();
+
+        IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+        Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
+        Arrays.sort(result, Comparator.comparing(Index::getName));
+        assertThat(result.length, equalTo(3));
+        assertThat(result[0].getName(), equalTo("logs-foobar-000001"));
+        assertThat(result[1].getName(), equalTo("logs-foobar-000002"));
+        assertThat(result[2].getName(), equalTo("logs-foobarbaz-0"));
+    }
 }

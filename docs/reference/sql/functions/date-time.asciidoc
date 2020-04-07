@@ -425,7 +425,7 @@ DATE_FORMAT(
 *Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
 pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or the pattern is an empty string a `null` is returned.
+If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
 
 NOTE::
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units

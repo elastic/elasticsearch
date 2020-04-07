@@ -1,128 +1,143 @@
 //
 // QueryFolder test
-// Simple format of the following blocks, separated by two new lines
+//
+// A test is made up of a name (one line), a query that can span multiple lines and ends with ; and one or multiple assertions (one per line) that end with ;
+//
 // <name>
-// <eql query>
+// <eql query>;
 // <expectation 1>
 // <expectation 2>
 // ...
 // <expectation n>
+// ;
 
 
 basic
-process where true
+process where true;
 null
-
+;
 
 singleNumericFilterEquals
-process where serial_event_id = 1
+process where serial_event_id = 1;
 "term":{"serial_event_id":{"value":1
-
+;
 
 singleNumericFilterLess
-process where serial_event_id < 4
+process where serial_event_id < 4;
 "range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":false
-
+;
 
 singleNumericFilterLessEquals
-process where serial_event_id <= 4
+process where serial_event_id <= 4;
 "range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":true
-
+;
 
 singleNumericFilterGreater
-process where serial_event_id > 4
+process where serial_event_id > 4;
 "range":{"serial_event_id":{"from":4,"to":null,"include_lower":false,"include_upper":false
-
+;
 
 singleNumericFilterGreaterEquals
-process where serial_event_id >= 4
+process where serial_event_id >= 4;
 "range":{"serial_event_id":{"from":4,"to":null,"include_lower":true,"include_upper":false
-
+;
 
 mixedTypeFilter
-process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1);
 "term":{"process_name":{"value":"notepad.exe"
 "range":{"serial_event_id":{"from":3.1,"to":4.5,"include_lower":true,"include_upper":false
-
+;
 
 notFilter
-process where not (exit_code > -1)
+process where not (exit_code > -1);
 "range":{"exit_code":{"from":null,"to":-1,"include_lower":false,"include_upper":true
-
+;
 
 inFilter
-process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
+process where process_name in ("python.exe", "SMSS.exe", "explorer.exe");
 "terms":{"process_name":["python.exe","SMSS.exe","explorer.exe"],
-
+;
 
 equalsAndInFilter
 process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
+;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
 {"terms":{"opcode":[0,1,2,3]
-
+;
 
 endsWithFunction
 process where endsWith(user_name, 'c')
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
 "params":{"v0":"user_name","v1":"c"}
-
+;
 
 lengthFunctionWithExactSubField
 process where length(file_name) > 0
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
 "params":{"v0":"file_name.keyword","v1":0}
-
+;
 
 lengthFunctionWithExactField
 process where 12 == length(user_name)
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
 "params":{"v0":"user_name","v1":12}
-
+;
 
 lengthFunctionWithConstantKeyword
 process where 5 > length(constant_keyword)
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lt(
 InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
 "params":{"v0":"constant_keyword","v1":5}
-
+;
 
 startsWithFunction
 process where startsWith(user_name, 'A')
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.startsWith(
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
 "params":{"v0":"user_name","v1":"A"}
-
+;
 
 substringFunction
 process where substring(file_name, -4) == '.exe'
+;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
-
+;
 
 betweenFunction
-process where between(process_name, "s", "e") == "yst"
+process where between(process_name, "s", "e") == "yst";
+
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
 "params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
-
+;
 
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")
+;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
-
+;
 
 wildcardFunctionTwoArguments
 process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
 "wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
-
+;
 
 wildcardFunctionThreeArguments
 process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
 "wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
 "wildcard":{"process_path":{"wildcard":"*def*"
+;

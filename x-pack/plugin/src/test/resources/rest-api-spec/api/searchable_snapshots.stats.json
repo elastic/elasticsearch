@@ -1,7 +1,7 @@
 {
   "searchable_snapshots.stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-api-stats.html"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-api-stats.html"
     },
     "stability": "experimental",
     "url": {

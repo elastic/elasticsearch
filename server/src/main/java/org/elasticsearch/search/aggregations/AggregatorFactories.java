@@ -223,13 +223,6 @@ public class AggregatorFactories {
         return factories.length;
     }
 
-    /**
-     * @return the number of pipeline aggregator factories
-     */
-    public int countPipelineAggregators() {
-        return pipelineAggregatorFactories.size();
-    }
-
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 

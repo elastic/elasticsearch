@@ -24,11 +24,9 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class GlobalAggregatorFactory extends AggregatorFactory {
@@ -45,7 +43,6 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
         if (parent != null) {
             throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " + "sub-aggregation [" + name
@@ -54,6 +51,6 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         if (collectsFromSingleBucket == false) {
             throw new IllegalStateException();
         }
-        return new GlobalAggregator(name, factories, searchContext, pipelineAggregators, metadata);
+        return new GlobalAggregator(name, factories, searchContext, metadata);
     }
 }

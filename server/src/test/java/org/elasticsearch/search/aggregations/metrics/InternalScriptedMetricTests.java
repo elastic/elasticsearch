@@ -30,7 +30,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -42,8 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyList;
 
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
 
@@ -84,7 +81,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME, params);
         }
         Object randomValue = randomValue(valueTypes, 0);
-        return new InternalScriptedMetric(name, randomValue, reduceScript, emptyList(), metadata);
+        return new InternalScriptedMetric(name, randomValue, reduceScript, metadata);
     }
 
     @SuppressWarnings("unchecked")
@@ -127,7 +124,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     protected void assertReduced(InternalScriptedMetric reduced, List<InternalScriptedMetric> inputs) {
         InternalScriptedMetric firstAgg = inputs.get(0);
         assertEquals(firstAgg.getName(), reduced.getName());
-        assertEquals(firstAgg.pipelineAggregators(), reduced.pipelineAggregators());
         assertEquals(firstAgg.getMetadata(), reduced.getMetadata());
         if (hasReduceScript) {
             assertEquals(inputs.size(), reduced.aggregation());
@@ -200,7 +196,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         String name = instance.getName();
         Object value = instance.aggregation();
         Script reduceScript = instance.reduceScript;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -238,6 +233,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalScriptedMetric(name, value, reduceScript, pipelineAggregators, metadata);
+        return new InternalScriptedMetric(name, value, reduceScript, metadata);
     }
 }

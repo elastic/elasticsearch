@@ -132,7 +132,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         if (hasReduceScript) {
             assertEquals(inputs.size(), reduced.aggregation());
         } else {
-            assertEquals(inputs.size(), ((List<Object>) reduced.aggregation()).size());
+            assertEquals(inputs.size(), ((List<?>) reduced.aggregation()).size());
         }
     }
 

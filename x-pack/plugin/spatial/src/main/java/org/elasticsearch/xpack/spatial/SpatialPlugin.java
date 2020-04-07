@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
@@ -41,6 +42,7 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, SearchPlugin,
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
+        mappers.put(PointFieldMapper.CONTENT_TYPE, new PointFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 

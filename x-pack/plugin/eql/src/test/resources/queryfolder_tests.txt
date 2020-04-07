@@ -61,9 +61,62 @@ process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 {"terms":{"opcode":[0,1,2,3]
 
 
+endsWithFunction
+process where endsWith(user_name, 'c')
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
+"params":{"v0":"user_name","v1":"c"}
+
+
+lengthFunctionWithExactSubField
+process where length(file_name) > 0
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"file_name.keyword","v1":0}
+
+
+lengthFunctionWithExactField
+process where 12 == length(user_name)
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"user_name","v1":12}
+
+
+lengthFunctionWithConstantKeyword
+process where 5 > length(constant_keyword)
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lt(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"constant_keyword","v1":5}
+
+
+startsWithFunction
+process where startsWith(user_name, 'A')
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.startsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
+"params":{"v0":"user_name","v1":"A"}
+
+
 substringFunction
 process where substring(file_name, -4) == '.exe'
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
+
+
+wildcardFunctionSingleArgument
+process where wildcard(process_path, "*\\red_ttp\\wininit.*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+
+
+wildcardFunctionTwoArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+
+
+wildcardFunctionThreeArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+"wildcard":{"process_path":{"wildcard":"*def*"
 

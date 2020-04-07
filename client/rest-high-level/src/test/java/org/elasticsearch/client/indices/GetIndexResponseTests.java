@@ -22,8 +22,8 @@ package org.elasticsearch.client.indices;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.GetAliasesResponseTests;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -47,8 +47,8 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
     @Override
     protected org.elasticsearch.action.admin.indices.get.GetIndexResponse createServerTestInstance(XContentType xContentType) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
@@ -56,13 +56,13 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
         for (String index: indices) {
             mappings.put(index, createMappingsForIndex());
 
-            List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
+            List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int i=0; i<aliasesNum; i++) {
-                aliasMetaDataList.add(GetAliasesResponseTests.createAliasMetaData());
+                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
-            CollectionUtil.timSort(aliasMetaDataList, Comparator.comparing(AliasMetaData::alias));
-            aliases.put(index, Collections.unmodifiableList(aliasMetaDataList));
+            CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
+            aliases.put(index, Collections.unmodifiableList(aliasMetadataList));
 
             Settings.Builder builder = Settings.builder();
             builder.put(RandomCreateIndexGenerator.randomIndexSettings());
@@ -91,9 +91,9 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
         assertMapEquals(serverTestInstance.getAliases(), clientInstance.getAliases());
     }
 
-    private static MappingMetaData createMappingsForIndex() {
+    private static MappingMetadata createMappingsForIndex() {
         int typeCount = rarely() ? 0 : 1;
-        MappingMetaData mmd = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
+        MappingMetadata mmd = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
         for (int i = 0; i < typeCount; i++) {
             if (rarely() == false) { // rarely have no fields
                 Map<String, Object> mappings = new HashMap<>();
@@ -103,7 +103,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
                 }
 
                 String typeName = MapperService.SINGLE_MAPPING_NAME;
-                mmd = new MappingMetaData(typeName, mappings);
+                mmd = new MappingMetadata(typeName, mappings);
             }
         }
         return mmd;

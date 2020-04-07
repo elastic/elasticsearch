@@ -18,7 +18,6 @@ import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.net.URL;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.emptyIterable;
@@ -56,7 +55,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String principalAttribute = randomAlphaOfLengthBetween(6, 36);
         final String rolesAttribute = randomAlphaOfLengthBetween(6, 36);
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
-        final Map<String, String> rolePrivileges = Map.of(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
+        final Set<String> rolePrivileges = Set.of("role:(.*)");
 
         final DocumentVersion docVersion = new DocumentVersion(
             randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
@@ -65,7 +64,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         document.setAuthenticationExpiry(null);
         document.setAcs(acs.toString());
         document.privileges.setResource(resource);
-        document.privileges.setRoleActions(rolePrivileges);
+        document.privileges.setRolePatterns(rolePrivileges);
         document.attributeNames.setPrincipal(principalAttribute);
         document.attributeNames.setRoles(rolesAttribute);
 
@@ -89,7 +88,9 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getPrivileges(), notNullValue());
         assertThat(serviceProvider.getPrivileges().getApplicationName(), equalTo(serviceProviderDefaults.applicationName));
         assertThat(serviceProvider.getPrivileges().getResource(), equalTo(resource));
-        assertThat(serviceProvider.getPrivileges().getRoleActions(), equalTo(rolePrivileges));
+        assertThat(serviceProvider.getPrivileges().getRoleMapping(), notNullValue());
+        assertThat(serviceProvider.getPrivileges().getRoleMapping().apply("role:foo"), equalTo(Set.of("foo")));
+        assertThat(serviceProvider.getPrivileges().getRoleMapping().apply("foo:bar"), equalTo(Set.of()));
     }
 
     public void testResolveReturnsCachedObject() throws Exception {

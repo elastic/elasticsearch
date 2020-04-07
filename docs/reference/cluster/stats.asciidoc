@@ -38,21 +38,31 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
+[role="child_attributes"]
 [[cluster-stats-api-response-body]]
 ==== {api-response-body-title}
 
-`_nodes.total`::
+`_nodes`::
+(object)
+Contains statistics about the number of nodes selected by the request's
+<<cluster-nodes,node filters>>.
++
+.Properties of `_nodes`
+[%collapsible%open]
+====
+`total`::
 (integer)
-Total number of nodes selected by the request's <<cluster-nodes,node filters>>.
+Total number of nodes selected by the request.
 
-`_nodes.successful`::
+`successful`::
 (integer)
 Number of nodes that responded successfully to the request.
 
-`_nodes.failed`::
+`failed`::
 (integer)
 Number of nodes that rejected the request or failed to respond. If this value
 is not `0`, a reason for the rejection or failure is included in the response.
+====
 
 `cluster_name`::
 (string)
@@ -72,78 +82,125 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 +
 See <<cluster-health>>.
 
-[NOTE]
-====
-The remaining statistics are grouped by section.
-====
-
 [[cluster-stats-api-response-body-indices]]
-===== `indices` section
-
-[%collapsible]
+`indices`::
+(object)
+Contains statistics about indices with shards assigned to selected nodes.
++
+.Properties of `indices`
+[%collapsible%open]
 ====
-`indices.count`::
+`count`::
 (integer)
 Total number of indices with shards assigned to selected nodes.
 
-`indices.shards.total`::
+`shards`::
+(object)
+Contains statistics about shards assigned to selected nodes.
++
+.Properties of `shards`
+[%collapsible%open]
+=====
+`total`::
 (integer)
 Total number of shards assigned to selected nodes.
 
-`indices.shards.primaries`::
+`primaries`::
 (integer)
 Number of primary shards assigned to selected nodes.
 
-`indices.shards.replication`::
-(integer)
+`replication`::
+(float)
 Ratio of replica shards to primary shards across all selected nodes.
 
-`indices.shards.index.shards.min`::
+`index`::
+(object)
+Contains statistics about shards assigned to selected nodes.
++
+.Properties of `index`
+[%collapsible%open]
+======
+`shards`::
+(object)
+Contains statistics about the number of shards assigned to selected nodes.
++
+.Properties of `shards`
+[%collapsible%open]
+=======
+`min`::
 (integer)
 Minimum number of shards in an index, counting only shards assigned to
 selected nodes.
 
-`indices.shards.index.shards.max`::
+`max`::
 (integer)
 Maximum number of shards in an index, counting only shards assigned to
 selected nodes.
 
-`indices.shards.index.shards.avg`::
-(integer)
+`avg`::
+(float)
 Mean number of shards in an index, counting only shards assigned to
 selected nodes.
+=======
 
-`indices.shards.index.primaries.min`::
+`primaries`::
+(object)
+Contains statistics about the number of primary shards assigned to selected
+nodes.
++
+.Properties of `primaries`
+[%collapsible%open]
+=======
+`min`::
 (integer)
 Minimum number of primary shards in an index, counting only shards assigned
 to selected nodes.
 
-`indices.shards.index.primaries.max`::
+`max`::
 (integer)
 Maximum number of primary shards in an index, counting only shards assigned
 to selected nodes.
 
-`indices.shards.index.primaries.avg`::
-(integer)
+`avg`::
+(float)
 Mean number of primary shards in an index, counting only shards assigned to
 selected nodes.
+=======
 
-`indices.shards.index.replication.min`::
-(integer)
+`replication`::
+(object)
+Contains statistics about the number of replication shards assigned to selected
+nodes.
++
+.Properties of `replication`
+[%collapsible%open]
+=======
+`min`::
+(float)
 Minimum replication factor in an index, counting only shards assigned to
 selected nodes.
 
-`indices.shards.index.replication.max`::
-(integer)
+`max`::
+(float)
 Maximum replication factor in an index, counting only shards assigned to
 selected nodes.
 
-`indices.shards.index.replication.avg`::
-(integer)
+`avg`::
+(float)
 Mean replication factor in an index, counting only shards assigned to selected
 nodes.
+=======
+======
+=====
 
-`indices.docs.count`::
+`docs`::
+(object)
+Contains counts for documents in selected nodes.
++
+.Properties of `docs`
+[%collapsible%open]
+=====
+`count`::
 (integer)
 Total number of non-deleted documents across all primary shards assigned to
 selected nodes.
@@ -151,180 +208,220 @@ selected nodes.
 This number is based on documents in Lucene segments and may include documents
 from nested fields.
 
-`indices.docs.deleted`::
+`deleted`::
 (integer)
 Total number of deleted documents across all primary shards assigned to
 selected nodes.
 +
 This number is based on documents in Lucene segments. {es} reclaims the disk
 space of deleted Lucene documents when a segment is merged.
+=====
 
-`indices.store.size`::
+`store`::
+(object)
+Contains statistics about the size of shards assigned to selected nodes.
++
+.Properties of `store`
+[%collapsible%open]
+=====
+`size`::
 (<<byte-units, byte units>>)
 Total size of all shards assigned to selected nodes.
 
-`indices.store.size_in_bytes`::
+`size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
+=====
 
-`indices.fielddata.memory_size`::
+`fielddata`::
+(object)
+Contains statistics about the field data cache of selected nodes.
++
+.Properties of `fielddata`
+[%collapsible%open]
+=====
+`memory_size`::
 (<<byte-units, byte units>>)
 Total amount of memory used for the field data cache across all shards
 assigned to selected nodes.
 
-`indices.fielddata.memory_size_in_bytes`::
+`memory_size_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for the field data cache across all
 shards assigned to selected nodes.
 
-`indices.fielddata.evictions`::
+`evictions`::
 (integer)
 Total number of evictions from the field data cache across all shards assigned
 to selected nodes.
+=====
 
-`indices.query_cache.memory_size`::
+`query_cache`::
+(object)
+Contains statistics about the query cache of selected nodes.
++
+.Properties of `query_cache`
+[%collapsible%open]
+=====
+`memory_size`::
 (<<byte-units, byte units>>)
 Total amount of memory used for the query cache across all shards assigned to
 selected nodes.
 
-`indices.query_cache.memory_size_in_bytes`::
+`memory_size_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for the query cache across all shards
 assigned to selected nodes.
 
-`indices.query_cache.total_count`::
+`total_count`::
 (integer)
 Total count of hits and misses in the query cache across all shards assigned to
 selected nodes.
 
-`indices.query_cache.hit_count`::
+`hit_count`::
 (integer)
 Total count of query cache hits across all shards assigned to selected nodes.
 
-`indices.query_cache.miss_count`::
+`miss_count`::
 (integer)
 Total count of query cache misses across all shards assigned to selected nodes.
 
-`indices.query_cache.cache_size`::
+`cache_size`::
 (integer)
 Total number of entries currently in the query cache across all shards assigned
 to selected nodes.
 
-`indices.query_cache.cache_count`::
+`cache_count`::
 (integer)
 Total number of entries added to the query cache across all shards assigned
 to selected nodes. This number includes current and evicted entries.
 
-`indices.query_cache.evictions`::
+`evictions`::
 (integer)
 Total number of query cache evictions across all shards assigned to selected
 nodes.
+=====
 
-`indices.completion.size`::
+`completion`::
+(object)
+Contains statistics about memory used for completion in selected nodes.
++
+.Properties of `completion`
+[%collapsible%open]
+=====
+`size`::
 (<<byte-units, byte units>>)
 Total amount of memory used for completion across all shards assigned to
 selected nodes.
 
-`indices.completion.size_in_bytes`::
+`size_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for completion across all shards assigned
 to selected nodes.
+=====
 
-`indices.segments.count`::
+`segments`::
+(object)
+Contains statistics about segments in selected nodes.
++
+.Properties of `segments`
+[%collapsible%open]
+=====
+`count`::
 (integer)
 Total number of segments across all shards assigned to selected nodes.
 
-`indices.segments.memory`::
+`memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for segments across all shards assigned to selected
 nodes.
 
-`indices.segments.memory_in_bytes`::
+`memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for segments across all shards assigned to
 selected nodes.
 
-`indices.segments.terms_memory`::
+`terms_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for terms across all shards assigned to selected
 nodes.
 
-`indices.segments.terms_memory_in_bytes`::
+`terms_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for terms across all shards assigned to
 selected nodes.
 
-`indices.segments.stored_fields_memory`::
+`stored_fields_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for stored fields across all shards assigned to
 selected nodes.
 
-`indices.segments.stored_fields_memory_in_bytes`::
+`stored_fields_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for stored fields across all shards
 assigned to selected nodes.
 
-`indices.segments.term_vectors_memory`::
+`term_vectors_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for term vectors across all shards assigned to
 selected nodes.
 
-`indices.segments.term_vectors_memory_in_bytes`::
+`term_vectors_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for term vectors across all shards
 assigned to selected nodes.
 
-`indices.segments.norms_memory`::
+`norms_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for normalization factors across all shards assigned
 to selected nodes.
 
-`indices.segments.norms_memory_in_bytes`::
+`norms_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for normalization factors across all
 shards assigned to selected nodes.
 
-`indices.segments.points_memory`::
+`points_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for points across all shards assigned to selected
 nodes.
 
-`indices.segments.points_memory_in_bytes`::
+`points_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for points across all shards assigned to
 selected nodes.
 
-`indices.segments.doc_values_memory`::
+`doc_values_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used for doc values across all shards assigned to
 selected nodes.
 
-`indices.segments.doc_values_memory_in_bytes`::
+`doc_values_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used for doc values across all shards assigned
 to selected nodes.
 
-`indices.segments.index_writer_memory`::
+`index_writer_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used by all index writers across all shards assigned to
 selected nodes.
 
-`indices.segments.index_writer_memory_in_bytes`::
+`index_writer_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used by all index writers across all shards
 assigned to selected nodes.
 
-`indices.segments.version_map_memory`::
+`version_map_memory`::
 (<<byte-units, byte units>>)
 Total amount of memory used by all version maps across all shards assigned to
 selected nodes.
 
-`indices.segments.version_map_memory_in_bytes`::
+`version_map_memory_in_bytes`::
 (integer)
 Total amount, in bytes, of memory used by all version maps across all shards
 assigned to selected nodes.
 
-`indices.segments.fixed_bit_set_memory`::
+`fixed_bit_set`::
 (<<byte-units, byte units>>)
 Total amount of memory used by fixed bit sets across all shards assigned to
 selected nodes.
@@ -332,52 +429,73 @@ selected nodes.
 Fixed bit sets are used for nested object field types and
 type filters for <<parent-join,join>> fields.
 
-`indices.segments.fixed_bit_set_memory_in_bytes`::
+`fixed_bit_set_memory_in_bytes`::
 (integer)
 Total amount of memory, in bytes, used by fixed bit sets across all shards
 assigned to selected nodes.
 
-`indices.segments.max_unsafe_auto_id_timestamp`::
+`max_unsafe_auto_id_timestamp`::
 (integer)
 https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
 the most recently retried indexing request.
 
-`indices.segments.file_sizes`::
+`file_sizes`::
 (object)
 This object is not populated by the cluster stats API.
 +
 To get information on segment files, use the <<cluster-nodes-stats,node stats
 API>>.
+=====
 ====
 
 [[cluster-stats-api-response-body-nodes]]
-===== `nodes` section
-
-[%collapsible]
+`nodes`::
+(object)
+Contains statistics about nodes selected by the request's <<cluster-nodes,node
+filters>>.
++
+.Properties of `nodes`
+[%collapsible%open]
 ====
-`nodes.count.total`::
+`count`::
+(object)
+Contains counts for nodes selected by the request's <<cluster-nodes,node
+filters>>.
++
+.Properties of `count`
+[%collapsible%open]
+=====
+`total`::
 (integer)
-Total number of nodes selected by the request's <<cluster-nodes,node filters>>.
+Total number of selected nodes.
 
-`nodes.count.coordinating_only`::
+`coordinating_only`::
 (integer)
 Number of selected nodes without a <<modules-node,role>>. These nodes are
 considered <<coordinating-only-node,coordinating only>> nodes.
 
-`nodes.count.<role>`::
+`<role>`::
 (integer)
 Number of selected nodes with the role. For a list of roles, see
 <<modules-node>>.
+=====
 
-`nodes.versions`::
+`versions`::
 (array of strings)
 Array of {es} versions used on selected nodes.
 
-`nodes.os.available_processors`::
+`os`::
+(object)
+Contains statistics about the operating systems used by selected nodes.
++
+.Properties of `os`
+[%collapsible%open]
+=====
+`available_processors`::
 (integer)
 Number of processors available to JVM across all selected nodes.
 
-`nodes.os.allocated_processors`::
+`allocated_processors`::
 (integer)
 Number of processors used to calculate thread pool size across all selected
 nodes.
@@ -386,164 +504,232 @@ This number can be set with the `processors` setting of a node and defaults to
 the number of processors reported by the OS. In both cases, this number will
 never be larger than `32`.
 
-`nodes.os.names`::
+`names`::
 (array of objects)
-Contains details about operating systems used by one or more selected nodes.
-
-`nodes.os.names.name`:::
+Contains statistics about operating systems used by selected nodes.
++
+.Properties of `names`
+[%collapsible%open]
+======
+`name`:::
 (string)
 Name of an operating system used by one or more selected nodes.
 
-`nodes.os.names.count`:::
+`count`:::
 (string)
 Number of selected nodes using the operating system.
+======
 
-`nodes.os.pretty_names`::
+`pretty_names`::
 (array of objects)
-Contains details about operating systems used by one or more selected nodes.
-
-`nodes.os.pretty_names.pretty_name`:::
+Contains statistics about operating systems used by selected nodes.
++
+.Properties of `pretty_names`
+[%collapsible%open]
+======
+`pretty_name`:::
 (string)
 Human-readable name of an operating system used by one or more selected nodes.
 
-`nodes.os.pretty_names.count`:::
+`count`:::
 (string)
 Number of selected nodes using the operating system.
+======
 
-`nodes.os.mem.total`::
+`mem`::
+(object)
+Contains statistics about memory used by selected nodes.
++
+.Properties of `mem`
+[%collapsible%open]
+======
+`total`::
 (<<byte-units, byte units>>)
 Total amount of physical memory across all selected nodes.
 
-`nodes.os.mem.total_in_bytes`::
+`total_in_bytes`::
 (integer)
 Total amount, in bytes, of physical memory across all selected nodes.
 
-`nodes.os.mem.free`::
+`free`::
 (<<byte-units, byte units>>)
 Amount of free physical memory across all selected nodes.
 
-`nodes.os.mem.free_in_bytes`::
+`free_in_bytes`::
 (integer)
 Amount, in bytes, of free physical memory across all selected nodes.
 
-`nodes.os.mem.used`::
+`used`::
 (<<byte-units, byte units>>)
 Amount of physical memory in use across all selected nodes.
 
-`nodes.os.mem.used_in_bytes`::
+`used_in_bytes`::
 (integer)
 Amount, in bytes, of physical memory in use across all selected nodes.
 
-`nodes.os.mem.free_percent`::
+`free_percent`::
 (integer)
 Percentage of free physical memory across all selected nodes.
 
-`nodes.os.mem.used_percent`::
+`used_percent`::
 (integer)
 Percentage of physical memory in use across all selected nodes.
+======
+=====
 
-`nodes.process.cpu.percent`::
+`process`::
+(object)
+Contains statistics about processes used by selected nodes.
++
+.Properties of `process`
+[%collapsible%open]
+=====
+`cpu`::
+(object)
+Contains statistics about CPU used by selected nodes.
++
+.Properties of `cpu`
+[%collapsible%open]
+======
+`percent`::
 (integer)
 Percentage of CPU used across all selected nodes. Returns `-1` if
 not supported.
+======
 
-`nodes.process.open_file_descriptors.min`::
+`open_file_descriptors`::
+(object)
+Contains statistics about open file descriptors in selected nodes.
++
+.Properties of `open_file_descriptors`
+[%collapsible%open]
+======
+`min`::
 (integer)
 Minimum number of concurrently open file descriptors across all selected nodes.
 Returns `-1` if not supported.
 
-`nodes.process.open_file_descriptors.max`::
+`max`::
 (integer)
 Maximum number of concurrently open file descriptors allowed across all selected
 nodes. Returns `-1` if not supported.
 
-`nodes.process.open_file_descriptors.avg`::
+`avg`::
 (integer)
 Average number of concurrently open file descriptors. Returns `-1` if not
 supported.
+======
+=====
 
-`nodes.jvm.max_uptime`::
+`jvm`::
+(object)
+Contains statistics about the Java Virtual Machines (JVMs) used by selected
+nodes.
++
+.Properties of `jvm`
+[%collapsible%open]
+=====
+`max_uptime`::
 (<<time-units,time unit>>)
 Uptime duration since JVM last started.
 
-`nodes.jvm.max_uptime_in_millis`::
+`max_uptime_in_millis`::
 (integer)
 Uptime duration, in milliseconds, since JVM last started.
 
-`nodes.jvm.versions`::
+`versions`::
 (array of objects)
-Contains details about the JVM versions used by selected
-nodes.
-
-`nodes.jvm.versions.version`:::
+Contains statistics about the JVM versions used by selected nodes.
++
+.Properties of `versions`
+[%collapsible%open]
+======
+`version`::
 (string)
 Version of JVM used by one or more selected nodes.
 
-`nodes.jvm.versions.vm_name`:::
+`vm_name`::
 (string)
 Name of the JVM.
 
-`nodes.jvm.versions.vm_version`:::
+`vm_version`::
 (string)
 Full version number of JVM.
 +
 The full version number includes a plus sign (`+`) followed by the build number.
 
-`nodes.jvm.versions.vm_vendor`:::
+`vm_vendor`::
 (string)
 Vendor of the JVM.
 
-`nodes.jvm.versions.bundled_jdk`:::
+`bundled_jdk`::
 (boolean)
 If `true`, the JVM includes a bundled Java Development Kit (JDK).
 
-`nodes.jvm.versions.using_bundled_jdk`:::
+`using_bundled_jdk`::
 (boolean)
 If `true`, a bundled JDK is in use by JVM.
 
-`nodes.jvm.versions.count`:::
+`count`::
 (integer)
 Total number of selected nodes using JVM.
+======
 
-`nodes.jvm.mem.heap_used`::
+`mem`::
+(object)
+Contains statistics about memory used by selected nodes.
++
+.Properties of `mem`
+[%collapsible%open]
+======
+`heap_used`::
 (<<byte-units, byte units>>)
 Memory currently in use by the heap across all selected nodes.
 
-`nodes.jvm.mem.heap_used_in_bytes`::
+`heap_used_in_bytes`::
 (integer)
 Memory, in bytes, currently in use by the heap across all selected nodes.
 
-`nodes.jvm.mem.heap_max`::
+`heap_max`::
 (<<byte-units, byte units>>)
 Maximum amount of memory, in bytes, available for use by the heap across all
 selected nodes.
 
-`nodes.jvm.mem.heap_max_in_bytes`::
+`heap_max_in_bytes`::
 (integer)
 Maximum amount of memory, in bytes, available for use by the heap across all
 selected nodes.
+======
 
-`nodes.jvm.threads`::
+`threads`::
 (integer)
 Number of active threads in use by JVM across all selected nodes.
+=====
 
-`nodes.fs.total`::
+`fs`::
+(object)
+Contains statistics about file stores by selected nodes.
++
+.Properties of `fs`
+[%collapsible%open]
+=====
+`total`::
 (<<byte-units, byte units>>)
 Total size of all file stores across all selected nodes.
 
-`nodes.fs.total_in_bytes`::
+`total_in_bytes`::
 (integer)
 Total size, in bytes, of all file stores across all seleced nodes.
 
-`nodes.fs.free`::
+`free`::
 (<<byte-units, byte units>>)
 Amount of unallocated disk space in file stores across all selected nodes.
 
-`nodes.fs.free_in_bytes`::
+`free_in_bytes`::
 (integer)
 Total number of unallocated bytes in file stores across all selected nodes.
 
-`nodes.fs.available`::
+`available`::
 (<<byte-units, byte units>>)
 Total amount of disk space available to JVM in file
 stores across all selected nodes.
@@ -552,7 +738,7 @@ Depending on OS or process-level restrictions, this amount may be less than
 `nodes.fs.free`. This is the actual amount of free disk space the selected {es}
 nodes can use.
 
-`nodes.fs.available_in_bytes`::
+`available_in_bytes`::
 (integer)
 Total number of bytes available to JVM in file stores
 across all selected nodes.
@@ -560,77 +746,129 @@ across all selected nodes.
 Depending on OS or process-level restrictions, this number may be less than
 `nodes.fs.free_in_byes`. This is the actual amount of free disk space the
 selected {es} nodes can use.
+=====
 
-`nodes.plugins`::
+`plugins`::
 (array of objects)
-Contains details about installed plugins and modules across all selected nodes.
+Contains statistics about installed plugins and modules by selected nodes.
 +
 If no plugins or modules are installed, this array is empty.
++
+.Properties of `plugins`
+[%collapsible%open]
+=====
 
-`nodes.plugins.name`:::
+`<plugin>`::
+(object)
+Contains statistics about an installed plugin or module.
++
+.Properties of `<plugin>`
+[%collapsible%open]
+======
+`name`:::
 (string)
 Name of the {es} plugin.
 
-`nodes.plugins.version`:::
+`version`:::
 (string)
 {es} version for which the plugin was built.
 
-`nodes.plugins.elasticsearch_version`:::
+`elasticsearch_version`:::
 (string)
 {es} version for which the plugin was built.
 
-`node.plugins.java_version`:::
+`java_version`:::
 (string)
 Java version for which the plugin was built.
 
-`nodes.plugins.description`:::
+`description`:::
 (string)
 Short description of the plugin.
 
-`nodes.plugins.classname`:::
+`classname`:::
 (string)
 Class name used as the plugin's entry point.
 
-`nodes.plugins.extended_plugins`:::
+`extended_plugins`:::
 (array of strings)
 An array of other plugins extended by this plugin through the Java Service
 Provider Interface (SPI).
 +
 If this plugin extends no other plugins, this array is empty.
 
-`nodes.plugins.has_native_controller`:::
+`has_native_controller`:::
 (boolean)
 If `true`, the plugin has a native controller process.
+======
+=====
 
-`nodes.network_types.transport_types.<transport_type>`::
+`network_types`::
+(object)
+Contains statistics about the transport and HTTP networks used by selected
+nodes.
++
+.Properties of `network_types`
+[%collapsible%open]
+=====
+`transport_types`::
+(object)
+Contains statistics about the transport network types used by selected nodes.
++
+.Properties of `transport_types`
+[%collapsible%open]
+======
+`<transport_type>`::
 (integer)
 Number of selected nodes using the transport type.
+======
 
-`nodes.network_types.http_types.<http_type>`::
+`http_types`::
+(object)
+Contains statistics about the HTTP network types used by selected nodes.
++
+.Properties of `http_types`
+[%collapsible%open]
+======
+`<http_type>`::
 (integer)
 Number of selected nodes using the HTTP type.
+======
+=====
 
-`nodes.discovery_types.<discovery_type>`::
+`discovery_types`::
+(object)
+Contains statistics about the <<modules-discovery-hosts-providers,discovery
+types>> used by selected nodes.
++
+.Properties of `discovery_types`
+[%collapsible%open]
+=====
+`<discovery_type>`::
 (integer)
 Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
 type>> to find other nodes.
+=====
 
-`nodes.packaging_types`::
+`packaging_types`::
 (array of objects)
-Contains details about {es} distributions installed on selected nodes.
-
-`nodes.packaging_types.flavor`:::
+Contains statistics about {es} distributions installed on selected nodes.
++
+.Properties of `packaging_types`
+[%collapsible%open]
+=====
+`flavor`:::
 (string)
 Type of {es} distribution, such as `default` or `OSS`, used by one or more
 selected nodes.
 
-`nodes.packaging_types.type`:::
+`type`:::
 (string)
 File type, such as `tar` or `zip`, used for the distribution package.
 
-`nodes.packaging_types.count`:::
+`count`:::
 (integer)
 Number of selected nodes using the distribution flavor and file type.
+=====
 ====
 
 [[cluster-stats-api-example]]

@@ -39,8 +39,8 @@ public abstract class ArrayValuesSourceAggregatorFactory
     public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                               QueryShardContext queryShardContext, AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                              Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
     }
 
@@ -49,7 +49,7 @@ public abstract class ArrayValuesSourceAggregatorFactory
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {
@@ -59,22 +59,22 @@ public abstract class ArrayValuesSourceAggregatorFactory
             }
         }
         if (valuesSources.isEmpty()) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
+            return createUnmapped(searchContext, parent, pipelineAggregators, metadata);
         }
         return doCreateInternal(valuesSources, searchContext, parent,
-                collectsFromSingleBucket, pipelineAggregators, metaData);
+                collectsFromSingleBucket, pipelineAggregators, metadata);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException;
+                                                    Map<String, Object> metadata) throws IOException;
 
     protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException;
+                                                    Map<String, Object> metadata) throws IOException;
 
 }

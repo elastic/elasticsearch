@@ -1025,11 +1025,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         clusterService.submitStateUpdateTask("init snapshot delete [" + repositoryName + "][" + snapshotName + "]",
             new ClusterStateUpdateTask() {
 
-                private SnapshotsInProgress.Entry runningSnapshot;
+                private Snapshot runningSnapshot;
+
+                private boolean abortedDuringInit;
 
                 private SnapshotDeletionsInProgress.Entry newDelete;
 
-                private boolean abortedDuringInit;
 
                 private boolean bwCMode;
 
@@ -1038,7 +1039,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     bwCMode = currentState.nodes().getMinNodeVersion().before(TWO_STEP_DELETE_VERSION);
                     final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     final SnapshotsInProgress.Entry snapshotEntry = findInProgressSnapshot(snapshots, snapshotName, repositoryName);
-                    runningSnapshot = snapshotEntry;
+                    runningSnapshot = snapshotEntry == null ? null : snapshotEntry.snapshot();
                     if (bwCMode) {
                         if (snapshotEntry == null) {
                             return currentState;
@@ -1207,16 +1208,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             tryDeleteExisting(Priority.NORMAL);
                             return;
                         }
-                        final Snapshot snapshot = runningSnapshot.snapshot();
                         logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
-                        addListener(snapshot, ActionListener.wrap(
+                        addListener(runningSnapshot, ActionListener.wrap(
                             snapshotInfo -> {
                                 logger.debug("deleted snapshot completed - deleting files");
                                 tryDeleteExisting(Priority.IMMEDIATE);
                             },
                             e -> {
                                 if (abortedDuringInit) {
-                                    logger.info("Successfully aborted snapshot [{}]", snapshot);
+                                    logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
                                     listener.onResponse(null);
                                 } else {
                                     if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
@@ -1227,7 +1227,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     } else {
                                         logger.warn("deleted snapshot failed", e);
                                         listener.onFailure(
-                                            new SnapshotMissingException(snapshot.getRepository(), snapshot.getSnapshotId(), e));
+                                            new SnapshotMissingException(
+                                                runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
                                     }
                                 }
                             }
@@ -1261,13 +1262,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         });
                     } else {
-                        final Snapshot snapshot = runningSnapshot.snapshot();
-                        addListener(snapshot,
-                            ActionListener.wrap(
+                        addListener(runningSnapshot,ActionListener.wrap(
                                 snapshotInfo -> deleteSnapshotFromRepository(newDelete, listener, newState.nodes().getMinNodeVersion()),
                                 e -> {
                                     if (abortedDuringInit) {
-                                        logger.debug(() -> new ParameterizedMessage("Snapshot [{}] was aborted during INIT", snapshot), e);
+                                        logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
                                         listener.onResponse(null);
                                     } else {
                                         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
@@ -1278,7 +1277,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         } else {
                                             logger.warn("deleted snapshot failed", e);
                                             onFailure.accept(
-                                                new SnapshotMissingException(snapshot.getRepository(), snapshot.getSnapshotId(), e));
+                                                new SnapshotMissingException(
+                                                    runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
                                         }
                                     }
                                 }));
@@ -1299,11 +1299,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             //       created during the context switch from the cluster state thread to the snapshot thread. We still guard
                             //       against the possibility as a safety measure.
                             if (matchedEntry.isPresent() == false
-                                || (runningSnapshot != null
-                                && matchedEntry.get().equals(runningSnapshot.snapshot().getSnapshotId()) == false)) {
+                                || (runningSnapshot != null && matchedEntry.get().equals(runningSnapshot.getSnapshotId()) == false)) {
                                 if (runningSnapshot != null && matchedEntry.isPresent()) {
                                     logger.warn("Waited for snapshot [{}}] but found snapshot [{}] in repository [{}]",
-                                        runningSnapshot.snapshot().getSnapshotId(), matchedEntry.get(), repositoryName);
+                                        runningSnapshot.getSnapshotId(), matchedEntry.get(), repositoryName);
                                 }
                                 l.onFailure(new SnapshotMissingException(repositoryName, snapshotName));
                             } else {

@@ -58,7 +58,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
     }
 
     /**
-     * Set to {@code true} to force only creation, not an update of an component template. If it already
+     * Set to {@code true} to force only creation, not an update of an index template. If it already
      * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateV2Request create(boolean create) {

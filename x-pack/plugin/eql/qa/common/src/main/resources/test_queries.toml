@@ -3,10 +3,6 @@ query = 'process where serial_event_id = 1'
 expected_event_ids  = [1]
 
 [[queries]]
-query = 'process where string(serial_event_id) = "1"'
-expected_event_ids  = [1]
-
-[[queries]]
 query = 'process where serial_event_id < 4'
 expected_event_ids  = [1, 2, 3]
 

@@ -37,27 +37,32 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     @Override
     protected InternalTTest createTestInstance(String name, Map<String, Object> metadata) {
-        TTestState state = randomState();
+        TTestState state = randomState(Long.MAX_VALUE);
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalTTest(name, state, formatter, metadata);
     }
 
-    private TTestState randomState() {
+    @Override
+    protected List<InternalTTest> randomResultsToReduce(String name, int size) {
+        List<InternalTTest> inputs = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            TTestState state = randomState(Long.MAX_VALUE / size); // Make sure the sum of all the counts doesn't wrap
+            DocValueFormat formatter = randomNumericDocValueFormat();
+            inputs.add(new InternalTTest(name, state, formatter, null));
+        }
+        return inputs;
+    }
+
+    private TTestState randomState(long maxCount) {
         if (type == TTestType.PAIRED) {
-            return new PairedTTestState(randomStats(), tails);
+            return new PairedTTestState(randomStats(maxCount), tails);
         } else {
-            return new UnpairedTTestState(randomStats(), randomStats(), type == TTestType.HOMOSCEDASTIC, tails);
+            return new UnpairedTTestState(randomStats(maxCount), randomStats(maxCount), type == TTestType.HOMOSCEDASTIC, tails);
         }
     }
 
-    private TTestStats randomStats() {
-        /*
-         * Use a count significantly less than Long.MAX_VALUE so the reduce
-         * phase doesn't wrap to a negative number. If it *did* then we'd
-         * try to serialize a negative number with writeVLong which throws
-         * an assertion in tests.
-         */
-        return new TTestStats(randomLongBetween(0, Integer.MAX_VALUE), randomDouble(), randomDouble());
+    private TTestStats randomStats(long maxCount) {
+        return new TTestStats(randomLongBetween(0, maxCount), randomDouble(), randomDouble());
     }
 
     @Override
@@ -97,7 +102,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
                 name += randomAlphaOfLength(5);
                 break;
             case 1:
-                state = randomState();
+                state = randomState(Long.MAX_VALUE);
                 break;
             case 2:
                 if (metadata == null) {

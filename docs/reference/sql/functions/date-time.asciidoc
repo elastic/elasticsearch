@@ -411,7 +411,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 [source, sql]
 --------------------------------------------------
 DATETIME_FORMAT(
-    datetime_exp/time_exp, <1>
+    date_exp/datetime_exp/time_exp, <1>
     string_exp) <2>
 --------------------------------------------------
 

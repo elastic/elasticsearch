@@ -120,7 +120,7 @@ for any class. Defaults to `maximize_minimum_recall`.
 include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
-categorical (`ip`, `keyword`, `text`), or boolean. There must be no more than 30
+categorical (`ip` or `keyword`), or boolean. There must be no more than 30
 different values in this field.
 
 `eta`::::

@@ -1025,14 +1025,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         clusterService.submitStateUpdateTask("init snapshot delete [" + repositoryName + "][" + snapshotName + "]",
             new ClusterStateUpdateTask() {
 
-                private Snapshot runningSnapshot;
+                Snapshot runningSnapshot;
 
-                private boolean abortedDuringInit;
+                boolean abortedDuringInit = false;
 
-                private SnapshotDeletionsInProgress.Entry newDelete;
+                SnapshotDeletionsInProgress.Entry newDelete;
 
-
-                private boolean bwCMode;
+                boolean bwCMode;
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {

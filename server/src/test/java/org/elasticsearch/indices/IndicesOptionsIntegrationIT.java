@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
@@ -33,6 +34,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -607,6 +611,27 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             assertThat(e.getMessage(), startsWith("Can't update non dynamic settings [[index.e]] for open indices [[barbaz"));
         }
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
+    }
+
+    public void testDataStreams() throws Exception {
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("logs-foo");
+        request.setTimestampFieldName("ts");
+        client().admin().indices().createDataStream(request).actionGet();
+        request = new CreateDataStreamAction.Request("logs-bar");
+        request.setTimestampFieldName("ts");
+        client().admin().indices().createDataStream(request).actionGet();
+
+        IndexResponse indexResponse =
+            client().index(new IndexRequest("logs-foo").source("{}", XContentType.JSON)).get();
+        assertThat(indexResponse.getIndex(), equalTo("logs-foo-000001"));
+        indexResponse = client().index(new IndexRequest("logs-bar").source("{}", XContentType.JSON)).get();
+        assertThat(indexResponse.getIndex(), equalTo("logs-bar-000001"));
+        refresh("logs-*");
+
+        verify(client().prepareSearch("logs*"), false, 2);
+        IndicesOptions indicesOptions =
+            IndicesOptions.fromOptions(true, true, true, false, false, true, true, false, false, true);
+        verify(client().prepareSearch("logs*").setIndicesOptions(indicesOptions), false, 0);
     }
 
     private static SearchRequestBuilder search(String... indices) {

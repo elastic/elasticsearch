@@ -29,9 +29,11 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,11 +73,17 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         "cluster state is empty, cluster has never been bootstrapped?";
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
-    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList()) {
+    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
 
         @SuppressWarnings("unchecked")
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
+            try {
+                // Try to parse named objects (e.g. stored scripts, ingest pipelines, data streams) that are part of core es:
+                return super.parseNamedObject(categoryClass, name, parser, context);
+            } catch (Exception e) {
+                // ignore exception while parsing named objects and fall back to unknown named objects:
+            }
             // Currently, two unknown top-level objects are present
             if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
                 return (T) new UnknownMetadataCustom(name, parser.mapOrdered());

@@ -1040,48 +1040,17 @@ query = "file where serial_event_id / 2 == 41"
 expected_event_ids = [82]
 query = "file where serial_event_id % 40 == 2"
 
-[[queries]]
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "s", "e") == "yst"
-'''
-
-[[queries]]
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "s", "e", false) == "yst"
-'''
-
-[[queries]]
-expected_event_ids = []
-query = '''
-process where between(process_name, "s", "e", false, true) == "yst"
-'''
-
-[[queries]]
-expected_event_ids = [1, 2, 42]
-query = '''
-process where between(process_name, "s", "e", false, true) == "t"
-'''
-
-[[queries]]
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "S", "e", false, true) == "yst"
-'''
-
-[[queries]]
-expected_event_ids = [1]
-query = '''
-process where between(process_name, "s", "e", true) == "ystem Idle Proc"
-'''
-
+# The following two "between" queries behave slightly different with elasticsearch
+# due to comparison on keyword field would be case-sensitive and would need to be
+# file where between(file_path, "dev", ".json", false) == "\\TestLogs\\something"
+# blacklisted, check for modified query in test_queries_supported.toml
 [[queries]]
 expected_event_ids = [95]
 query = '''
 file where between(file_path, "dev", ".json", false) == "\\testlogs\\something"
 '''
 
+# blacklisted, check for modified query in test_queries_supported.toml
 [[queries]]
 expected_event_ids = [95]
 query = '''

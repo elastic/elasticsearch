@@ -24,6 +24,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -31,12 +32,10 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.util.Collection;
-
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCase {
     @Override
@@ -46,13 +45,19 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return unmodifiableList(asList(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class));
+        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         if (randomBoolean()) {
             builder.put(
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
@@ -69,6 +74,13 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }
+        return builder.build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        final Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }
 }

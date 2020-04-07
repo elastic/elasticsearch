@@ -237,15 +237,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return org.elasticsearch.common.collect.List.of(
-                new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
-                new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
-                new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class)
-            );
-        } else {
-            return emptyList();
-        }
+        return org.elasticsearch.common.collect.List.of(
+            new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
+            new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
+            new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class)
+        );
     }
 
     public List<RestHandler> getRestHandlers(

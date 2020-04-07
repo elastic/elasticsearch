@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.apache.directory.api.util.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.substringSlice;
+import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringUtilsTests extends ESTestCase {
@@ -81,7 +81,7 @@ public class StringUtilsTests extends ESTestCase {
         boolean greedy = randomBoolean();
         boolean caseSensitive = randomBoolean();
 
-        String string = randomBoolean() ? null : Strings.EMPTY_STRING;
+        String string = randomBoolean() ? null : EMPTY;
         assertThat(StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
     }
 

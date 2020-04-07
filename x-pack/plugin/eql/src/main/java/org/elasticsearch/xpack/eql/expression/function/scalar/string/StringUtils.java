@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 
 final class StringUtils {
 
@@ -41,7 +42,7 @@ final class StringUtils {
 
         int idx = matchString.indexOf(left);
         if (idx == -1) {
-            return "";
+            return EMPTY;
         }
 
         int start = idx + left.length();
@@ -53,7 +54,7 @@ final class StringUtils {
         }
 
         if (idx == -1) {
-            return "";
+            return EMPTY;
         }
 
         return string.substring(start, idx);

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.util.Check;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,6 +45,11 @@ public class BetweenFunctionProcessor implements Processor {
     }
 
     @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
     public Object process(Object input) {
         return doProcess(source.process(input), left.process(input), right.process(input),
                 greedy.process(input), caseSensitive.process(input));
@@ -55,12 +60,12 @@ public class BetweenFunctionProcessor implements Processor {
             return null;
         }
 
-        throwIfNotString(source);
-        throwIfNotString(left);
-        throwIfNotString(right);
+        Check.isString(source);
+        Check.isString(left);
+        Check.isString(right);
 
-        throwIfNotBoolean(greedy);
-        throwIfNotBoolean(caseSensitive);
+        Check.isBoolean(greedy);
+        Check.isBoolean(caseSensitive);
 
         String str = source.toString();
         String strRight = right.toString();
@@ -68,18 +73,6 @@ public class BetweenFunctionProcessor implements Processor {
         boolean bGreedy = ((Boolean) greedy).booleanValue();
         boolean bCaseSensitive = ((Boolean) caseSensitive).booleanValue();
         return StringUtils.between(str, strLeft, strRight, bGreedy, bCaseSensitive);
-    }
-
-    private static void throwIfNotString(Object obj) {
-        if (!(obj instanceof String || obj instanceof Character)) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", obj);
-        }
-    }
-
-    private static void throwIfNotBoolean(Object obj) {
-        if (!(obj instanceof Boolean)) {
-            throw new EqlIllegalArgumentException("A boolean is required; received [{}]", obj);
-        }
     }
 
     protected Processor source() {
@@ -102,6 +95,10 @@ public class BetweenFunctionProcessor implements Processor {
         return caseSensitive;
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(source(), left(), right(), greedy(), caseSensitive());
+    }
 
     @Override
     public boolean equals(Object obj) {
@@ -119,16 +116,5 @@ public class BetweenFunctionProcessor implements Processor {
                 && Objects.equals(right(), other.right())
                 && Objects.equals(greedy(), other.greedy())
                 && Objects.equals(caseSensitive(), other.caseSensitive());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(source(), left(), right(), greedy(), caseSensitive());
-    }
-
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 }

@@ -16,7 +16,21 @@ coming[7.7.0]
 
 //tag::notable-breaking-changes[]
 
-//end::notable-breaking-changes[]
+[discrete]
+[[breaking_77_ml_changes]]
+=== Machine learning changes
+
+[discrete]
+[[breaking-77-ml-text-dependent-vars]]
+==== {classanalysis-cap} no longer supports dependent variables in text fields
+
+If you try to create a {dfanalytics-job} that uses {classanalysis} to predict a
+`text` field, the job creation fails in 7.7 and later releases. That is to say,
+the `dependent_variable` in the
+{ref}/put-dfanalytics.html[create {dfanalytics-jobs} API] must not be a field
+that has a `text` data type. Text fields are not optimized for operations that
+require per-document field data like `cardinality` aggregations. Use a `keyword`
+field or one of the other supported data types instead.
 
 [discrete]
 [[breaking_77_logging_changes]]
@@ -30,7 +44,7 @@ loggers in the `org.elasticsearch.action.*` hierarchy emitted log messages at
 `DEBUG` level by default. This sometimes resulted in a good deal of unnecessary
 log noise. From 7.7 onwards the default log level for logger in this hierarchy
 is now `INFO`, in line with most other loggers. If needed, you can recover the
-pre-7.7 default behaviour by adjusting your <<logging>>.
+pre-7.7 default behaviour by adjusting your {ref}/logging.html[logging configuration].
 
 [discrete]
 [[breaking_77_settings_changes]]
@@ -86,7 +100,7 @@ happen when using date math or dates that don't specify up to the last
 millisecond. While queries on `date` field round up to the latest millisecond
 for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
 do this. The behavior is now the same for both field types like documented in
-<<range-query-date-math-rounding>>.
+{ref}/query-dsl-range-query.html#range-query-date-math-rounding[Date math and rounding].
 
 [discrete]
 [[breaking_77_highlighters_changes]]
@@ -98,3 +112,5 @@ If a keyword value was ignored during indexing because of its length
 (`ignore_above` parameter was applied), {es} doesn't attempt to
 highlight it anymore, which means no highlights are produced for
 ignored values.
+
+//end::notable-breaking-changes[]

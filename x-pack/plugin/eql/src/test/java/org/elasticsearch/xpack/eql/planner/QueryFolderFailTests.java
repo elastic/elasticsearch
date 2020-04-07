@@ -11,6 +11,57 @@ import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
+
+    private String error(String query) {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        return e.getMessage().substring(header.length());
+    }
+
+    private String errorParsing(String eql) {
+        ParsingException e = expectThrows(ParsingException.class, () -> plan(eql));
+        final String header = "line ";
+        assertTrue(e.getMessage().startsWith(header));
+        return e.getMessage().substring(header.length());
+    }
+
+    public void testBetweenMissingOrNullParams() {
+        final String[] queries = {
+                "process where between() == \"yst\"",
+                "process where between(process_name) == \"yst\"",
+                "process where between(process_name, \"s\") == \"yst\"",
+                "process where between(null) == \"yst\"",
+                "process where between(process_name, null) == \"yst\"",
+                "process where between(process_name, \"s\", \"e\", false, false, true) == \"yst\"",
+        };
+
+        for (String query : queries) {
+            ParsingException e = expectThrows(ParsingException.class,
+                    () -> plan(query));
+            assertEquals("line 1:16: error building [between]: expects between three and five arguments", e.getMessage());
+        }
+    }
+
+    public void testBetweenWrongTypeParams() {
+        assertEquals("1:15: second argument of [between(process_name, 1, 2)] must be [string], found value [1] type [integer]",
+                error("process where between(process_name, 1, 2)"));
+
+        assertEquals("1:15: third argument of [between(process_name, \"s\", 2)] must be [string], found value [2] type [integer]",
+                error("process where between(process_name, \"s\", 2)"));
+
+        assertEquals("1:15: fourth argument of [between(process_name, \"s\", \"e\", 1)] must be [boolean], found value [1] type [integer]",
+                error("process where between(process_name, \"s\", \"e\", 1)"));
+
+        assertEquals("1:15: fourth argument of [between(process_name, \"s\", \"e\", \"true\")] must be [boolean], " +
+                        "found value [\"true\"] type [keyword]",
+                error("process where between(process_name, \"s\", \"e\", \"true\")"));
+
+        assertEquals("1:15: fifth argument of [between(process_name, \"s\", \"e\", false, 2)] must be [boolean], " +
+                        "found value [2] type [integer]",
+                error("process where between(process_name, \"s\", \"e\", false, 2)"));
+    }
+
     public void testPropertyEquationFilterUnsupported() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
                 () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)"));
@@ -23,7 +74,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 () -> plan("process where opcode in (1,3) and process_name in (parent_process_name, \"SYSTEM\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:35: Comparisons against variables are not (currently) supported; " +
-            "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
+                "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
     }
 
     public void testLengthFunctionWithInexact() {
@@ -50,79 +101,45 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
+    public void testStringContainsWrongParams() {
+        assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",
+                errorParsing("process where stringContains()"));
+
+        assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",
+                errorParsing("process where stringContains(process_name)"));
+
+        assertEquals("1:15: second argument of [stringContains(process_name, 1)] must be [string], found value [1] type [integer]",
+                error("process where stringContains(process_name, 1)"));
+    }
+
     public void testWildcardNotEnoughArguments() {
         ParsingException e = expectThrows(ParsingException.class,
-            () -> plan("process where wildcard(process_name)"));
+                () -> plan("process where wildcard(process_name)"));
         String msg = e.getMessage();
         assertEquals("line 1:16: error building [wildcard]: expects at least two arguments", msg);
     }
 
     public void testWildcardAgainstVariable() {
         VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where wildcard(process_name, parent_process_name)"));
+                () -> plan("process where wildcard(process_name, parent_process_name)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: second argument of [wildcard(process_name, parent_process_name)] " +
-            "must be a constant, received [parent_process_name]", msg);
+                "must be a constant, received [parent_process_name]", msg);
     }
 
     public void testWildcardWithNumericPattern() {
         VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where wildcard(process_name, 1)"));
+                () -> plan("process where wildcard(process_name, 1)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: second argument of [wildcard(process_name, 1)] must be [string], found value [1] type [integer]", msg);
+                "line 1:15: second argument of [wildcard(process_name, 1)] must be [string], found value [1] type [integer]", msg);
     }
 
     public void testWildcardWithNumericField() {
         VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where wildcard(pid, '*.exe')"));
+                () -> plan("process where wildcard(pid, '*.exe')"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
-    }
-
-    public void testBetweenMissingOrNullParams() {
-        final String[] queries = {
-            "process where between() == \"yst\"",
-            "process where between(process_name) == \"yst\"",
-            "process where between(process_name, \"s\") == \"yst\"",
-            "process where between(null) == \"yst\"",
-            "process where between(process_name, null) == \"yst\"",
-            "process where between(process_name, \"s\", \"e\", false, false, true) == \"yst\"",
-        };
-
-        for (String query : queries) {
-            ParsingException e = expectThrows(ParsingException.class,
-                    () -> plan(query));
-            assertEquals("line 1:16: error building [between]: expects between three and five arguments", e.getMessage());
-        }
-    }
-
-    private String error(String query) {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan(query));
-
-        assertTrue(e.getMessage().startsWith("Found "));
-        final String header = "Found 1 problem\nline ";
-        return e.getMessage().substring(header.length());
-    }
-
-    public void testBetweenWrongTypeParams() {
-        assertEquals("1:15: second argument of [between(process_name, 1, 2)] must be [string], found value [1] type [integer]",
-                error("process where between(process_name, 1, 2)"));
-
-        assertEquals("1:15: third argument of [between(process_name, \"s\", 2)] must be [string], found value [2] type [integer]",
-                error("process where between(process_name, \"s\", 2)"));
-
-        assertEquals("1:15: fourth argument of [between(process_name, \"s\", \"e\", 1)] must be [boolean], found value [1] type [integer]",
-                error("process where between(process_name, \"s\", \"e\", 1)"));
-
-        assertEquals("1:15: fourth argument of [between(process_name, \"s\", \"e\", \"true\")] must be [boolean], " +
-                        "found value [\"true\"] type [keyword]",
-                error("process where between(process_name, \"s\", \"e\", \"true\")"));
-
-        assertEquals("1:15: fifth argument of [between(process_name, \"s\", \"e\", false, 2)] must be [boolean], " +
-                        "found value [2] type [integer]",
-                error("process where between(process_name, \"s\", \"e\", false, 2)"));
+                "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
     }
 }

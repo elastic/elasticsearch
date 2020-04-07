@@ -8,7 +8,7 @@ The following settings *must* be considered before going to production:
 
 * <<path-settings,Path settings>>
 * <<cluster.name,Cluster name>>
-* <<node.name,Node name>>
+* <<node-settings,Node settings>>
 * <<network.host,Network host>>
 * <<discovery-settings,Discovery settings>>
 * <<heap-size,Heap size>>
@@ -20,7 +20,7 @@ include::important-settings/path-settings.asciidoc[]
 
 include::important-settings/cluster-name.asciidoc[]
 
-include::important-settings/node-name.asciidoc[]
+include::important-settings/node-settings.asciidoc[]
 
 include::important-settings/network-host.asciidoc[]
 

@@ -86,6 +86,10 @@ rolling upgrade. Each upgraded node is joining an existing cluster so there is
 no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>. You
 must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
 `discovery.seed_providers`>> on every node.
+
+IMPORTANT: All configuration files are version dependent.  Old versions of files 
+such as `log4j2.properties` or `jvm.options` may not be compatible and should be 
+re-modified from the default file distributed with Elasticsearch.
 --
 
 . *Upgrade any plugins.*

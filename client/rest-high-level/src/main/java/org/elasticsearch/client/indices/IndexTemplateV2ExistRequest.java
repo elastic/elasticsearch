@@ -34,7 +34,7 @@ public class IndexTemplateV2ExistRequest extends GetComponentTemplatesRequest {
     public IndexTemplateV2ExistRequest(String name) {
         super(name);
         if (Strings.isNullOrEmpty(name)) {
-            throw new IllegalArgumentException("must provide component template name");
+            throw new IllegalArgumentException("must provide index template name");
         }
     }
 }

@@ -28,7 +28,7 @@ This API validates a SAML authentication request. It does so by
 * Verifying that the IDP can satisfy the requirements that the SP imposes ( i.e. NameID Policy )
 
 [[idp-saml-validate-request-body]]
-==== {api-requst-body-title}
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a POST request:
 

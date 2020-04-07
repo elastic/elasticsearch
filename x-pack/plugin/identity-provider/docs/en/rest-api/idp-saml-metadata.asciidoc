@@ -28,6 +28,9 @@ to be configured to work with this identity provider
 `sp_entity_id::
 (string) The SAML entity Id of the service provider that will consume this SAML metadata document.
 
+`acs`::
+(string) The SAML Assertion Consumer Service URL of the service provider that will consume this SAML
+metadata document.
 
 [[idp-saml-metadata-example]]
 ==== {api-examples-title}
@@ -37,7 +40,7 @@ entity Id `https://some.sp.org/`.
 
 [source, console]
 --------------------------------------------------------------------
-GET /_idp/saml/metadata/https%3A%2F%2Fsome.sp.org%2F
+GET /_idp/saml/metadata/https%3A%2F%2Fsome.sp.org%2F?acs=https%3A%2F%2Fsome.sp.org%2Fsaml%2Facs
 --------------------------------------------------------------------
 // TEST[skip:Do not enable identity provider for the docs cluster, at least not yet]
 

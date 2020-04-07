@@ -1013,7 +1013,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Deletes a snapshot from the repository.
+     * Deletes a snapshot from the repository or aborts a running snapshot.
+     * First checks if the snapshot is still running and if so cancels the snapshot and then deletes it from the repository.
+     * If the snapshot is not running, moves to trying to find a matching {@link Snapshot} for the given name in the repository and if
+     * one is found deletes it by invoking {@link #deleteCompletedSnapshot}.
      *
      * @param repositoryName  repositoryName
      * @param snapshotName    snapshotName
@@ -1202,53 +1205,57 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (bwCMode) {
-                    if (runningSnapshot == null) {
-                        threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                            repositoriesService.repository(repositoryName).getRepositoryData(
-                                ActionListener.wrap(repositoryData -> {
-                                    Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
-                                        .stream()
-                                        .filter(s -> s.getName().equals(snapshotName))
-                                        .findFirst();
-                                    // If we can't find the snapshot by the given name in the repository at all or if the snapshot we find
-                                    // in the repository is not the one we expected to find when waiting for a finishing snapshot we fail.
-                                    if (matchedEntry.isPresent()) {
-                                        deleteCompletedSnapshot(
-                                            new Snapshot(repositoryName, matchedEntry.get()), repositoryData.getGenId(), Priority.NORMAL, l);
-                                    } else {
-                                        l.onFailure(new SnapshotMissingException(repositoryName, snapshotName));
-                                    }
-                                }, l::onFailure))));
-                        return;
-                    }
-                    logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
-                    addListener(runningSnapshot, ActionListener.wrap(
-                        result -> {
-                            logger.debug("deleted snapshot completed - deleting files");
-                            deleteCompletedSnapshot(new Snapshot(repositoryName, result.v2().snapshotId()), result.v1().getGenId(),
-                                Priority.IMMEDIATE, listener);
-                        },
-                        e -> {
-                            if (abortedDuringInit) {
-                                logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
-                                listener.onResponse(null);
-                            } else {
-                                if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
-                                    != null) {
-                                    logger.warn("master failover before deleted snapshot could complete", e);
-                                    // Just pass the exception to the transport handler as is so it is retried on the new master
-                                    listener.onFailure(e);
-                                } else {
-                                    logger.warn("deleted snapshot failed", e);
-                                    listener.onFailure(
-                                        new SnapshotMissingException(runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
-                                }
-                            }
-                        }
-                    ));
+                    afterInitDeleteLegacy();
                 } else {
                     afterInitDelete(newState);
                 }
+            }
+
+            private void afterInitDeleteLegacy() {
+                if (runningSnapshot == null) {
+                    threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+                        repositoriesService.repository(repositoryName).getRepositoryData(
+                            ActionListener.wrap(repositoryData -> {
+                                Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
+                                    .stream()
+                                    .filter(s -> s.getName().equals(snapshotName))
+                                    .findFirst();
+                                // If we can't find the snapshot by the given name in the repository at all or if the snapshot we find in
+                                // the repository is not the one we expected to find when waiting for a finishing snapshot we fail.
+                                if (matchedEntry.isPresent()) {
+                                    deleteCompletedSnapshot(
+                                        new Snapshot(repositoryName, matchedEntry.get()), repositoryData.getGenId(), Priority.NORMAL, l);
+                                } else {
+                                    l.onFailure(new SnapshotMissingException(repositoryName, snapshotName));
+                                }
+                            }, l::onFailure))));
+                    return;
+                }
+                logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
+                addListener(runningSnapshot, ActionListener.wrap(
+                    result -> {
+                        logger.debug("deleted snapshot completed - deleting files");
+                        deleteCompletedSnapshot(
+                            new Snapshot(repositoryName, result.v2().snapshotId()), result.v1().getGenId(), Priority.IMMEDIATE, listener);
+                    },
+                    e -> {
+                        if (abortedDuringInit) {
+                            logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
+                            listener.onResponse(null);
+                        } else {
+                            if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
+                                != null) {
+                                logger.warn("master failover before deleted snapshot could complete", e);
+                                // Just pass the exception to the transport handler as is so it is retried on the new master
+                                listener.onFailure(e);
+                            } else {
+                                logger.warn("deleted snapshot failed", e);
+                                listener.onFailure(
+                                    new SnapshotMissingException(runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
+                            }
+                        }
+                    }
+                ));
             }
 
             private void afterInitDelete(ClusterState newState) {

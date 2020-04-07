@@ -1,12 +1,15 @@
 //
 // QueryFolder test
-// Simple format of the following blocks, separated by two new lines
+//
+// A test is made up of a name (one line), a query that can span multiple lines and ends with ; and one or multiple assertions (one per line) that end with ;
+//
 // <name>
-// <eql query>
+// <eql query>;
 // <expectation 1>
 // <expectation 2>
 // ...
 // <expectation n>
+// ;
 
 
 basic

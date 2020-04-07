@@ -6,14 +6,11 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -33,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * EQL wildcard function. Matches the form:
  *     wildcard(field, "*wildcard*pattern*", ...)
  */
-public class Wildcard extends ScalarFunction {
+public class Wildcard extends BaseSurrogateFunction {
 
     private final Expression field;
     private final List<Expression> patterns;
@@ -95,26 +92,7 @@ public class Wildcard extends ScalarFunction {
     }
 
     @Override
-    public boolean foldable() {
-        return Expressions.foldable(children()) && asLikes().foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return asLikes().fold();
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        throw new EqlIllegalArgumentException("Wildcard.makePipe() should not be called directly");
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new EqlIllegalArgumentException("Wildcard.asScript() should not be called directly");
-    }
-
-    public ScalarFunction asLikes() {
+    public ScalarFunction makeSubstitute() {
         ScalarFunction result = null;
 
         for (Expression pattern: patterns) {

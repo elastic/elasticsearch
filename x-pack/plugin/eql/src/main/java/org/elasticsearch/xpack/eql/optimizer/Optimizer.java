@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -39,6 +39,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
+        Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE,
+                new ReplaceSurrogateFunction());
+                
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
@@ -49,7 +52,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
-                new ReplaceWildcardFunction(),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy()
@@ -58,16 +60,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(operators, label);
-    }
-
-
-    private static class ReplaceWildcardFunction extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> e instanceof Wildcard ? ((Wildcard) e).asLikes() : e);
-        }
+        return Arrays.asList(substitutions, operators, label);
     }
 
     private static class ReplaceWildcards extends OptimizerRule<Filter> {

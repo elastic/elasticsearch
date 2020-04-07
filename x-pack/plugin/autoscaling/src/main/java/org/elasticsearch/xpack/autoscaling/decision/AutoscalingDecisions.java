@@ -23,6 +23,10 @@ public class AutoscalingDecisions implements ToXContent, Writeable {
 
     private final Collection<AutoscalingDecision> decisions;
 
+    public Collection<AutoscalingDecision> decisions() {
+        return decisions;
+    }
+
     public AutoscalingDecisions(final Collection<AutoscalingDecision> decisions) {
         Objects.requireNonNull(decisions);
         if (decisions.isEmpty()) {

@@ -1,5 +1,5 @@
 {
-  "cat.transform":{
+  "cat.transforms":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-transforms.html",
       "description": "Gets configuration and usage information about transforms."

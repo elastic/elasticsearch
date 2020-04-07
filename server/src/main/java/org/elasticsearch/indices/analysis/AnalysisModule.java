@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
+import org.elasticsearch.index.analysis.LowercaseNormalizerProvider;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -250,7 +251,7 @@ public final class AnalysisModule {
 
     private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = new NamedRegistry<>("normalizer");
-        // TODO: provide built-in normalizer providers?
+        normalizers.register("lowercase", LowercaseNormalizerProvider::new);
         // TODO: pluggability?
         return normalizers;
     }

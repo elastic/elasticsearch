@@ -14,12 +14,11 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse> {
 
@@ -30,7 +29,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         static final ParseField POLICY_FIELD = new ParseField("policy");
 
@@ -55,7 +54,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         }
 
         public Request(final AutoscalingPolicy policy) {
-            this.policy = policy;
+            this.policy = Objects.requireNonNull(policy);
         }
 
         public Request(final StreamInput in) throws IOException {
@@ -76,13 +75,16 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         }
 
         @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field(POLICY_FIELD.getPreferredName(), policy);
-            }
-            builder.endObject();
-            return builder;
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Request request = (Request) o;
+            return policy.equals(request.policy);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policy);
         }
 
     }

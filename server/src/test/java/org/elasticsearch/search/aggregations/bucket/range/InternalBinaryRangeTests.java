@@ -34,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+
 public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBinaryRange> {
 
     private List<Tuple<BytesRef, BytesRef>> ranges;
@@ -72,7 +74,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
 
     @Override
     protected InternalBinaryRange createTestInstance(String name,
-                                                     List<PipelineAggregator> pipelineAggregators,
                                                      Map<String, Object> metadata,
                                                      InternalAggregations aggregations,
                                                      boolean keyed) {
@@ -85,7 +86,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             final String key = (i == nullKey) ? null: randomAlphaOfLength(10);
             buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metadata);
+        return new InternalBinaryRange(name, format, keyed, buckets, emptyList(), metadata);
     }
 
     @Override

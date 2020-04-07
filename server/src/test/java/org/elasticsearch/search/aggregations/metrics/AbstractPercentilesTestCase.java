@@ -26,9 +26,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -57,16 +54,16 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
     }
 
     @Override
-    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected T createTestInstance(String name, Map<String, Object> metadata) {
         int numValues = frequently() ? randomInt(100) : 0;
         double[] values = new double[numValues];
         for (int i = 0; i < numValues; ++i) {
             values[i] = randomDouble();
         }
-        return createTestInstance(name, pipelineAggregators, metadata, keyed, docValueFormat, percents, values);
+        return createTestInstance(name, metadata, keyed, docValueFormat, percents, values);
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata,
                                             boolean keyed, DocValueFormat format, double[] percents, double[] values);
 
     protected abstract Class<? extends ParsedPercentiles> implementationClass();
@@ -106,7 +103,7 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
         boolean keyed = randomBoolean();
         DocValueFormat docValueFormat = randomNumericDocValueFormat();
 
-        T agg = createTestInstance("test", Collections.emptyList(), Collections.emptyMap(), keyed, docValueFormat, percents, new double[0]);
+        T agg = createTestInstance("test", Collections.emptyMap(), keyed, docValueFormat, percents, new double[0]);
 
         for (Percentile percentile : agg) {
             Double value = percentile.getValue();

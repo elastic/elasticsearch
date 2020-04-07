@@ -46,7 +46,8 @@ favor of setting `node.remote_cluster_client`. In Elasticsearch 8.0.0, the
 setting `cluster.remote.connect` is removed.
 
 [float]
-==== `node.local_storage` is deprecated
+==== `node.local_storage` is removed
 
 In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
-beginning in Elasticsearch 8.0.0 all nodes will require local storage.
+beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore,
+the `node.local_storage` setting has been removed.

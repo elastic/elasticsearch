@@ -691,14 +691,14 @@ public class SamlRealmTests extends SamlTestCase {
         return descriptor;
     }
 
-    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetaDataPath) throws Exception {
-        Settings globalSettings = buildSettings(idpMetaDataPath).build();
+    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetadataPath) throws Exception {
+        Settings globalSettings = buildSettings(idpMetadataPath).build();
         final RealmConfig config = realmConfigFromGlobalSettings(globalSettings);
         final SSLService sslService = new SSLService(config.env());
         return new Tuple<>(config, sslService);
     }
 
-    private Settings.Builder buildSettings(String idpMetaDataPath) {
+    private Settings.Builder buildSettings(String idpMetadataPath) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
         return Settings.builder()
@@ -709,7 +709,7 @@ public class SamlRealmTests extends SamlTestCase {
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .put(REALM_SETTINGS_PREFIX + ".ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetaDataPath)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetadataPath)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH + "ms")
             .put("path.home", createTempDir())

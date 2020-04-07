@@ -99,18 +99,6 @@ public class VerifierTests extends ESTestCase {
                         "  and child of [file where file_name=\"svchost.exe\" and opcode=0]"));
     }
 
-    public void testSequencesUnsupported() {
-        assertEquals("1:1: Sequence is not supported", errorParsing("sequence\n" +
-                "  [process where serial_event_id = 1]\n" +
-                "  [process where serial_event_id = 2]"));
-    }
-
-    public void testJoinUnsupported() {
-        assertEquals("1:1: Join is not supported", errorParsing("join by user_name\n" +
-                "  [process where opcode in (1,3) and process_name=\"smss.exe\"]\n" +
-                "  [process where opcode in (1,3) and process_name == \"python.exe\"]"));
-    }
-
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
         assertEquals("1:16: Unknown function [arrayContains]",
@@ -131,10 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:25: Unknown function [endsWith]",
-                error("file where opcode=0 and endsWith(file_name, 'loREr.exe')"));
-        assertEquals("1:25: Unknown function [startsWith]",
-                error("file where opcode=0 and startsWith(file_name, 'explORER.EXE')"));
         assertEquals("1:25: Unknown function [stringContains]",
                 error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
         assertEquals("1:25: Unknown function [indexOf]",
@@ -296,6 +280,12 @@ public class VerifierTests extends ESTestCase {
                 error(idxr, "foo where date_range_field == ''"));
         assertEquals("1:11: Cannot use field [ip_range_field] with unsupported type [ip_range]",
                 error(idxr, "foo where ip_range_field == ''"));
+    }
+
+    public void testMixedSet() {
+        final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
+        assertEquals("1:11: 2nd argument of [long_field in (1, 'string')] must be [long], found value ['string'] type [keyword]",
+            error(idxr, "foo where long_field in (1, 'string')"));
     }
 
     public void testObject() {

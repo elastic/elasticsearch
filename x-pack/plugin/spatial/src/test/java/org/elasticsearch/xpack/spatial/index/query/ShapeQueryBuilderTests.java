@@ -65,6 +65,11 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
         return Collections.singleton(SpatialPlugin.class);
     }
 
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
+            fieldName(), "type=shape"))), MapperService.MergeReason.MAPPING_UPDATE);
+    }
 
     protected String fieldName() {
         return SHAPE_FIELD_NAME;

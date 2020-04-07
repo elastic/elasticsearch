@@ -40,8 +40,8 @@ public class NestedAggregatorFactory extends AggregatorFactory {
 
     NestedAggregatorFactory(String name, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
                             QueryShardContext queryShardContext, AggregatorFactory parent, AggregatorFactories.Builder subFactories,
-                            Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                            Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         this.parentObjectMapper = parentObjectMapper;
         this.childObjectMapper = childObjectMapper;
     }
@@ -51,12 +51,12 @@ public class NestedAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (childObjectMapper == null) {
-            return new Unmapped(name, searchContext, parent, pipelineAggregators, metaData);
+            return new Unmapped(name, searchContext, parent, pipelineAggregators, metadata);
         }
         return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent,
-            pipelineAggregators, metaData, collectsFromSingleBucket);
+            pipelineAggregators, metadata, collectsFromSingleBucket);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {
@@ -65,13 +65,13 @@ public class NestedAggregatorFactory extends AggregatorFactory {
                     SearchContext context,
                     Aggregator parent,
                     List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-            super(name, context, parent, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) throws IOException {
+            super(name, context, parent, pipelineAggregators, metadata);
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+            return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
         }
     }
 

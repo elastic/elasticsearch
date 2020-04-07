@@ -27,7 +27,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -44,7 +43,6 @@ public class InboundHandler {
 
     private static final Logger logger = LogManager.getLogger(InboundHandler.class);
 
-    private final MeanMetric readBytesMetric = new MeanMetric();
     private final ThreadPool threadPool;
     private final OutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -82,10 +80,6 @@ public class InboundHandler {
         return responseHandlers;
     }
 
-    MeanMetric getReadBytes() {
-        return readBytesMetric;
-    }
-
     void setMessageListener(TransportMessageListener listener) {
         if (messageListener == TransportMessageListener.NOOP_LISTENER) {
             messageListener = listener;
@@ -99,17 +93,10 @@ public class InboundHandler {
         TransportLogger.logInboundMessage(channel, message);
 
         if (message.isPing()) {
-            readBytesMetric.inc(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             keepAlive.receiveKeepAlive(channel);
         } else {
-            readBytesMetric.inc(message.getHeader().getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             messageReceived(message, channel);
         }
-    }
-
-    void handleDecodeException(TcpChannel channel, Header header) {
-        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        readBytesMetric.inc(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
     }
 
     private void messageReceived(InboundMessage message, TcpChannel channel) throws IOException {
@@ -168,7 +155,10 @@ public class InboundHandler {
         try {
             messageListener.onRequestReceived(requestId, action);
             if (header.isHandshake()) {
-                handshaker.handleHandshake(version, channel, requestId, stream);
+                // Handshakes are not currently circuit broken
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                    circuitBreakerService, 0, header.isCompressed(), header.isHandshake());
+                handshaker.handleHandshake(transportChannel, requestId, stream);
             } else {
                 final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                 if (reg == null) {
@@ -181,7 +171,7 @@ public class InboundHandler {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, messageLengthBytes, header.isCompressed());
+                    circuitBreakerService, messageLengthBytes, header.isCompressed(), header.isHandshake());
                 final T request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
@@ -197,7 +187,7 @@ public class InboundHandler {
             // the circuit breaker tripped
             if (transportChannel == null) {
                 transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, 0, header.isCompressed());
+                    circuitBreakerService, 0, header.isCompressed(), header.isHandshake());
             }
             try {
                 transportChannel.sendResponse(e);

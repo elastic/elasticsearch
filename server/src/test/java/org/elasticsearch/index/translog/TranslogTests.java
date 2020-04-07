@@ -36,7 +36,7 @@ import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -230,7 +230,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
         return getTranslogConfig(path, settings);
     }
 
@@ -2442,11 +2442,11 @@ public class TranslogTests extends ESTestCase {
         }
 
         @Override
-        public void force(boolean metaData) throws IOException {
+        public void force(boolean metadata) throws IOException {
             if (fail.fail()) {
                 throw new MockDirectoryWrapper.FakeIOException();
             }
-            super.force(metaData);
+            super.force(metadata);
         }
 
         @Override

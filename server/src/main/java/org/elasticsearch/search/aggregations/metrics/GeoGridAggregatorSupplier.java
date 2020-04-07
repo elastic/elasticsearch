@@ -38,5 +38,5 @@ public interface GeoGridAggregatorSupplier extends AggregatorSupplier {
     GeoGridAggregator build(String name, AggregatorFactories factories, ValuesSource valuesSource,
                             int precision, GeoBoundingBox geoBoundingBox, int requiredSize, int shardSize,
                             SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) throws IOException;
+                            Map<String, Object> metadata) throws IOException;
 }

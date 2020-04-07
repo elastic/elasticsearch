@@ -137,10 +137,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
-            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, searchContext.searcher()) : -1;
             if (execution == null) {
                 execution = ExecutionMode.GLOBAL_ORDINALS;
             }
+            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, searchContext.searcher()) : -1;
             SubAggCollectionMode cm = collectMode;
             if (cm == null) {
                 cm = SubAggCollectionMode.DEPTH_FIRST;

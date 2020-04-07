@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -49,8 +48,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
-                      Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata);
+                      Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;

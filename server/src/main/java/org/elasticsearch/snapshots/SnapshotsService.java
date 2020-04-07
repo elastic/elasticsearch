@@ -1227,8 +1227,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 } else {
                                     logger.warn("deleted snapshot failed", e);
                                     listener.onFailure(
-                                        new SnapshotMissingException(
-                                            runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
+                                        new SnapshotMissingException(runningSnapshot.getRepository(), runningSnapshot.getSnapshotId(), e));
                                 }
                             }
                         }

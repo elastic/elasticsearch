@@ -54,6 +54,10 @@ public class EVariable extends AStoreable {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+        }
+
         Output output = new Output();
 
         Variable variable = scope.getVariable(location, name);
@@ -78,10 +82,5 @@ public class EVariable extends AStoreable {
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(name);
     }
 }

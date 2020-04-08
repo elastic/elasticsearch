@@ -9,22 +9,24 @@ package org.elasticsearch.xpack.eql.session;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
 
 public class Configuration extends org.elasticsearch.xpack.ql.session.Configuration {
-    
+
     private final String[] indices;
     private final TimeValue requestTimeout;
     private final int size;
     private final String clientId;
     private final boolean includeFrozenIndices;
+    private final EqlSearchTask task;
 
     @Nullable
     private QueryBuilder filter;
 
     public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                         int size, boolean includeFrozen, String clientId) {
+                         int size, boolean includeFrozen, String clientId, EqlSearchTask task) {
 
         super(zi, username, clusterName);
 
@@ -34,6 +36,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
         this.size = size;
         this.clientId = clientId;
         this.includeFrozenIndices = includeFrozen;
+        this.task = task;
     }
 
     public String[] indices() {
@@ -58,5 +61,9 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
 
     public boolean includeFrozen() {
         return includeFrozenIndices;
+    }
+
+    public boolean isCancelled() {
+        return task.isCancelled();
     }
 }

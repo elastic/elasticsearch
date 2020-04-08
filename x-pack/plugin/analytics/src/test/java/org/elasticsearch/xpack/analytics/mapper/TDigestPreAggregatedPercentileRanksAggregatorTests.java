@@ -16,22 +16,51 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
 
 public class TDigestPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
+
+    @BeforeClass
+    public static void registerBuilder() {
+        AnalyticsPercentilesAggregatorFactory.registerPercentileRanksAggregator(valuesSourceRegistry);
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new PercentileRanksAggregationBuilder("tdigest_percentiles", new double[]{1.0})
+            .field(fieldName)
+            .percentilesConfig(new PercentilesConfig.TDigest());
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // Note: this is the same list as Core, plus Analytics
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
+            AnalyticsValuesSourceType.HISTOGRAM);
+    }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
         TDigest histogram = new TDigestState(100.0); //default

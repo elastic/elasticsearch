@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -425,7 +425,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             return Collections.emptyMap();
         }
 
-        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             return Collections.emptyMap();
@@ -435,7 +435,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     }
 
     StoredScriptSource getScriptFromClusterState(String id) {
-        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
@@ -495,11 +495,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
-                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
+                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
-                return ClusterState.builder(currentState).metaData(mdb).build();
+                return ClusterState.builder(currentState).metadata(mdb).build();
             }
         });
     }
@@ -516,17 +516,17 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.deleteStoredScript(smd, request.id());
-                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                smd = ScriptMetadata.deleteStoredScript(smd, request.id());
+                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
-                return ClusterState.builder(currentState).metaData(mdb).build();
+                return ClusterState.builder(currentState).metadata(mdb).build();
             }
         });
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {
             return scriptMetadata.getStoredScript(request.id());
@@ -567,6 +567,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
+    public ScriptCacheStats cacheStats() {
+        return cacheHolder.get().cacheStats();
+    }
+
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
@@ -602,7 +606,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
                     compilationLimitsEnabled ?
                         SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) :
-                        SCRIPT_COMPILATION_RATE_ZERO);
+                        SCRIPT_COMPILATION_RATE_ZERO,
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
             }
         }
 
@@ -626,7 +631,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             return new ScriptCache(cacheSize.existsOrFallbackExists(settings) ? cacheSize.get(settings) : context.cacheSizeDefault,
                                    cacheExpire.existsOrFallbackExists(settings) ? cacheExpire.get(settings) : context.cacheExpireDefault,
-                                   compileRate);
+                                   compileRate,
+                                   SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name).getKey());
         }
 
         /**
@@ -675,6 +681,17 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 return general.stats();
             }
             return ScriptStats.sum(contextCache.values().stream().map(AtomicReference::get).map(ScriptCache::stats)::iterator);
+        }
+
+        ScriptCacheStats cacheStats() {
+            if (general != null) {
+                return new ScriptCacheStats(general.stats());
+            }
+            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
+            for (ScriptContext<?> ctx: contexts) {
+                context.put(ctx.name, contextCache.get(ctx.name).get().stats());
+            }
+            return new ScriptCacheStats(context);
         }
 
         /**

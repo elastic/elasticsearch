@@ -29,10 +29,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -67,7 +67,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -168,7 +168,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             throw new IllegalStateException("caller must make sure to use a frozen state and check indexAvailable");
         }
 
-        if (localState.indexState == IndexMetaData.State.CLOSE) {
+        if (localState.indexState == IndexMetadata.State.CLOSE) {
             return new IndexClosedException(new Index(localState.concreteIndexName, ClusterState.UNKNOWN_UUID));
         } else if (localState.indexExists()) {
             return new UnavailableShardsException(null,
@@ -196,28 +196,28 @@ public class SecurityIndexManager implements ClusterStateListener {
             return;
         }
         final State previousState = indexState;
-        final IndexMetaData indexMetaData = resolveConcreteIndex(aliasName, event.state().metaData());
-        final Instant creationTime = indexMetaData != null ? Instant.ofEpochMilli(indexMetaData.getCreationDate()) : null;
-        final boolean isIndexUpToDate = indexMetaData == null ||
-            INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == internalIndexFormat;
+        final IndexMetadata indexMetadata = resolveConcreteIndex(aliasName, event.state().metadata());
+        final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
+        final boolean isIndexUpToDate = indexMetadata == null ||
+            INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()).intValue() == internalIndexFormat;
         final boolean indexAvailable = checkIndexAvailable(event.state());
-        final boolean mappingIsUpToDate = indexMetaData == null || checkIndexMappingUpToDate(event.state());
+        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
-        final String concreteIndexName = indexMetaData == null ? internalIndexName : indexMetaData.getIndex().getName();
+        final String concreteIndexName = indexMetadata == null ? internalIndexName : indexMetadata.getIndex().getName();
         final ClusterHealthStatus indexHealth;
-        final IndexMetaData.State indexState;
-        if (indexMetaData == null) {
+        final IndexMetadata.State indexState;
+        if (indexMetadata == null) {
             // Index does not exist
             indexState = null;
             indexHealth = null;
-        } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-            indexState = IndexMetaData.State.CLOSE;
+        } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            indexState = IndexMetadata.State.CLOSE;
             indexHealth = null;
             logger.warn("Index [{}] is closed. This is likely to prevent security from functioning correctly", concreteIndexName);
         } else {
-            indexState = IndexMetaData.State.OPEN;
-            final IndexRoutingTable routingTable = event.state().getRoutingTable().index(indexMetaData.getIndex());
-            indexHealth = new ClusterIndexHealth(indexMetaData, routingTable).getStatus();
+            indexState = IndexMetadata.State.OPEN;
+            final IndexRoutingTable routingTable = event.state().getRoutingTable().index(indexMetadata.getIndex());
+            indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
         }
         final State newState = new State(creationTime, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion,
                 concreteIndexName, indexHealth, indexState);
@@ -231,16 +231,16 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     private boolean checkIndexAvailable(ClusterState state) {
-        IndexMetaData metaData = resolveConcreteIndex(aliasName, state.metaData());
-        if (metaData == null) {
+        IndexMetadata metadata = resolveConcreteIndex(aliasName, state.metadata());
+        if (metadata == null) {
             logger.debug("Index [{}] is not available - no metadata", aliasName);
             return false;
         }
-        if (metaData.getState() == IndexMetaData.State.CLOSE) {
+        if (metadata.getState() == IndexMetadata.State.CLOSE) {
             logger.warn("Index [{}] is closed", aliasName);
             return false;
         }
-        final IndexRoutingTable routingTable = state.routingTable().index(metaData.getIndex());
+        final IndexRoutingTable routingTable = state.routingTable().index(metadata.getIndex());
         if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
             logger.debug("Index [{}] is not yet active", aliasName);
             return false;
@@ -274,9 +274,9 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private static Set<Version> loadIndexMappingVersions(String aliasName, ClusterState clusterState, Logger logger) {
         Set<Version> versions = new HashSet<>();
-        IndexMetaData indexMetaData = resolveConcreteIndex(aliasName, clusterState.metaData());
-        if (indexMetaData != null) {
-            MappingMetaData mmd = indexMetaData.mapping();
+        IndexMetadata indexMetadata = resolveConcreteIndex(aliasName, clusterState.metadata());
+        if (indexMetadata != null) {
+            MappingMetadata mmd = indexMetadata.mapping();
             if (mmd != null) {
                 versions.add(readMappingVersion(aliasName, mmd, logger));
             }
@@ -285,14 +285,14 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * Resolves a concrete index name or alias to a {@link IndexMetaData} instance.  Requires
+     * Resolves a concrete index name or alias to a {@link IndexMetadata} instance.  Requires
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
-    private static IndexMetaData resolveConcreteIndex(final String indexOrAliasName, final MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(indexOrAliasName);
-        if (aliasOrIndex != null) {
-            final List<IndexMetaData> indices = aliasOrIndex.getIndices();
-            if (aliasOrIndex.isAlias() && indices.size() > 1) {
+    private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexOrAliasName);
+        if (indexAbstraction != null) {
+            final List<IndexMetadata> indices = indexAbstraction.getIndices();
+            if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
                         indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }
@@ -301,12 +301,12 @@ public class SecurityIndexManager implements ClusterStateListener {
         return null;
     }
 
-    private static Version readMappingVersion(String indexName, MappingMetaData mappingMetaData, Logger logger) {
+    private static Version readMappingVersion(String indexName, MappingMetadata mappingMetadata, Logger logger) {
         try {
             Map<String, Object> meta =
-                    (Map<String, Object>) mappingMetaData.sourceAsMap().get("_meta");
+                    (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
-                logger.info("Missing _meta field in mapping [{}] of index [{}]", mappingMetaData.type(), indexName);
+                logger.info("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
                 throw new IllegalStateException("Cannot read security-version string in index " + indexName);
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
@@ -449,11 +449,11 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final Version mappingVersion;
         public final String concreteIndexName;
         public final ClusterHealthStatus indexHealth;
-        public final IndexMetaData.State indexState;
+        public final IndexMetadata.State indexState;
 
         public State(Instant creationTime, boolean isIndexUpToDate, boolean indexAvailable,
                      boolean mappingUpToDate, Version mappingVersion, String concreteIndexName, ClusterHealthStatus indexHealth,
-                     IndexMetaData.State indexState) {
+                     IndexMetadata.State indexState) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
             this.indexAvailable = indexAvailable;

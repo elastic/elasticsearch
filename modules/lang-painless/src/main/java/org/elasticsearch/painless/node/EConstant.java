@@ -42,6 +42,10 @@ public class EConstant extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: constant [" + constant + "] not used"));
+        }
+
         Output output = new Output();
 
         if (constant instanceof String) {
@@ -76,14 +80,5 @@ public class EConstant extends AExpression {
         output.expressionNode = constantNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        String c = constant.toString();
-        if (constant instanceof String) {
-            c = "'" + c + "'";
-        }
-        return singleLineToString(constant.getClass().getSimpleName(), c);
     }
 }

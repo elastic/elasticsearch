@@ -88,7 +88,7 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
-                if (indicesService.isMetaDataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
+                if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                         || fieldPredicate.test(ft.name())) {
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.typeName(),
                         ft.isSearchable(), ft.isAggregatable(), ft.meta());

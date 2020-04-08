@@ -19,10 +19,15 @@ Deletes an existing {transform}.
 ==== {api-prereq-title}
 
 * Before you can delete the {transform}, you must stop it.
-* If the {es} {security-features} are enabled, you must have `manage_transform` 
-cluster privileges to use this API. The built-in `transform_admin` role has 
-these privileges. For more information, see <<security-privileges>> and 
-<<built-in-roles>>.
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* `manage_transform` 
+
+The built-in `transform_admin` role has this privilege. 
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[delete-transform-path-parms]]

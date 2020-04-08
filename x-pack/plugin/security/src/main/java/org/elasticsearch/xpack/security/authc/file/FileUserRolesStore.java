@@ -165,7 +165,7 @@ public class FileUserRolesStore {
 
         Map<String, String[]> usersRoles = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : userToRoles.entrySet()) {
-            usersRoles.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()).toArray(new String[entry.getValue().size()]));
+            usersRoles.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()).toArray(new String[0]));
         }
 
         logger.debug("parsed [{}] user to role mappings from file [{}]", usersRoles.size(), path.toAbsolutePath());

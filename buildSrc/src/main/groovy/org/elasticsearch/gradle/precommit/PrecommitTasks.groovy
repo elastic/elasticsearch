@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.precommit
 
-
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
@@ -30,6 +29,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -142,6 +142,22 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
+
+            assert name.startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
+            String sourceSetName
+            if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(name)) {
+                sourceSetName = "main"
+            } else {
+                //parse out the sourceSetName
+                char[] chars = name.substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray()
+                chars[0] = Character.toLowerCase(chars[0])
+                sourceSetName = new String(chars)
+            }
+
+            SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
+            FileCollection runtime = sourceSet.runtimeClasspath
+            classpath = runtime.plus(sourceSet.compileClasspath)
+
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
                 project.logger.warn(

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -42,11 +43,10 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false);
-        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false);
+        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true);
+        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true);
         PARSER.declareString(TTestAggregationBuilder::testType, TYPE_FIELD);
         PARSER.declareInt(TTestAggregationBuilder::tails, TAILS_FIELD);
-
     }
 
     private TTestType testType = TTestType.HETEROSCEDASTIC;
@@ -122,10 +122,13 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     protected MultiValuesSourceAggregatorFactory innerBuild(
         QueryShardContext queryShardContext,
         Map<String, ValuesSourceConfig> configs,
+        Map<String, QueryBuilder> filters,
         DocValueFormat format,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new TTestAggregatorFactory(name, configs, testType, tails, format, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new TTestAggregatorFactory(name, configs, testType, tails,
+            filters.get(A_FIELD.getPreferredName()), filters.get(B_FIELD.getPreferredName()), format, queryShardContext, parent,
+            subFactoriesBuilder, metadata);
     }
 
     @Override

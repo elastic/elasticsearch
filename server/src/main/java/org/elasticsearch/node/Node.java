@@ -447,7 +447,7 @@ public class Node implements Closeable {
                 .stream()
                 .collect(Collectors.toMap(
                     plugin -> plugin.getClass().getSimpleName(),
-                    plugin -> plugin.getSystemIndexDescriptors())));
+                    plugin -> plugin.getSystemIndexDescriptors(settings))));
             SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptorMap);
 
             final List<SystemIndexDescriptor> systemIndexDescriptors = systemIndexDescriptorMap.values().stream()

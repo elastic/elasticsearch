@@ -49,7 +49,7 @@ include::metrics/median-absolute-deviation-aggregation.asciidoc[]
 
 include::metrics/boxplot-aggregation.asciidoc[]
 
-
+include::metrics/t-test-aggregation.asciidoc[]
 
 
 

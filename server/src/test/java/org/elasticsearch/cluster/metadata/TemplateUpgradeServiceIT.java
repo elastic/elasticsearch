@@ -80,12 +80,12 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
             return templates -> {
-                templates.put("test_added_template", IndexTemplateMetaData.builder("test_added_template")
+                templates.put("test_added_template", IndexTemplateMetadata.builder("test_added_template")
                     .patterns(Collections.singletonList("*")).build());
                 templates.remove("test_removed_template");
-                templates.put("test_changed_template", IndexTemplateMetaData.builder("test_changed_template").order(10)
+                templates.put("test_changed_template", IndexTemplateMetadata.builder("test_changed_template").order(10)
                     .patterns(Collections.singletonList("*")).build());
                 return templates;
             };
@@ -117,14 +117,14 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
             ).get());
-            List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
             boolean changedFound = false;
             boolean dummyFound = false;
             for (int i = 0; i < 3; i++) {
-                IndexTemplateMetaData templateMetaData = templates.get(i);
-                switch (templateMetaData.getName()) {
+                IndexTemplateMetadata templateMetadata = templates.get(i);
+                switch (templateMetadata.getName()) {
                     case "test_added_template":
                         assertFalse(addedFound);
                         addedFound = true;
@@ -132,14 +132,14 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                     case "test_changed_template":
                         assertFalse(changedFound);
                         changedFound = true;
-                        assertThat(templateMetaData.getOrder(), equalTo(10));
+                        assertThat(templateMetadata.getOrder(), equalTo(10));
                         break;
                     case "test_dummy_template":
                         assertFalse(dummyFound);
                         dummyFound = true;
                         break;
                     default:
-                        fail("unexpected template " + templateMetaData.getName());
+                        fail("unexpected template " + templateMetadata.getName());
                         break;
                 }
             }
@@ -165,13 +165,13 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
             ).get());
 
-            List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(2));
             boolean addedFound = false;
             boolean changedFound = false;
             for (int i = 0; i < 2; i++) {
-                IndexTemplateMetaData templateMetaData = templates.get(i);
-                switch (templateMetaData.getName()) {
+                IndexTemplateMetadata templateMetadata = templates.get(i);
+                switch (templateMetadata.getName()) {
                     case "test_added_template":
                         assertFalse(addedFound);
                         addedFound = true;
@@ -179,10 +179,10 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                     case "test_changed_template":
                         assertFalse(changedFound);
                         changedFound = true;
-                        assertThat(templateMetaData.getOrder(), equalTo(10));
+                        assertThat(templateMetadata.getOrder(), equalTo(10));
                         break;
                     default:
-                        fail("unexpected template " + templateMetaData.getName());
+                        fail("unexpected template " + templateMetadata.getName());
                         break;
                 }
             }

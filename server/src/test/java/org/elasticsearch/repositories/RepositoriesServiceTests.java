@@ -24,13 +24,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -124,15 +125,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         private boolean isClosed;
         private boolean isStarted;
 
-        private final RepositoryMetaData metaData;
+        private final RepositoryMetadata metadata;
 
-        private TestRepository(RepositoryMetaData metaData) {
-            this.metaData = metaData;
+        private TestRepository(RepositoryMetadata metadata) {
+            this.metadata = metadata;
         }
 
         @Override
-        public RepositoryMetaData getMetadata() {
-            return metaData;
+        public RepositoryMetadata getMetadata() {
+            return metadata;
         }
 
         @Override
@@ -141,12 +142,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
             return null;
         }
 
         @Override
-        public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
+        public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId index) throws IOException {
             return null;
         }
 
@@ -158,8 +159,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
                                      int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                     Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
+                                     boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
+                                     Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
             listener.onResponse(null);
         }
 

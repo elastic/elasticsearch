@@ -9,12 +9,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
+/**
+ * This task updates the operation mode state for ILM.
+ *
+ * As stopping ILM proved to be an action we want to sometimes take in order to allow clusters to stabilise when under heavy load this
+ * task might run at {@link Priority#IMMEDIATE} priority so please make sure to keep this task as lightweight as possible.
+ */
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
     @Nullable
@@ -22,17 +29,22 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     @Nullable
     private final OperationMode slmMode;
 
-    private OperationModeUpdateTask(OperationMode ilmMode, OperationMode slmMode) {
+    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
+        super(priority);
         this.ilmMode = ilmMode;
         this.slmMode = slmMode;
     }
 
     public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(mode, null);
+        return ilmMode(Priority.NORMAL, mode);
+    }
+
+    public static OperationModeUpdateTask ilmMode(Priority priority, OperationMode mode) {
+        return new OperationModeUpdateTask(priority, mode, null);
     }
 
     public static OperationModeUpdateTask slmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(null, mode);
+        return new OperationModeUpdateTask(Priority.NORMAL, null, mode);
     }
 
     OperationMode getILMOperationMode() {
@@ -55,7 +67,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (ilmMode == null) {
             return currentState;
         }
-        IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(ilmMode) == false) {
             return currentState;
         } else if (currentMetadata == null) {
@@ -73,7 +85,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             logger.info("updating ILM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.metaData())
+            .metadata(Metadata.builder(currentState.metadata())
                     .putCustom(IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode)))
             .build();
@@ -83,7 +95,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (slmMode == null) {
             return currentState;
         }
-        SnapshotLifecycleMetadata currentMetadata = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata currentMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(slmMode) == false) {
             return currentState;
         } else if (currentMetadata == null) {
@@ -101,7 +113,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             logger.info("updating SLM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.metaData())
+            .metadata(Metadata.builder(currentState.metadata())
                 .putCustom(SnapshotLifecycleMetadata.TYPE,
                     new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(),
                         newMode, currentMetadata.getStats())))

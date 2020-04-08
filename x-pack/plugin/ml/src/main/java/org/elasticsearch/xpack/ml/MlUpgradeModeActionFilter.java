@@ -130,9 +130,15 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
         return true;
     }
 
+    /**
+     * To prevent leaking information to unauthorized users, it is extremely important that this filter is executed *after* the
+     * {@code SecurityActionFilter}.
+     * To achieve that, the number returned by this method must be greater than the number returned by the
+     * {@code SecurityActionFilter::order} method.
+     */
     @Override
     public int order() {
-        return 666;
+        return Integer.MAX_VALUE;
     }
 
     // Visible for testing

@@ -61,6 +61,7 @@ import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
@@ -68,11 +69,15 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
+import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
+import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -81,9 +86,12 @@ import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -1559,5 +1567,51 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(alias2), equalTo(true));
         assertThat(aliasExists(index, alias), equalTo(false));
         assertThat(aliasExists(index, alias2), equalTo(true));
+    }
+
+    public void testIndexTemplates() throws Exception {
+        String templateName = "my-template";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
+        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        List<String> pattern = List.of("pattern");
+        IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
+        PutIndexTemplateV2Request putIndexTemplateV2Request =
+            new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
+
+        AcknowledgedResponse response = execute(putIndexTemplateV2Request,
+            highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        IndexTemplateV2ExistRequest indexTemplateV2ExistRequest = new IndexTemplateV2ExistRequest(templateName);
+        boolean exist = execute(indexTemplateV2ExistRequest,
+            highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
+
+        assertTrue(exist);
+
+        GetIndexTemplateV2Request getIndexTemplateV2Request = new GetIndexTemplateV2Request(templateName);
+        GetIndexTemplatesV2Response getResponse = execute(getIndexTemplateV2Request,
+            highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync);
+
+        assertThat(getResponse.getIndexTemplates().size(), equalTo(1));
+        assertThat(getResponse.getIndexTemplates().containsKey(templateName), equalTo(true));
+        assertThat(getResponse.getIndexTemplates().get(templateName), equalTo(indexTemplate));
+
+        DeleteIndexTemplateV2Request deleteIndexTemplateV2Request = new DeleteIndexTemplateV2Request(templateName);
+        response = execute(deleteIndexTemplateV2Request, highLevelClient().indices()::deleteIndexTemplate,
+            highLevelClient().indices()::deleteIndexTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(getIndexTemplateV2Request,
+                highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync));
+
+        assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
+
+        exist = execute(indexTemplateV2ExistRequest,
+            highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
+
+        assertFalse(exist);
     }
 }

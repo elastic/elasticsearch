@@ -185,7 +185,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
                 }
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                if (snapshots != null && snapshots.entries().isEmpty() == false) {
+                // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
+                // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
+                // cluster state anyway in #applyClusterState.
+                if (snapshots != null && snapshots.entries().stream().anyMatch(entry ->
+                    (entry.state() == State.INIT && initializingSnapshots.contains(entry.snapshot()) == false) == false)) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
                 }
                 // Store newSnapshot here to be processed in clusterStateProcessed

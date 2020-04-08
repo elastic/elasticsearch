@@ -131,7 +131,8 @@ class PluginBuildPlugin implements Plugin<Project> {
         }
         createIntegTestTask(project)
         createBundleTasks(project, extension)
-        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
+        project.configurations.getByName('default')
+            .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
             dependsOn(project.tasks.bundlePlugin)
@@ -210,7 +211,7 @@ class PluginBuildPlugin implements Plugin<Project> {
              * that shadow jar.
              */
             from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
-            from project.configurations.runtime - project.configurations.compileOnly
+            from project.configurations.runtimeClasspath - project.configurations.compileOnly
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

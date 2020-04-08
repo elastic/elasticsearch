@@ -83,7 +83,7 @@ public class HttpExporter extends Exporter {
 
     private static Setting.AffixSettingDependency TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
         @Override
-        public Setting.AffixSetting getSetting() {
+        public Setting.AffixSetting<String> getSetting() {
             return Exporter.TYPE_SETTING;
         }
 

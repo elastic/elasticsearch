@@ -41,7 +41,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public static final ParseField BUCKETS_PATH_FIELD = new ParseField("buckets_path");
 
     protected final String type;
-    protected Map<String, Object> metaData;
+    protected Map<String, Object> metadata;
 
     protected AbstractPipelineAggregationBuilder(String name, String type, String[] bucketsPaths) {
         super(name, bucketsPaths);
@@ -56,14 +56,14 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     protected AbstractPipelineAggregationBuilder(StreamInput in, String type) throws IOException {
         this(in.readString(), type, in.readStringArray());
-        metaData = in.readMap();
+        metadata = in.readMap();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringArray(bucketsPaths);
-        out.writeMap(metaData);
+        out.writeMap(metadata);
         doWriteTo(out);
     }
 
@@ -73,7 +73,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return type;
     }
 
-    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
     /**
      * Creates the pipeline aggregator
@@ -82,14 +82,14 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     @Override
     public final PipelineAggregator create() {
-        PipelineAggregator aggregator = createInternal(this.metaData);
+        PipelineAggregator aggregator = createInternal(this.metadata);
         return aggregator;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public PAB setMetaData(Map<String, Object> metaData) {
-        this.metaData = metaData;
+    public PAB setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
         return (PAB) this;
     }
 
@@ -97,8 +97,8 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
 
-        if (this.metaData != null) {
-            builder.field("meta", this.metaData);
+        if (this.metadata != null) {
+            builder.field("meta", this.metadata);
         }
         builder.startObject(type);
 
@@ -129,7 +129,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type);
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metadata, name, type);
     }
 
     @Override
@@ -140,7 +140,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
         return Objects.equals(type, other.type)
             && Objects.equals(name, other.name)
-            && Objects.equals(metaData, other.metaData)
+            && Objects.equals(metadata, other.metadata)
             && Objects.deepEquals(bucketsPaths, other.bucketsPaths);
     }
 

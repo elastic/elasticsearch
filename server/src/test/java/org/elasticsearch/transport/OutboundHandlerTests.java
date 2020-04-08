@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,6 +48,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -64,18 +70,22 @@ public class OutboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
-        handler = new OutboundHandler("node", Version.CURRENT, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        StatsTracker statsTracker = new StatsTracker();
+        handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
 
-        pipeline = new InboundPipeline(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE, (c, m) -> {
-            try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                Streams.copy(m.openOrGetStreamInput(), streamOutput);
-                message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }, (c, t) -> {
-            throw new AssertionError(t.v2());
-        });
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator,
+            (c, m) -> {
+                try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+                    Streams.copy(m.openOrGetStreamInput(), streamOutput);
+                    message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
     }
 
     @After
@@ -147,7 +157,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(request, requestRef.get());
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
+        }));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         final TestRequest message = new TestRequest(tuple.v2().streamInput());
@@ -205,7 +216,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(response, responseRef.get());
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
+        }));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         final TestResponse message = new TestResponse(tuple.v2().streamInput());
@@ -263,7 +275,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(error, responseRef.get());
 
 
-        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {
+        }));
         final Tuple<Header, BytesReference> tuple = message.get();
         final Header header = tuple.v1();
         assertEquals(version, header.getVersion());

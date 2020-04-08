@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -50,20 +48,19 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         QueryShardContext context,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
-                return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+                return new InternalChildren(name, 0, buildEmptySubAggregations(), metadata());
             }
         };
     }
@@ -72,8 +69,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
 
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
@@ -83,7 +79,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
         if (collectsFromSingleBucket) {
             return new ParentToChildrenAggregator(name, factories, searchContext, parent, childFilter,
-                parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
+                parentFilter, valuesSource, maxOrd, metadata);
         } else {
             return asMultiBucketAggregator(this, searchContext, parent);
         }

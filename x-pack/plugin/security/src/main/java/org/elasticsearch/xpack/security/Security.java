@@ -344,8 +344,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               IndexNameExpressionResolver expressionResolver, RepositoriesService repositoriesService) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
                 environment, expressionResolver);

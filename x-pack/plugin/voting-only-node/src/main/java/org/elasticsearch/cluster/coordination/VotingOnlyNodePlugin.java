@@ -106,8 +106,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               IndexNameExpressionResolver expressionResolver, RepositoriesService repositoriesService) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
     }

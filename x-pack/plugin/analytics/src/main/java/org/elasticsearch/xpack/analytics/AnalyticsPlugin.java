@@ -59,7 +59,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
@@ -138,7 +137,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
+            IndexNameExpressionResolver indexNameExpressionResolver, RepositoriesService repositoriesService) {
         return singletonList(new AnalyticsUsage());
     }
 

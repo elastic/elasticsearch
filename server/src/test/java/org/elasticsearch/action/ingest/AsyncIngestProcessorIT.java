@@ -48,7 +48,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -104,7 +103,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                    IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                                   RepositoriesService repositoriesService) {
             this.threadPool = threadPool;
             return List.of();
         }

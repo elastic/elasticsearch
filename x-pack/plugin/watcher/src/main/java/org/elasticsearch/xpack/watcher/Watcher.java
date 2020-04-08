@@ -251,8 +251,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               IndexNameExpressionResolver expressionResolver, RepositoriesService repositoriesService) {
         if (enabled == false) {
             return Collections.emptyList();
         }

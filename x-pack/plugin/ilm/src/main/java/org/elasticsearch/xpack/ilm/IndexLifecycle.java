@@ -177,8 +177,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               IndexNameExpressionResolver expressionResolver, RepositoriesService repositoriesService) {
         final List<Object> components = new ArrayList<>();
         if (ilmEnabled) {
             // This registers a cluster state listener, so appears unused but is not.

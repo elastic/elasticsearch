@@ -78,7 +78,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+                                               RepositoriesService repositoriesService) {
         if (DiscoveryNode.isDataNode(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
             AsyncSearchIndexService indexService =

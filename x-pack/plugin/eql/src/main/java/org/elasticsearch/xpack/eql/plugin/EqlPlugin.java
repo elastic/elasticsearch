@@ -81,7 +81,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
+            IndexNameExpressionResolver expressionResolver, RepositoriesService repositoriesService) {
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
 

@@ -40,7 +40,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
@@ -93,7 +92,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        final RepositoriesService repositoriesService) {
         if (enabled) {
             /*
              * Since we have set the service type to notify, by default systemd will wait up to sixty seconds for the process to send the

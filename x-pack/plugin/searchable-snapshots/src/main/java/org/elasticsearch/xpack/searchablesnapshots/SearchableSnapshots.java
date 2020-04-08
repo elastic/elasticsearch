@@ -130,7 +130,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
-    private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private volatile RepositoriesService repositoriesService;
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final Settings settings;
 
@@ -175,18 +175,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final RepositoriesService repositoriesService
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             final CacheService cacheService = new CacheService(settings);
             this.cacheService.set(cacheService);
-            this.repositoriesServiceSupplier = repositoriesServiceSupplier;
+            this.repositoriesService = repositoriesService;
             return List.of(cacheService);
         } else {
-            this.repositoriesServiceSupplier = () -> {
-                assert false : "searchable snapshots are disabled";
-                return null;
-            };
+            this.repositoriesService = null;
             return List.of();
         }
     }
@@ -202,11 +199,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
-                final RepositoriesService repositories = repositoriesServiceSupplier.get();
-                assert repositories != null;
+                final RepositoriesService repositoriesService = this.repositoriesService;
+                assert repositoriesService != null;
                 final CacheService cache = cacheService.get();
                 assert cache != null;
-                return SearchableSnapshotDirectory.create(repositories, cache, indexSettings, shardPath, System::nanoTime);
+                return SearchableSnapshotDirectory.create(repositoriesService, cache, indexSettings, shardPath, System::nanoTime);
             });
         } else {
             return Map.of();

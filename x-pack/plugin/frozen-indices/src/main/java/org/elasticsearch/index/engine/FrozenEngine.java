@@ -16,11 +16,13 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -176,6 +178,9 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @Override
     @SuppressWarnings("fallthrough")
     public Reader acquireReader(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        final Store store = this.store;
+        final ReferenceManager<ElasticsearchDirectoryReader> manager = getReferenceManager(scope);
+        final EngineConfig engineConfig = this.engineConfig;
         store.incRef();
         return new Reader(wrapper) {
             @Override
@@ -207,7 +212,6 @@ public final class FrozenEngine extends ReadOnlyEngine {
                             return new Searcher(source, canMatchReader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
                                 engineConfig.getQueryCachingPolicy(), canMatchReader::decRef);
                         } else {
-                            ReferenceManager<ElasticsearchDirectoryReader> manager = getReferenceManager(scope);
                             ElasticsearchDirectoryReader acquire = manager.acquire();
                             return new Searcher(source, acquire, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
                                 engineConfig.getQueryCachingPolicy(), () -> manager.release(acquire));

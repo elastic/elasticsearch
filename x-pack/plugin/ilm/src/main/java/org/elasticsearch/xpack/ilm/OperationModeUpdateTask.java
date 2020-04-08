@@ -11,8 +11,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
@@ -22,17 +23,22 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     @Nullable
     private final OperationMode slmMode;
 
-    private OperationModeUpdateTask(OperationMode ilmMode, OperationMode slmMode) {
+    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
+        super(priority);
         this.ilmMode = ilmMode;
         this.slmMode = slmMode;
     }
 
     public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(mode, null);
+        return ilmMode(Priority.NORMAL, mode);
+    }
+
+    public static OperationModeUpdateTask ilmMode(Priority priority, OperationMode mode) {
+        return new OperationModeUpdateTask(priority, mode, null);
     }
 
     public static OperationModeUpdateTask slmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(null, mode);
+        return new OperationModeUpdateTask(Priority.NORMAL, null, mode);
     }
 
     OperationMode getILMOperationMode() {

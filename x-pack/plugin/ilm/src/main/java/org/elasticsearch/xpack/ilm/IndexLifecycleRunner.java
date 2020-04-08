@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -216,7 +215,7 @@ class IndexLifecycleRunner {
                         // we can afford to drop these requests if they timeout as on the next {@link
                         // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
                         // to move it back into the failed step, so we'll try again
-                        return MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+                        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterService.state().metadata().settings());
                     }
 
                     @Override

@@ -283,7 +283,7 @@ Positions are zero-indexed. Negative offsets are supported.
 [[eql-fn-wildcard]]
 === `wildcard`
 Returns `true` if a source string matches one or more provided wildcard
-expressions. Matching is case sensitive.
+expressions.
 
 [%collapsible]
 ====
@@ -306,10 +306,6 @@ wildcard(process.command_line, "*create*", "*config*")  // returns true
 wildcard(process.command_line, "*start*")               // returns false
 wildcard(process.command_line, "*start*", "*create*")   // returns true
 wildcard(process.command_line, "*start*", "*config*")   // returns false
-
-// case sensitive matching
-wildcard("start explorer.exe", "*start*")                // returns true
-wildcard("start explorer.exe", "*Start*")                // returns false
 
 // empty strings
 wildcard("", "*start*")                                  // returns false

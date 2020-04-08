@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.builder;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

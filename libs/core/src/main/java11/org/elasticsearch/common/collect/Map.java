@@ -113,6 +113,13 @@ public class Map {
     }
 
     /**
+     * Delegates to the Java9 {@code Map.entry()} method.
+     */
+    public static <K, V> java.util.Map.Entry<K, V> entry(K k, V v) {
+        return java.util.Map.entry(k, v);
+    }
+
+    /**
      * Delegates to the Java10 {@code Map.copyOf()} method.
      */
     public static <K, V> java.util.Map<K, V> copyOf(java.util.Map<? extends K, ? extends V> map) {

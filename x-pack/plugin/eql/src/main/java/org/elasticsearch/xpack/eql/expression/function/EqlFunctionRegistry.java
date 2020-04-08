@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatch;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Between;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Length;
@@ -30,6 +31,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
         // String
             new FunctionDefinition[] {
                 def(Between.class, Between::new, 2, "between"),
+                def(CIDRMatch.class, CIDRMatch::new, "cidrmatch"),
                 def(EndsWith.class, EndsWith::new, "endswith"),
                 def(Length.class, Length::new, "length"),
                 def(StartsWith.class, StartsWith::new, "startswith"),

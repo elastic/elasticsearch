@@ -32,7 +32,6 @@ dependencies {
   // GCS dependencies
   compile 'com.google.cloud:google-cloud-storage:1.106.0'
   compile 'com.google.cloud:google-cloud-core:1.93.3'
-  compile 'com.google.guava:guava:26.0-jre'
   compile 'com.google.http-client:google-http-client:1.34.2'
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -59,6 +58,7 @@ dependencies {
   compile 'io.opencensus:opencensus-api:0.18.0'
   compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev20200226-1.30.9'
+  runtimeOnly 'com.google.guava:guava:26.0-jre'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell

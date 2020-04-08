@@ -37,6 +37,11 @@ public class RestGetActionV7 extends RestGetAction {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetAction.class));
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
+    @Override
+    public String getName() {
+        return "document_get_action_v7";
+    }
+
 
     @Override
     public List<Route> routes() {

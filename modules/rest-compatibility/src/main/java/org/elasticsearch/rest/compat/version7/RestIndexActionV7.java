@@ -49,6 +49,11 @@ public class RestIndexActionV7 {
 
     public static class CompatibleRestIndexAction extends RestIndexAction {
         @Override
+        public String getName() {
+            return "document_index_action_v7";
+        }
+
+        @Override
         public List<Route> routes() {
             assert Version.CURRENT.major == 8 : "REST API compatilbity for version 7 is only supported on version 8";
 
@@ -70,6 +75,11 @@ public class RestIndexActionV7 {
 
     public static class CompatibleCreateHandler extends RestIndexAction.CreateHandler {
         @Override
+        public String getName() {
+            return "document_create_action_v7";
+        }
+
+        @Override
         public List<Route> routes() {
             return unmodifiableList(
                 asList(new Route(POST, "/{index}/{type}/{id}/_create"), new Route(PUT, "/{index}/{type}/{id}/_create"))
@@ -90,6 +100,10 @@ public class RestIndexActionV7 {
     }
 
     public static final class CompatibleAutoIdHandler extends RestIndexAction.AutoIdHandler {
+        @Override
+        public String getName() {
+            return "document_create_action_auto_id_v7";
+        }
 
         public CompatibleAutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
             super(nodesInCluster);

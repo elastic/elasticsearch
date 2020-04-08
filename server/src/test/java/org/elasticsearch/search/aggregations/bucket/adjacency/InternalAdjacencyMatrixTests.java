@@ -21,17 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
-import static java.util.Collections.emptyList;
 
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
@@ -75,7 +72,7 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, aggregations));
         }
-        return new InternalAdjacencyMatrix(name, buckets, emptyList(), metadata);
+        return new InternalAdjacencyMatrix(name, buckets, metadata);
     }
 
     @Override
@@ -111,7 +108,6 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     protected InternalAdjacencyMatrix mutateInstance(InternalAdjacencyMatrix instance) {
         String name = instance.getName();
         List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -133,6 +129,6 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metadata);
+        return new InternalAdjacencyMatrix(name, buckets, metadata);
     }
 }

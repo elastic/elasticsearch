@@ -53,7 +53,6 @@ import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
@@ -89,9 +88,9 @@ final class CompositeAggregator extends BucketsAggregator {
     private boolean earlyTerminated;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
+                        Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metadata);
+        super(name, factories, context, parent, metadata);
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
@@ -153,13 +152,13 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
-            earlyTerminated, pipelineAggregators(), metadata());
+            earlyTerminated, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
-            false, pipelineAggregators(), metadata());
+            false, metadata());
     }
 
     private void finishLeaf() {

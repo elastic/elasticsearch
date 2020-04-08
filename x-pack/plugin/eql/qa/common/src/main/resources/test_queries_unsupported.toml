@@ -1058,30 +1058,6 @@ file where between(file_path, "dev", ".json", true) == "\\testlogs\\something"
 '''
 
 [[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "10.6.48.157/8")
-'''
-
-[[queries]]
-expected_event_ids = []
-query = '''
-network where cidrMatch(source_address, "192.168.0.0/16")
-'''
-
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8")
-
-'''
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "0.0.0.0/0")
-'''
-
-[[queries]]
 expected_event_ids = [7, 14, 22, 29, 44]
 query = '''
 process where length(between(process_name, 'g', 'e')) > 0

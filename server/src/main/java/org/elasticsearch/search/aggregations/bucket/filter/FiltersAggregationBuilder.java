@@ -96,8 +96,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         this.keyed = false;
     }
 
-    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.keyed = clone.keyed;
         this.otherBucket = clone.otherBucket;
@@ -105,8 +105,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new FiltersAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -226,7 +226,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
         return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, queryShardContext, parent,
-            subFactoriesBuilder, metaData);
+            subFactoriesBuilder, metadata);
     }
 
     @Override

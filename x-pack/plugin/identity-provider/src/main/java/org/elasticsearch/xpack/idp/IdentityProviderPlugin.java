@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.TransportSamlValidateAuthnRequestAction;
+import org.elasticsearch.xpack.idp.privileges.ApplicationActionsResolver;
 import org.elasticsearch.xpack.idp.privileges.UserPrivilegeResolver;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder;
@@ -94,10 +95,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         SamlInit.initialize();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
-        final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext);
-
 
         final ServiceProviderDefaults serviceProviderDefaults = ServiceProviderDefaults.forSettings(settings);
+        final ApplicationActionsResolver actionsResolver = new ApplicationActionsResolver(settings, serviceProviderDefaults, client);
+        final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext, actionsResolver);
+
         final SamlServiceProviderFactory serviceProviderFactory = new SamlServiceProviderFactory(serviceProviderDefaults);
         final SamlServiceProviderResolver registeredServiceProviderResolver
             = new SamlServiceProviderResolver(settings, index, serviceProviderFactory);
@@ -157,6 +159,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings.addAll(ServiceProviderCacheSettings.getSettings());
         settings.addAll(ServiceProviderDefaults.getSettings());
         settings.addAll(WildcardServiceProviderResolver.getSettings());
+        settings.addAll(ApplicationActionsResolver.getSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getAllSettings());
         settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getAllSettings());
         return Collections.unmodifiableList(settings);

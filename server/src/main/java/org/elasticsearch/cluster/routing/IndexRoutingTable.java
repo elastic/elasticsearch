@@ -25,8 +25,8 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -97,20 +97,20 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return index;
     }
 
-    boolean validate(MetaData metaData) {
+    boolean validate(Metadata metadata) {
         // check index exists
-        if (!metaData.hasIndex(index.getName())) {
+        if (!metadata.hasIndex(index.getName())) {
             throw new IllegalStateException(index + " exists in routing does not exists in metadata");
         }
-        IndexMetaData indexMetaData = metaData.index(index.getName());
-        if (indexMetaData.getIndexUUID().equals(index.getUUID()) == false) {
+        IndexMetadata indexMetadata = metadata.index(index.getName());
+        if (indexMetadata.getIndexUUID().equals(index.getUUID()) == false) {
             throw new IllegalStateException(index.getName() + " exists in routing does not exists in metadata with the same uuid");
         }
 
         // check the number of shards
-        if (indexMetaData.getNumberOfShards() != shards().size()) {
+        if (indexMetadata.getNumberOfShards() != shards().size()) {
             Set<Integer> expected = new HashSet<>();
-            for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+            for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                 expected.add(i);
             }
             for (IndexShardRoutingTable indexShardRoutingTable : this) {
@@ -122,9 +122,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
-            if (routingNumberOfReplicas != indexMetaData.getNumberOfReplicas()) {
+            if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas()) {
                 throw new IllegalStateException("Shard [" + indexShardRoutingTable.shardId().id() +
-                                 "] routing table has wrong number of replicas, expected [" + indexMetaData.getNumberOfReplicas() +
+                                 "] routing table has wrong number of replicas, expected [" + indexMetadata.getNumberOfReplicas() +
                                  "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -132,7 +132,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
                                                     "from the routing table");
                 }
-                final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(shardRouting.id());
+                final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
                 if (shardRouting.active() &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
                     throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the in-sync " +
@@ -333,71 +333,71 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes a new empty index, as if it was created from an API.
          */
-        public Builder initializeAsNew(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        public Builder initializeAsNew(IndexMetadata indexMetadata) {
+            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         }
 
         /**
          * Initializes an existing index.
          */
-        public Builder initializeAsRecovery(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+        public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
+            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         }
 
         /**
          * Initializes a new index caused by dangling index imported.
          */
-        public Builder initializeAsFromDangling(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null));
+        public Builder initializeAsFromDangling(IndexMetadata indexMetadata) {
+            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null));
         }
 
         /**
          * Initializes a new empty index, as as a result of opening a closed index.
          */
-        public Builder initializeAsFromCloseToOpen(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
+        public Builder initializeAsFromCloseToOpen(IndexMetadata indexMetadata) {
+            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
         }
 
         /**
          * Initializes a new empty index, as as a result of closing an opened index.
          */
-        public Builder initializeAsFromOpenToClose(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));
+        public Builder initializeAsFromOpenToClose(IndexMetadata indexMetadata) {
+            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));
         }
 
         /**
          * Initializes a new empty index, to be restored from a snapshot
          */
-        public Builder initializeAsNewRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+        public Builder initializeAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED,
                 "restore_source[" + recoverySource.snapshot().getRepository() + "/" +
                  recoverySource.snapshot().getSnapshotId().getName() + "]");
-            return initializeAsRestore(indexMetaData, recoverySource, ignoreShards, true, unassignedInfo);
+            return initializeAsRestore(indexMetadata, recoverySource, ignoreShards, true, unassignedInfo);
         }
 
         /**
          * Initializes an existing index, to be restored from a snapshot
          */
-        public Builder initializeAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource) {
+        public Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
                  "restore_source[" + recoverySource.snapshot().getRepository() + "/" +
                  recoverySource.snapshot().getSnapshotId().getName() + "]");
-            return initializeAsRestore(indexMetaData, recoverySource, null, false, unassignedInfo);
+            return initializeAsRestore(indexMetadata, recoverySource, null, false, unassignedInfo);
         }
 
         /**
          * Initializes an index, to be restored from snapshot
          */
-        private Builder initializeAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards,
+        private Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards,
                                             boolean asNew, UnassignedInfo unassignedInfo) {
-            assert indexMetaData.getIndex().equals(index);
+            assert indexMetadata.getIndex().equals(index);
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
-            for (int shardNumber = 0; shardNumber < indexMetaData.getNumberOfShards(); shardNumber++) {
+            for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-                for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
+                for (int i = 0; i <= indexMetadata.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
                     if (asNew && ignoreShards.contains(shardNumber)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
@@ -416,18 +416,18 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes a new empty index, with an option to control if its from an API or not.
          */
-        private Builder initializeEmpty(IndexMetaData indexMetaData, UnassignedInfo unassignedInfo) {
-            assert indexMetaData.getIndex().equals(index);
+        private Builder initializeEmpty(IndexMetadata indexMetadata, UnassignedInfo unassignedInfo) {
+            assert indexMetadata.getIndex().equals(index);
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
-            for (int shardNumber = 0; shardNumber < indexMetaData.getNumberOfShards(); shardNumber++) {
+            for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 final RecoverySource primaryRecoverySource;
-                if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {
+                if (indexMetadata.inSyncAllocationIds(shardNumber).isEmpty() == false) {
                     // we have previous valid copies for this shard. use them for recovery
                     primaryRecoverySource = ExistingStoreRecoverySource.INSTANCE;
-                } else if (indexMetaData.getResizeSourceIndex() != null) {
+                } else if (indexMetadata.getResizeSourceIndex() != null) {
                     // this is a new index but the initial shards should merged from another index
                     primaryRecoverySource = LocalShardsRecoverySource.INSTANCE;
                 } else {
@@ -435,7 +435,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     primaryRecoverySource = EmptyStoreRecoverySource.INSTANCE;
                 }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-                for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
+                for (int i = 0; i <= indexMetadata.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
                     indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
                         primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));

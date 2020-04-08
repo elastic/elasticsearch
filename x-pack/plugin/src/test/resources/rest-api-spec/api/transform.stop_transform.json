@@ -1,7 +1,8 @@
 {
   "transform.stop_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html",
+      "description":"Stops one or more transforms."
     },
     "stability":"stable",
     "url":{
@@ -20,31 +21,31 @@
         }
       ]
     },
-    "params": {
-      "force": {
-        "type": "boolean",
-        "required": false,
-        "description": "Whether to force stop a failed transform or not. Default to false"
+    "params":{
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to force stop a failed transform or not. Default to false"
       },
-      "wait_for_completion": {
-        "type": "boolean",
-        "required": false,
-        "description": "Whether to wait for the transform to fully stop before returning or not. Default to false"
+      "wait_for_completion":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to wait for the transform to fully stop before returning or not. Default to false"
       },
-      "timeout": {
-        "type": "time",
-        "required": false,
-        "description": "Controls the time to wait until the transform has stopped. Default to 30 seconds"
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until the transform has stopped. Default to 30 seconds"
       },
-      "allow_no_match": {
-        "type": "boolean",
-        "required": false,
-        "description": "Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
       },
-      "wait_for_checkpoint": {
-        "type": "boolean",
-        "required": false,
-        "description": "Whether to wait for the transform to reach a checkpoint before stopping. Default to false"
+      "wait_for_checkpoint":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to wait for the transform to reach a checkpoint before stopping. Default to false"
       }
     }
   }

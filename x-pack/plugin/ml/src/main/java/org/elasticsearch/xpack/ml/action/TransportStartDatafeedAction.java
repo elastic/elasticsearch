@@ -462,6 +462,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         @Override
         public boolean shouldCancelChildrenOnCancellation() {
+            // onCancelled implements graceful shutdown of children
             return false;
         }
 

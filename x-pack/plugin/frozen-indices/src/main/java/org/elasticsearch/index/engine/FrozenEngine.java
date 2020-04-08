@@ -176,50 +176,15 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    @SuppressWarnings("fallthrough")
     public Reader acquireReader(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final Store store = this.store;
-        final ReferenceManager<ElasticsearchDirectoryReader> manager = getReferenceManager(scope);
-        final EngineConfig engineConfig = this.engineConfig;
         store.incRef();
         return new Reader(wrapper) {
             @Override
             @SuppressForbidden(reason = "we manage references explicitly here")
             public Searcher acquireSearcherInternal(String source) {
                 try {
-                    boolean maybeOpenReader;
-                    switch (source) {
-                        case "load_seq_no":
-                        case "load_version":
-                            assert false : "this is a read-only engine";
-                        case "doc_stats":
-                            assert false : "doc_stats are overwritten";
-                        case "refresh_needed":
-                            assert false : "refresh_needed is always false";
-                        case "segments":
-                        case "segments_stats":
-                        case "completion_stats":
-                        case "can_match": // special case for can_match phase - we use the cached point values reader
-                            maybeOpenReader = false;
-                            break;
-                        default:
-                            maybeOpenReader = true;
-                    }
-                    ElasticsearchDirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
-                    if (reader == null) {
-                        if ("can_match".equals(source)) {
-                            canMatchReader.incRef();
-                            return new Searcher(source, canMatchReader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
-                                engineConfig.getQueryCachingPolicy(), canMatchReader::decRef);
-                        } else {
-                            ElasticsearchDirectoryReader acquire = manager.acquire();
-                            return new Searcher(source, acquire, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
-                                engineConfig.getQueryCachingPolicy(), () -> manager.release(acquire));
-                        }
-                    } else {
-                        return new Searcher(source, reader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
-                            engineConfig.getQueryCachingPolicy(), () -> closeReader(reader));
-                    }
+                    return openSearcher(source, scope);
                 } catch (IOException exc) {
                     throw new UncheckedIOException(exc);
                 }
@@ -230,6 +195,45 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 store.decRef();
             }
         };
+    }
+
+    @SuppressWarnings("fallthrough")
+    @SuppressForbidden(reason = "we manage references explicitly here")
+    private Engine.Searcher openSearcher(String source, SearcherScope scope) throws IOException {
+        boolean maybeOpenReader;
+        switch (source) {
+            case "load_seq_no":
+            case "load_version":
+                assert false : "this is a read-only engine";
+            case "doc_stats":
+                assert false : "doc_stats are overwritten";
+            case "refresh_needed":
+                assert false : "refresh_needed is always false";
+            case "segments":
+            case "segments_stats":
+            case "completion_stats":
+            case "can_match": // special case for can_match phase - we use the cached point values reader
+                maybeOpenReader = false;
+                break;
+            default:
+                maybeOpenReader = true;
+        }
+        ElasticsearchDirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
+        if (reader == null) {
+            if ("can_match".equals(source)) {
+                canMatchReader.incRef();
+                return new Searcher(source, canMatchReader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
+                    engineConfig.getQueryCachingPolicy(), canMatchReader::decRef);
+            } else {
+                ReferenceManager<ElasticsearchDirectoryReader> manager = getReferenceManager(scope);
+                ElasticsearchDirectoryReader acquire = manager.acquire();
+                return new Searcher(source, acquire, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
+                    engineConfig.getQueryCachingPolicy(), () -> manager.release(acquire));
+            }
+        } else {
+            return new Searcher(source, reader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
+                engineConfig.getQueryCachingPolicy(), () -> closeReader(reader));
+        }
     }
 
     @Override

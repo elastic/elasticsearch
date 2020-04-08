@@ -21,7 +21,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
@@ -29,16 +29,21 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -68,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -208,6 +214,8 @@ public class WildcardFieldMapper extends FieldMapper {
      public static final char TOKEN_START_OR_END_CHAR = 0;
 
      public static final class WildcardFieldType extends MappedFieldType {
+         
+        static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
         public WildcardFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -223,218 +231,293 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
 
-        // Holds parsed information about the wildcard pattern
-        static class PatternStructure {
-            boolean openStart, openEnd, hasSymbols;
-            int lastGap =0;
-            int wildcardCharCount, wildcardStringCount;
-            String[] fragments;
-            Integer []  precedingGapSizes;
-            final String pattern;
-
-            @SuppressWarnings("fallthrough") // Intentionally uses fallthrough mirroring implementation in Lucene's WildcardQuery
-            PatternStructure (String wildcardText) {
-                this.pattern = wildcardText;
-                ArrayList<String> fragmentList = new ArrayList<>();
-                ArrayList<Integer> precedingGapSizeList = new ArrayList<>();
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < wildcardText.length();) {
-                    final int c = wildcardText.codePointAt(i);
-                    int length = Character.charCount(c);
-                    switch (c) {
-                    case WildcardQuery.WILDCARD_STRING:
-                        if (i == 0) {
-                            openStart = true;
-                        }
-                        openEnd = true;
-                        hasSymbols = true;
-                        wildcardStringCount++;
-
-                        if (sb.length() > 0) {
-                            precedingGapSizeList.add(lastGap);
-                            fragmentList.add(sb.toString());
-                            sb = new StringBuilder();
-                        }
-                        lastGap = Integer.MAX_VALUE;
-                        break;
-                    case WildcardQuery.WILDCARD_CHAR:
-                        if (i == 0) {
-                            openStart = true;
-                        }
-                        hasSymbols = true;
-                        wildcardCharCount++;
-                        openEnd = true;
-                        if (sb.length() > 0) {
-                            precedingGapSizeList.add(lastGap);
-                            fragmentList.add(sb.toString());
-                            sb = new StringBuilder();
-                            lastGap = 0;
-                        }
-
-                        if (lastGap != Integer.MAX_VALUE) {
-                            lastGap++;
-                        }
-                        break;
-                    case WildcardQuery.WILDCARD_ESCAPE:
-                        // add the next codepoint instead, if it exists
-                        if (i + length < wildcardText.length()) {
-                            final int nextChar = wildcardText.codePointAt(i + length);
-                            length += Character.charCount(nextChar);
-                            sb.append(Character.toChars(nextChar));
-                            openEnd = false;
-                            break;
-                        } // else fallthru, lenient parsing with a trailing \
-                    default:
-                        openEnd = false;
-                        sb.append(Character.toChars(c));
-                    }
-                    i += length;
-                }
-                if (sb.length() > 0) {
-                    precedingGapSizeList.add(lastGap);
-                    fragmentList.add(sb.toString());
-                    lastGap = 0;
-                }
-                fragments = fragmentList.toArray(new String[0]);
-                precedingGapSizes = precedingGapSizeList.toArray(new Integer[0]);
-
-            }
-
-            public boolean needsVerification() {
-                // Return true if term queries are not enough evidence
-                if (fragments.length == 1 && wildcardCharCount == 0) {
-                    // The one case where we don't need verification is when
-                    // we have a single fragment and no ? characters
-                    return false;
-                }
-                return true;
-            }
-
-            // Returns number of positions for last gap (Integer.MAX means unlimited gap)
-            public int getPrecedingGapSize(int fragmentNum) {
-                return precedingGapSizes[fragmentNum];
-            }
-
-            public boolean isMatchAll() {
-                return fragments.length == 0 && wildcardStringCount >0 && wildcardCharCount ==0;
-            }
-
-            @Override
-            public int hashCode() {
-                return pattern.hashCode();
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                PatternStructure other = (PatternStructure) obj;
-                return pattern.equals(other.pattern);
-            }
-
-
-        }
-
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
-            PatternStructure patternStructure = new PatternStructure(wildcardPattern);
-            ArrayList<String> tokens = new ArrayList<>();
-
-            for (int i = 0; i < patternStructure.fragments.length; i++) {
-                String fragment = patternStructure.fragments[i];
-                int fLength = fragment.length();
-                if (fLength == 0) {
-                    continue;
-                }
-
-                // Add any start/end of string character
-                if (i == 0 && patternStructure.openStart == false) {
-                    // Start-of-string anchored (is not a leading wildcard)
-                    fragment = TOKEN_START_OR_END_CHAR + fragment;
-                }
-                if (patternStructure.openEnd == false && i == patternStructure.fragments.length - 1) {
-                    // End-of-string anchored (is not a trailing wildcard)
-                    fragment = fragment + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
-                }
-                if (fragment.codePointCount(0, fragment.length()) <= NGRAM_SIZE) {
-                    tokens.add(fragment);
-                } else {
-                    // Break fragment into multiple Ngrams
-                    TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), fragment);
-                    CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
-                    String lastUnusedToken = null;
-                    try {
-                        tokenizer.reset();
-                        boolean takeThis = true;
-                        // minimise number of terms searched - eg for "12345" and 3grams we only need terms
-                        // `123` and `345` - no need to search for 234. We take every other ngram.
-                        while (tokenizer.incrementToken()) {
-                            String tokenValue = termAtt.toString();
-                            if (takeThis) {
-                                tokens.add(tokenValue);
-                            } else {
-                                lastUnusedToken = tokenValue;
-                            }
-                            // alternate
-                            takeThis = !takeThis;
-                        }
-                        if (lastUnusedToken != null) {
-                            // given `cake` and 3 grams the loop above would output only `cak` and we need to add trailing
-                            // `ake` to complete the logic.
-                            tokens.add(lastUnusedToken);
-                        }
-                        tokenizer.end();
-                        tokenizer.close();
-                    } catch (IOException ioe) {
-                        throw new ElasticsearchParseException("Error parsing wildcard query pattern fragment [" + fragment + "]");
+            
+            Automaton dvAutomaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+            
+            String ngramIndexPattern = addLineEndChars(toLowerCase(wildcardPattern));
+            
+            // Break search term into tokens
+            ArrayList<String> tokens = new ArrayList<>();            
+            StringBuilder sequence = new StringBuilder();
+            for (int i = 0; i < ngramIndexPattern.length();) {
+              final int c = ngramIndexPattern.codePointAt(i);
+              int length = Character.charCount(c);
+              switch(c) {
+                case WildcardQuery.WILDCARD_STRING:
+                case WildcardQuery.WILDCARD_CHAR:
+                    if(sequence.length()>0) {
+                  getNgramTokens(tokens, sequence.toString());
+                  sequence = new StringBuilder();
                     }
+                  break;
+                case WildcardQuery.WILDCARD_ESCAPE:
+                  // add the next codepoint instead, if it exists
+                  if (i + length < wildcardPattern.length()) {
+                    final int nextChar = wildcardPattern.codePointAt(i + length);
+                    length += Character.charCount(nextChar);
+                    sequence.append(Character.toChars(nextChar));
+                  } else {
+                      sequence.append(Character.toChars(c));
+                  }
+                  break;
+                      
+                default:
+                    sequence.append(Character.toChars(c));
+              }
+              i += length;
+            }
+            
+            if(sequence.length()>0) {
+                getNgramTokens(tokens, sequence.toString());
+            }
+            
+            BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+            int clauseCount = 0;
+            for (String string : tokens) {
+                if(clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                    break;
                 }
+                addClause(string, rewritten, Occur.MUST);
+                clauseCount++;
             }
-
-            if (patternStructure.isMatchAll()) {
-                return new MatchAllDocsQuery();
-            }
-            BooleanQuery approximation = createApproximationQuery(tokens);
-            if (approximation.clauses().size() > 1 || patternStructure.needsVerification()) {
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, dvAutomaton);
+            if (clauseCount > 0) {
+                // We can accelerate execution with the ngram query
+                BooleanQuery approxQuery = rewritten.build();
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approximation, Occur.MUST));
-                Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-                verifyingBuilder.add(new BooleanClause(new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton), Occur.MUST));
+                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
+                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
                 return verifyingBuilder.build();
             }
-            return approximation;
-        }
+            return verifyingQuery;  
 
-        private BooleanQuery createApproximationQuery(ArrayList<String> tokens) {
-            BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-            if (tokens.size() <= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                for (String token : tokens) {
-                    addClause(token, bqBuilder);
+        }
+        
+        @Override
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            RegExp regex = new RegExp(value, flags);
+            Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
+            ApproximateRegExp ngramRegex = new ApproximateRegExp(addLineEndChars(toLowerCase(value)), flags);
+
+            Query approxBooleanQuery = ngramRegex.toApproximationQuery(new ApproximateRegExp.StringNormalizer() {
+                @Override
+                public String normalize(String token) {
+                    return toLowerCase(token);
                 }
-                return bqBuilder.build();
+            });
+            Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, automaton);
+            if (approxNgramQuery != null) {
+                // We can accelerate execution with the ngram query
+                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
+                verifyingBuilder.add(new BooleanClause(approxNgramQuery, Occur.MUST));
+                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
+                return verifyingBuilder.build();
             }
-            // Thin out the number of clauses using a selection spread evenly across the range
-            float step = (float) (tokens.size() - 1) / (float) (MAX_CLAUSES_IN_APPROXIMATION_QUERY - 1); // set step size
-            for (int i = 0; i < MAX_CLAUSES_IN_APPROXIMATION_QUERY; i++) {
-                addClause(tokens.get(Math.round(step * i)), bqBuilder); // add each element of a position which is a multiple of step
+            return verifyingQuery;                        
+        }
+        
+        private static String toLowerCase(String string) {
+            return lowercaseNormalizer.normalize(null, string).utf8ToString();
+        }
+        
+        // Takes a BooleanQuery + TermQuery tree representing query logic and rewrites using ngrams of appropriate size.
+        private Query rewriteBoolToNgramQuery(Query approxQuery) {
+            //TODO optimise more intelligently so we: 
+            // 1) favour full-length term queries eg abc over short eg a* when pruning too many clauses.
+            // 2) make MAX_CLAUSES_IN_APPROXIMATION_QUERY a global cap rather than per-boolean clause.
+            if (approxQuery == null) {
+                return null;
             }
-            // TODO we can be smarter about pruning here. e.g.
-            // * Avoid wildcard queries if there are sufficient numbers of other terms that are full 3grams that are cheaper term queries
-            // * We can select terms on their scarcity rather than even spreads across the search string.
+            if (approxQuery instanceof BooleanQuery) {
+                BooleanQuery bq = (BooleanQuery) approxQuery;
+                BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+                int clauseCount = 0;
+                for (BooleanClause clause : bq) {
+                    Query q = rewriteBoolToNgramQuery(clause.getQuery());
+                    if (q != null) {
+                        if (clause.getOccur().equals(Occur.MUST)) {
+                            // Can't drop "should" clauses because it can elevate a sibling optional item
+                            // to mandatory (shoulds with 1 clause) causing false negatives
+                            // Dropping MUSTs increase false positives which are OK because are verified anyway.
+                            clauseCount++;
+                            if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                                break;
+                            }
+                        }
+                        rewritten.add(q, clause.getOccur());
+                    }
+                }
+                BooleanQuery result = rewritten.build();
+                if (result.clauses().size() == 0) {
+                    return null;
+                }
+                return result;
+            }
+            if (approxQuery instanceof TermQuery) {
+                TermQuery tq = (TermQuery) approxQuery;
+                // Break term into tokens
+                ArrayList<String> tokens = new ArrayList<>();
+                getNgramTokens(tokens, tq.getTerm().text());
+                BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+                for (String string : tokens) {
+                    addClause(string, rewritten, Occur.MUST);
+                }
+                BooleanQuery result = rewritten.build();
+                if (result.clauses().size() == 0) {
+                    return null;
+                }
+                return result;
+            }
+            throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
+        }     
 
-            return bqBuilder.build();
+        protected void getNgramTokens(ArrayList<String> tokens, String fragment) {
+            // Break fragment into multiple Ngrams
+            TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), fragment);
+            CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
+            // If fragment length < NGRAM_SIZE then it is not emitted by token stream so need
+            // to initialise with the value here
+            String lastUnusedToken = fragment;
+            try {
+                tokenizer.reset();
+                boolean takeThis = true;
+                // minimise number of terms searched - eg for "12345" and 3grams we only need terms
+                // `123` and `345` - no need to search for 234. We take every other ngram.
+                while (tokenizer.incrementToken()) {
+                    String tokenValue = termAtt.toString();
+                    if (takeThis) {
+                        tokens.add(tokenValue);
+                    } else {
+                        lastUnusedToken = tokenValue;
+                    }
+                    // alternate
+                    takeThis = !takeThis;
+                    if (tokens.size() >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                        break;
+                    }
+                }
+                if (lastUnusedToken != null) {
+                    // given `cake` and 3 grams the loop above would output only `cak` and we need to add trailing
+                    // `ake` to complete the logic.
+                    tokens.add(lastUnusedToken);
+                }
+                tokenizer.end();
+                tokenizer.close();
+            } catch (IOException ioe) {
+                throw new ElasticsearchParseException("Error parsing wildcard regex pattern fragment [" + fragment + "]");
+            }
         }
 
-        private void addClause(String token, BooleanQuery.Builder bqBuilder) {
+        private void addClause(String token, BooleanQuery.Builder bqBuilder, Occur occur) {
             assert token.codePointCount(0, token.length()) <= NGRAM_SIZE;
             if (token.codePointCount(0, token.length()) == NGRAM_SIZE) {
                 TermQuery tq = new TermQuery(new Term(name(), token));
-                bqBuilder.add(new BooleanClause(tq, Occur.MUST));
+                bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                WildcardQuery wq = new WildcardQuery(new Term(name(), token + "*"));
-                wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-                bqBuilder.add(new BooleanClause(wq, Occur.MUST));
+                // Ignore tokens that are just string start or end markers
+                if (token.charAt(token.length() - 1) != TOKEN_START_OR_END_CHAR) {
+                    WildcardQuery wq = new WildcardQuery(new Term(name(), token + "*"));
+                    wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                    bqBuilder.add(new BooleanClause(wq, occur));
+                }
             }
+        }
 
+        @Override
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            QueryShardContext context
+        ) {
+            String searchTerm = BytesRefs.toString(value);
+            String lowerSearchTerm = toLowerCase(searchTerm);
+            TokenStream tokenizer = WILDCARD_ANALYZER.tokenStream(name(), lowerSearchTerm);
+            CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
+            ArrayList<String> tokens = new ArrayList<>();
+            String firstToken = null;
+            try {
+                tokenizer.reset();
+                int tokenNumber = 0;
+                while (tokenizer.incrementToken()) {
+                    if (tokenNumber == 0) {
+                        String token = termAtt.toString();
+                        if (firstToken == null) {
+                            firstToken = token;
+                        }
+                        tokens.add(token);
+                    }
+                    // Take every 3rd ngram so they are all disjoint. Our calculation for min_should_match
+                    // number relies on there being no overlaps
+                    tokenNumber++;
+                    if (tokenNumber == 3) {
+                        tokenNumber = 0;
+                    }
+                }
+                tokenizer.end();
+                tokenizer.close();
+
+                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
+
+                // Add any prefixLength as a MUST clause to the main BooleanQuery
+                if (prefixLength > 0) {
+                    if (firstToken == null) {
+                        // Search term was too small to be tokenized
+                        assert lowerSearchTerm.codePointCount(0, lowerSearchTerm.length()) <= NGRAM_SIZE;
+                        firstToken = lowerSearchTerm;
+                    }
+                    String prefix = TOKEN_START_OR_END_CHAR + firstToken;
+                    addClause(prefix.substring(0, Math.min(NGRAM_SIZE, prefixLength)), bqBuilder, Occur.MUST);
+                }
+
+                BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
+                int numClauses = 0;
+                for (String token : tokens) {
+                    addClause(token, approxBuilder, Occur.SHOULD);
+                    numClauses++;
+                }
+
+                // Approximation query
+                BooleanQuery approxQ = approxBuilder.build();
+                if (numClauses > fuzziness.asDistance(searchTerm)) {
+                    // Useful accelerant - set min should match based on number of permitted edits.
+                    approxBuilder.setMinimumNumberShouldMatch(numClauses - fuzziness.asDistance(searchTerm));
+                    bqBuilder.add(approxQ, Occur.MUST);
+                }
+
+                // Verification query
+                FuzzyQuery fq = new FuzzyQuery(
+                    new Term(name(), searchTerm),
+                    fuzziness.asDistance(searchTerm),
+                    prefixLength,
+                    maxExpansions,
+                    transpositions
+                );
+                CompiledAutomaton[] automata = fq.getAutomata();
+                // Multiple automata are produced - one for each edit distance (e.g. 0, 1 or 2), presumably so scoring
+                // can be related to whichever automaton matches most closely.
+                // For now we run only the automata with the biggest edit distance - closer matches should get higher boosts
+                // anyway from the number of ngrams matched in the acceleration query.
+                // TODO we can revisit this approach at a later point if we want to introduce more like-for-like scoring with
+                // keyword field which will require tweaks to the verification query logic.
+                Automaton biggestEditDistanceAutomaton = automata[automata.length - 1].automaton;
+                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, biggestEditDistanceAutomaton), Occur.MUST);
+
+                return bqBuilder.build();
+            } catch (IOException ioe) {
+                throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
+            }
         }
 
         @Override
@@ -568,7 +651,10 @@ public class WildcardFieldMapper extends FieldMapper {
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
-        String ngramValue = TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
+        // Always lower case the ngram index and value - helps with 
+        // a) speed (less ngram variations to explore on disk and in RAM-based automaton) and 
+        // b) uses less disk space
+        String ngramValue = addLineEndChars(WildcardFieldType.toLowerCase(value));
         Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
         fields.add(ngramField);
 
@@ -579,6 +665,11 @@ public class WildcardFieldMapper extends FieldMapper {
         } else {
             dvField.add(value.getBytes(StandardCharsets.UTF_8));
         }
+    }
+    
+    // Values held in the ngram index are encoded with special characters to denote start and end of values.
+    static String addLineEndChars(String value) {
+        return TOKEN_START_OR_END_CHAR + value + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;
     }
 
     @Override

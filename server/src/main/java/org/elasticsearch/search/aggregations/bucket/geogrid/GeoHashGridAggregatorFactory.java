@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,7 +38,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -65,10 +63,9 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, emptyList(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
+        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -81,7 +78,6 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), GeoHashGridAggregationBuilder.NAME);
@@ -93,17 +89,17 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
-            requiredSize, shardSize, searchContext, parent, pipelineAggregators, metadata);
+            requiredSize, shardSize, searchContext, parent, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoHashGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, pipelineAggregators, metadata) -> {
+                                         aggregationContext, parent, metadata) -> {
             CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox,
                 Geohash::longEncode);
             return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
-                    parent, pipelineAggregators, metadata);
+                    parent, metadata);
             });
     }
 }

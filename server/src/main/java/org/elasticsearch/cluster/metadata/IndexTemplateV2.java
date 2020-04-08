@@ -50,7 +50,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     private static final ParseField METADATA = new ParseField("_meta");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<IndexTemplateV2, Void> PARSER = new ConstructingObjectParser<>("index_template", false,
+    public static final ConstructingObjectParser<IndexTemplateV2, Void> PARSER = new ConstructingObjectParser<>("index_template", false,
         a -> new IndexTemplateV2((List<String>) a[0],
             (Template) a[1],
             (List<String>) a[2],

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -39,4 +41,10 @@ task testJar(type: Jar) {
 
 artifacts {
   testArtifacts testJar
+}
+
+test {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 }

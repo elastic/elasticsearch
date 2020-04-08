@@ -551,7 +551,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         }
         exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
-        final int bytesToSend = randomIntBetween(0, length - 1);
+        final int bytesToSend = length == 0 ? 0 : randomIntBetween(0, length - 1);
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }

@@ -101,13 +101,13 @@ public class EUnary extends AExpression {
 
             if (operation == Operation.NOT) {
                 childInput.expected = boolean.class;
-                childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
                 childCast = AnalyzerCaster.getLegalCast(child.location,
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 output.actual = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-                childOutput = child.analyze(classNode, scriptRoot, scope, new Input());
+                childOutput = analyze(child, classNode, scriptRoot, scope, new Input());
 
                 promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
 

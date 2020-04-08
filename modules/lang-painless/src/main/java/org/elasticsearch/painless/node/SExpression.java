@@ -51,7 +51,7 @@ public class SExpression extends AStatement {
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.read = input.lastSource && !isVoid;
-        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
 
         boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
 

@@ -71,6 +71,10 @@ public class EBinary extends AExpression {
         Input leftInput = new Input();
         Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
 
+        if (leftOutput.partialCanonicalTypeName != null) {
+            throw createError(new IllegalArgumentException("cannot resolve symbol [" + leftOutput.partialCanonicalTypeName + "]"));
+        }
+
         if (leftOutput.isStaticType) {
             if (operation == Operation.ADD || operation == Operation.SUB) {
                 output = new EExplicit(left.location,
@@ -78,13 +82,13 @@ public class EBinary extends AExpression {
                         new EUnary(right.location, operation, right))
                         .analyze(classNode, scriptRoot, scope, new Input());
             } else {
-                throw createError(new IllegalArgumentException(
-                        "not a value: unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "]"));
+                throw createError(new IllegalArgumentException("value required: " +
+                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "]"));
             }
         } else {
             output = new Output();
             Input rightInput = new Input();
-            Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+            Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
 
             if (operation == Operation.FIND || operation == Operation.MATCH) {
                 leftInput.expected = String.class;

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -48,10 +49,6 @@ public abstract class AExpression extends ANode {
          * a value from an rhs-expression.
          */
         boolean write = false;
-
-        /**
-         * Set to true when this
-         */
 
         /**
          * Set to the expected type this node needs to be.  Note this variable
@@ -140,6 +137,25 @@ public abstract class AExpression extends ANode {
      */
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Checks for errors and collects data for the writing phase. Adds additional, common
+     * error checking for conditions related to static types and partially constructed static types.
+     */
+    static Output analyze(AExpression expression, ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = expression.analyze(classNode, scriptRoot, scope, input);
+
+        if (output.partialCanonicalTypeName != null) {
+            throw expression.createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
+        }
+
+        if (output.isStaticType) {
+            throw expression.createError(new IllegalArgumentException("value required: " +
+                    "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+        }
+
+        return output;
     }
 
     static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {

@@ -170,7 +170,7 @@ public class ECallLocal extends AExpression {
             Input argumentInput = new Input();
             argumentInput.expected = typeParameters.get(argument + classBindingOffset);
             argumentInput.internal = true;
-            Output argumentOutput = expression.analyze(classNode, scriptRoot, scope, argumentInput);
+            Output argumentOutput = analyze(expression, classNode, scriptRoot, scope, argumentInput);
             argumentOutputs.add(argumentOutput);
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
                     argumentOutput.actual, argumentInput.expected, argumentInput.explicit, argumentInput.internal));

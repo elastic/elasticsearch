@@ -63,7 +63,7 @@ public class EExplicit extends AExpression {
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        Output childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+        Output childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
         PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
                 childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 

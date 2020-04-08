@@ -52,7 +52,7 @@ public class SWhile extends AStatement {
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+        AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
         PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 

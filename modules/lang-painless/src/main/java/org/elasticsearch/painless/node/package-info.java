@@ -53,7 +53,6 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.ERegex} - Represents a regular expression constant.
- * {@link org.elasticsearch.painless.node.EStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.EString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
  * {@link org.elasticsearch.painless.node.EVariable} - Represents a variable load/store.

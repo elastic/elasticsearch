@@ -65,13 +65,13 @@ public class EElvis extends AExpression {
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
-        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(lhs, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
-        Output rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
 
         output.actual = input.expected;
 

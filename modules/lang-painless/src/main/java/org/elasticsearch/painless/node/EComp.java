@@ -66,10 +66,10 @@ public class EComp extends AExpression {
         Output output = new Output();
 
         Input leftInput = new Input();
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
-        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
 
         if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
             promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);

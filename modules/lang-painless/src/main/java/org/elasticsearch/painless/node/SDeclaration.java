@@ -62,7 +62,7 @@ public class SDeclaration extends AStatement {
         if (expression != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
             expressionCast = AnalyzerCaster.getLegalCast(expression.location,
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }

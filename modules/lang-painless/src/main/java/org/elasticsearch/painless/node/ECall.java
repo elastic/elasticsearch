@@ -29,6 +29,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
@@ -71,15 +72,24 @@ public class ECall extends AExpression {
         Input prefixInput = new Input();
         Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
 
+        if (prefixOutput.partialCanonicalTypeName != null) {
+            throw createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
+        }
+
         ExpressionNode expressionNode;
 
         if (prefixOutput.actual == def.class) {
+            if (output.isStaticType) {
+                throw createError(new IllegalArgumentException("value required: " +
+                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+            }
+
             List<Output> argumentOutputs = new ArrayList<>(arguments.size());
 
             for (AExpression argument : arguments) {
                 Input expressionInput = new Input();
                 expressionInput.internal = true;
-                Output expressionOutput = argument.analyze(classNode, scriptRoot, scope, expressionInput);
+                Output expressionOutput = analyze(argument, classNode, scriptRoot, scope, expressionInput);
                 argumentOutputs.add(expressionOutput);
 
                 if (expressionOutput.actual == void.class) {
@@ -122,7 +132,7 @@ public class ECall extends AExpression {
                 Input expressionInput = new Input();
                 expressionInput.expected = method.typeParameters.get(argument);
                 expressionInput.internal = true;
-                Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+                Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
                 argumentOutputs.add(expressionOutput);
                 argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
                         expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));

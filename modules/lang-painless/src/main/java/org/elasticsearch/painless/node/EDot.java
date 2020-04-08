@@ -73,6 +73,11 @@ public class EDot extends AExpression {
         Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, new Input());
 
         if (prefixOutput.partialCanonicalTypeName != null) {
+            if (output.isStaticType) {
+                throw createError(new IllegalArgumentException("value required: " +
+                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+            }
+
             String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + value;
             Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
@@ -105,6 +110,11 @@ public class EDot extends AExpression {
             ExpressionNode expressionNode = null;
 
             if (prefixOutput.actual.isArray()) {
+                if (output.isStaticType) {
+                    throw createError(new IllegalArgumentException("value required: " +
+                            "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+                }
+
                 if ("length".equals(value)) {
                     if (input.write) {
                         throw createError(new IllegalArgumentException(
@@ -122,6 +132,11 @@ public class EDot extends AExpression {
                 dotSubArrayLengthNode.setExpressionType(output.actual);
                 expressionNode = dotSubArrayLengthNode;
             } else if (prefixOutput.actual == def.class) {
+                if (output.isStaticType) {
+                    throw createError(new IllegalArgumentException("value required: " +
+                            "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+                }
+
                 // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
                 output.actual =
                         input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
@@ -181,7 +196,7 @@ public class EDot extends AExpression {
                         expressionNode = dotSubShortcutNode;
                     } else {
                         EConstant index = new EConstant(location, value);
-                        index.analyze(classNode, scriptRoot, scope, new Input());
+                        analyze(index, classNode, scriptRoot, scope, new Input());
 
                         if (Map.class.isAssignableFrom(prefixOutput.actual)) {
                             getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
@@ -209,7 +224,7 @@ public class EDot extends AExpression {
                                     && (input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 Input indexInput = new Input();
                                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+                                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
                                 indexCast = AnalyzerCaster.getLegalCast(index.location,
                                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -255,7 +270,7 @@ public class EDot extends AExpression {
                                     && (input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 Input indexInput = new Input();
                                 indexInput.expected = int.class;
-                                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+                                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
                                 indexCast = AnalyzerCaster.getLegalCast(index.location,
                                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 

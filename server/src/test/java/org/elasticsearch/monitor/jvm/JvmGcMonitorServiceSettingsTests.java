@@ -60,15 +60,25 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
             () -> assertFalse(scheduled.get()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54485")
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        final String timeValue = "-" + randomTimeValue();
+        final String timeValue = "-" + randomTimeValue(2,1000); // -1 is handled separately
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("failed to parse setting [monitor.jvm.gc.collector." + collector + ".warn] " +
                 "with value [" + timeValue + "] as a time value"));
+        }, true, null);
+    }
+
+    public void testNegativeOneSetting() throws InterruptedException {
+        String collector = randomAlphaOfLength(5);
+        final String timeValue = "-1" + randomFrom("", "d", "h", "m", "s", "ms", "nanos");
+        Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
+        execute(settings, (command, interval, name) -> null, e -> {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("invalid gc_threshold [monitor.jvm.gc.collector." + collector + ".warn] " +
+                "value [" + timeValue + "]: value cannot be negative"));
         }, true, null);
     }
 

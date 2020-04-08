@@ -1281,8 +1281,8 @@ at the OpenID Connect Provider
 
 `rp.redirect_uri`::
 The Redirect URI within {kib}. If you want to use the authorization code flow, this is the
-"api/security/v1/oidc" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/v1/oidc/implicit" endpoint.
-For example, `https://kibana.example.com/api/security/v1/oidc`.
+"api/security/oidc/callback" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/oidc/implicit" endpoint.
+For example, `https://kibana.example.com/api/security/oidc/callback`.
 
 `rp.response_type`::
 OAuth 2.0 Response Type value that determines the authorization

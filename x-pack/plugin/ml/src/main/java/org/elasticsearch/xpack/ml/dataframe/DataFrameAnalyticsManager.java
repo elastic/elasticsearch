@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -217,7 +219,14 @@ public class DataFrameAnalyticsManager {
                         reindexResponse.getTook()));
                 startAnalytics(task, config);
             },
-            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
+            error -> {
+                if (error instanceof TaskCancelledException && task.isStopping()) {
+                    LOGGER.debug(new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping",
+                        config.getId()), error);
+                } else {
+                    task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage());
+                }
+            }
         );
 
         // Reindex

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
@@ -25,13 +26,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
-import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
-import org.elasticsearch.xpack.core.ilm.FreezeStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -55,6 +56,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -207,22 +209,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testRetryFailedDeleteAction() throws Exception {
+        createNewSingletonPolicy("delete", new DeleteAction());
         createIndexWithSettings(index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, false));
+            .put(IndexMetadata.SETTING_READ_ONLY, true)
+            .put("index.lifecycle.name", policy));
 
-        createNewSingletonPolicy("delete", new DeleteAction());
-
-        Request request = new Request("PUT", index + "/_settings");
-        request.setJsonEntity("{\"index.blocks.read_only\": true, \"index.lifecycle.name\": \"" + policy + "\"}");
-        assertOK(client().performRequest(request));
-
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(DeleteStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
         assertTrue(indexExists(index));
 
+        Request request = new Request("PUT", index + "/_settings");
         request.setJsonEntity("{\"index.blocks.read_only\":false}");
         assertOK(client().performRequest(request));
 
@@ -238,7 +237,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_READ_ONLY, true)
             .put("index.lifecycle.name", policy));
 
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(FreezeStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(index).containsKey("index.frozen"));
 
         Request request = new Request("PUT", index + "/_settings");
@@ -283,7 +283,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testRolloverAction() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -302,7 +301,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testRolloverActionWithIndexingComplete() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -755,7 +753,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testSetPriority() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 100));
@@ -1552,6 +1549,160 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse("expected " + index + " to be deleted by ILM", indexExists(index)));
     }
 
+    public void testSearchableSnapshotAction() throws Exception {
+        String snapshotRepo = createSnapshotRepo();
+        createNewSingletonPolicy("cold", new SearchableSnapshotAction(snapshotRepo));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/54433")
+    public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
+        String snapshotRepo = createSnapshotRepo();
+
+        // create policy with cold and delete phases
+        Map<String, LifecycleAction> coldActions =
+            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,
+            new DeleteAction(true))));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setEntity(entity);
+        assertOK(client().performRequest(createPolicyRequest));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        String[] snapshotName = new String[1];
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        assertTrue(waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndex = explainIndex(index);
+                if(explainIndex == null) {
+                    // in case we missed the original index and it was deleted
+                    explainIndex = explainIndex(restoredIndexName);
+                }
+                snapshotName[0] = (String) explainIndex.get("snapshot_name");
+                return snapshotName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+        assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
+
+        assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
+            try {
+                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/" + snapshotName[0]);
+                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+                return EntityUtils.toString(getSnapshotsResponse.getEntity()).contains("snapshot_missing_exception");
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeleteActionDoesntDeleteSearchableSnapshot() throws Exception {
+        String snapshotRepo = createSnapshotRepo();
+
+        // create policy with cold and delete phases
+        Map<String, LifecycleAction> coldActions =
+            Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,
+            new DeleteAction(false))));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setEntity(entity);
+        assertOK(client().performRequest(createPolicyRequest));
+
+        createIndexWithSettings(index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy),
+            randomBoolean());
+
+        String[] snapshotName = new String[1];
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        assertTrue(waitUntil(() -> {
+            try {
+                Map<String, Object> explainIndex = explainIndex(index);
+                if(explainIndex == null) {
+                    // in case we missed the original index and it was deleted
+                    explainIndex = explainIndex(restoredIndexName);
+                }
+                snapshotName[0] = (String) explainIndex.get("snapshot_name");
+                return snapshotName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+        assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
+
+        assertTrue("the snapshot we generate in the cold phase should not be deleted by the delete phase", waitUntil(() -> {
+            try {
+                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/" + snapshotName[0]);
+                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+                Map<String, Object> snapshotsResponseMap;
+                try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
+                    snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
+                for (Object response : responses) {
+                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
+                    if (responseAsMap.get("snapshots") != null) {
+                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
+                        for (Object snapshot : snapshots) {
+                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                            if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
+                                // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
+                                SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+    }
+
     // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success, String stepName) throws IOException {
         assertHistoryIsPresent(policyName, indexName, success, null, null, stepName);
@@ -1754,6 +1905,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return new StepKey(phase, action, step);
     }
 
+    @Nullable
     private String getFailedStepForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {

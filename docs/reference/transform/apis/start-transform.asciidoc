@@ -18,10 +18,14 @@ Starts one or more {transforms}.
 [[start-transform-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_transform` 
-cluster privileges to use this API. You must also have `view_index_metadata` 
-privileges on the source index for the {transform}. For more information, see 
-<<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `manage_transform`
+* source index: `view_index_metadata`  
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
 
 [[start-transform-desc]]
 ==== {api-description-title}

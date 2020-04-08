@@ -271,7 +271,7 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 
-Fields containing <<array,array values>> use the last array item only.
+Fields containing <<array,array values>> use the first array item only.
 
 `<substring>`::
 (Required, string or `null`)

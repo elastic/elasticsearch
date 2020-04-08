@@ -33,6 +33,16 @@ import static java.util.stream.Collectors.toList;
 
 public class FunctionRegistry {
 
+    // Translation table for error messaging in the following function
+    private static final String[] NUM_NAMES = {
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+    };
+
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
     // it has with the alias name associated to the FunctionDefinition instance
@@ -401,6 +411,36 @@ public class FunctionRegistry {
 
     protected interface FourParametersFunctionBuilder<T> {
         T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3);
+    }
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              FiveParametersFunctionBuilder<T> ctorRef,
+                                                              int numOptionalParams, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            final int NUM_TOTAL_PARAMS = 5;
+            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
+            if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
+                throw new QlIllegalArgumentException("expects between " + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
+                        + " and " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
+                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source,
+                    children.size() > 0 ? children.get(0) : null,
+                    children.size() > 1 ? children.get(1) : null,
+                    children.size() > 2 ? children.get(2) : null,
+                    children.size() > 3 ? children.get(3) : null,
+                    children.size() > 4 ? children.get(4) : null);
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface FiveParametersFunctionBuilder<T> {
+        T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3, Expression exp4);
     }
 
     /**

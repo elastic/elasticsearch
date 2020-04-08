@@ -328,12 +328,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testDateTimeFormatInvalidArgs() {
         assertEquals(
-                "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
-                error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
+            "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
         );
         assertEquals(
-                "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
-                error("SELECT DATETIME_FORMAT(date, int) FROM test")
+            "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(date, int) FROM test")
         );
     }
 
@@ -344,12 +344,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testDatTimeParseInvalidArgs() {
         assertEquals(
-                "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
-                error("SELECT DATETIME_PARSE(int, keyword) FROM test")
+            "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(int, keyword) FROM test")
         );
         assertEquals(
-                "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
-                error("SELECT DATETIME_PARSE(keyword, int) FROM test")
+            "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(keyword, int) FROM test")
         );
     }
 

@@ -234,10 +234,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private void logDeprecatedUser(final User user){
         Map<String, Object> metadata = user.metadata();
-        boolean isDeprecatedUser = Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY));
-        if (isDeprecatedUser == true) {
+        if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
             deprecationLogger.deprecatedAndMaybeLog("deprecated_user-" + user.principal(), "The user [" + user.principal() +
-                "] is deprecated and will be removed in a future version of Elasticsearch. " + metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
+                "] is deprecated and will be removed in a future version of Elasticsearch. " +
+                metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
         }
     }
 

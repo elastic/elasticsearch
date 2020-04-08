@@ -86,8 +86,8 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
-        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
-            UsernamesField.BEATS_NAME);
+        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.DEPRECATED_KIBANA_NAME, UsernamesField.KIBANA_NAME,
+            UsernamesField.LOGSTASH_NAME, UsernamesField.BEATS_NAME);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -295,6 +295,10 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecureString("foobar".toCharArray())), future);
         assertFailedAuthentication(future, ElasticUser.NAME);
+    }
+
+    public void testLogDeprecatedUser() {
+
     }
 
     private void assertFailedAuthentication(PlainActionFuture<AuthenticationResult> future, String principal) throws Exception {

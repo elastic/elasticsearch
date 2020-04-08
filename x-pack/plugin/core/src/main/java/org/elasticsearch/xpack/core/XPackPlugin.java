@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -80,6 +82,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -233,10 +238,23 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
                                                IndexNameExpressionResolver expressionResolver) {
         List<Object> components = new ArrayList<>();
 
-        final SSLService sslService = new SSLService(environment);
+        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+        final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                final SSLService sslService = sslServiceFuture.get();
+                logger.debug("reloading ssl configuration [{}]", sslConfiguration);
+                sslService.reloadSSLContext(sslConfiguration);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException e) {
+                throw new ElasticsearchException("failed to obtain ssl service", e);
+            }
+        };
+        SSLConfigurationReloader.startWatching(environment, reloadConsumer, resourceWatcherService, sslConfigurations.values());
+        final SSLService sslService = new SSLService(environment, sslConfigurations);
+        sslServiceFuture.complete(sslService);
         setSslService(sslService);
-        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(environment, sslService, resourceWatcherService);
 
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));

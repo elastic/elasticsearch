@@ -14,7 +14,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -26,6 +25,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -55,11 +57,21 @@ import java.util.HashSet;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class WildcardFieldMapperTests extends ESTestCase {
+    
+    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        return queryShardContext;
+    }    
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
+    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
+    
     static final int MAX_FIELD_LENGTH = 100;
     static WildcardFieldMapper wildcardFieldType;
     static KeywordFieldMapper keywordFieldType;
@@ -181,15 +193,38 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
         int numSearches = 100;
         for (int i = 0; i < numSearches; i++) {
-            String randomWildcardPattern = getRandomWildcardPattern();
 
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(randomWildcardPattern, null, null);
+            Query wildcardFieldQuery = null;
+            Query keywordFieldQuery = null;
+            switch (randomInt(2)) {
+            case 0:
+                String randomWildcardPattern = getRandomWildcardPattern();
+                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(randomWildcardPattern, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(randomWildcardPattern, null, MOCK_QSC);
+                break;
+            case 1:
+                String randomRegexp = getRandomRegexPattern(values);
+                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(randomRegexp, 0, 20000, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(randomRegexp, 0, 20000, null, MOCK_QSC);
+                break;
+            case 2:
+                String randomPrefixPattern = randomABString(5);
+                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(randomPrefixPattern, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(randomPrefixPattern, null, MOCK_QSC);
+                break;
+                // Currently wildcard field not exactly same as keyword for fuzzy - can return less 
+                // and I suspect because of string begin/end chars appended to ngrammed values considered for variations
+//            case 3:
+//                String randomFuzzyPattern = randomABString(10);
+//                wildcardFieldQuery = wildcardFieldType.fieldType().fuzzyQuery(randomFuzzyPattern, Fuzziness.AUTO, 2, 50, true, MOCK_QSC);
+//                keywordFieldQuery = keywordFieldType.fieldType().fuzzyQuery(randomFuzzyPattern, Fuzziness.AUTO, 2, 50, true, MOCK_QSC);
+//                break;
+            }
+
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.INDEXORDER);
-
-            Query keywordFieldQuery = new WildcardQuery(new Term(KEYWORD_FIELD_NAME, randomWildcardPattern));
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.INDEXORDER);
-
-            assertThat(kwTopDocs.totalHits.value, equalTo(wildcardFieldTopDocs.totalHits.value));
+            
+            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
 
             HashSet<Integer> expectedDocs = new HashSet<>();
             for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {
@@ -200,7 +235,6 @@ public class WildcardFieldMapperTests extends ESTestCase {
             }
             assertThat(expectedDocs.size(), equalTo(0));
         }
-
 
         //Test keyword and wildcard sort operations are also equivalent
         QueryShardContext shardContextMock = createMockShardContext();
@@ -223,6 +257,86 @@ public class WildcardFieldMapperTests extends ESTestCase {
     }
 
 
+
+    private String getRandomRegexPattern(HashSet<String> values) {
+        // Pick one of the indexed document values to focus our queries on.
+        String randomValue = values.toArray(new String[0])[randomIntBetween(0, values.size()-1)];        
+        return convertToRandomRegex(randomValue);
+    }
+
+    // Produces a random regex string guaranteed to match the provided value
+    protected String convertToRandomRegex(String randomValue) {
+        StringBuilder result = new StringBuilder();
+        //Pick a part of the string to change
+        int substitutionPoint = randomIntBetween(0, randomValue.length()-1);
+        int substitutionLength = randomIntBetween(1, Math.min(10, randomValue.length() - substitutionPoint));
+
+        //Add any head to the result, unchanged
+        if(substitutionPoint >0) {
+            result.append(randomValue.substring(0,substitutionPoint));
+        }
+        
+        // Modify the middle...
+        String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint+substitutionLength);
+        int mutation = randomIntBetween(0, 8);
+        switch (mutation) {
+        case 0:
+            // OR with random alpha of same length
+            result.append("("+replacementPart+"|c"+ randomABString(replacementPart.length())+")");            
+            break;
+        case 1:
+            // OR with non-existant value
+            result.append("("+replacementPart+"|doesnotexist)");            
+            break;
+        case 2:
+            // OR with another randomised regex (used to create nested levels of expression).
+            result.append("(" + convertToRandomRegex(replacementPart) +"|doesnotexist)");   
+            break;
+        case 3:
+            // Star-replace all ab sequences.
+            result.append(replacementPart.replaceAll("ab", ".*"));            
+            break;
+        case 4:
+            // .-replace all b chars
+            result.append(replacementPart.replaceAll("b", "."));            
+            break;
+        case 5:
+            // length-limited stars {1,2}
+            result.append(".{1,"+replacementPart.length()+"}");            
+            break;
+        case 6:
+            // replace all chars with .
+            result.append(replacementPart.replaceAll(".", "."));       
+            break;
+        case 7:
+            // OR with uppercase chars eg [aA] (many of these sorts of expression in the wild..
+            char [] chars = replacementPart.toCharArray();
+            for (char c : chars) {
+                result.append("[" + c + Character.toUpperCase(c) +"]");
+            }
+            break;
+        case 8:
+            // NOT a character - replace all b's with "not a"
+            result.append(replacementPart.replaceAll("b", "[^a]"));
+            break;
+
+        default:
+            break;
+        }
+        //add any remaining tail, unchanged
+        if(substitutionPoint + substitutionLength <= randomValue.length()-1) {
+            result.append(randomValue.substring(substitutionPoint + substitutionLength));
+        }
+        
+        //Assert our randomly generated regex actually matches the provided raw input.
+        RegExp regex = new RegExp(result.toString());
+        Automaton automaton = regex.toAutomaton();
+        ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
+        byte[] bytes = randomValue.getBytes();
+        assertTrue("[" + result.toString() + "]should match [" + randomValue + "]" + substitutionPoint + "-" + substitutionLength + "/"
+                + randomValue.length(), bytesMatcher.run(bytes, 0, bytes.length));
+        return result.toString();
+    }
 
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(WILDCARD_FIELD_NAME)) {

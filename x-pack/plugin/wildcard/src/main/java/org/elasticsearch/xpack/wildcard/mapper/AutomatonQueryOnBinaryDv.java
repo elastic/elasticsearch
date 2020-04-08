@@ -92,8 +92,11 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
-        return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);
+        if (obj instanceof AutomatonQueryOnBinaryDv) {
+            AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
+            return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern);            
+        }
+        return false;
     }
 
     @Override

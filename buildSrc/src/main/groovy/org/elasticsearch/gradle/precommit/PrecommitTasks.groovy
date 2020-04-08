@@ -144,11 +144,13 @@ class PrecommitTasks {
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
 
-            //parse out the sourceSetName
-            String[] parts = name.split(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
-            String sourceSetName = 'main'
-            if (parts.length == 2) {
-                char[] chars = parts[1].toCharArray()
+            assert name.startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
+            String sourceSetName
+            if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(name)) {
+                sourceSetName = "main"
+            } else {
+                //parse out the sourceSetName
+                char[] chars = name.substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray()
                 chars[0] = Character.toLowerCase(chars[0])
                 sourceSetName = new String(chars)
             }

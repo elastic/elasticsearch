@@ -198,7 +198,7 @@ Please follow these formatting guidelines:
 #### Editor / IDE Support
 
 IntelliJ IDEs can
-[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-`13`-importing-code-formatter-settings-from-eclipse/)
+[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
 the same settings file, and / or use the [Eclipse Code
 Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
 plugin.

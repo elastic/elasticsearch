@@ -24,7 +24,7 @@ IDP initiated or SP initiated SAML Single Sign On. This API expects the caller t
 credentials for the user that the SAML Response will be created for as "Secondary Authentication"
 using the `es-secondary-authorization` HTTP Request header.
 
-The SAML response is returned as an XML String and the caller of the API is responsible to instruct
+The SAML response is returned as a String that contains an XML document. The caller of the API is responsible to instruct
 the end user's browser to make an HTTP Post request to the Service Provider with the SAML response
 Base64 encoded.
 
@@ -52,14 +52,15 @@ The following example generates a SAML Response for an IDP initiated SAML Single
 
 [source, sh]
 --------------------------------------------------------------------
-curl -u idp_admin:idp_admin_pwd <1> -H 'Content-Type: application/json' \
+curl -u idp_admin:idp_admin_pwd <1> \
+  -H 'Content-Type: application/json' \
 -H 'es-secondary-authorization: ApiKey dVhmUDBuQUJERWhZWEZaQVg5S0k6WUJubmZwNEtRZ1d4cGRxdXBzZmFDUQ==' <2> \
 localhost:9200/_idp/saml/init -d '{"entity_id":"https://sp1.kibana.org","acs":"https://sp1.kibana.org/saml/acs"}'
 --------------------------------------------------------------------
 // NOTCONSOLE
 <1> The credentials of the user that has the necessary privileges to call this API
 <2> The credentials of the end user for which the SAML Response will be generated. These can be in the form of a Basic authentication
-header, an elasticsearch access token, or an API key.
+header, an {es} access token, or an API key.
 
 
 The following example generates a SAML Response for an SP initiated SAML Single Sign On to the Service Provider with entity Id

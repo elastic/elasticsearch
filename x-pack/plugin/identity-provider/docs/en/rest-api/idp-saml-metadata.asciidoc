@@ -29,7 +29,8 @@ to be configured to work with this identity provider
 (string) The SAML entity Id of the service provider that will consume this SAML metadata document.
 
 `acs`::
-(string) The SAML Assertion Consumer Service URL of the service provider that will consume this SAML
+(Optional, string) The SAML Assertion Consumer Service URL of the service provider that will consume this SAML.
+If this is not set, then this API will ignore any wildcard services and will fail if `sp_entity_id` is not a directly registered Service Provider.
 metadata document.
 
 [[idp-saml-metadata-example]]

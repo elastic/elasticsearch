@@ -9,8 +9,8 @@ Registers a SAML service provider for use with this Identity Provider or updates
 [[idp-saml-register-sp-request]]
 ==== {api-request-title}
 
-`POST /_idp/saml/sp/{sp_entity_id} +
- PUT  /_idp/saml/sp/{sp_entity_id}`
+`POST /_idp/saml/sp/{sp_entity_id}` +
+`PUT  /_idp/saml/sp/{sp_entity_id}`
 
 [[idp-saml-register-sp-prereqs]]
 ==== {api-prereq-title}
@@ -26,7 +26,7 @@ This API registers a Service Provider with the Identity Provider and sets the ne
 [[idp-saml-register-sp-path-params]]
 ==== {api-path-parms-title}
 
-`sp_entity_id::
+`sp_entity_id`::
 (string) The SAML entity Id of the service provider to be registered or updated. In case the entity Id is a URL, it should be urlencoded.
 
 [[idp-saml-register-sp-params]]

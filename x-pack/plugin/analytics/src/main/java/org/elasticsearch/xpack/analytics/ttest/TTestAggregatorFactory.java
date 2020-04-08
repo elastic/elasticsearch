@@ -11,14 +11,12 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
@@ -38,15 +36,14 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
         switch (testType) {
             case PAIRED:
-                return new PairedTTestAggregator(name, null, tails, format, searchContext, parent, pipelineAggregators, metadata);
+                return new PairedTTestAggregator(name, null, tails, format, searchContext, parent, metadata);
             case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, true, format, searchContext, parent, pipelineAggregators, metadata);
+                return new UnpairedTTestAggregator(name, null, tails, true, format, searchContext, parent, metadata);
             case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, false, format, searchContext, parent, pipelineAggregators, metadata);
+                return new UnpairedTTestAggregator(name, null, tails, false, format, searchContext, parent, metadata);
             default:
                 throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }
@@ -58,22 +55,19 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                                           DocValueFormat format,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metadata) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS
             = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metadata);
+            return createUnmapped(searchContext, parent, metadata);
         }
         switch (testType) {
             case PAIRED:
-                return new PairedTTestAggregator(name, numericMultiVS, tails, format, searchContext, parent, pipelineAggregators, metadata);
+                return new PairedTTestAggregator(name, numericMultiVS, tails, format, searchContext, parent, metadata);
             case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, format, searchContext, parent, pipelineAggregators,
-                    metadata);
+                return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, format, searchContext, parent, metadata);
             case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, format, searchContext, parent, pipelineAggregators,
-                    metadata);
+                return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, format, searchContext, parent, metadata);
             default:
                 throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }

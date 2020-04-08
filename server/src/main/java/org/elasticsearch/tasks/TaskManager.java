@@ -366,8 +366,9 @@ public class TaskManager implements ClusterStateApplier {
      * Bans all tasks with the specified parent task from execution, cancels all tasks that are currently executing.
      * <p>
      * This method is called when a parent task that has children is cancelled.
+     * @return a list of pending cancellable child tasks
      */
-    public void setBan(TaskId parentTaskId, String reason) {
+    public List<CancellableTask> setBan(TaskId parentTaskId, String reason) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
 
         // Set the ban first, so the newly created tasks cannot be registered
@@ -377,14 +378,10 @@ public class TaskManager implements ClusterStateApplier {
                 banedParents.put(parentTaskId, reason);
             }
         }
-
-        // Now go through already running tasks and cancel them
-        for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
-            CancellableTaskHolder holder = taskEntry.getValue();
-            if (holder.hasParent(parentTaskId)) {
-                holder.cancel(reason);
-            }
-        }
+        return cancellableTasks.values().stream()
+            .filter(t -> t.hasParent(parentTaskId))
+            .map(t -> t.task)
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -398,11 +395,8 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     // for testing
-    public boolean childTasksCancelledOrBanned(TaskId parentTaskId) {
-        if (banedParents.containsKey(parentTaskId)) {
-            return true;
-        }
-        return cancellableTasks.values().stream().noneMatch(task -> task.hasParent(parentTaskId));
+    public Set<TaskId> getBannedTaskIds() {
+        return Collections.unmodifiableSet(banedParents.keySet());
     }
 
     /**

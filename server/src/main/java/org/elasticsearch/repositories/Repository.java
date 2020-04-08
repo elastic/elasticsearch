@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -127,12 +128,13 @@ public interface Repository extends LifecycleComponent {
      * @param clusterMetadata       cluster metadata
      * @param userMetadata          user metadata
      * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param listener              listener to be called on completion of the snapshot
+     * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
+     *                              completion of the snapshot
      */
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                          Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener);
+                          Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**
      * Deletes snapshot

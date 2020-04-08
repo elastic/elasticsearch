@@ -11,12 +11,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 
@@ -28,9 +26,8 @@ public abstract class TTestAggregator<T extends TTestState> extends NumericMetri
     private DocValueFormat format;
 
     TTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
-                    SearchContext context, Aggregator parent,
-                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
-        super(name, context, parent, pipelineAggregators, metadata);
+                    SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent,  metadata);
         this.valuesSources = valuesSources;
         this.tails = tails;
         this.format = format;

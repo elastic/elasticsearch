@@ -291,29 +291,27 @@ expressions.
 [source,eql]
 ----
 // The two following expressions are equivalent.
-process.command_line == "*start*" or process.command_line == "*config*"
-wildcard(process.command_line, "*start*", "*config*")
+process.name == "*regsvr32*" or process.name == "*explorer*"
+wildcard(process.name, "*regsvr32*", "*explorer*")
 
-// process.command_line = "start explorer.exe"
-wildcard(process.command_line, "*start*")                // returns true
-wildcard(process.command_line, "*start*", "*config*")    // returns true
-wildcard(process.command_line, "*config*")               // returns false
-wildcard(process.command_line, "*config*", "*create*")   // returns false
+// process.name = "regsvr32.exe"
+wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
+wildcard(process.name, "*explorer*")                // returns false
+wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
 
-// process.command_line = [ "start explorer.exe", "create regsvr32.exe" ]
-wildcard(process.command_line, "*create*")              // returns true
-wildcard(process.command_line, "*create*", "*config*")  // returns true
-wildcard(process.command_line, "*start*")               // returns false
-wildcard(process.command_line, "*start*", "*create*")   // returns true
-wildcard(process.command_line, "*start*", "*config*")   // returns false
+// process.name = [ "explorer.exe", "regsvr32.exe" ]
+wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*regsvr32*", "*scrobj*")    // returns true
+wildcard(process.name, "*scrobj*")                  // returns false
 
 // empty strings
-wildcard("", "*start*")                                  // returns false
-wildcard("", "*")                                        // returns true
-wildcard("", "")                                         // returns true
+wildcard("", "*start*")                             // returns false
+wildcard("", "*")                                   // returns true
+wildcard("", "")                                    // returns true
 
 // null handling
-wildcard(null, "*start*")                                // returns false
+wildcard(null, "*regsvr32*")                        // returns false
 ----
 
 *Syntax*

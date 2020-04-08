@@ -113,7 +113,7 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unknown function [arrayContains]",
+        assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
                 error("registry where arrayContains(bytes_written_string_list, 'En')"));
         assertEquals("1:16: Unknown function [arraySearch]",
             error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));

@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -61,8 +59,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         DocValueFormat formatter,
                                         SearchContext context,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                    return new SumAggregator(name, (Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
+                                        Map<String, Object> metaData) throws IOException {
+                    return new SumAggregator(name, (Numeric) valuesSource, formatter, context, parent, metaData);
                 }
             });
     }
@@ -70,10 +68,9 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata)
             throws IOException {
-        return new SumAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metadata);
+        return new SumAggregator(name, null, config.format(), searchContext, parent, metadata);
     }
 
     @Override
@@ -81,7 +78,6 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             SumAggregationBuilder.NAME);
@@ -90,7 +86,6 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent,
-            pipelineAggregators, metaData);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent, metaData);
     }
 }

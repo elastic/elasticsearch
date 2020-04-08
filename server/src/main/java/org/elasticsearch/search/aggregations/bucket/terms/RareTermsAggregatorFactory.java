@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -74,7 +72,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     IncludeExclude includeExclude,
                                     SearchContext context,
                                     Aggregator parent,
-                                    List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
 
                 ExecutionMode execution = ExecutionMode.MAP; //TODO global ords not implemented yet, only supports "map"
@@ -86,7 +83,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 return execution.create(name, factories, valuesSource, format,
-                    includeExclude, context, parent, pipelineAggregators, metaData, maxDocCount, precision);
+                    includeExclude, context, parent, metaData, maxDocCount, precision);
 
             }
         };
@@ -108,7 +105,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     IncludeExclude includeExclude,
                                     SearchContext context,
                                     Aggregator parent,
-                                    List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -125,7 +121,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     longFilter = includeExclude.convertToLongFilter(format);
                 }
                 return new LongRareTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format,
-                    context, parent, longFilter, maxDocCount, precision, pipelineAggregators, metaData);
+                    context, parent, longFilter, maxDocCount, precision, metaData);
             }
         };
     }
@@ -144,10 +140,9 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedRareTerms(name, pipelineAggregators, metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metadata) {
+        final InternalAggregation aggregation = new UnmappedRareTerms(name, metadata);
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -160,7 +155,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
@@ -174,7 +168,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         return ((RareTermsAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, config.format(),
-            maxDocCount, precision, includeExclude, searchContext, parent, pipelineAggregators, metadata);
+            maxDocCount, precision, includeExclude, searchContext, parent, metadata);
     }
 
     public enum ExecutionMode {
@@ -185,12 +179,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                               DocValueFormat format, IncludeExclude includeExclude,
                               SearchContext context, Aggregator parent,
-                              List<PipelineAggregator> pipelineAggregators,
                               Map<String, Object> metadata, long maxDocCount, double precision)
                 throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new StringRareTermsAggregator(name, factories, (ValuesSource.Bytes) valuesSource, format, filter,
-                    context, parent, pipelineAggregators, metadata, maxDocCount, precision);
+                    context, parent, metadata, maxDocCount, precision);
             }
 
             @Override
@@ -217,8 +210,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                                    DocValueFormat format, IncludeExclude includeExclude,
-                                   SearchContext context, Aggregator parent,
-                                   List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
+                                   SearchContext context, Aggregator parent, Map<String, Object> metadata,
                                    long maxDocCount, double precision)
             throws IOException;
 

@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
 
@@ -46,8 +44,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metadata);
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
         if (context.aggregations() != null) {

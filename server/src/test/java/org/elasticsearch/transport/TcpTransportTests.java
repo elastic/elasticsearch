@@ -410,7 +410,7 @@ public class TcpTransportTests extends ESTestCase {
             channel.addCloseListener(listener);
 
             TcpTransport.handleException(channel, exception, lifecycle,
-                new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, new String[0], testThreadPool,
+                new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, new String[0], new StatsTracker(), testThreadPool,
                     BigArrays.NON_RECYCLING_INSTANCE));
 
             if (expectClosed) {

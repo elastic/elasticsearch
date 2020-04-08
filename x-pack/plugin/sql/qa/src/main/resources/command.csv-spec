@@ -44,6 +44,7 @@ CURTIME          |SCALAR
 DATEADD          |SCALAR
 DATEDIFF         |SCALAR
 DATEPART         |SCALAR
+DATETIME_FORMAT  |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
@@ -60,8 +61,8 @@ DAY_OF_WEEK      |SCALAR
 DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
-DOY              |SCALAR         
-HOUR             |SCALAR         
+DOY              |SCALAR
+HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
 ISODAYOFWEEK     |SCALAR

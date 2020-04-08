@@ -34,6 +34,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
@@ -142,14 +144,34 @@ public class FsBlobContainer extends AbstractBlobContainer {
         IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
     }
 
+    private InputStream bufferedInputStream(InputStream inputStream) {
+        return new BufferedInputStream(inputStream, blobStore.bufferSizeInBytes());
+    }
+
     @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
         try {
-            return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
+            return bufferedInputStream(Files.newInputStream(resolvedPath));
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
         }
+    }
+
+    @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
+        if (position > 0L) {
+            channel.position(position);
+        }
+        assert channel.position() == position;
+        return bufferedInputStream(org.elasticsearch.common.io.Streams.limitStream(Channels.newInputStream(channel), length));
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that are cheap to close early, so we can tell consumers to request as much data as possible.
+        return Long.MAX_VALUE;
     }
 
     @Override

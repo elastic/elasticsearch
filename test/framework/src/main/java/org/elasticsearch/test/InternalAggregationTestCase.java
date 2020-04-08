@@ -281,24 +281,34 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, metadata);
     }
 
-    public void testReduceRandom() {
-        String name = randomAlphaOfLength(5);
+    /**
+     * Generate a list of inputs to reduce. Defaults to calling
+     * {@link #createTestInstance(String)} and
+     * {@link #createUnmappedInstance(String)} but should be overridden
+     * if it isn't realistic to reduce test instances.
+     */
+    protected List<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();
-        List<InternalAggregation> toReduce = new ArrayList<>();
-        int toReduceSize = between(1, 200);
-        for (int i = 0; i < toReduceSize; i++) {
+        for (int i = 0; i < size; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
-            toReduce.add(t);
         }
+        return inputs;
+    }
+
+    public void testReduceRandom() throws IOException {
+        String name = randomAlphaOfLength(5);
+        List<T> inputs = randomResultsToReduce(name, between(1, 200));
+        List<InternalAggregation> toReduce = new ArrayList<>();
+        toReduce.addAll(inputs);
         // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
         inputs.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // sometimes do an incremental reduce
+            // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
-            int r = randomIntBetween(1, toReduceSize);
+            int r = randomIntBetween(1, inputs.size());
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
@@ -311,7 +321,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             int reducedBucketCount = countInnerBucket(reduced);
             //check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
-            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
+            /*
+             * Sometimes serializing and deserializing the partially reduced
+             * result to simulate the compaction that we attempt after a
+             * partial reduce. And to simulate cross cluster search.
+             */
+            if (randomBoolean()) {
+                reduced = copyInstance(reduced);
+            }
+            toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,

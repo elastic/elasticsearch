@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -425,7 +425,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             return Collections.emptyMap();
         }
 
-        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             return Collections.emptyMap();
@@ -435,7 +435,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     }
 
     StoredScriptSource getScriptFromClusterState(String id) {
-        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
@@ -495,11 +495,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
-                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
+                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
-                return ClusterState.builder(currentState).metaData(mdb).build();
+                return ClusterState.builder(currentState).metadata(mdb).build();
             }
         });
     }
@@ -516,17 +516,17 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.deleteStoredScript(smd, request.id());
-                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
+                smd = ScriptMetadata.deleteStoredScript(smd, request.id());
+                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
 
-                return ClusterState.builder(currentState).metaData(mdb).build();
+                return ClusterState.builder(currentState).metadata(mdb).build();
             }
         });
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {
             return scriptMetadata.getStoredScript(request.id());

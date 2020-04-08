@@ -68,7 +68,6 @@
           "yellow",
           "red"
         ],
-        "default":null,
         "description":"A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
       },
       "help":{

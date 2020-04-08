@@ -24,7 +24,7 @@ import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -193,7 +193,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetaData metadata, NamedXContentRegistry registry,
+        protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
                                                 ClusterService clusterService) {
             return new S3Repository(metadata, registry, service, clusterService) {
 

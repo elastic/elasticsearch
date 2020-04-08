@@ -73,7 +73,7 @@
           "none",
           "all"
         ],
-        "default": ["all"],
+        "default": "all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "local":{

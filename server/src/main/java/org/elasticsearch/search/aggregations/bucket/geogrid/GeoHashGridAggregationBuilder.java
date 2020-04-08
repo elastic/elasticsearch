@@ -68,19 +68,19 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
             GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
         return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            queryShardContext, parent, subFactoriesBuilder, metaData);
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                          Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoHashGridAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoHashGridAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override

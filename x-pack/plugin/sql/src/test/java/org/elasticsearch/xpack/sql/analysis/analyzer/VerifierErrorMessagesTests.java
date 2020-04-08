@@ -212,6 +212,15 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATETRUNC('day', date) FROM test");
+        accept("SELECT DATETRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+    }
+
     public void testDateTruncInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_TRUNC(int, date) FROM test"));
@@ -285,15 +294,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_DIFF('dz', int, date) FROM test"));
     }
 
-    public void testDateTruncValidArgs() {
-        accept("SELECT DATE_TRUNC('decade', date) FROM test");
-        accept("SELECT DATE_TRUNC('decades', date) FROM test");
-        accept("SELECT DATETRUNC('day', date) FROM test");
-        accept("SELECT DATETRUNC('days', date) FROM test");
-        accept("SELECT DATE_TRUNC('dd', date) FROM test");
-        accept("SELECT DATE_TRUNC('d', date) FROM test");
-    }
-
     public void testDatePartInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_PART(int, date) FROM test"));
@@ -318,6 +318,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_PART('dayofyear', date) FROM test");
         accept("SELECT DATE_PART('dy', date) FROM test");
         accept("SELECT DATE_PART('ms', date) FROM test");
+    }
+
+    public void testDateTimeFormatValidArgs() {
+        accept("SELECT DATETIME_FORMAT(date, 'HH:mm:ss.SSS VV') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testDateTimeFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(date, int) FROM test")
+        );
     }
 
     public void testValidDateTimeFunctionsOnTime() {

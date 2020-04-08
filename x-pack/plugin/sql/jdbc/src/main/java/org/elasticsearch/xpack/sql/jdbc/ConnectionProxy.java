@@ -20,7 +20,7 @@ final class ConnectionProxy extends DebuggingInvoker {
             return Debug.proxy(result, new StatementProxy(log, result, proxy));
         }
         if (result instanceof DatabaseMetaData) {
-            return Debug.proxy(new DatabaseMetadataProxy(log, result, proxy));
+            return Debug.proxy(new DatabaseMetaDataProxy(log, result, proxy));
         }
 
         return result;

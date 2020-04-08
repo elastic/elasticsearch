@@ -1,7 +1,8 @@
 {
   "ml.update_model_snapshot":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html",
+      "description":"Updates certain properties of a snapshot."
     },
     "stability":"stable",
     "url":{

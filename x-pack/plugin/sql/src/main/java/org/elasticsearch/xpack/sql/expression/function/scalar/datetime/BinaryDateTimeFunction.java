@@ -13,11 +13,8 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
@@ -30,42 +27,11 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (left().foldable()) {
-            String datePartValue = (String) left().fold();
-            if (datePartValue != null && resolveDateTimeField(datePartValue) == false) {
-                List<String> similar = findSimilarDateTimeFields(datePartValue);
-                if (similar.isEmpty()) {
-                    return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases; found value [{}]",
-                        sourceText(),
-                        validDateTimeFieldValues(),
-                        Expressions.name(left())));
-                } else {
-                    return new TypeResolution(format(null, "Unknown value [{}] for first argument of [{}]; did you mean {}?",
-                        Expressions.name(left()),
-                        sourceText(),
-                        similar));
-                }
-            }
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
-    }
+    protected abstract TypeResolution resolveType();
 
     public ZoneId zoneId() {
         return zoneId;
     }
-
-    protected abstract boolean resolveDateTimeField(String dateTimeField);
-
-    protected abstract List<String> findSimilarDateTimeFields(String dateTimeField);
-
-    protected abstract List<String> validDateTimeFieldValues();
 
     @Override
     protected Pipe makePipe() {

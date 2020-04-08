@@ -1,0 +1,39 @@
+{
+  "indices.exists_index_template":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "description":"Returns information about whether a particular index template exists."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_index_template/{name}",
+          "methods":[
+            "HEAD"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the template"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "flat_settings":{
+        "type":"boolean",
+        "description":"Return settings in flat format (default: false)"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node"
+      },
+      "local":{
+        "type":"boolean",
+        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      }
+    }
+  }
+}

@@ -55,8 +55,8 @@ public class GeoCentroidAggregationBuilder
         super(name);
     }
 
-    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
@@ -65,8 +65,8 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -84,7 +84,7 @@ public class GeoCentroidAggregationBuilder
     @Override
     protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

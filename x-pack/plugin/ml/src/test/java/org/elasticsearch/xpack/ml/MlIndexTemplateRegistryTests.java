@@ -86,11 +86,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
     public void testStateTemplateWithIlm() {
         MlIndexTemplateRegistry registry =
-            new MlIndexTemplateRegistry(
-                Settings.builder()
-                    .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true)
-                    .build(),
-                clusterService, threadPool, client, xContentRegistry);
+            new MlIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
@@ -102,8 +98,6 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testStateTemplateWithNoIlm() {
@@ -130,11 +124,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
     public void testStatsTemplateWithIlm() {
         MlIndexTemplateRegistry registry =
-            new MlIndexTemplateRegistry(
-                Settings.builder()
-                    .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true)
-                    .build(),
-                clusterService, threadPool, client, xContentRegistry);
+            new MlIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
@@ -146,8 +136,6 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-stats-write"));
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testStatsTemplateWithNoIlm() {

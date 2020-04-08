@@ -134,8 +134,6 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     private void checkAllowedWrite(String indexName) throws IOException {
         final Request request = new Request("POST", "/" + indexName + "/_doc");
         request.setJsonEntity("{ \"key\" : \"value\" }");
-        // TODO: Remove permissive handler when "xpack.ilm.enabled" is removed
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         Response response = client().performRequest(request);
         final Map<String, Object> result = entityAsMap(response);
         assertThat(ObjectPath.evaluate(result, "_index"), equalTo(indexName));

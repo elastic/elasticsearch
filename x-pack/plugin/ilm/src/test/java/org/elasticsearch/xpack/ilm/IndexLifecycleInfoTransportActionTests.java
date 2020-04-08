@@ -76,7 +76,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         featureSet = new IndexLifecycleInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.INDEX_LIFECYCLE_ENABLED});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testName() {

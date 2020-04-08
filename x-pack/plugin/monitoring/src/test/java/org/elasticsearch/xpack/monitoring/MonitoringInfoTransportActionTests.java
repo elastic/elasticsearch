@@ -61,7 +61,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.MONITORING_ENABLED});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.MONITORING_ENABLED } );
     }
 
     public void testEnabledDefault() {

@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -68,9 +67,9 @@ class DateHistogramAggregator extends BucketsAggregator {
             BucketOrder order, boolean keyed,
             long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
             DocValueFormat formatter, SearchContext aggregationContext,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
         this.shardRounding = shardRounding;
         this.order = order;
@@ -148,8 +147,8 @@ class DateHistogramAggregator extends BucketsAggregator {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;
-        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
+                keyed, metadata());
     }
 
     @Override
@@ -158,7 +157,7 @@ class DateHistogramAggregator extends BucketsAggregator {
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                keyed, pipelineAggregators(), metaData());
+                keyed, metadata());
     }
 
     @Override

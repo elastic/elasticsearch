@@ -9,24 +9,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
-public class ClassificationConfig implements InferenceConfig {
+public class ClassificationConfig implements LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig {
 
     public static final ParseField NAME = new ParseField("classification");
 
     public static final String DEFAULT_TOP_CLASSES_RESULTS_FIELD = "top_classes";
-    private static final String DEFAULT_RESULTS_FIELD = "predicted_value";
+    public static final String DEFAULT_RESULTS_FIELD = "predicted_value";
 
     public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
@@ -42,32 +37,27 @@ public class ClassificationConfig implements InferenceConfig {
     private final String resultsField;
     private final int numTopFeatureImportanceValues;
 
-    public static ClassificationConfig fromMap(Map<String, Object> map) {
-        Map<String, Object> options = new HashMap<>(map);
-        Integer numTopClasses = (Integer)options.remove(NUM_TOP_CLASSES.getPreferredName());
-        String topClassesResultsField = (String)options.remove(TOP_CLASSES_RESULTS_FIELD.getPreferredName());
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
-        Integer featureImportance = (Integer)options.remove(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
+    private static final ObjectParser<ClassificationConfig.Builder, Void> LENIENT_PARSER = createParser(true);
+    private static final ObjectParser<ClassificationConfig.Builder, Void> STRICT_PARSER = createParser(false);
 
-        if (options.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
-        }
-        return new ClassificationConfig(numTopClasses, resultsField, topClassesResultsField, featureImportance);
+    private static ObjectParser<ClassificationConfig.Builder, Void> createParser(boolean lenient) {
+        ObjectParser<ClassificationConfig.Builder, Void> parser = new ObjectParser<>(
+            NAME.getPreferredName(),
+            lenient,
+            ClassificationConfig.Builder::new);
+        parser.declareInt(ClassificationConfig.Builder::setNumTopClasses, NUM_TOP_CLASSES);
+        parser.declareString(ClassificationConfig.Builder::setResultsField, RESULTS_FIELD);
+        parser.declareString(ClassificationConfig.Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
+        parser.declareInt(ClassificationConfig.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
+        return parser;
     }
 
-    private static final ConstructingObjectParser<ClassificationConfig, Void> PARSER =
-            new ConstructingObjectParser<>(NAME.getPreferredName(), args -> new ClassificationConfig(
-                    (Integer) args[0], (String) args[1], (String) args[2], (Integer) args[3]));
-
-    static {
-        PARSER.declareInt(optionalConstructorArg(), NUM_TOP_CLASSES);
-        PARSER.declareString(optionalConstructorArg(), RESULTS_FIELD);
-        PARSER.declareString(optionalConstructorArg(), TOP_CLASSES_RESULTS_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
+    public static ClassificationConfig fromXContentStrict(XContentParser parser) {
+        return STRICT_PARSER.apply(parser, null).build();
     }
 
-    public static ClassificationConfig fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static ClassificationConfig fromXContentLenient(XContentParser parser) {
+        return LENIENT_PARSER.apply(parser, null).build();
     }
 
     public ClassificationConfig(Integer numTopClasses) {
@@ -150,14 +140,10 @@ public class ClassificationConfig implements InferenceConfig {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (numTopClasses != 0) {
-            builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
-        }
+        builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         builder.field(TOP_CLASSES_RESULTS_FIELD.getPreferredName(), topClassesResultsField);
         builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
-        if (numTopFeatureImportanceValues > 0) {
-            builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
-        }
+        builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
         builder.endObject();
         return builder;
     }
@@ -179,7 +165,50 @@ public class ClassificationConfig implements InferenceConfig {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return numTopFeatureImportanceValues > 0 ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
+        return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Integer numTopClasses;
+        private String topClassesResultsField;
+        private String resultsField;
+        private Integer numTopFeatureImportanceValues;
+
+        Builder() {}
+
+        Builder(ClassificationConfig config) {
+            this.numTopClasses = config.numTopClasses;
+            this.topClassesResultsField = config.topClassesResultsField;
+            this.resultsField = config.resultsField;
+            this.numTopFeatureImportanceValues = config.numTopFeatureImportanceValues;
+        }
+
+        public Builder setNumTopClasses(Integer numTopClasses) {
+            this.numTopClasses = numTopClasses;
+            return this;
+        }
+
+        public Builder setTopClassesResultsField(String topClassesResultsField) {
+            this.topClassesResultsField = topClassesResultsField;
+            return this;
+        }
+
+        public Builder setResultsField(String resultsField) {
+            this.resultsField = resultsField;
+            return this;
+        }
+
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
+            this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
+            return this;
+        }
+
+        public ClassificationConfig build() {
+            return new ClassificationConfig(numTopClasses, resultsField, topClassesResultsField, numTopFeatureImportanceValues);
+        }
+    }
 }

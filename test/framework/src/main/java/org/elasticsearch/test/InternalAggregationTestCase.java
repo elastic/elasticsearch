@@ -126,10 +126,12 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ParsedBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedDerivative;
 import org.elasticsearch.search.aggregations.pipeline.ParsedExtendedStatsBucket;
@@ -140,6 +142,7 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -153,6 +156,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.countInnerBucket;
@@ -269,34 +273,42 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return namedXContents;
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata);
 
     /** Return an instance on an unmapped field. */
-    protected T createUnmappedInstance(String name,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    protected T createUnmappedInstance(String name, Map<String, Object> metadata) {
         // For most impls, we use the same instance in the unmapped case and in the mapped case
-        return createTestInstance(name, pipelineAggregators, metaData);
+        return createTestInstance(name, metadata);
     }
 
-    public void testReduceRandom() {
-        String name = randomAlphaOfLength(5);
+    /**
+     * Generate a list of inputs to reduce. Defaults to calling
+     * {@link #createTestInstance(String)} and
+     * {@link #createUnmappedInstance(String)} but should be overridden
+     * if it isn't realistic to reduce test instances.
+     */
+    protected List<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();
-        List<InternalAggregation> toReduce = new ArrayList<>();
-        int toReduceSize = between(1, 200);
-        for (int i = 0; i < toReduceSize; i++) {
+        for (int i = 0; i < size; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
-            toReduce.add(t);
         }
+        return inputs;
+    }
+
+    public void testReduceRandom() throws IOException {
+        String name = randomAlphaOfLength(5);
+        List<T> inputs = randomResultsToReduce(name, between(1, 200));
+        List<InternalAggregation> toReduce = new ArrayList<>();
+        toReduce.addAll(inputs);
         // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
         inputs.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // sometimes do an incremental reduce
+            // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
-            int r = randomIntBetween(1, toReduceSize);
+            int r = randomIntBetween(1, inputs.size());
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
@@ -309,7 +321,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             int reducedBucketCount = countInnerBucket(reduced);
             //check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
-            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
+            /*
+             * Sometimes serializing and deserializing the partially reduced
+             * result to simulate the compaction that we attempt after a
+             * partial reduce. And to simulate cross cluster search.
+             */
+            if (randomBoolean()) {
+                reduced = copyInstance(reduced);
+            }
+            toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
@@ -337,29 +357,25 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     private T createTestInstance(String name) {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
-        // TODO populate pipelineAggregators
-        Map<String, Object> metaData = null;
+        Map<String, Object> metadata = null;
         if (randomBoolean()) {
-            metaData = new HashMap<>();
-            int metaDataCount = between(0, 10);
-            while (metaData.size() < metaDataCount) {
-                metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            metadata = new HashMap<>();
+            int metadataCount = between(0, 10);
+            while (metadata.size() < metadataCount) {
+                metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, pipelineAggregators, metaData);
+        return createTestInstance(name, metadata);
     }
 
     /** Return an instance on an unmapped field. */
     protected final T createUnmappedInstance(String name) {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
-        // TODO populate pipelineAggregators
-        Map<String, Object> metaData = new HashMap<>();
-        int metaDataCount = randomBoolean() ? 0 : between(1, 10);
-        while (metaData.size() < metaDataCount) {
-            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, Object> metadata = new HashMap<>();
+        int metadataCount = randomBoolean() ? 0 : between(1, 10);
+        while (metadata.size() < metadataCount) {
+            metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
-        return createUnmappedInstance(name, pipelineAggregators, metaData);
+        return createUnmappedInstance(name, metadata);
     }
 
     @Override
@@ -382,6 +398,52 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         final T aggregation = createTestInstance();
         final ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), true);
         assertFromXContent(aggregation, parsedAggregation);
+    }
+
+    public void testMergePipelineTreeForBWCSerialization() {
+        T agg = createTestInstance();
+        PipelineAggregator.PipelineTree pipelineTree = randomPipelineTree(agg);
+        agg.mergePipelineTreeForBWCSerialization(pipelineTree);
+        assertMergedPipelineTreeForBWCSerialization(agg, pipelineTree);
+    }
+
+    public static PipelineAggregator.PipelineTree randomPipelineTree(InternalAggregation aggregation) {
+        Map<String, PipelineTree> subTree = new HashMap<>();
+        aggregation.forEachBucket(bucketAggs -> {
+            for (Aggregation subAgg : bucketAggs) {
+                if (subTree.containsKey(subAgg.getName())) {
+                    continue;
+                }
+                subTree.put(subAgg.getName(), randomPipelineTree((InternalAggregation) subAgg));
+            }
+        });
+        return new PipelineAggregator.PipelineTree(emptyMap(), randomPipelineAggregators());
+    }
+
+    public static List<PipelineAggregator> randomPipelineAggregators() {
+        List<PipelineAggregator> pipelines = new ArrayList<>();
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                pipelines.add(new MaxBucketPipelineAggregationBuilder("name1", "bucket1").create());
+            }
+            if (randomBoolean()) {
+                pipelines.add(new AvgBucketPipelineAggregationBuilder("name2", "bucket2").create());
+            }
+            if (randomBoolean()) {
+                pipelines.add(new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
+            }
+        }
+        return pipelines;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void assertMergedPipelineTreeForBWCSerialization(InternalAggregation agg, PipelineAggregator.PipelineTree pipelineTree) {
+        assertThat(agg.pipelineAggregatorsForBwcSerialization(), equalTo(pipelineTree.aggregators()));
+        agg.forEachBucket(bucketAggs -> {
+            for (Aggregation subAgg : bucketAggs) {
+                assertMergedPipelineTreeForBWCSerialization((InternalAggregation) subAgg, pipelineTree.subTree(subAgg.getName()));
+            }
+        });
     }
 
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
@@ -433,7 +495,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
             Aggregation agg = parsedAggregation.get();
             assertEquals(aggregation.getName(), agg.getName());
-            assertEquals(aggregation.getMetaData(), agg.getMetaData());
+            assertEquals(aggregation.getMetadata(), agg.getMetadata());
 
             assertTrue(agg instanceof ParsedAggregation);
             assertEquals(aggregation.getType(), agg.getType());

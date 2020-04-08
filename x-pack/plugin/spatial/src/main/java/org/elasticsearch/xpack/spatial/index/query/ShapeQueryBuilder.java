@@ -14,12 +14,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     public static final String NAME = "shape";
 
     protected static final List<String> validContentTypes =
-        Collections.unmodifiableList(Arrays.asList(ShapeFieldMapper.CONTENT_TYPE));
+        Collections.unmodifiableList(Arrays.asList(ShapeFieldMapper.CONTENT_TYPE, PointFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -121,8 +122,8 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
                     + "] but of type [" + fieldType.typeName() + "]");
         }
 
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return  new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, ft.name(), relation, context));
+        final AbstractSearchableGeometryFieldType ft = (AbstractSearchableGeometryFieldType) fieldType;
+        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, ft.name(), relation, context));
     }
 
     @Override

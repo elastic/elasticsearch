@@ -49,8 +49,8 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     }
 
     protected AbstractRangeBuilder(AbstractRangeBuilder<AB, R> clone,
-                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.rangeFactory = clone.rangeFactory;
         this.ranges = new ArrayList<>(clone.ranges);
         this.keyed = clone.keyed;

@@ -54,7 +54,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
@@ -539,7 +539,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, 
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
                         emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -896,9 +896,9 @@ public class TransportSearchActionTests extends ESTestCase {
             indices[i] = new Index(indexName, indexName + "-uuid");
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
-                    blocksBuilder.addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK);
+                    blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
                 } else {
-                    blocksBuilder.addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                    blocksBuilder.addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_BLOCK);
                 }
             }
         }

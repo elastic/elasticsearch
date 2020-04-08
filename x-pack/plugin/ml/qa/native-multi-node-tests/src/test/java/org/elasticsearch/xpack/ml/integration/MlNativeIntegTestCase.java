@@ -139,6 +139,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected void cleanUp() {
+        setUpgradeModeTo(false);
         cleanUpResources();
         waitForPendingTasks();
     }

@@ -95,11 +95,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS          
-library        |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -108,9 +108,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -119,10 +119,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS             
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -132,9 +132,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX     
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -143,9 +143,9 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX        
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
@@ -166,10 +166,10 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS  
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;
@@ -182,12 +182,12 @@ showTablesIncludeFrozen
 // tag::showTablesIncludeFrozen
 SHOW TABLES INCLUDE FROZEN;
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-archive        |BASE TABLE     |FROZEN INDEX
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS          
-library        |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+archive        |TABLE     |FROZEN INDEX
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTablesIncludeFrozen
 ;

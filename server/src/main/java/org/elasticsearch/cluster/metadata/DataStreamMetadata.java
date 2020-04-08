@@ -94,7 +94,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_7_0;
     }
 
     @Override

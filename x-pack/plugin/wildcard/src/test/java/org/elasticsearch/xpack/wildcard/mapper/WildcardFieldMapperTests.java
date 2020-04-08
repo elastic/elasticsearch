@@ -332,9 +332,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
         RegExp regex = new RegExp(result.toString());
         Automaton automaton = regex.toAutomaton();
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
-        byte[] bytes = randomValue.getBytes();
+        BytesRef br = new BytesRef(randomValue);
         assertTrue("[" + result.toString() + "]should match [" + randomValue + "]" + substitutionPoint + "-" + substitutionLength + "/"
-                + randomValue.length(), bytesMatcher.run(bytes, 0, bytes.length));
+                + randomValue.length(), bytesMatcher.run(br.bytes, br.offset, br.length));
         return result.toString();
     }
 

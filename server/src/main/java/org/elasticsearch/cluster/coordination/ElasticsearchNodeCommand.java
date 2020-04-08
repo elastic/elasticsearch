@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,15 +77,17 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @SuppressWarnings("unchecked")
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-            try {
-                // Try to parse named objects (e.g. stored scripts, ingest pipelines, data streams) that are part of core es:
-                return super.parseNamedObject(categoryClass, name, parser, context);
-            } catch (Exception e) {
-                // ignore exception while parsing named objects and fall back to unknown named objects:
-            }
             // Currently, two unknown top-level objects are present
             if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
-                return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                if (DataStreamMetadata.TYPE.equals(name)) {
+                    // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
+                    // therefor even es node commands need to be able to parse it.
+                    return super.parseNamedObject(categoryClass, name, parser, context);
+                    // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
+                    // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
+                } else {
+                    return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                }
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
                 // The parsing for conditions is a bit weird as these represent JSON primitives (strings or numbers)

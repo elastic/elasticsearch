@@ -52,8 +52,6 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   azureSasToken = ''
   useFixture = true
 
-} else if (!azureAccount || !azureKey || !azureContainer || !azureBasePath || !azureSasToken) {
-  throw new IllegalArgumentException("not all options specified to run against external Azure service are present")
 }
 
 if (useFixture) {
@@ -78,8 +76,12 @@ testClusters.integTest {
   }
 
   keystore 'azure.client.searchable_snapshots.account', azureAccount
-  keystore 'azure.client.searchable_snapshots.key', azureKey
-  keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
+  if (azureKey != null && azureKey.isEmpty() == false) {
+    keystore 'azure.client.searchable_snapshots.key', azureKey
+  }
+  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+    keystore 'azure.client.searchable_snapshots.sas_token', azureSasToken
+  }
 
   setting 'xpack.license.self_generated.type', 'trial'
 

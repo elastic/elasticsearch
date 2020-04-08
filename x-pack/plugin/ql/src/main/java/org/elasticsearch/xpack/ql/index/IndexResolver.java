@@ -76,19 +76,14 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 public class IndexResolver {
 
     public enum IndexType {
-        STANDARD_INDEX("BASE TABLE", "INDEX"),
-        ALIAS("VIEW", "ALIAS"),
-        FROZEN_INDEX("BASE TABLE", "FROZEN INDEX"),
+        STANDARD_INDEX(SQL_TABLE, "INDEX"),
+        ALIAS(SQL_VIEW, "ALIAS"),
+        FROZEN_INDEX(SQL_TABLE, "FROZEN INDEX"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN", "UNKNOWN");
 
-        public static final String SQL_BASE_TABLE = "BASE TABLE";
-        public static final String SQL_TABLE = "TABLE";
-        public static final String SQL_VIEW = "VIEW";
-
         public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
         public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
-        public static final EnumSet<IndexType> INDICES_ONLY = EnumSet.of(STANDARD_INDEX, FROZEN_INDEX);
 
         private final String toSql;
         private final String toNative;
@@ -149,6 +144,9 @@ public class IndexResolver {
                     && Objects.equals(type, other.type);
         }
     }
+
+    public static final String SQL_TABLE = "TABLE";
+    public static final String SQL_VIEW = "VIEW";
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES, Option.IGNORE_THROTTLED),

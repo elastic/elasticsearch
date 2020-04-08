@@ -214,41 +214,41 @@ TODAY          |SCALAR
 showTables
 SHOW TABLES;
 
-       name    |     type   |  kind   
-logs           |BASE TABLE  |INDEX
-test_alias     |VIEW        |ALIAS
-test_alias_emp |VIEW        |ALIAS 
-test_emp       |BASE TABLE  |INDEX  
-test_emp_copy  |BASE TABLE  |INDEX  
+       name    |  type |  kind   
+logs           |TABLE  |INDEX
+test_alias     |VIEW   |ALIAS
+test_alias_emp |VIEW   |ALIAS 
+test_emp       |TABLE  |INDEX  
+test_emp_copy  |TABLE  |INDEX  
 ;
 
 showTablesSimpleLike
 SHOW TABLES LIKE 'test_emp';
 
- name:s        | type:s     | kind:s
-test_emp       |BASE TABLE  |INDEX
+ name:s        | type:s| kind:s
+test_emp       |TABLE  |INDEX
 ;
 
 showTablesMultiLike
 SHOW TABLES LIKE 'test_emp%';
 
- name:s        | type:s    |kind:s
-test_emp       |BASE TABLE |INDEX     
-test_emp_copy  |BASE TABLE |INDEX     
+ name:s        |type:s |kind:s
+test_emp       |TABLE  |INDEX     
+test_emp_copy  |TABLE  |INDEX     
 ;
 
 showTablesIdentifier
 SHOW TABLES "test_emp";
 
- name:s        | type:s     |kind:s
-test_emp       |BASE TABLE  |INDEX
+ name:s        |type:s |kind:s
+test_emp       |TABLE  |INDEX
 ;
 
 showTablesIdentifierPattern
 SHOW TABLES "test_e*,-test_emp";
 
- name:s        | type:s    |kind:s
-test_emp_copy  |BASE TABLE |INDEX
+ name:s        |type:s |kind:s
+test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesIdentifierPatternOnAliases

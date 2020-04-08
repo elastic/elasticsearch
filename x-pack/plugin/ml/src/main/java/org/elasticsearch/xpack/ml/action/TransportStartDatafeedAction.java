@@ -460,6 +460,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             stop(getReasonCancelled(), TimeValue.ZERO);
         }
 
+        @Override
+        public boolean shouldCancelChildrenOnCancellation() {
+            return false;
+        }
+
         public void stop(String reason, TimeValue timeout) {
             if (datafeedManager != null) {
                 datafeedManager.stopDatafeed(this, reason, timeout);

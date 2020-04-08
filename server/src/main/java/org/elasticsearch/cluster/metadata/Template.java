@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -171,7 +172,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
                 XContentHelper.convertToMap(new BytesArray(this.mappings.uncompressed()), true, XContentType.JSON).v2();
             if (uncompressedMapping.size() > 0) {
                 builder.field(MAPPINGS.getPreferredName());
-                builder.map(uncompressedMapping);
+                builder.map(reduceMapping(uncompressedMapping));
             }
         }
         if (this.aliases != null) {
@@ -183,5 +184,14 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         builder.endObject();
         return builder;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+        if (mapping.size() == 1 && MapperService.SINGLE_MAPPING_NAME.equals(mapping.keySet().iterator().next())) {
+            return (Map<String, Object>) mapping.values().iterator().next();
+        } else {
+            return mapping;
+        }
     }
 }

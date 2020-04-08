@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse> {
 
@@ -53,7 +54,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         }
 
         public Request(final AutoscalingPolicy policy) {
-            this.policy = policy;
+            this.policy = Objects.requireNonNull(policy);
         }
 
         public Request(final StreamInput in) throws IOException {
@@ -71,6 +72,19 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         public ActionRequestValidationException validate() {
             // TODO: validate that the policy deciders are non-empty
             return null;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Request request = (Request) o;
+            return policy.equals(request.policy);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policy);
         }
 
     }

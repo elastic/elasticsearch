@@ -57,8 +57,7 @@
               "type": "keyword"
             },
             "roles": {
-              "type": "object",
-              "dynamic": false
+              "type": "keyword"
             }
           }
         },

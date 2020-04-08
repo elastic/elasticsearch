@@ -476,6 +476,110 @@ null       | 430
 F          | 391
 ;
 
+selectDateTimeFormat
+schema::df_date:s|df_datetime:s|df_time:s
+SELECT DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.SSS') AS df_date,
+DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.SS') AS df_datetime,
+DATETIME_FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.SS') AS df_time;
+
+       df_date          |    df_datetime         |   df_time
+------------------------+------------------------+----------------
+05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
+;
+
+selectDateTimeFormatWithField
+schema::birth_date:ts|df_birth_date1:s|df_birth_date2:s
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date1, DATETIME_FORMAT(birth_date, concat(gender, 'M/dd')) AS df_birth_date2
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+
+       birth_date        | df_birth_date1 | df_birth_date2
+-------------------------+----------------+----------------
+1963-07-22 00:00:00.000Z | 07/22/1963     | 07/22
+1960-07-20 00:00:00.000Z | 07/20/1960     | 07/20
+1959-10-01 00:00:00.000Z | 10/01/1959     | 10/01
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+null                     | null           | null
+1958-05-21 00:00:00.000Z | 05/21/1958     | 05/21
+1953-07-28 00:00:00.000Z | 07/28/1953     | 07/28
+1961-02-26 00:00:00.000Z | 02/26/1961     | 02/26
+;
+
+dateTimeFormatWhere
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp
+WHERE DATETIME_FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1959-12-03 00:00:00.000Z | 12
+1953-11-07 00:00:00.000Z | 11
+1952-12-24 00:00:00.000Z | 12
+1963-11-26 00:00:00.000Z | 11
+1956-12-13 00:00:00.000Z | 12
+1956-11-14 00:00:00.000Z | 11
+1962-12-29 00:00:00.000Z | 12
+1961-11-02 00:00:00.000Z | 11
+1952-11-13 00:00:00.000Z | 11
+1962-11-26 00:00:00.000Z | 11
+;
+
+dateTimeFormatOrderBy
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATETIME_FORMAT(birth_date, 'MM/dd/YYYY') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+dateTimeFormatGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+dateTimeFormatHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING DATETIME_FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
+
+          max            | df_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
 selectDateTruncWithDateTime
 schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
 SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,

@@ -194,6 +194,10 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         if (gradle.startParameter.isOffline()) {
           args "--offline"
         }
+        String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
+        if (buildCacheUrl) {
+          args "-Dorg.elasticsearch.build.cache.url=${buildCacheUrl}"
+        }
 
         args "-Dbuild.snapshot=true"
         args "-Dscan.tag.NESTED"

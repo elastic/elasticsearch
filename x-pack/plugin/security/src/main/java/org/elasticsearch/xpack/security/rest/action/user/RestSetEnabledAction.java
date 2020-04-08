@@ -72,7 +72,7 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(SetEnabledResponse setEnabledResponse, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
+                    return new BytesRestResponse(RestStatus.OK, setEnabledResponse.toXContent(builder, request));
                 }
             });
     }

@@ -60,7 +60,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(), new ActionListener<Void>() {
             @Override
             public void onResponse(Void v) {
-                listener.onResponse(new SetEnabledResponse());
+                listener.onResponse(new SetEnabledResponse(request.enabled()));
             }
 
             @Override

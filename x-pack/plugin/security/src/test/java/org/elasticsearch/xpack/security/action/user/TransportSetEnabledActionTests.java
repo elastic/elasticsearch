@@ -35,6 +35,8 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -187,6 +189,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get(), instanceOf(SetEnabledResponse.class));
+        assertThat(responseRef.get().enabled(), equalTo(request.enabled()));
         assertThat(throwableRef.get(), is(nullValue()));
         verify(usersStore, times(1))
                 .setEnabled(eq(user.principal()), eq(request.enabled()), eq(request.getRefreshPolicy()), any(ActionListener.class));

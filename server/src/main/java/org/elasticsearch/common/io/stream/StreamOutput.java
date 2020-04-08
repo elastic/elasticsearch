@@ -68,6 +68,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -792,6 +793,21 @@ public abstract class StreamOutput extends OutputStream {
                         o.writeLong(zonedDateTime.toInstant().toEpochMilli());
                     }));
 
+    private static Class<?> getGenericType(Object value) {
+        if (value instanceof List) {
+            return List.class;
+        } else if (value instanceof Object[]) {
+            return Object[].class;
+        } else if (value instanceof Map) {
+            return Map.class;
+        } else if (value instanceof ReadableInstant) {
+            return ReadableInstant.class;
+        } else if (value instanceof BytesReference) {
+            return BytesReference.class;
+        } else {
+            return value.getClass();
+        }
+    }
     /**
      * Notice: when serialization a map, the stream out map with the stream in map maybe have the
      * different key-value orders, they will maybe have different stream order.
@@ -803,25 +819,44 @@ public abstract class StreamOutput extends OutputStream {
             writeByte((byte) -1);
             return;
         }
-        final Class type;
-        if (value instanceof List) {
-            type = List.class;
-        } else if (value instanceof Object[]) {
-            type = Object[].class;
-        } else if (value instanceof Map) {
-            type = Map.class;
-        } else if (value instanceof ReadableInstant) {
-            type = ReadableInstant.class;
-        } else if (value instanceof BytesReference) {
-            type = BytesReference.class;
-        } else {
-            type = value.getClass();
-        }
+        final Class<?> type = getGenericType(value);
         final Writer writer = WRITERS.get(type);
         if (writer != null) {
             writer.write(this, value);
         } else {
             throw new IOException("can not write type [" + type + "]");
+        }
+    }
+
+    public static void checkWriteable(@Nullable Object value) throws IllegalArgumentException {
+        if (value == null) {
+            return;
+        }
+        final Class<?> type = getGenericType(value);
+
+        if (type == List.class) {
+            @SuppressWarnings("unchecked") List<Object> list = (List<Object>) value;
+            for (Object v : list) {
+                checkWriteable(v);
+            }
+        } else if (value instanceof Object[]) {
+            Object[] array = (Object[]) value;
+            for (Object v : array) {
+                checkWriteable(v);
+            }
+        } else if (value instanceof Map) {
+            @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) value;
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                checkWriteable(entry.getKey());
+                checkWriteable(entry.getValue());
+            }
+        } else if (value instanceof Set) {
+            @SuppressWarnings("unchecked") Set<Object> set = (Set<Object>) value;
+            for (Object v : set) {
+                checkWriteable(v);
+            }
+        } else if (WRITERS.containsKey(type) == false) {
+            throw new IllegalArgumentException("Cannot write type [" + type + "] to stream");
         }
     }
 

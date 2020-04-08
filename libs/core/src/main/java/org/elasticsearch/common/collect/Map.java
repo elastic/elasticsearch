@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.collect;
 
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
 
@@ -146,6 +147,13 @@ public class Map {
             }
             return Collections.unmodifiableMap(map);
         }
+    }
+
+    /**
+     * Returns an unmodifiable Map.Entry for the provided key and value.
+     */
+    public static <K, V> java.util.Map.Entry<K, V> entry(K k, V v) {
+        return new AbstractMap.SimpleImmutableEntry<>(k, v);
     }
 
     /**

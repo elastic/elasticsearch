@@ -29,10 +29,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -166,50 +166,50 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
-        IndexMetaData.Builder builder = IndexMetaData.builder("idx")
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias").writeIndex(true).build());
-        MetaData metaData = MetaData.builder().put(builder).build();
+            .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
+        Metadata metadata = Metadata.builder().put(builder).build();
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+        boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // index name matches with ITMD:
-        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("name1")
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
-        metaData = MetaData.builder().put(templateBuilder).build();
+        metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
     }
 
     public void testResolveFinalPipeline() {
-        IndexMetaData.Builder builder = IndexMetaData.builder("idx")
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias").writeIndex(true).build());
-        MetaData metaData = MetaData.builder().put(builder).build();
+            .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
+        Metadata metadata = Metadata.builder().put(builder).build();
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+        boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -217,19 +217,19 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
 
         // index name matches with ITMD:
-        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("name1")
+        IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
-        metaData = MetaData.builder().put(templateBuilder).build();
+        metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -239,9 +239,9 @@ public class TransportBulkActionTests extends ESTestCase {
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
         // no pipeline:
         {
-            MetaData metaData = MetaData.builder().build();
+            Metadata metadata = Metadata.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx");
-            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
@@ -249,9 +249,9 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // request pipeline:
         {
-            MetaData metaData = MetaData.builder().build();
+            Metadata metadata = Metadata.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
@@ -259,13 +259,13 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // request pipeline with default pipeline:
         {
-            IndexMetaData.Builder builder = IndexMetaData.builder("idx")
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
                 .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            MetaData metaData = MetaData.builder().put(builder).build();
+            Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
@@ -273,13 +273,13 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // request pipeline with final pipeline:
         {
-            IndexMetaData.Builder builder = IndexMetaData.builder("idx")
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
                 .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            MetaData metaData = MetaData.builder().put(builder).build();
+            Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metadata);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));

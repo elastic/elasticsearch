@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,12 +92,12 @@ public class ExtendedBoundsTests extends ESTestCase {
 
     public void testParseAndValidate() {
         long now = randomLong();
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext qsc = new QueryShardContext(0,
-                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-                null, null, () -> now, null, null, () -> true);
+                null, null, () -> now, null, null, () -> true, null);
         DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
 

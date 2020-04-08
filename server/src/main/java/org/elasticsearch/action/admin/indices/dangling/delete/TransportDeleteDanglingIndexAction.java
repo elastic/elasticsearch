@@ -38,9 +38,9 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -159,9 +159,9 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
-        final MetaData metaData = currentState.getMetaData();
+        final Metadata metaData = currentState.getMetadata();
 
-        for (ObjectObjectCursor<String, IndexMetaData> each : metaData.indices()) {
+        for (ObjectObjectCursor<String, IndexMetadata> each : metaData.indices()) {
             if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
@@ -173,14 +173,14 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
             }
         }
 
-        MetaData.Builder metaDataBuilder = MetaData.builder(metaData);
+        Metadata.Builder metaDataBuilder = Metadata.builder(metaData);
 
         final IndexGraveyard newGraveyard = IndexGraveyard.builder(metaDataBuilder.indexGraveyard())
             .addTombstone(indexToDelete)
             .build(settings);
         metaDataBuilder.indexGraveyard(newGraveyard);
 
-        return ClusterState.builder(currentState).metaData(metaDataBuilder.build()).build();
+        return ClusterState.builder(currentState).metadata(metaDataBuilder.build()).build();
     }
 
     @Override

@@ -112,7 +112,7 @@ setup:
   - length: { aggregations.ip_terms.buckets: 0 }
 
   - do:
-      catch: request
+      catch: /Aggregation \[ip_terms\] cannot support regular expression style include\/exclude settings as they can only be applied to string fields\. Use an array of values for include\/exclude clauses/
       search:
         index: test_1
         body: { "size" : 0, "aggs" : { "ip_terms" : { "rare_terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
@@ -360,3 +360,64 @@ setup:
   - is_false: aggregations.str_terms.buckets.0.key_as_string
   - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
   - match: { aggregations.str_terms.buckets.0.max_n.value: 3.0 }
+
+---
+"avg_bucket":
+  - skip:
+      version: " - 7.7.99"
+      reason: Fixed in 7.8.0
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                str:
+                   type: keyword
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "foo", "v": 1}'
+          - '{"index": {}}'
+          - '{"str": "foo", "v": 2}'
+          - '{"index": {}}'
+          - '{"str": "foo", "v": 3}'
+          - '{"index": {}}'
+          - '{"str": "bar", "v": 4}'
+          - '{"index": {}}'
+          - '{"str": "bar", "v": 5}'
+          - '{"index": {}}'
+          - '{"str": "baz", "v": 6}'
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              rare_terms:
+                field: str
+                max_doc_count: 2
+              aggs:
+                v:
+                  sum:
+                    field: v
+            str_terms_avg_v:
+              avg_bucket:
+                buckets_path: str_terms.v
+
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: baz }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.v.value: 6 }
+  - match: { aggregations.str_terms.buckets.1.key: bar }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.1.v.value: 9 }
+  - match: { aggregations.str_terms_avg_v.value: 7.5 }

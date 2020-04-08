@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -31,11 +30,9 @@ import java.util.Objects;
 /**
  * Represents a decimal constant.
  */
-public final class EDecimal extends AExpression {
+public class EDecimal extends AExpression {
 
-    private final String value;
-
-    protected Object constant;
+    protected final String value;
 
     public EDecimal(Location location, String value) {
         super(location);
@@ -44,13 +41,13 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + value + "] not used"));
         }
+
+        Output output = new Output();
+        Object constant;
 
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
@@ -72,21 +69,13 @@ public final class EDecimal extends AExpression {
             }
         }
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(value);
+        return output;
     }
 }

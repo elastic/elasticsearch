@@ -27,13 +27,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,15 +45,18 @@ import java.io.IOException;
 public class TransportPutComponentTemplateAction
     extends TransportMasterNodeAction<PutComponentTemplateAction.Request, AcknowledgedResponse> {
 
-    private final MetaDataIndexTemplateService indexTemplateService;
+    private final MetadataIndexTemplateService indexTemplateService;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
     public TransportPutComponentTemplateAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
+                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                               IndexScopedSettings indexScopedSettings) {
         super(PutComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PutComponentTemplateAction.Request::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
@@ -78,8 +82,10 @@ public class TransportPutComponentTemplateAction
         Template template = componentTemplate.template();
         // Normalize the index settings if necessary
         if (template.settings() != null) {
-            Settings.Builder settings = Settings.builder().put(template.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
-            template = new Template(settings.build(), template.mappings(), template.aliases());
+            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+            Settings settings = builder.build();
+            indexScopedSettings.validate(settings, true);
+            template = new Template(settings, template.mappings(), template.aliases());
             componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
         }
         indexTemplateService.putComponentTemplate(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *         http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,7 +19,6 @@
 
 package org.elasticsearch.kibana;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -35,7 +34,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
@@ -54,7 +52,6 @@ import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
@@ -63,50 +60,59 @@ import java.util.stream.Collectors;
 
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
-    public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting("kibana.system_indices",
-        List.of(".kibana*", ".reporting"), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
+        "kibana.system_indices",
+        List.of(".kibana*", ".reporting"),
+        Function.identity(),
+        Property.NodeScope
+    );
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return KIBANA_INDEX_NAMES_SETTING.get(settings).stream()
+        return KIBANA_INDEX_NAMES_SETTING.get(settings)
+            .stream()
             .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by kibana"))
             .collect(Collectors.toUnmodifiableList());
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         // TODO need to figure out what subset of system indices Kibana should have access to via these APIs
-        final List<String> allowedIndexPatterns = List.of();
         return List.of(
             // Based on https://github.com/elastic/kibana/issues/49764
             // apis needed to perform migrations... ideally these will go away
-            new KibanaWrappedRestHandler(new RestCreateIndexAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestGetAliasesAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestIndexPutAliasAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestRefreshAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestCreateIndexAction()),
+            new KibanaWrappedRestHandler(new RestGetAliasesAction()),
+            new KibanaWrappedRestHandler(new RestIndexPutAliasAction()),
+            new KibanaWrappedRestHandler(new RestRefreshAction()),
 
             // apis needed to access saved objects
-            new KibanaWrappedRestHandler(new RestGetAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestMultiGetAction(settings), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestSearchAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestBulkAction(settings), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestDeleteAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestDeleteByQueryAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestGetAction()),
+            new KibanaWrappedRestHandler(new RestMultiGetAction(settings)),
+            new KibanaWrappedRestHandler(new RestSearchAction()),
+            new KibanaWrappedRestHandler(new RestBulkAction(settings)),
+            new KibanaWrappedRestHandler(new RestDeleteAction()),
+            new KibanaWrappedRestHandler(new RestDeleteByQueryAction()),
 
             // api used for testing
-            new KibanaWrappedRestHandler(new RestUpdateSettingsAction(), allowedIndexPatterns),
+            new KibanaWrappedRestHandler(new RestUpdateSettingsAction()),
 
             // apis used specifically by reporting
-            new KibanaWrappedRestHandler(new RestGetIndicesAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestIndexAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new CreateHandler(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new AutoIdHandler(nodesInCluster), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestUpdateAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestSearchScrollAction(), allowedIndexPatterns),
-            new KibanaWrappedRestHandler(new RestClearScrollAction(), allowedIndexPatterns)
+            new KibanaWrappedRestHandler(new RestGetIndicesAction()),
+            new KibanaWrappedRestHandler(new RestIndexAction()),
+            new KibanaWrappedRestHandler(new CreateHandler()),
+            new KibanaWrappedRestHandler(new AutoIdHandler(nodesInCluster)),
+            new KibanaWrappedRestHandler(new RestUpdateAction()),
+            new KibanaWrappedRestHandler(new RestSearchScrollAction()),
+            new KibanaWrappedRestHandler(new RestClearScrollAction())
         );
 
     }
@@ -118,11 +124,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     static class KibanaWrappedRestHandler extends BaseRestHandler.Wrapper {
 
-        private final List<String> allowedIndexPatterns;
-
-        KibanaWrappedRestHandler(BaseRestHandler delegate, List<String> allowedIndexPatterns) {
+        KibanaWrappedRestHandler(BaseRestHandler delegate) {
             super(delegate);
-            this.allowedIndexPatterns = allowedIndexPatterns;
         }
 
         @Override
@@ -132,14 +135,9 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
         @Override
         public List<Route> routes() {
-            return super.routes().stream().map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))
+            return super.routes().stream()
+                .map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))
                 .collect(Collectors.toUnmodifiableList());
-        }
-
-        @Override
-        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            client.threadPool().getThreadContext().allowSystemIndexAccess(allowedIndexPatterns);
-            return super.prepareRequest(request, client);
         }
     }
 }

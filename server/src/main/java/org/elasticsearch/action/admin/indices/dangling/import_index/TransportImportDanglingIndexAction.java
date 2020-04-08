@@ -31,7 +31,7 @@ import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingInde
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
@@ -74,7 +74,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
     ) {
         findDanglingIndex(importRequest, new ActionListener<>() {
             @Override
-            public void onResponse(IndexMetaData indexMetaDataToImport) {
+            public void onResponse(IndexMetadata indexMetaDataToImport) {
                 // This flag is checked at this point so that we always check that the supplied index UUID
                 // does correspond to a dangling index.
                 if (importRequest.isAcceptDataLoss() == false) {
@@ -107,7 +107,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
         });
     }
 
-    private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetaData> listener) {
+    private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
 
         this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID), new ActionListener<>() {
@@ -126,11 +126,11 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                     return;
                 }
 
-                final List<IndexMetaData> metaDataSortedByVersion = new ArrayList<>();
+                final List<IndexMetadata> metaDataSortedByVersion = new ArrayList<>();
                 for (NodeFindDanglingIndexResponse each : response.getNodes()) {
                     metaDataSortedByVersion.addAll(each.getDanglingIndexInfo());
                 }
-                metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetaData::getVersion));
+                metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetadata::getVersion));
 
                 if (metaDataSortedByVersion.isEmpty()) {
                     listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
@@ -139,7 +139,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
                 logger.debug(
                     "Metadata versions {} found for index UUID [{}], selecting the highest",
-                    CollectionUtils.map(metaDataSortedByVersion, IndexMetaData::getVersion),
+                    CollectionUtils.map(metaDataSortedByVersion, IndexMetadata::getVersion),
                     indexUUID
                 );
 

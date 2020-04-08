@@ -23,6 +23,7 @@ import org.elasticsearch.client.ml.NodeAttributesTests;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStatsNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.stats.classification.ClassificationStatsTests;
+import org.elasticsearch.client.ml.dataframe.stats.common.DataCountsTests;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.client.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.client.ml.dataframe.stats.regression.RegressionStatsTests;
@@ -68,6 +69,7 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
             randomFrom(DataFrameAnalyticsState.values()),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : createRandomProgress(),
+            randomBoolean() ? null : DataCountsTests.createRandom(),
             randomBoolean() ? null : MemoryUsageTests.createRandom(),
             analysisStats,
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
@@ -92,6 +94,9 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
         }
         if (stats.getProgress() != null) {
             builder.field(DataFrameAnalyticsStats.PROGRESS.getPreferredName(), stats.getProgress());
+        }
+        if (stats.getDataCounts() != null) {
+            builder.field(DataFrameAnalyticsStats.DATA_COUNTS.getPreferredName(), stats.getDataCounts());
         }
         if (stats.getMemoryUsage() != null) {
             builder.field(DataFrameAnalyticsStats.MEMORY_USAGE.getPreferredName(), stats.getMemoryUsage());

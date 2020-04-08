@@ -19,7 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -153,13 +153,13 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
 
     private IndexSettings createIndexSettings() {
         Settings settings = Settings.EMPTY;
-        IndexMetaData indexMetaData = IndexMetaData.builder("_name")
-                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder("_name")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
                 .build();
-        return new IndexSettings(indexMetaData, settings);
+        return new IndexSettings(indexMetadata, settings);
     }
 
     private static class DummyAccountingFieldDataCache implements IndexFieldDataCache {

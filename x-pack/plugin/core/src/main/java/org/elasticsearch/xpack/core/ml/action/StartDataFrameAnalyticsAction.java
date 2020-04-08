@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -271,7 +271,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
 
         static boolean match(Task task, String expectedId) {
             if (task instanceof TaskMatcher) {
-                if (MetaData.ALL.equals(expectedId)) {
+                if (Metadata.ALL.equals(expectedId)) {
                     return true;
                 }
                 String expectedDescription = MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + expectedId;

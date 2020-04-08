@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.dangling.find;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -95,9 +95,9 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
         final DiscoveryNode localNode = transportService.getLocalNode();
         final String indexUUID = request.getIndexUUID();
 
-        final List<IndexMetaData> danglingIndexInfo = new ArrayList<>();
+        final List<IndexMetadata> danglingIndexInfo = new ArrayList<>();
 
-        for (IndexMetaData each : danglingIndicesState.getDanglingIndices().values()) {
+        for (IndexMetadata each : danglingIndicesState.getDanglingIndices().values()) {
             if (each.getIndexUUID().equals(indexUUID)) {
                 danglingIndexInfo.add(each);
             }

@@ -26,6 +26,8 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
     private int dependentVariableIndex;
     private String dependentVariable;
     private long randomizeSeed;
+    private long trainingDocsCount;
+    private long testDocsCount;
 
     @Before
     public void setUpTests() {
@@ -40,47 +42,48 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testProcess_GivenRowsWithoutDependentVariableValue() {
-        CrossValidationSplitter crossValidationSplitter = new RandomCrossValidationSplitter(fields, dependentVariable, 50.0, randomizeSeed);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(50.0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
             for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
-                String value = fieldIndex == dependentVariableIndex ? "" : randomAlphaOfLength(10);
+                String value = fieldIndex == dependentVariableIndex ? DataFrameDataExtractor.NULL_VALUE : randomAlphaOfLength(10);
                 row[fieldIndex] = value;
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            crossValidationSplitter.process(processedRow);
+            crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
 
             // As all these rows have no dependent variable value, they're not for training and should be unaffected
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
+        assertThat(trainingDocsCount, equalTo(0L));
+        assertThat(testDocsCount, equalTo(100L));
     }
 
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CrossValidationSplitter crossValidationSplitter = new RandomCrossValidationSplitter(
-            fields, dependentVariable, 100.0, randomizeSeed);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(100.0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
             for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
-                String value = fieldIndex == dependentVariableIndex ? "" : randomAlphaOfLength(10);
-                row[fieldIndex] = value;
+                row[fieldIndex] = randomAlphaOfLength(10);
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            crossValidationSplitter.process(processedRow);
+            crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
 
             // We should pick them all as training percent is 100
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
+        assertThat(trainingDocsCount, equalTo(100L));
+        assertThat(testDocsCount, equalTo(0L));
     }
 
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
         double trainingPercent = randomDoubleBetween(1.0, 100.0, true);
         double trainingFraction = trainingPercent / 100;
-        CrossValidationSplitter crossValidationSplitter = new RandomCrossValidationSplitter(
-            fields, dependentVariable, trainingPercent, randomizeSeed);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(trainingPercent);
 
         int runCount = 20;
         int rowsCount = 1000;
@@ -94,7 +97,7 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
                 }
 
                 String[] processedRow = Arrays.copyOf(row, row.length);
-                crossValidationSplitter.process(processedRow);
+                crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
 
                 for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
                     if (fieldIndex != dependentVariableIndex) {
@@ -126,8 +129,7 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testProcess_ShouldHaveAtLeastOneTrainingRow() {
-        CrossValidationSplitter crossValidationSplitter = new RandomCrossValidationSplitter(
-            fields, dependentVariable, 1.0, randomizeSeed);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(1.0);
 
         // We have some non-training rows and then a training row to check
         // we maintain the first training row and not just the first row
@@ -135,16 +137,30 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
             String[] row = new String[fields.size()];
             for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
                 if (i < 9 && fieldIndex == dependentVariableIndex) {
-                    row[fieldIndex] = "";
+                    row[fieldIndex] = DataFrameDataExtractor.NULL_VALUE;
                 } else {
                     row[fieldIndex] = randomAlphaOfLength(10);
                 }
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            crossValidationSplitter.process(processedRow);
+            crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
 
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
+        assertThat(trainingDocsCount, equalTo(1L));
+        assertThat(testDocsCount, equalTo(9L));
+    }
+
+    private RandomCrossValidationSplitter createSplitter(double trainingPercent) {
+        return new RandomCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed);
+    }
+
+    private void incrementTrainingDocsCount() {
+        trainingDocsCount++;
+    }
+
+    private void incrementTestDocsCount() {
+        testDocsCount++;
     }
 }

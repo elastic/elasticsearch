@@ -177,8 +177,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         }
         builder.field("is_partial", isPartial);
         builder.field("is_running", isRunning);
-        builder.field("start_time_in_millis", startTimeMillis);
-        builder.field("expiration_time_in_millis", expirationTimeMillis);
+        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
 
         if (searchResponse != null) {
             builder.field("response");

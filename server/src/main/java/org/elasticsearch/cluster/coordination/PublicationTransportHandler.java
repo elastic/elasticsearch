@@ -321,8 +321,8 @@ public class PublicationTransportHandler {
 
     public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        bStream.setVersion(nodeVersion);
         try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
             stream.writeBoolean(true);
             clusterState.writeTo(stream);
         }
@@ -331,8 +331,8 @@ public class PublicationTransportHandler {
 
     public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        bStream.setVersion(nodeVersion);
         try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
             stream.writeBoolean(false);
             diff.writeTo(stream);
         }
@@ -342,12 +342,12 @@ public class PublicationTransportHandler {
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
-        in.setVersion(request.version());
         try {
             if (compressor != null) {
                 in = compressor.streamInput(in);
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+            in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 final ClusterState incomingState;

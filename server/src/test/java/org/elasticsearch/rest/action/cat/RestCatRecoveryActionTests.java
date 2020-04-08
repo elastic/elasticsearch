@@ -27,20 +27,16 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -54,11 +50,7 @@ import static org.mockito.Mockito.mock;
 public class RestCatRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
-        final Settings settings = Settings.EMPTY;
-        UsageService usageService = new UsageService();
-        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService, randomBoolean());
         final RestCatRecoveryAction action = new RestCatRecoveryAction();
-        restController.registerHandler(action);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;

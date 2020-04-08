@@ -761,6 +761,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createRepoAndIndex(repoName, index, shards),
             createIndexResponse -> client().admin().cluster().state(new ClusterStateRequest(), clusterStateResponseStepListener));
 
+        final StepListener<CreateSnapshotResponse> snapshotStartedListener = new StepListener<>();
+
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
             final ShardRouting shardToRelocate = clusterStateResponse.getState().routingTable().allShards(index).get(0);
             final TestClusterNodes.TestClusterNode currentPrimaryNode = testClusterNodes.nodeById(shardToRelocate.currentNodeId());
@@ -778,23 +780,25 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             if (masterNodeCount > 1) {
                                 scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                             }
-                            testClusterNodes.randomDataNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(ActionListener.wrap(() -> {
-                                    createdSnapshot.set(true);
-                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster()
-                                        .prepareDeleteSnapshot(repoName, snapshotName).execute(
-                                            ActionListener.wrap(() -> deletedSnapshot.set(true)));
-                                }));
+                            testClusterNodes.randomMasterNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                .execute(snapshotStartedListener);
                             scheduleNow(
-                                () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster().reroute(
+                                () -> testClusterNodes.randomDataNodeSafe().client.admin().cluster().reroute(
                                     new ClusterRerouteRequest().add(new AllocateEmptyPrimaryAllocationCommand(
-                                        index, shardRouting.shardId().id(), otherNode.node.getName(), true)), noopListener()));
+                                        index, shardRouting.shardId().id(), otherNode.node.getName(), true)),
+                                    ActionListener.wrap(() -> deletedSnapshot.set(true))));
                         } else {
                             scheduleSoon(this);
                         }
                     });
                 }
             });
+        });
+
+        continueOrDie(snapshotStartedListener, snapshotResponse -> {
+            createdSnapshot.set(true);
+            testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
+                new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
@@ -1520,9 +1524,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
                 masterService.start();
-                clusterService.getClusterApplierService().setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
+                final NodeConnectionsService nodeConnectionsService =
+                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
+                clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 clusterService.getClusterApplierService().start();
+                nodeConnectionsService.start();
                 indicesService.start();
                 indicesClusterStateService.start();
                 coordinator.startInitialJoin();

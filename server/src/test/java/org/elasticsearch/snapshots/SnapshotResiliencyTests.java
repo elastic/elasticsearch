@@ -267,7 +267,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final AtomicBoolean cleanedUp = new AtomicBoolean(false);
             continueOrDie(cleanupResponse, r -> cleanedUp.set(true));
 
-            runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(5L));
+            runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(1L));
 
             if (blobStoreContext != null) {
                 blobStoreContext.forceConsistent();
@@ -1193,6 +1193,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ClusterService clusterService;
 
+            private final NodeConnectionsService nodeConnectionsService;
+
             private final RepositoriesService repositoriesService;
 
             private final SnapshotsService snapshotsService;
@@ -1344,6 +1346,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new BatchedRerouteService(clusterService, allocationService::reroute),
                     threadPool
                 );
+                nodeConnectionsService =
+                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 @SuppressWarnings("rawtypes")
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 actions.put(GlobalCheckpointSyncAction.TYPE,
@@ -1521,10 +1525,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
-                masterService.start();
-                clusterService.getClusterApplierService().setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
-                clusterService.getClusterApplierService().start();
+                clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
+                nodeConnectionsService.start();
+                clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();
                 coordinator.startInitialJoin();

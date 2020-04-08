@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -50,9 +49,9 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
 
     StringRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes valuesSource,
                                      DocValueFormat format,  IncludeExclude.StringFilter stringFilter,
-                                     SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                     SearchContext context, Aggregator parent,
                                      Map<String, Object> metadata, long maxDocCount, double precision) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metadata, maxDocCount, precision, format, valuesSource, stringFilter);
+        super(name, factories, context, parent, metadata, maxDocCount, precision, format, valuesSource, stringFilter);
         this.bucketOrds = new BytesRefHash(1, context.bigArrays());
     }
 
@@ -156,12 +155,12 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
         }
 
         CollectionUtil.introSort(buckets, ORDER.comparator());
-        return new StringRareTerms(name, ORDER, pipelineAggregators(), metadata(), format, buckets, maxDocCount, filter);
+        return new StringRareTerms(name, ORDER, metadata(), format, buckets, maxDocCount, filter);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, pipelineAggregators(), metadata(), format, emptyList(), 0, filter);
+        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, metadata(), format, emptyList(), 0, filter);
     }
 
     @Override

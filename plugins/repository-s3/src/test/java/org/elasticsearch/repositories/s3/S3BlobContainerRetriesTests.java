@@ -324,6 +324,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         assertThat(exception.getSuppressed().length, equalTo(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54981")
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);

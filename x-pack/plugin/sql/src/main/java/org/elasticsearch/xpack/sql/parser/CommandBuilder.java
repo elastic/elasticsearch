@@ -9,6 +9,7 @@ import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -153,10 +154,10 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments
                 } else {
                     switch (value.toUpperCase(Locale.ROOT)) {
-                        case IndexType.SQL_TABLE:
+                        case IndexResolver.SQL_TABLE:
                             types.add(IndexType.STANDARD_INDEX);
                             break;
-                        case IndexType.SQL_VIEW:
+                        case IndexResolver.SQL_VIEW:
                             types.add(IndexType.ALIAS);
                             break;
                         default:

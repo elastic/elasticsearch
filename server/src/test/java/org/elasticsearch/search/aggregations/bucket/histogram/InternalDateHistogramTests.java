@@ -26,7 +26,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.ZonedDateTime;
@@ -80,7 +79,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
 
     @Override
     protected InternalDateHistogram createTestInstance(String name,
-                                                       List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metadata,
                                                        InternalAggregations aggregations) {
         int nbBuckets = randomNumberOfBuckets();
@@ -95,8 +93,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
-        return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed,
-            pipelineAggregators, metadata);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
@@ -162,7 +159,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         BucketOrder order = instance.getOrder();
         long minDocCount = instance.getMinDocCount();
         long offset = instance.getOffset();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
@@ -195,7 +191,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, pipelineAggregators,
-                metadata);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -32,14 +31,13 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
 
     @Override
     protected InternalTDigestPercentiles createTestInstance(String name,
-                                                            List<PipelineAggregator> pipelineAggregators,
                                                             Map<String, Object> metadata,
                                                             boolean keyed, DocValueFormat format, double[] percents, double[] values) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
         assertEquals(state.centroidCount(), values.length);
-        return new InternalTDigestPercentiles(name, percents, state, keyed, format, pipelineAggregators, metadata);
+        return new InternalTDigestPercentiles(name, percents, state, keyed, format, metadata);
     }
 
     @Override
@@ -77,7 +75,6 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         TDigestState state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
         case 0:
@@ -110,6 +107,6 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
+        return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, metadata);
     }
 }

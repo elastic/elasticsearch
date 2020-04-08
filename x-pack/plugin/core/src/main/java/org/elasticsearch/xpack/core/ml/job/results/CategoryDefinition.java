@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +37,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
     public static final ParseField EXAMPLES = new ParseField("examples");
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
+    public static final ParseField NUM_MATCHES = new ParseField("num_matches");
+    public static final ParseField PREFERRED_TO_CATEGORIES = new ParseField("preferred_to_categories");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
@@ -53,7 +57,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         parser.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
         parser.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
         parser.declareString(CategoryDefinition::setGrokPattern, GROK_PATTERN);
-
+        parser.declareLongArray(CategoryDefinition::setPreferredToCategories, PREFERRED_TO_CATEGORIES);
+        parser.declareLong(CategoryDefinition::setNumMatches, NUM_MATCHES);
         return parser;
     }
 
@@ -64,6 +69,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     private long maxMatchingLength = 0L;
     private final Set<String> examples;
     private String grokPattern;
+    private long[] preferredToCategories = new long[0];
+    private long numMatches = 0L;
 
     public CategoryDefinition(String jobId) {
         this.jobId = jobId;
@@ -78,6 +85,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         maxMatchingLength = in.readLong();
         examples = new TreeSet<>(in.readStringList());
         grokPattern = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            this.preferredToCategories = in.readVLongArray();
+            this.numMatches = in.readVLong();
+        }
     }
 
     @Override
@@ -89,6 +100,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         out.writeLong(maxMatchingLength);
         out.writeStringCollection(examples);
         out.writeOptionalString(grokPattern);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeVLongArray(preferredToCategories);
+            out.writeVLong(numMatches);
+        }
     }
 
     public String getJobId() {
@@ -152,6 +167,34 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         this.grokPattern = grokPattern;
     }
 
+    public long[] getPreferredToCategories() {
+        return preferredToCategories;
+    }
+
+    public void setPreferredToCategories(long[] preferredToCategories) {
+        for (long category : preferredToCategories) {
+            if (category < 0) {
+                throw new IllegalArgumentException("[preferred_to_category] entries must be non-negative");
+            }
+        }
+        this.preferredToCategories = preferredToCategories;
+    }
+
+    private void setPreferredToCategories(List<Long> preferredToCategories) {
+        setPreferredToCategories(preferredToCategories.stream().mapToLong(Long::longValue).toArray());
+    }
+
+    public long getNumMatches() {
+        return numMatches;
+    }
+
+    public void setNumMatches(long numMatches) {
+        if (numMatches < 0) {
+            throw new IllegalArgumentException("[num_matches] must be non-negative");
+        }
+        this.numMatches = numMatches;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -163,6 +206,12 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         builder.field(EXAMPLES.getPreferredName(), examples);
         if (grokPattern != null) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
+        }
+        if (preferredToCategories.length > 0) {
+            builder.field(PREFERRED_TO_CATEGORIES.getPreferredName(), preferredToCategories);
+        }
+        if (numMatches > 0) {
+            builder.field(NUM_MATCHES.getPreferredName(), numMatches);
         }
         builder.endObject();
         return builder;
@@ -183,11 +232,21 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
                 && Objects.equals(this.regex, that.regex)
                 && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
                 && Objects.equals(this.examples, that.examples)
-                && Objects.equals(this.grokPattern, that.grokPattern);
+                && Objects.equals(this.grokPattern, that.grokPattern)
+                && Arrays.equals(this.preferredToCategories, that.preferredToCategories)
+                && Objects.equals(this.numMatches, that.numMatches);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples, grokPattern);
+        return Objects.hash(jobId,
+            categoryId,
+            terms,
+            regex,
+            maxMatchingLength,
+            examples,
+            grokPattern,
+            Arrays.hashCode(preferredToCategories),
+            numMatches);
     }
 }

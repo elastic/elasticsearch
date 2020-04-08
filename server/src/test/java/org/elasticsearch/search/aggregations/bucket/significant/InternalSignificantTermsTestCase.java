@@ -20,14 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -49,7 +48,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
 
     @Override
     protected final InternalSignificantTerms createTestInstance(String name,
-                                                          List<PipelineAggregator> pipelineAggregators,
                                                           Map<String, Object> metadata,
                                                           InternalAggregations aggregations) {
         final int requiredSize = randomIntBetween(1, 5);
@@ -71,12 +69,11 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             subsetSize += subsetDf;
             supersetSize += supersetDf;
         }
-        return createTestInstance(name, pipelineAggregators, metadata, aggregations, requiredSize, numBuckets, subsetSize, subsetDfs,
+        return createTestInstance(name, metadata, aggregations, requiredSize, numBuckets, subsetSize, subsetDfs,
                 supersetSize, supersetDfs, significanceHeuristic);
     }
 
     protected abstract InternalSignificantTerms createTestInstance(String name,
-                                                                   List<PipelineAggregator> pipelineAggregators,
                                                                    Map<String, Object> metadata,
                                                                    InternalAggregations aggregations,
                                                                    int requiredSize, int numBuckets,
@@ -86,10 +83,9 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
 
     @Override
     protected InternalSignificantTerms createUnmappedInstance(String name,
-                                                              List<PipelineAggregator> pipelineAggregators,
                                                               Map<String, Object> metadata) {
-        InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, pipelineAggregators, metadata);
-        return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, pipelineAggregators, metadata);
+        InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metadata);
+        return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metadata);
     }
 
     @Override

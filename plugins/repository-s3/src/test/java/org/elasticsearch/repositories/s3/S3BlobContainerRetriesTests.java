@@ -32,6 +32,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -58,6 +59,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -70,16 +72,21 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SET
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
 public class S3BlobContainerRetriesTests extends ESTestCase {
+
+    private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 
     private HttpServer httpServer;
     private S3Service service;
@@ -139,8 +146,19 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
-        final Exception exception = expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob("read_nonexistent_blob"));
+        final long position = randomLongBetween(0, MAX_RANGE_VAL);
+        final int length = randomIntBetween(0, Math.toIntExact(Math.min(Integer.MAX_VALUE, MAX_RANGE_VAL - position)));
+        final Exception exception = expectThrows(NoSuchFileException.class,
+            () -> {
+                if (randomBoolean()) {
+                    blobContainer.readBlob("read_nonexistent_blob");
+                } else {
+                    blobContainer.readBlob("read_nonexistent_blob", 0, 1);
+                }
+            });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
+        assertThat(expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob("read_nonexistent_blob", position, length))
+            .getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
     }
 
     public void testReadBlobWithRetries() throws Exception {
@@ -153,6 +171,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
                 assertThat(rangeStart, lessThan(bytes.length));
+                assertEquals(Optional.empty(), getRangeEnd(exchange));
                 exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
                 exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
                 exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
@@ -173,8 +192,85 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
-            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
-            assertThat(countDown.isCountedDown(), is(true));
+            final int readLimit;
+            final InputStream wrappedStream;
+            if (randomBoolean()) {
+                // read stream only partly
+                readLimit = randomIntBetween(0, bytes.length);
+                wrappedStream = Streams.limitStream(inputStream, readLimit);
+            } else {
+                readLimit = bytes.length;
+                wrappedStream = inputStream;
+            }
+            final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(wrappedStream));
+            logger.info("maxRetries={}, readLimit={}, byteSize={}, bytesRead={}",
+                maxRetries, readLimit, bytes.length, bytesRead.length);
+            assertArrayEquals(Arrays.copyOfRange(bytes, 0, readLimit), bytesRead);
+            if (readLimit < bytes.length) {
+                // we might have completed things based on an incomplete response, and we're happy with that
+            } else {
+                assertTrue(countDown.isCountedDown());
+            }
+        }
+    }
+
+    public void testReadRangeBlobWithRetries() throws Exception {
+        final int maxRetries = randomInt(5);
+        final CountDown countDown = new CountDown(maxRetries + 1);
+
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext("/bucket/read_range_blob_max_retries", exchange -> {
+            Streams.readFully(exchange.getRequestBody());
+            if (countDown.countDown()) {
+                final int rangeStart = getRangeStart(exchange);
+                assertThat(rangeStart, lessThan(bytes.length));
+                assertTrue(getRangeEnd(exchange).isPresent());
+                final int rangeEnd = getRangeEnd(exchange).get();
+                assertThat(rangeEnd, greaterThanOrEqualTo(rangeStart));
+                // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+                final int effectiveRangeEnd = Math.min(bytes.length - 1, rangeEnd);
+                final int length = (effectiveRangeEnd - rangeStart) + 1;
+                exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
+                exchange.getResponseBody().write(bytes, rangeStart, length);
+                exchange.close();
+                return;
+            }
+            if (randomBoolean()) {
+                exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
+                    HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+            } else if (randomBoolean()) {
+                sendIncompleteContent(exchange, bytes);
+            }
+            if (randomBoolean()) {
+                exchange.close();
+            }
+        });
+
+        final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 500));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
+        final int position = randomIntBetween(0, bytes.length - 1);
+        final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        try (InputStream inputStream = blobContainer.readBlob("read_range_blob_max_retries", position, length)) {
+            final int readLimit;
+            final InputStream wrappedStream;
+            if (randomBoolean()) {
+                // read stream only partly
+                readLimit = randomIntBetween(0, length);
+                wrappedStream = Streams.limitStream(inputStream, readLimit);
+            } else {
+                readLimit = length;
+                wrappedStream = inputStream;
+            }
+            final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(wrappedStream));
+            logger.info("maxRetries={}, position={}, length={}, readLimit={}, byteSize={}, bytesRead={}",
+                maxRetries, position, length, readLimit, bytes.length, bytesRead.length);
+            assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + readLimit)), bytesRead);
+            if (readLimit == 0 || (readLimit < length && readLimit == bytesRead.length)) {
+                // we might have completed things based on an incomplete response, and we're happy with that
+            } else {
+                assertTrue(countDown.isCountedDown());
+            }
         }
     }
 
@@ -194,12 +290,18 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/bucket/read_blob_incomplete", exchange -> sendIncompleteContent(exchange, bytes));
 
-        exception = expectThrows(SocketTimeoutException.class, () -> {
-            try (InputStream stream = blobContainer.readBlob("read_blob_incomplete")) {
+        final int position = randomIntBetween(0, bytes.length - 1);
+        final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        exception = expectThrows(IOException.class, () -> {
+            try (InputStream stream = randomBoolean() ?
+                    blobContainer.readBlob("read_blob_incomplete") :
+                    blobContainer.readBlob("read_blob_incomplete", position, length)) {
                 Streams.readFully(stream);
             }
         });
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+        assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class)));
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
+            containsString("premature end of chunk coded message body: closing chunk expected")));
         assertThat(exception.getSuppressed().length, equalTo(maxRetries));
     }
 
@@ -209,7 +311,14 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         // HTTP server closes connection immediately
         httpServer.createContext("/bucket/read_blob_no_response", HttpExchange::close);
 
-        Exception exception = expectThrows(SdkClientException.class, () -> blobContainer.readBlob("read_blob_no_response"));
+        Exception exception = expectThrows(SdkClientException.class,
+            () -> {
+                if (randomBoolean()) {
+                    blobContainer.readBlob("read_blob_no_response");
+                } else {
+                    blobContainer.readBlob("read_blob_no_response", 0, 1);
+                }
+            });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("the target server failed to respond"));
         assertThat(exception.getCause(), instanceOf(NoHttpResponseException.class));
         assertThat(exception.getSuppressed().length, equalTo(0));
@@ -227,12 +336,15 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         });
 
         final Exception exception = expectThrows(ConnectionClosedException.class, () -> {
-            try (InputStream stream = blobContainer.readBlob("read_blob_incomplete")) {
+            try (InputStream stream = randomBoolean() ?
+                    blobContainer.readBlob("read_blob_incomplete", 0, 1):
+                    blobContainer.readBlob("read_blob_incomplete")) {
                 Streams.readFully(stream);
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
-            containsString("premature end of content-length delimited message body"));
+            either(containsString("premature end of chunk coded message body: closing chunk expected"))
+                .or(containsString("premature end of content-length delimited message body")));
         assertThat(exception.getSuppressed().length, equalTo(Math.min(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS, maxRetries)));
     }
 
@@ -397,25 +509,49 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         return randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
     }
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-9223372036854775806$");
+    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
 
-    private static int getRangeStart(HttpExchange exchange) {
+    private static Tuple<Long, Long> getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
-            return 0;
+            return Tuple.tuple(0L, MAX_RANGE_VAL);
         }
 
         final Matcher matcher = RANGE_PATTERN.matcher(rangeHeader);
         assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
-        return Math.toIntExact(Long.parseLong(matcher.group(1)));
+        long rangeStart = Long.parseLong(matcher.group(1));
+        long rangeEnd = Long.parseLong(matcher.group(2));
+        assertThat(rangeStart, lessThanOrEqualTo(rangeEnd));
+        return Tuple.tuple(rangeStart, rangeEnd);
+    }
+
+    private static int getRangeStart(HttpExchange exchange) {
+        return Math.toIntExact(getRange(exchange).v1());
+    }
+
+    private static Optional<Integer> getRangeEnd(HttpExchange exchange) {
+        final long rangeEnd = getRange(exchange).v2();
+        if (rangeEnd == MAX_RANGE_VAL) {
+            return Optional.empty();
+        }
+        return Optional.of(Math.toIntExact(rangeEnd));
     }
 
     private static void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
         final int rangeStart = getRangeStart(exchange);
         assertThat(rangeStart, lessThan(bytes.length));
+        final Optional<Integer> rangeEnd = getRangeEnd(exchange);
+        final int length;
+        if (rangeEnd.isPresent()) {
+            // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+            final int effectiveRangeEnd = Math.min(rangeEnd.get(), bytes.length - 1);
+            length = effectiveRangeEnd - rangeStart;
+        } else {
+            length = bytes.length - rangeStart - 1;
+        }
         exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
-        exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
-        final int bytesToSend = randomIntBetween(0, bytes.length - rangeStart - 1);
+        exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
+        final int bytesToSend = randomIntBetween(0, length - 1);
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }

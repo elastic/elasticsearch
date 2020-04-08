@@ -304,14 +304,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    List<String> getSeedNodes() {
-        return configuredSeedNodes;
-    }
-
-    int getMaxConnections() {
-        return maxNumRemoteConnections;
-    }
-
     /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */
     private class SniffClusterStateResponseHandler implements TransportResponseHandler<ClusterStateResponse> {
 
@@ -369,7 +361,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             // since if we do it afterwards we might fail assertions that check if all high level connections are closed.
             // from a code correctness perspective we could also close it afterwards.
             IOUtils.closeWhileHandlingException(connection);
-            listener.onResponse(null);
+            int openConnections = connectionManager.size();
+            if (openConnections == 0) {
+                listener.onFailure(new IllegalStateException("Unable to open any connections to remote cluster [" + clusterAlias + "]"));
+            } else {
+                listener.onResponse(null);
+            }
         }
 
         @Override

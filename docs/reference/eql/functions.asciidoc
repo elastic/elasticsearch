@@ -311,13 +311,13 @@ wildcard(process.command_line, "*start*", "*config*")   // returns false
 wildcard("start explorer.exe", "*start*")                // returns true
 wildcard("start explorer.exe", "*Start*")                // returns false
 
+// empty strings
+wildcard("", "*start*")                                  // returns false
+wildcard("", "*")                                        // returns true
+wildcard("", "")                                         // returns true
+
 // null handling
 wildcard(null, "*start*")                                // returns false
-wildcard(null, null)                                     // returns 500 error
-wildcard("start explorer.exe", null)                     // returns 500 error
-wildcard("start explorer.exe", null, "*start*")          // returns 500 error
-wildcard("", null)                                       // returns 500 error
-wildcard("", "")                                         // returns true
 ----
 
 *Syntax*
@@ -351,7 +351,7 @@ Fields containing <<array,array values>> use the last array item only.
 --
 (Required{multi-arg}, string)
 Wildcard expression used to match the source string. Fields are not supported as
-arguments. If `null`, the function returns a 500 error.
+arguments.
 -- 
 
 *Returns:* boolean

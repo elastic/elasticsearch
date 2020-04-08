@@ -62,17 +62,16 @@ after repurposing it.
 The intended use is:
 
 * Stop the node
-* Update `elasticsearch.yml` by setting `node.master` and `node.data` as
-  desired.
+* Update `elasticsearch.yml` by setting `node.roles` as desired.
 * Run `elasticsearch-node repurpose` on the node
 * Start the node
 
-If you run `elasticsearch-node repurpose` on a node with `node.data: false` and
-`node.master: true` then it will delete any remaining shard data on that node,
-but it will leave the index and cluster metadata alone. If you run
-`elasticsearch-node repurpose` on a node with `node.data: false` and
-`node.master: false` then it will delete any remaining shard data and index
-metadata, but it will leave the cluster metadata alone.
+If you run `elasticsearch-node repurpose` on a node without the `data` role and
+with the `master` role then it will delete any remaining shard data on that
+node, but it will leave the index and cluster metadata alone. If you run
+`elasticsearch-node repurpose` on a node without the `data` and `master` roles
+then it will delete any remaining shard data and index metadata, but it will
+leave the cluster metadata alone.
 
 [WARNING]
 Running this command can lead to data loss for the indices mentioned if the
@@ -351,12 +350,12 @@ from the on-disk cluster state.
 === Examples
 
 [float]
-==== Repurposing a node as a dedicated master node (master: true, data: false)
+==== Repurposing a node as a dedicated master node
 
 In this example, a former data node is repurposed as a dedicated master node.
-First update the node's settings to `node.master: true` and `node.data: false`
-in its `elasticsearch.yml` config file. Then run the `elasticsearch-node
-repurpose` command to find and remove excess shard data:
+First update the node's settings to `node.roles: [ "master" ]` in its
+`elasticsearch.yml` config file. Then run the `elasticsearch-node repurpose`
+command to find and remove excess shard data:
 
 [source,txt]
 ----
@@ -373,13 +372,13 @@ Node successfully repurposed to master and no-data.
 ----
 
 [float]
-==== Repurposing a node as a coordinating-only node (master: false, data: false)
+==== Repurposing a node as a coordinating-only node
 
 In this example, a node that previously held data is repurposed as a
-coordinating-only node. First update the node's settings to `node.master:
-false` and `node.data: false` in its `elasticsearch.yml` config file. Then run
-the `elasticsearch-node repurpose` command to find and remove excess shard data
-and index metadata:
+coordinating-only node. First update the node's settings to `node.roles: []` in
+its `elasticsearch.yml` config file. Then run the `elasticsearch-node repurpose`
+command to find and remove excess shard data and index metadata:
+
 
 [source,txt]
 ----

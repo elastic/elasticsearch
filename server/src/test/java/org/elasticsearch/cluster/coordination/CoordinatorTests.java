@@ -42,8 +42,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,6 +71,7 @@ import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MAS
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1392,8 +1393,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("--> restarting [{}] as a master-ineligible node", chosenNode);
 
             chosenNode.close();
-            cluster.clusterNodes.replaceAll(cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(),
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()) : cn);
+            cluster.clusterNodes.replaceAll(
+                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonMasterNode()) : cn
+            );
             cluster.stabilise();
 
             if (chosenNodeIsLeader == false) {

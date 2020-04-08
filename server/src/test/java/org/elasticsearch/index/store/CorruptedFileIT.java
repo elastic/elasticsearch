@@ -65,7 +65,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.CorruptionUtils;
@@ -97,6 +96,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
+import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -389,9 +389,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
         if (cluster().numDataNodes() < 3) {
-            internalCluster().startNode(Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), true)
-                .put(Node.NODE_MASTER_SETTING.getKey(), false));
+            internalCluster().startDataOnlyNode();
         }
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();

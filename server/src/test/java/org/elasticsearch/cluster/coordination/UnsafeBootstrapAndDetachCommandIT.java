@@ -34,6 +34,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,8 +103,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNotMasterEligible() {
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder()
-                .put(internalCluster().getDefaultSettings())
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(NodeRoles.nonMasterNode(internalCluster().getDefaultSettings()))
                 .build());
         expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NOT_MASTER_NODE_MSG);
     }

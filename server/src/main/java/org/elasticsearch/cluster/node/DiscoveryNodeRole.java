@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.Node;
 
@@ -64,6 +65,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return isKnownRole;
     }
 
+    public boolean isEnabledByDefault(final Settings settings) {
+        return legacySetting().get(settings);
+    }
+
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
         this(true, roleName, roleNameAbbreviation);
     }
@@ -74,7 +79,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
     }
 
-    protected abstract Setting<Boolean> roleSetting();
+    public abstract Setting<Boolean> legacySetting();
 
     @Override
     public final boolean equals(Object o) {
@@ -111,7 +116,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return Node.NODE_DATA_SETTING;
         }
 
@@ -123,7 +128,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole INGEST_ROLE = new DiscoveryNodeRole("ingest", "i") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return Node.NODE_INGEST_SETTING;
         }
 
@@ -135,7 +140,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return Node.NODE_MASTER_SETTING;
         }
 
@@ -144,7 +149,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return Node.NODE_REMOTE_CLUSTER_CLIENT;
         }
 
@@ -176,7 +181,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         }
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             // since this setting is not registered, it will always return false when testing if the local node has the role
             assert false;
             return Setting.boolSetting("node. " + roleName(), false, Setting.Property.NodeScope);

@@ -25,7 +25,7 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
 
     @BeforeClass
     public static void setPossibleRolesWithVotingOnly() {
-        DiscoveryNode.setPossibleRoles(
+        DiscoveryNode.setAdditionalRoles(
             Sets.union(DiscoveryNodeRole.BUILT_IN_ROLES, Sets.newHashSet(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
     }
 

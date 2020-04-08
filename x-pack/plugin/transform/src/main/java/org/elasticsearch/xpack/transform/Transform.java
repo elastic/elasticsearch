@@ -154,15 +154,21 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      */
     public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings) && DiscoveryNode.isDataNode(settings)),
+        settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings)),
+        Property.Deprecated,
         Property.NodeScope
     );
 
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return TRANSFORM_ENABLED_NODE;
+        }
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return super.isEnabledByDefault(settings) && DiscoveryNode.isDataNode(settings);
         }
 
     };

@@ -20,21 +20,18 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.junit.Before;
 
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
 
     @Before
     public void before1() throws Exception {
-        Settings settings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), false)
-                .build();
-        internalCluster().startNodes(settings, Settings.EMPTY);
+        internalCluster().startNodes(nonDataNode(), Settings.EMPTY);
     }
 
 }

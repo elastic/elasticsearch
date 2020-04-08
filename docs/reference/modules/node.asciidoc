@@ -14,11 +14,11 @@ All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
 
 By default, a node is all of the following types: master-eligible, data, ingest,
-and machine learning (if available).
+and (if available) machine learning and transform.
 
-TIP: As the cluster grows and in particular if you have large {ml} jobs,
-consider separating dedicated master-eligible nodes from dedicated data nodes
-and dedicated {ml} nodes.
+TIP: As the cluster grows and in particular if you have large {ml} jobs or
+{ctransforms}, consider separating dedicated master-eligible nodes from
+dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 <<master-node,Master-eligible node>>::
 

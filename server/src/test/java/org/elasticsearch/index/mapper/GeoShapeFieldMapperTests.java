@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -42,7 +43,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {

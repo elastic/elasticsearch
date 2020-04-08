@@ -27,12 +27,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,10 +47,8 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     LongArray counts;
 
     ValueCountAggregator(String name, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata)
-            throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metadata);
+            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);

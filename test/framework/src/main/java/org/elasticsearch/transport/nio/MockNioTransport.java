@@ -27,6 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -53,7 +54,9 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
@@ -274,8 +277,12 @@ public class MockNioTransport extends TcpTransport {
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
             final ThreadPool threadPool = transport.getThreadPool();
-            this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler,
-                threadPool::relativeTimeInMillis, transport::inboundMessage, transport::inboundDecodeException);
+            final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
+            final InboundHandler inboundHandler = transport.getInboundHandler();
+            final Version version = transport.getVersion();
+            final StatsTracker statsTracker = transport.getStatsTracker();
+            this.pipeline = new InboundPipeline(version, statsTracker, recycler, threadPool::relativeTimeInMillis, breaker,
+                inboundHandler::getRequestHandler, transport::inboundMessage);
         }
 
         @Override

@@ -710,7 +710,7 @@ public class AuthenticationService {
                 }
                 return userWithMergedRoles;
             } else {
-                return deduplicateUserRoles(user);
+                return user;
             }
         }
 
@@ -720,26 +720,6 @@ public class AuthenticationService {
                 Collections.addAll(roles, otherRoles);
             }
             return roles.toArray(new String[0]);
-        }
-
-        private User deduplicateUserRoles(User user) {
-            // Avoid creating new User objects if the roles have no duplication, i.e. the returning User object
-            // will simply be the input one if all roles are distinct.
-            final Set<String> userRoles = new LinkedHashSet<>(Arrays.asList(user.roles()));
-            User userWithDeduplicatedRoles = userRoles.size() == user.roles().length
-                ? user
-                : user.withRoles(userRoles.toArray(new String[0]));
-
-            if (user.isRunAs()) {
-                final Set <String> authUserRoles = new LinkedHashSet<>(Arrays.asList(user.authenticatedUser().roles()));
-                User authUserWithDedupRoles = authUserRoles.size() == user.authenticatedUser().roles().length
-                    ? user.authenticatedUser()
-                    : user.authenticatedUser().withRoles(authUserRoles.toArray(new String[0]));
-                if (userWithDeduplicatedRoles != user || authUserWithDedupRoles != user.authenticatedUser()) {
-                    userWithDeduplicatedRoles = new User(userWithDeduplicatedRoles, authUserWithDedupRoles);
-                }
-            }
-            return userWithDeduplicatedRoles;
         }
     }
 

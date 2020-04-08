@@ -31,18 +31,32 @@ public class InboundMessage implements Releasable {
 
     private final Header header;
     private final ReleasableBytesReference content;
+    private final Exception exception;
     private final boolean isPing;
+    private Releasable breakerRelease;
     private StreamInput streamInput;
 
-    public InboundMessage(Header header, ReleasableBytesReference content) {
+    public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
         this.content = content;
+        this.breakerRelease = breakerRelease;
+        this.exception = null;
+        this.isPing = false;
+    }
+
+    public InboundMessage(Header header, Exception exception) {
+        this.header = header;
+        this.content = null;
+        this.breakerRelease = null;
+        this.exception = exception;
         this.isPing = false;
     }
 
     public InboundMessage(Header header, boolean isPing) {
         this.header = header;
         this.content = null;
+        this.breakerRelease = null;
+        this.exception = null;
         this.isPing = isPing;
     }
 
@@ -58,8 +72,22 @@ public class InboundMessage implements Releasable {
         }
     }
 
+    public Exception getException() {
+        return exception;
+    }
+
     public boolean isPing() {
         return isPing;
+    }
+
+    public boolean isShortCircuit() {
+        return exception != null;
+    }
+
+    public Releasable takeBreakerReleaseControl() {
+        final Releasable toReturn = breakerRelease;
+        breakerRelease = null;
+        return toReturn;
     }
 
     public StreamInput openOrGetStreamInput() throws IOException {
@@ -74,6 +102,6 @@ public class InboundMessage implements Releasable {
     @Override
     public void close() {
         IOUtils.closeWhileHandlingException(streamInput);
-        Releasables.closeWhileHandlingException(content);
+        Releasables.closeWhileHandlingException(content, breakerRelease);
     }
 }

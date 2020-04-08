@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -149,17 +148,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(4, masterNode1);
         logger.info("--> done");
 
-        try {
-            future.get();
-        } catch (Exception ex) {
-            Throwable cause = ex.getCause();
-            if (cause.getCause() instanceof ConcurrentSnapshotExecutionException) {
-                logger.info("--> got exception from race in master operation retries");
-            } else {
-                logger.info("--> got exception from hanged master", ex);
-            }
-        }
-
+        future.get();
         assertAllSnapshotsCompleted();
     }
 

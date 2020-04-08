@@ -86,9 +86,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(useDFS ? 3 : 2, shard.refreshStats().getTotal());
         assertFalse(((FrozenEngine)engine).isReaderOpen());
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertNotNull(FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()));
-        }
         // now scroll
         SearchResponse searchResponse = client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .setScroll(TimeValue.timeValueMinutes(1)).setSize(1).get();
@@ -106,7 +103,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         } while (searchResponse.getHits().getHits().length > 0);
     }
 
-    public void testSearchAndGetAPIsAreThrottled() throws InterruptedException, IOException {
+    public void testSearchAndGetAPIsAreThrottled() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties").startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
             .endObject().endObject()

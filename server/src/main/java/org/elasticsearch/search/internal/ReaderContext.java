@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ReaderContext extends AbstractRefCounted implements Releasable {
     private final SearchContextId id;
     private final IndexShard indexShard;
-    private final Engine.Searcher engineSearcher;
+    private final Engine.Reader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean singleSession;
 
@@ -57,11 +57,11 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
-    public ReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher, long keepAliveInMillis, boolean singleSession) {
+    public ReaderContext(long id, IndexShard indexShard, Engine.Reader reader, long keepAliveInMillis, boolean singleSession) {
         super("reader_context");
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
         this.indexShard = indexShard;
-        this.engineSearcher = engineSearcher;
+        this.reader = reader;
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
@@ -75,14 +75,12 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             decRef();
-        } else {
-            assert false : "ReaderContext was closed already";
         }
     }
 
     @Override
     protected void closeInternal() {
-        Releasables.close(Releasables.wrap(onCloses), engineSearcher);
+        Releasables.close(Releasables.wrap(onCloses), reader);
     }
 
     public void addOnClose(Releasable releasable) {
@@ -93,16 +91,17 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
         return id;
     }
 
+
     public IndexShard indexShard() {
         return indexShard;
     }
 
-    public Engine.Searcher engineSearcher() {
-        return engineSearcher;
+    public Engine.Searcher acquireSearcher(String source) {
+        return reader.acquireSearcher(source);
     }
 
     public String source() {
-        return engineSearcher.source();
+        return "search";
     }
 
     public void keepAlive(long keepAlive) {

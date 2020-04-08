@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
@@ -80,5 +81,21 @@ final class MockInternalEngine extends InternalEngine {
     public Engine.Searcher acquireSearcher(String source, SearcherScope scope) {
         final Engine.Searcher engineSearcher = super.acquireSearcher(source, scope);
         return support().wrapSearcher(engineSearcher);
+    }
+
+    @Override
+    public Reader acquireReader(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        final Engine.Reader reader = super.acquireReader(wrapper, scope);
+        return new Reader(searcher -> support().wrapSearcher(searcher)) {
+            @Override
+            protected Searcher acquireSearcherInternal(String source) {
+                return support().wrapSearcher(reader.acquireSearcher(source));
+            }
+
+            @Override
+            public void close() {
+                reader.close();
+            }
+        };
     }
 }

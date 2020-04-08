@@ -32,9 +32,9 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
-    public LegacyReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher,
+    public LegacyReaderContext(long id, IndexShard indexShard, Engine.Reader reader,
                                ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
-        super(id, indexShard, engineSearcher, keepAliveInMillis, false);
+        super(id, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
         this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest);

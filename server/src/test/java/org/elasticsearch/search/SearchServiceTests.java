@@ -176,15 +176,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
-                public void onNewReaderContext(ReaderContext readerContext) {
-                    if ("throttled_threadpool_index".equals(readerContext.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
-                    } else {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
-                    }
-                }
-
-                @Override
                 public void onFetchPhase(SearchContext context, long tookInNanos) {
                     if ("throttled_threadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_throttled]"));
@@ -522,7 +513,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> service.createAndPutReaderContext(request, indexShard, indexShard.acquireSearcher("test"), randomBoolean()));
+            () -> service.createAndPutReaderContext(request, indexShard, indexShard.acquireReader(), randomBoolean()));
         assertEquals(
             "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                 SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
@@ -545,11 +536,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     latch.await();
                     for (; ; ) {
-                        Engine.Searcher searcher = indexShard.acquireSearcher("test");
+                        Engine.Reader reader = indexShard.acquireReader();
                         try {
                             searchService.createAndPutReaderContext(
-                                new ShardScrollRequestTest(indexShard.shardId()), indexShard, searcher, true);
-                            searcher = null;
+                                new ShardScrollRequestTest(indexShard.shardId()), indexShard, reader, true);
+                            reader = null;
                         } catch (ElasticsearchException e) {
                             assertThat(e.getMessage(), equalTo(
                                 "Trying to create too many scroll contexts. Must be less than or equal to: " +
@@ -557,7 +548,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                     "This limit can be set by changing the [search.max_open_scroll_context] setting."));
                             return;
                         } finally {
-                            IOUtils.close(searcher);
+                            IOUtils.close(reader);
                         }
                     }
                 } catch (Exception e) {
@@ -982,10 +973,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     ShardSearchRequest request = new ShardSearchRequest(
                         OriginalIndices.NONE, new SearchRequest().allowPartialSearchResults(true),
                         indexShard.shardId(), 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
-                    final Engine.Searcher searcher = indexShard.acquireSearcher("test");
-                    final ReaderContext reader = searchService.createAndPutReaderContext(request, indexShard, searcher, randomBoolean());
-                    assertThat(reader.id().getId(), equalTo((long) (i + 1)));
-                    contextIds.add(reader.id());
+                    final ReaderContext context = searchService.createAndPutReaderContext(request, indexShard,
+                        indexShard.acquireReader(), randomBoolean());
+                    assertThat(context.id().getId(), equalTo((long) (i + 1)));
+                    contextIds.add(context.id());
                 }
                 assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 while (contextIds.isEmpty() == false) {
@@ -1011,7 +1002,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     private ReaderContext createReaderContext(IndexShard shard) {
-        Engine.Searcher searcher = shard.acquireSearcher("test");
-        return new ReaderContext(randomNonNegativeLong(), shard, searcher, randomNonNegativeLong(), false);
+        return new ReaderContext(randomNonNegativeLong(), shard, shard.acquireReader(), randomNonNegativeLong(), false);
     }
 }

@@ -82,9 +82,7 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
-    protected SearchContext() {
-
-    }
+    protected SearchContext() {}
 
     public abstract void setTask(SearchShardTask task);
 

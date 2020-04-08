@@ -1184,12 +1184,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Acquire a lightweight searcher which can be used to rewrite shard search requests.
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public Engine.Searcher acquireCanMatchSearcher() {
+    public Engine.Reader acquireReader() {
+        return acquireReader(Engine.SearcherScope.EXTERNAL);
+    }
+
+    /**
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     */
+    public Engine.Reader acquireReader(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        return getEngine().acquireSearcher("can_match", Engine.SearcherScope.EXTERNAL);
+        final Engine engine = getEngine();
+        return engine.acquireReader(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -1205,7 +1213,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed();
         final Engine engine = getEngine();
         final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
-        return wrapSearcher(searcher);
+        return "can_match".equals(source) ? searcher : wrapSearcher(searcher);
     }
 
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {

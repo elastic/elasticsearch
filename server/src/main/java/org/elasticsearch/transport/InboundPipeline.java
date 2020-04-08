@@ -20,9 +20,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -31,7 +31,9 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class InboundPipeline implements Releasable {
 
@@ -43,26 +45,25 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
-    private final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler;
+    private Exception uncaughtException;
     private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
-                           BiConsumer<TcpChannel, InboundMessage> messageHandler,
-                           BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
-        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler,
-            errorHandler);
+                           Supplier<CircuitBreaker> circuitBreaker,
+                           Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+                           BiConsumer<TcpChannel, InboundMessage> messageHandler) {
+        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),
+            new InboundAggregator(circuitBreaker, registryFunction), messageHandler);
     }
 
-    private InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
-                            InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler,
-                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
+    public InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
+                           InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
-        this.errorHandler = errorHandler;
     }
 
     @Override
@@ -74,6 +75,18 @@ public class InboundPipeline implements Releasable {
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        if (uncaughtException != null) {
+            throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
+        }
+        try {
+            doHandleBytes(channel, reference);
+        } catch (Exception e) {
+            uncaughtException = e;
+            throw e;
+        }
+    }
+
+    public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
@@ -128,15 +141,6 @@ public class InboundPipeline implements Releasable {
                     statsTracker.markMessageReceived();
                     messageHandler.accept(channel, aggregated);
                 }
-            } else if (fragment instanceof Exception) {
-                final Header header;
-                if (aggregator.isAggregating()) {
-                    header = aggregator.cancelAggregation();
-                    statsTracker.markMessageReceived();
-                } else {
-                    header = null;
-                }
-                errorHandler.accept(channel, new Tuple<>(header, (Exception) fragment));
             } else {
                 assert aggregator.isAggregating();
                 assert fragment instanceof ReleasableBytesReference;

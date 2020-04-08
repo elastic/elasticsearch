@@ -214,7 +214,12 @@ processTestResources {
   MavenFilteringHack.filter(it, expansions)
 }
 
-testFixtures.useFixture(':test:fixtures:s3-fixture')
+[
+  's3-fixture',
+  's3-fixture-with-session-token',
+  's3-fixture-with-ec2',
+  's3-fixture-with-ecs',
+].forEach { fixture -> testFixtures.useFixture(':test:fixtures:s3-fixture', fixture) }
 
 def fixtureAddress = { fixture ->
   assert useFixture: 'closure should not be used without a fixture'

@@ -130,6 +130,8 @@ public class WaitForHttpResource {
 
     protected void checkResource(SSLContext ssl) throws IOException {
         final HttpURLConnection connection = buildConnection(ssl);
+        connection.setRequestProperty("Accept", "application/json");
+
         connection.connect();
         final Integer response = connection.getResponseCode();
         if (validResponseCodes.contains(response)) {
@@ -144,6 +146,7 @@ public class WaitForHttpResource {
         final HttpURLConnection connection = (HttpURLConnection) this.url.openConnection();
         configureSslContext(connection, ssl);
         configureBasicAuth(connection);
+
         connection.setRequestMethod("GET");
         return connection;
     }

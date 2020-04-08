@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 /**
@@ -70,27 +71,24 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
     }
 
     private static void mutateTestCandidate(ClientYamlTestCandidate testCandidate) {
-        testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(ds -> {
+        testCandidate.getSetupSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(updateDoSection());
+        testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(updateDoSection());
+    }
+
+    private static Consumer<? super ExecutableSection> updateDoSection() {
+        return ds -> {
             DoSection doSection = (DoSection) ds;
-            // TODO: be more selective here
+            //TODO: be more selective here
             doSection.setIgnoreWarnings(true);
 
-            doSection.getApiCallSection().addHeaders(createCompatibleHeaders(doSection));
-        });
-    }
-
-    private static Map<String, String> createCompatibleHeaders(DoSection doSection) {
-        String compatibleHeader = createCompatibleHeader();
-        if (doSection.getApiCallSection().hasBody()) {
-            return Map.of(
-                CompatibleConstants.COMPATIBLE_ACCEPT_HEADER,
-                compatibleHeader,
-                CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER,
-                compatibleHeader
-            );
-        }
-        return Map.of(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader);
-    }
+            String compatibleHeader = createCompatibleHeader();
+            doSection.getApiCallSection()
+                .addHeaders(Map.of(
+                    CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader,
+                    CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader
+                ));
+        };
+}
 
     private static String createCompatibleHeader() {
         return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleConstants.COMPATIBLE_VERSION;

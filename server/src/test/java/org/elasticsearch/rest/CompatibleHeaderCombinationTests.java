@@ -40,6 +40,10 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
 
+    public void testOld(){
+        createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+    }
     public void testAcceptAndContentTypeCombinations() {
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
             expect(requestCreated(), isCompatible()));
@@ -101,13 +105,14 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     }
 
     public void testMediaTypeCombinations(){
-        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/smile"), bodyPresent(),
-            expect(requestCreated(), not(isCompatible())));
 
-        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/something+json"), bodyPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
-        createRequestWith(acceptHeader("application/something+json"), contentTypeHeader("application/json"), bodyNotPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+//        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/smile"), bodyPresent(),
+//            expect(requestCreated(), not(isCompatible())));
+
+//        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/something+json"), bodyPresent(),
+//            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+//        createRequestWith(acceptHeader("application/something+json"), contentTypeHeader("application/json"), bodyNotPresent(),
+//            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
     }
 
     private Matcher<FakeRestRequest.Builder> exceptionDuringCreation(Class<? extends Exception> exceptionClass) {
@@ -198,7 +203,7 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         if (accept != null) {
             headers.put("Accept", accept);
         }
-        if (accept != null) {
+        if (contentType != null) {
             headers.put("Content-Type", contentType);
         }
         return headers;

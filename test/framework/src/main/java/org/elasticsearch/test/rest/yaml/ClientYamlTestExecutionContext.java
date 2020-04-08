@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.protocol.HTTP;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -118,8 +119,13 @@ public class ClientYamlTestExecutionContext {
         if (bodies.size() == 1) {
             XContentType xContentType = getContentType(headers, XContentType.values());
             BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
-            return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length,
-                    ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            //TODO clean this up
+            ByteArrayEntity byteArrayEntity = new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length,
+                ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            if(byteArrayEntity.getContentType() != null){
+                byteArrayEntity.setContentType(headers.get(HTTP.CONTENT_TYPE));
+            }
+            return byteArrayEntity;
         } else {
             XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
             List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
@@ -137,7 +143,12 @@ public class ClientYamlTestExecutionContext {
                 }
                 bytes[position++] = xContentType.xContent().streamSeparator();
             }
-            return new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            //TODO clean this up
+            ByteArrayEntity byteArrayEntity = new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            if(byteArrayEntity.getContentType() != null){
+                byteArrayEntity.setContentType(headers.get(HTTP.CONTENT_TYPE));
+            }
+            return byteArrayEntity;
         }
     }
 

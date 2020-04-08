@@ -159,13 +159,18 @@ public class RestRequest implements ToXContent.Params {
                 acceptVersion.equals(contentTypeVersion)) {
                 return;
             }
+            if(XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER)) == null &&
+                XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER)) == null){
+                return;
+            }
 
         } else if ( previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion) || acceptVersion == null) {
             return;
         }
         throw new CompatibleApiHeadersCombinationException(
             String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                    "Accept=%s Content-Type=%s", acceptVersion, contentTypeVersion));
+                    "Accept=%s Content-Type=%s hasContent=%b %s %s %s", header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER),
+                header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER), hasContent(),path(), params.toString(),method().toString()));
     }
 
     private String getVersion(String headerName) {

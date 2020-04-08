@@ -23,6 +23,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
+import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -178,6 +179,9 @@ public class ClientYamlTestClient implements Closeable {
         Request request = new Request(requestMethod, finalPath);
         for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
+        }
+        if(entity!=null && entity.getContentType() != null){
+            headers.remove(HTTP.CONTENT_TYPE);
         }
         request.setEntity(entity);
         setOptions(request, headers);

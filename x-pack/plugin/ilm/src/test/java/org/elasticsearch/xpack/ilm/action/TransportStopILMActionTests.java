@@ -45,7 +45,7 @@ public class TransportStopILMActionTests extends ESTestCase {
     };
 
     @SuppressWarnings("unchecked")
-    public void testStopILMClusterStatePriorityIsUrgent() {
+    public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
         TransportStopILMAction transportStopILMAction = new TransportStopILMAction(mock(TransportService.class),
@@ -67,7 +67,7 @@ public class TransportStopILMActionTests extends ESTestCase {
                         return false;
                     }
                     actualPriority = ((AckedClusterStateUpdateTask<AcknowledgedResponse>) argument).priority();
-                    return actualPriority == Priority.URGENT;
+                    return actualPriority == Priority.IMMEDIATE;
                 }
 
                 @Override

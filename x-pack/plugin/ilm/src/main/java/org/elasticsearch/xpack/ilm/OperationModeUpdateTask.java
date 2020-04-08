@@ -16,6 +16,12 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
+/**
+ * This task updates the operation mode state for ILM.
+ *
+ * As stopping ILM proved to be an action we want to sometimes take in order to allow clusters to stabilise when under heavy load this
+ * task might run at {@link Priority#IMMEDIATE} priority so please make sure to keep this task as lightweight as possible.
+ */
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
     @Nullable

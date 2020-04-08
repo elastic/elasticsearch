@@ -51,7 +51,7 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.IMMEDIATE, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {

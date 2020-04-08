@@ -319,9 +319,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testOperationModeUpdateTaskPriority() {
         indexLifecycleService.submitOperationModeUpdate(OperationMode.STOPPING);
-        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPING, Priority.URGENT);
+        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPING, Priority.IMMEDIATE);
         indexLifecycleService.submitOperationModeUpdate(OperationMode.STOPPED);
-        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPED, Priority.URGENT);
+        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPED, Priority.IMMEDIATE);
         indexLifecycleService.submitOperationModeUpdate(OperationMode.RUNNING);
         verifyOperationModeUpdateTaskPriority(OperationMode.RUNNING, Priority.NORMAL);
     }

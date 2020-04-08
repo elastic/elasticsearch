@@ -366,7 +366,7 @@ public class IndexLifecycleService
     public void submitOperationModeUpdate(OperationMode mode) {
         OperationModeUpdateTask ilmOperationModeUpdateTask;
         if (mode == OperationMode.STOPPING || mode == OperationMode.STOPPED) {
-            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.URGENT, mode);
+            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, mode);
         } else {
             ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.NORMAL, mode);
         }

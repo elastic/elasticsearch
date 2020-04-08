@@ -77,12 +77,23 @@ public abstract class AExpression extends ANode {
         /**
          * Set to the actual type this node is.  Note this variable is always
          * set by the node as output and should only be read from outside of the
-         * node itself.  <b>Also, actual can always be read after a cast is
-         * called on this node to get the type of the node after the cast.</b>
+         * node itself. Also, actual can always be read after a cast is
+         * called on this node to get the type of the node after the cast.
          */
         Class<?> actual = null;
 
+        /**
+         * Set to {@code true} when actual represents a static type and
+         * this expression does not generate a value. Set to {@code false}
+         * when actual is the type of value this expression generates.
+         */
         boolean isStaticType = false;
+
+        /**
+         * Used to build a fully-qualified type name when the name comes
+         * in as pieces since x.y.z may get broken down into multiples nodes
+         * with the dot as a delimiter.
+         */
         String partialCanonicalTypeName = null;
 
         /**

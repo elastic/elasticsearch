@@ -28,7 +28,9 @@ setup:
 ---
 "Request with negative from value url parameter":
 
-
+  - skip:
+      version: " - 7.9.99"
+      reason: waiting for backport
 
   - do:
       search:
@@ -46,6 +48,10 @@ setup:
 
 ---
 "Request with negative from value in body":
+
+  - skip:
+      version: " - 7.9.99"
+      reason: waiting for backport
 
   - do:
       search:

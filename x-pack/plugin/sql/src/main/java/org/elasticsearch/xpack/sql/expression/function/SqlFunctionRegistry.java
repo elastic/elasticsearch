@@ -169,6 +169,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
                 def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
@@ -178,7 +179,6 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(MonthName.class, MonthName::new, "MONTH_NAME", "MONTHNAME"),
                 def(MonthOfYear.class, MonthOfYear::new, "MONTH_OF_YEAR", "MONTH"),
                 def(SecondOfMinute.class, SecondOfMinute::new, "SECOND_OF_MINUTE", "SECOND"),
-                def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(Quarter.class, Quarter::new, "QUARTER"),
                 def(Year.class, Year::new, "YEAR"),
                 def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK")

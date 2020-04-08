@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -50,9 +49,8 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         ValuesSource valuesSource,
                                         SearchContext context,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
-                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent,  pipelineAggregators, metadata);
+                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent, metadata);
                 }
             });
     }
@@ -66,9 +64,8 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new MinAggregator(name, config, null, searchContext, parent, pipelineAggregators, metadata);
+        return new MinAggregator(name, config, null, searchContext, parent, metadata);
     }
 
     @Override
@@ -76,7 +73,6 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             MinAggregationBuilder.NAME);
@@ -85,7 +81,6 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MinMaxAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent,
-            pipelineAggregators, metadata);
+        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
     }
 }

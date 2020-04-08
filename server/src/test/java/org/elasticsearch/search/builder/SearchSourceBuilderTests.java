@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -441,8 +442,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        int from = randomIntBetween(-10, -2);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
+        assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
+        
+        // we tolerate -1 though
+        new SearchSourceBuilder().from(-1);
     }
 
     public void testNegativeSizeErrors() {

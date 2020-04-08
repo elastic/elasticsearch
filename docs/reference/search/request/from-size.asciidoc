@@ -6,9 +6,9 @@ parameters. The `from` parameter defines the offset from the first
 result you want to fetch. The `size` parameter allows you to configure
 the maximum amount of hits to be returned.
 
-Though `from` and `size` can be set as request parameters, they can also
-be set within the search body. `from` defaults to `0`, and `size`
-defaults to `10`.
+Though `from` and `size` can be set as request parameters, they can also be set
+within the search body. `from` defaults to `0`, and `size` defaults to `10`.
+Both values cannot be negative.
 
 [source,console]
 --------------------------------------------------
@@ -23,7 +23,9 @@ GET /_search
 
 
 Note that `from` + `size` can not be more than the `index.max_result_window`
-index setting, which defaults to 10,000.
+index setting, which defaults to 10,000. Also note that a `from` and `size`
+parameter set as a <<search-search-api-query-params, request parameter>> will
+overwrite any value in the search body.
 
 WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal
 doc IDs can be completely different across replicas of the same

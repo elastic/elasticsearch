@@ -336,10 +336,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * From index to start the search from. Defaults to {@code 0}.
+     * A value of -1 is interpreted as an unset value equivalent to 0.
+     * Any other negative value is forbidden.
      */
     public SearchSourceBuilder from(int from) {
-        if (from < 0) {
-            throw new IllegalArgumentException("[from] parameter cannot be negative");
+        // accept -1 as the default unset value without error
+        if (from < -1) {
+            throw new IllegalArgumentException("[from] parameter cannot be negative but was [" + from + "]");
         }
         this.from = from;
         return this;
@@ -1027,7 +1030,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    from = parser.intValue();
+                    from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size = parser.intValue();
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

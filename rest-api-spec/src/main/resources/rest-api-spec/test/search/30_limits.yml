@@ -26,13 +26,42 @@ setup:
         from: 10000
 
 ---
-"Request with negative from value":
+"Request with negative from value url parameter":
+
+
+
   - do:
-      catch:      /\[from\] parameter cannot be negative/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        # value of -1 should be accepted as unset value
+        from: -1
+
+  - do:
+      catch:      /\[from\] parameter cannot be negative but was \[-2\]/
       search:
         rest_total_hits_as_int: true
         index: test_1
         from: -2
+
+---
+"Request with negative from value in body":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        # value of -1 should be accepted as unset value
+        body:
+          from: -1
+
+  - do:
+      catch:      /\[from\] parameter cannot be negative but was \[-2\]/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          from: -2
 
 ---
 "Request window limits with scroll":

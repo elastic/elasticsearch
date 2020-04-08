@@ -11,6 +11,7 @@ experimental::[]
 * <<eql-fn-endswith>>
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
+* <<eql-fn-stringcontains>>
 * <<eql-fn-substring>>
 
 [discrete]
@@ -219,6 +220,72 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 --
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-stringcontains]]
+=== `stringContains`
+
+Returns `true` if a source string contains a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// process.command_line = "start regsvr32.exe"
+stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "start ")    // returns true
+stringContains(process.command_line, "explorer")  // returns false
+
+// process.command_line = [ "start regsvr32.exe", "start explorer.exe" ]
+stringContains(process.command_line, "regsvr32")  // returns false
+stringContains(process.command_line, "explorer")  // returns true
+
+// empty strings
+stringContains("", "")                            // returns false
+stringContains("start regsvr32.exe", "")          // returns false
+
+// null handling
+stringContains(null, "regsvr32")                  // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+stringContains(<source>, <substring>)
+----
+
+*Parameters*
+`<source>`::
+(Required, string or `null`)
+Source string to search. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing <<array,array values>> use the last array item only.
+
+`<substring>`::
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+<<array,Array values>> are not supported.
 
 *Returns:* boolean or `null`
 ====

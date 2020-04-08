@@ -29,7 +29,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -1544,10 +1544,10 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
         String sortField = "sortField";
         assertAcked(prepareCreate("test1")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards())))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards())))
                 .setMapping(sortField, "type=long").get());
         assertAcked(prepareCreate("test2")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
                 .setMapping(sortField, "type=long").get());
 
         for (String index : new String[]{"test1", "test2"}) {
@@ -1859,7 +1859,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testLongSortOptimizationCorrectResults() {
         assertAcked(prepareCreate("test1")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2))
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2))
             .setMapping("long_field", "type=long").get());
 
         BulkRequestBuilder bulkBuilder = client().prepareBulk();

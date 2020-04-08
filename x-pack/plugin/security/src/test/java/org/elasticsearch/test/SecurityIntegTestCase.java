@@ -21,8 +21,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -412,7 +412,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
                     SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_MAIN_ALIAS, clusterState, logger,
                         Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
-                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
+                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
                     if (indexRoutingTable != null) {
@@ -438,10 +438,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_MAIN_ALIAS);
-        if (aliasOrIndex != null) {
-            return aliasOrIndex.getIndices().get(0).getIndex();
+    private static Index resolveSecurityIndex(Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+        if (indexAbstraction != null) {
+            return indexAbstraction.getIndices().get(0).getIndex();
         }
         return null;
     }

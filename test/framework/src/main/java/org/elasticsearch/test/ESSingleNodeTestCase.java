@@ -27,8 +27,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -90,8 +90,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         client().admin().indices()
             .preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
@@ -129,11 +129,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             client().admin().indices().prepareDelete("*")
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get());
-        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
-        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
-                metaData.persistentSettings().size(), equalTo(0));
-        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
-                metaData.transientSettings().size(), equalTo(0));
+        Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
+        assertThat("test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
+                metadata.persistentSettings().size(), equalTo(0));
+        assertThat("test leaves transient cluster metadata behind: " + metadata.transientSettings().keySet(),
+                metadata.transientSettings().size(), equalTo(0));
         GetIndexResponse indices =
             client().admin().indices().prepareGetIndex()
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
@@ -314,7 +314,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public Index resolveIndex(String index) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
-        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 

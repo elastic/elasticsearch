@@ -613,8 +613,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             ReaderContext readerContext = findReaderContext(request.readerId());
-            readerContext.keepAlive(getKeepAlive(request));
-            checkKeepAliveLimit(request.scroll().keepAlive().millis());
+            final long keepAlive = getKeepAlive(request);
+            checkKeepAliveLimit(keepAlive);
+            readerContext.keepAlive(keepAlive);
             return readerContext;
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());

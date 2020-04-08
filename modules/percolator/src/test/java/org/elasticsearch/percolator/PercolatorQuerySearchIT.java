@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -40,16 +41,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -76,11 +73,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @Override
+    protected boolean addMockGeoShapeFieldMapper() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.addAll(super.nodePlugins());
-        plugins.add(PercolatorPlugin.class);
-        return plugins;
+        return Arrays.asList(PercolatorPlugin.class, GeoPlugin.class);
     }
 
     public void testPercolatorQuery() throws Exception {
@@ -329,8 +328,8 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                         .must(matchQuery("field2", "value"))).endObject()).get();
 
         client().prepareIndex("test").setId("4").setSource("{\"id\": \"4\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("5").setSource("id", "5", "field1", "value").get();
-        client().prepareIndex("test").setId("6").setSource("id", "6", "field1", "value", "field2", "value").get();
+        client().prepareIndex("test").setId("5").setSource(XContentType.JSON, "id", "5", "field1", "value").get();
+        client().prepareIndex("test").setId("6").setSource(XContentType.JSON, "id", "6", "field1", "value", "field2", "value").get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc");
@@ -851,7 +850,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()), XContentType.YAML)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
-                    BytesReference.bytes(smileBuilder().startObject().field("field1", "b c").endObject()), XContentType.SMILE)))
+                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()), XContentType.JSON)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
                     BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()), XContentType.JSON)))
@@ -968,7 +967,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
             XContentType.JSON)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
-        
+
         response = client().prepareSearch("test").setQuery(new PercolateQueryBuilder("q",
             BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
             XContentType.JSON)).addSort("_doc", SortOrder.ASC).get();

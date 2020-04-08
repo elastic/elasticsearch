@@ -30,14 +30,14 @@ import java.util.Map;
  */
 public interface BaseAggregationBuilder {
     /**
-     * The name of the type of aggregation built by this builder. 
+     * The name of the type of aggregation built by this builder.
      */
     String getType();
 
     /**
      * Set the aggregation's metadata. Returns {@code this} for chaining.
      */
-    BaseAggregationBuilder setMetaData(Map<String, Object> metaData);
+    BaseAggregationBuilder setMetadata(Map<String, Object> metadata);
 
     /**
      * Set the sub aggregations if this aggregation supports sub aggregations. Returns {@code this} for chaining.

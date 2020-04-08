@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -71,10 +70,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                                  BucketOrder order, boolean keyed,
                                  long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Range valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
-                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                 Map<String, Object> metadata) throws IOException {
+                                 Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata);
+        super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
         this.shardRounding = shardRounding;
         this.order = order;

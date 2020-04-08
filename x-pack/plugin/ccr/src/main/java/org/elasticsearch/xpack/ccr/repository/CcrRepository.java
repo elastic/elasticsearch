@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -253,7 +254,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
                                  Metadata metadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
-                                 ActionListener<SnapshotInfo> listener) {
+                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 

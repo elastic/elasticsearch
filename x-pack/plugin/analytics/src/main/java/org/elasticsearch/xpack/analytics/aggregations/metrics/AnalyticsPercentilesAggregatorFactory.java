@@ -19,17 +19,17 @@ public class AnalyticsPercentilesAggregatorFactory {
         valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
             (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                             formatter, pipelineAggregators, metadata) -> {
+                                             formatter, metadata) -> {
 
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
                     return new HistoBackedTDigestPercentilesAggregator(name, valuesSource, context, parent,
-                        percents, compression, keyed, formatter, pipelineAggregators, metadata);
+                        percents, compression, keyed, formatter, metadata);
 
                 } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
                     int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentilesAggregator(name, valuesSource, context, parent,
-                        percents, numSigFig, keyed, formatter, pipelineAggregators, metadata);
+                        percents, numSigFig, keyed, formatter, metadata);
                 }
 
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
@@ -41,17 +41,17 @@ public class AnalyticsPercentilesAggregatorFactory {
         valuesSourceRegistry.register(PercentileRanksAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
             (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                                      formatter, pipelineAggregators, metadata) -> {
+                                                      formatter, metadata) -> {
 
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                     double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
                     return new HistoBackedTDigestPercentileRanksAggregator(name, valuesSource, context, parent,
-                        percents, compression, keyed, formatter, pipelineAggregators, metadata);
+                        percents, compression, keyed, formatter, metadata);
 
                 } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
                     int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
                     return new HistoBackedHDRPercentileRanksAggregator(name, valuesSource, context, parent,
-                        percents, numSigFig, keyed, formatter, pipelineAggregators, metadata);
+                        percents, numSigFig, keyed, formatter, metadata);
                 }
 
                 throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +

@@ -48,11 +48,6 @@ between("", "", "")                          // returns ""
 
 // null handling
 between(null, "system32\\\\", ".exe")                   // returns null
-between(null, null, null)                               // returns null
-between(file.path, null, ".exe")                        // returns 400 error
-between(file.path, "system32\\\\", null)                // returns 400 error
-between(file.path, "system32\\\\", ".exe", null)        // returns 400 error
-between(file.path, "system32\\\\", ".exe", false, null) // returns 400 error
 ----
 
 *Syntax*

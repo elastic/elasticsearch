@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -103,7 +104,7 @@ public class TransportDeleteAutoscalingPolicyAction extends TransportMasterNodeA
             currentMetadata = AutoscalingMetadata.EMPTY;
         }
         if (currentMetadata.policies().containsKey(name) == false) {
-            throw new IllegalArgumentException("autoscaling policy with name [" + name + "] does not exist");
+            throw new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
         }
         final SortedMap<String, AutoscalingPolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.policies());
         final AutoscalingPolicyMetadata policy = newPolicies.remove(name);

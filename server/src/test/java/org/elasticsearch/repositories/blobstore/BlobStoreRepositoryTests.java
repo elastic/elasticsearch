@@ -196,7 +196,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
+        final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
         repository.writeIndexGen(repositoryData, startingGeneration, true, future1);
 
         // write repo data again to index generational file, errors because we already wrote to the
@@ -219,10 +219,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .get());
     }
 
-    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, generation, true, future);
-        future.actionGet();
+    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
+        PlainActionFuture.<RepositoryData, Exception>get(f -> repository.writeIndexGen(repositoryData, generation, true, f));
     }
 
     private BlobStoreRepository setupRepo() {

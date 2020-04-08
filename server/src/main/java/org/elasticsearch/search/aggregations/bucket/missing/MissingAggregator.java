@@ -27,12 +27,10 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class MissingAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -40,9 +38,8 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     private final ValuesSource valuesSource;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata);
+            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
     }
 
@@ -72,13 +69,12 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
-                pipelineAggregators(), metadata());
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), metadata());
     }
 
 }

@@ -1,7 +1,7 @@
 {
   "searchable_snapshots.mount": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-api-mount-snapshot"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-api-mount-snapshot.html"
     },
     "stability": "experimental",
     "url": {

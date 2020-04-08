@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -58,11 +56,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
 
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, searchContext, parent, pipelineAggregators, metadata,
+            return new DiversifiedNumericSamplerAggregator(name, shardSize, factories, searchContext, parent, metadata,
                     (Numeric) valuesSource, maxDocsPerValue);
         }
 
@@ -80,8 +77,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
             if ((execution.needsGlobalOrdinals()) && (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals))) {
                 execution = ExecutionMode.MAP;
             }
-            return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, searchContext, parent, pipelineAggregators,
-                    metadata);
+            return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, searchContext, parent, metadata);
         }
 
         throw new AggregationExecutionException("Sampler aggregation cannot be applied to field [" + config.fieldContext().field()
@@ -91,11 +87,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        final UnmappedSampler aggregation = new UnmappedSampler(name, pipelineAggregators, metadata);
+        final UnmappedSampler aggregation = new UnmappedSampler(name, metadata);
 
-        return new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metadata) {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;

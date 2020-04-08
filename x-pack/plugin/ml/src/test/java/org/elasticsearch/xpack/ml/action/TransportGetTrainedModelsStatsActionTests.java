@@ -124,7 +124,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     }
 
 
-    public void testInferenceIngestStatsByPipelineId() throws IOException {
+    public void testInferenceIngestStatsByModelId() {
         List<NodeStats> nodeStatsList = Arrays.asList(
             buildNodeStats(
                 new IngestStats.Stats(2, 2, 3, 4),
@@ -191,7 +191,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             put("trained_model_1", Collections.singleton("pipeline1"));
             put("trained_model_2", new HashSet<>(Arrays.asList("pipeline1", "pipeline2")));
         }};
-        Map<String, IngestStats> ingestStatsMap = TransportGetTrainedModelsStatsAction.inferenceIngestStatsByPipelineId(response,
+        Map<String, IngestStats> ingestStatsMap = TransportGetTrainedModelsStatsAction.inferenceIngestStatsByModelId(response,
             pipelineIdsByModelIds);
 
         assertThat(ingestStatsMap.keySet(), equalTo(new HashSet<>(Arrays.asList("trained_model_1", "trained_model_2"))));

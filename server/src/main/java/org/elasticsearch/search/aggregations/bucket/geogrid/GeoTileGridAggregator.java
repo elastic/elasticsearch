@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,21 +35,19 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
 
     GeoTileGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                           int requiredSize, int shardSize, SearchContext aggregationContext,
-                          Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                          Map<String, Object> metadata) throws IOException {
-        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent,
-            pipelineAggregators, metadata);
+                          Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, metadata);
     }
 
     @Override
     InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalGeoTileGrid(name, requiredSize, buckets, pipelineAggregators, metadata);
+                                         Map<String, Object> metadata) {
+        return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
     public InternalGeoTileGrid buildEmptyAggregation() {
-        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metadata());
+        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
     InternalGeoGridBucket newEmptyBucket() {

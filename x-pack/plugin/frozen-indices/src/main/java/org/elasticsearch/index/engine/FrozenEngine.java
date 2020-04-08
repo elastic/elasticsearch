@@ -175,11 +175,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
     @Override
     @SuppressWarnings("fallthrough")
-    @SuppressForbidden( reason = "we manage references explicitly here")
     public Reader acquireReader(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         store.incRef();
         return new Reader(wrapper) {
             @Override
+            @SuppressForbidden(reason = "we manage references explicitly here")
             public Searcher acquireSearcherInternal(String source) {
                 try {
                     boolean maybeOpenReader;

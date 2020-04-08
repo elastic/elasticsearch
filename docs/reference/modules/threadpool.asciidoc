@@ -15,9 +15,8 @@ There are several thread pools, but the important ones include:
 
 `search`::
     For count/search/suggest operations. Thread pool type is
-    `fixed` with a size of
-    `int((`<<node.processors, `# of allocated processors`>>` * 3) / 2) + 1`, and
-    queue_size of `1000`.
+    `fixed` with a size of `int((`<<node.processors,
+    `# of allocated processors`>>` * 3) / 2) + 1`, and queue_size of `1000`.
 
 [[search-throttled]]`search_throttled`::
     For count/search/suggest/get operations on `search_throttled indices`.
@@ -35,23 +34,23 @@ There are several thread pools, but the important ones include:
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
-    queue_size of `200`. The maximum size for this pool is `1 +
-    `<<node.processors, `# of allocated processors`>>.
+    queue_size of `200`. The maximum size for this pool is `1 + `
+    <<node.processors, `# of allocated processors`>>.
 
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(5, (`<<node.processors, `# of allocated
-    processors`>>`)/2)`.
+    keep-alive of `5m` and a max of `min(5, (`<<node.processors,
+    `# of allocated processors`>>`)/2)`.
 
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(5, (`<<node.processors, `# of allocated
-    processors`>>)/2)`.
+    keep-alive of `5m` and a max of `min(5, (`<<node.processors,
+    `# of allocated processors`>>`)/2)`.
 
 `refresh`::
     For refresh operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(10, (`<<node.processors, `# of allocated
-    processors`>>`)/2)`.
+    keep-alive of `5m` and a max of `min(10, (`<<node.processors,
+    `# of allocated processors`>>`)/2)`.
 
 `listener`::
     Mainly for java client executing of action when listener threaded is set to

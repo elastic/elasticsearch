@@ -481,8 +481,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 1L, null, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
-        assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing templates " +
-            "[foo] with patterns (foo => [egg*, baz]) that have the same priority [1]"));
+        assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
+            "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1]"));
     }
 
     public void testFindV2Templates() throws Exception {

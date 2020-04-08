@@ -121,7 +121,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(datafeedJob);
             return null;
-        }).when(datafeedJobBuilder).build(any(), any());
+        }).when(datafeedJobBuilder).build(any(), any(), any());
 
         hasOpenAutodetectCommunicator = new AtomicBoolean(true);
         AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);

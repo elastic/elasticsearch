@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -54,7 +54,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
-        private String id;
+        private String id = "_all";
         private boolean allowNoMatch = true;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -94,7 +94,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
         }
 
         public void setId(String id) {
-            this.id = id;
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 
         public String getId() {

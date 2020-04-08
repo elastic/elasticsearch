@@ -232,6 +232,11 @@ list tasks command, so multiple tasks can be cancelled at the same time. For
 example, the following command will cancel all reindex tasks running on the 
 nodes `nodeId1` and `nodeId2`.
 
+`wait_for_completion`::
+(Optional, boolean) If `true`, the request blocks until the cancellation of the
+task and its descendant tasks is completed. Otherwise, the request can return soon
+after the cancellation is started. Defaults to `false`.
+
 [source,console]
 --------------------------------------------------
 POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex

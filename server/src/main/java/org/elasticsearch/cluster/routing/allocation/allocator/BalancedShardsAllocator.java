@@ -23,8 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -242,7 +242,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final WeightFunction weight;
 
         private final float threshold;
-        private final MetaData metaData;
+        private final Metadata metadata;
         private final float avgShardsPerNode;
         private final NodeSorter sorter;
 
@@ -252,8 +252,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.weight = weight;
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
-            this.metaData = allocation.metaData();
-            avgShardsPerNode = ((float) metaData.getTotalNumberOfShards()) / routingNodes.size();
+            this.metadata = allocation.metadata();
+            avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             sorter = newNodeSorter();
         }
@@ -269,7 +269,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Returns the average of shards per node for the given index
          */
         public float avgShardsPerNode(String index) {
-            return ((float) metaData.index(index).getTotalNumberOfShards()) / nodes.size();
+            return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
         }
 
         /**
@@ -467,7 +467,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelNode[] modelNodes = sorter.modelNodes;
             final float[] weights = sorter.weights;
             for (String index : buildWeightOrderedIndices()) {
-                IndexMetaData indexMetaData = metaData.index(index);
+                IndexMetadata indexMetadata = metadata.index(index);
 
                 // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
                 // move these nodes to the front of modelNodes so that we can only balance based on these nodes
@@ -475,7 +475,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 for (int i = 0; i < modelNodes.length; i++) {
                     ModelNode modelNode = modelNodes[i];
                     if (modelNode.getIndex(index) != null
-                        || deciders.canAllocate(indexMetaData, modelNode.getRoutingNode(), allocation).type() != Type.NO) {
+                        || deciders.canAllocate(indexMetadata, modelNode.getRoutingNode(), allocation).type() != Type.NO) {
                         // swap nodes at position i and relevantNodes
                         modelNodes[i] = modelNodes[relevantNodes];
                         modelNodes[relevantNodes] = modelNode;
@@ -814,7 +814,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                         final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
                             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+                            allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                         minNode.addShard(shard);
                         if (!shard.primary()) {
@@ -836,7 +836,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard,
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+                                allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
                             minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
                             final RoutingNode node = minNode.getRoutingNode();
                             final Decision.Type nodeLevelDecision = deciders.canAllocate(node, allocation).type();

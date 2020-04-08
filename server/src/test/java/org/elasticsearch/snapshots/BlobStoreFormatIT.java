@@ -22,7 +22,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
@@ -138,7 +138,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormatComp.write(blobObj, blobContainer, "blob-comp", true);
         checksumFormat.write(blobObj, blobContainer, "blob-not-comp", true);
-        Map<String, BlobMetaData> blobs = blobContainer.listBlobsByPrefix("blob-");
+        Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
     }

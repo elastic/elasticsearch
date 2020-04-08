@@ -24,7 +24,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -80,7 +80,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
-        MappingMetaData indexMappings = mappings.getMappings().get("index");
+        MappingMetadata indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
         Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -113,7 +113,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
             new GetIndexRequest().indices(AsyncSearchIndexService.INDEX)).actionGet();
         Settings settings = getIndexResponse.getSettings().get(AsyncSearchIndexService.INDEX);
-        assertEquals("1", settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS));
-        assertEquals("0-1", settings.get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS));
+        assertEquals("1", settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
+        assertEquals("0-1", settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 }

@@ -39,6 +39,7 @@ import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -123,8 +124,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path workingDir;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final List<Supplier<URI>> plugins = new ArrayList<>();
-    private final List<Provider<RegularFile>> modules = new ArrayList<>();
+    private final List<Provider<URI>> plugins = new ArrayList<>();
+    private final List<Provider<File>> modules = new ArrayList<>();
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
@@ -261,7 +262,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void plugin(Supplier<URI> plugin) {
+    public void plugin(Provider<URI> plugin) {
         requireNonNull(plugin, "Plugin name can't be null");
         checkFrozen();
         if (plugins.contains(plugin)) {
@@ -271,18 +272,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void plugin(Provider<RegularFile> plugin) {
-        this.plugin(() -> plugin.get().getAsFile().toURI());
-    }
-
-    @Override
     public void plugin(URI plugin) {
-        this.plugin(() -> plugin);
+        Property<URI> uri = project.getObjects().property(URI.class);
+        uri.set(plugin);
+        this.plugin(uri);
     }
 
     @Override
     public void plugin(File plugin) {
-        this.plugin(() -> plugin.toURI());
+        Property<URI> uri = project.getObjects().property(URI.class);
+        uri.set(plugin.toURI());
+        this.plugin(uri);
     }
 
     @Override
@@ -294,7 +294,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void module(Provider<RegularFile> module) {
-        this.modules.add(module);
+        this.modules.add(module.map(RegularFile::getAsFile));
     }
 
     @Override
@@ -438,7 +438,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("installing " + plugins.size() + " plugins in a single transaction");
                 final String[] arguments = Stream.concat(
                     Stream.of("install", "--batch"),
-                    plugins.stream().map(Supplier::get).map(URI::toString)
+                    plugins.stream().map(Provider::get).map(URI::toString)
                 ).toArray(String[]::new);
                 runElasticsearchBinScript("elasticsearch-plugin", arguments);
             } else {
@@ -574,17 +574,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void installModules() {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             logToProcessStdout("Installing " + modules.size() + "modules");
-            for (Provider<RegularFile> module : modules) {
-                File fileModule = module.get().getAsFile();
+            for (Provider<File> module : modules) {
                 Path destination = getDistroDir().resolve("modules")
-                    .resolve(fileModule.getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
-
+                    .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
                 // only install modules that are not already bundled with the integ-test distribution
                 if (Files.exists(destination) == false) {
                     project.copy(spec -> {
-                        if (fileModule.getName().toLowerCase().endsWith(".zip")) {
+                        if (module.get().getName().toLowerCase().endsWith(".zip")) {
                             spec.from(project.zipTree(module));
-                        } else if (fileModule.isDirectory()) {
+                        } else if (module.get().isDirectory()) {
                             spec.from(module);
                         } else {
                             throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
@@ -1129,8 +1127,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
         return Stream.concat(
-            plugins.stream().map(Supplier::get).filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
-            modules.stream().map(p -> p.get().getAsFile())
+            plugins.stream().map(Provider::get).filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
+            modules.stream().map(p -> p.get())
         )
             .filter(File::exists)
             // TODO: We may be able to simplify this with Gradle 5.6
@@ -1144,7 +1142,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Input
     public Set<URI> getRemotePlugins() {
         Set<URI> file = plugins.stream()
-            .map(Supplier::get)
+            .map(Provider::get)
             .filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false)
             .collect(Collectors.toSet());
         return file;

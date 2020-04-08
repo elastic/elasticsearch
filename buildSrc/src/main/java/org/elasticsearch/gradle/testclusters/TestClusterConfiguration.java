@@ -48,9 +48,7 @@ public interface TestClusterConfiguration {
 
     void plugin(File plugin);
 
-    void plugin(Supplier<URI> plugin);
-
-    void plugin(Provider<RegularFile> plugin);
+    void plugin(Provider<URI> plugin);
 
     void module(File module);
 

@@ -129,6 +129,27 @@ InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),par
 "params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
 ;
 
+cidrMatchFunctionOne
+process where cidrMatch(source_address, "10.0.0.0/8")
+;
+"term":{"source_address":{"value":"10.0.0.0/8"
+;
+
+cidrMatchFunctionTwo
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
+;
+"term":{"source_address":{"value":"10.0.0.0/8"
+"term":{"source_address":{"value":"192.168.0.0/16"
+;
+
+cidrMatchFunctionThree
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
+;
+"term":{"source_address":{"value":"10.0.0.0/8"
+"term":{"source_address":{"value":"192.168.0.0/16"
+"term":{"source_address":{"value":"2001:db8::/32"
+;
+
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")
 ;

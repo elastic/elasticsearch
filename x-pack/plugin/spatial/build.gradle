@@ -12,6 +12,7 @@ esplugin {
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: ':modules:geo', configuration: 'runtime')
 }
 
 licenseHeaders {

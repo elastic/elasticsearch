@@ -868,6 +868,33 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
 For running jobs only, contains messages relating to the selection of a node to 
 run the job.
 
+//Begin data_counts
+`data_counts`:::
+(object)
+An object containing statistical data about the documents in the analysis.
++
+.Properties of `data_counts`
+[%collapsible%open]
+====
+`skipped_docs_count`:::
+(integer)
+The number of documents that are skipped during the analysis because they 
+contained values that are not supported by the analysis. For example, 
+{oldetection} does not support missing fields so it skips documents with missing 
+fields. Likewise, all types of analysis skip documents that contain arrays with 
+more than one element.
+
+`test_docs_count`:::
+(integer)
+The number of documents that are not used for training the model and can be used 
+for testing.
+
+`training_docs_count`:::
+(integer)
+The number of documents that are used for training the model.
+====
+//End data_counts
+
 `id`:::
 (string)
 The unique identifier of the {dfanalytics-job}.
@@ -1186,6 +1213,34 @@ For example:
 For more information about these options, see <<multi-index>>.
 --
 end::indices-options[]
+
+tag::inference-config-classification-num-top-classes[]
+Specifies the number of top class predictions to return. Defaults to 0.
+end::inference-config-classification-num-top-classes[]
+
+tag::inference-config-classification-num-top-feature-importance-values[]
+Specifies the maximum number of
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
+importance] values per document. By default, it is zero and no feature
+importance calculation occurs.
+end::inference-config-classification-num-top-feature-importance-values[]
+
+tag::inference-config-classification-top-classes-results-field[]
+Specifies the field to which the top classes are written. Defaults to
+`top_classes`.
+end::inference-config-classification-top-classes-results-field[]
+
+tag::inference-config-regression-num-top-feature-importance-values[]
+Specifies the maximum number of
+{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
+end::inference-config-regression-num-top-feature-importance-values[]
+
+tag::inference-config-results-field[]
+The field that is added to incoming documents to contain the inference
+prediction. Defaults to `predicted_value`.
+end::inference-config-results-field[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 

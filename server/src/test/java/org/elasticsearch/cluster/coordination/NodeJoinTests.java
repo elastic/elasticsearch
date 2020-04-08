@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -44,8 +45,8 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -229,29 +230,22 @@ public class NodeJoinTests extends ESTestCase {
         try {
             final RequestHandlerRegistry<JoinRequest> joinHandler = (RequestHandlerRegistry<JoinRequest>)
                 transport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
-            joinHandler.processMessageReceived(joinRequest, new TransportChannel() {
-                @Override
-                public String getProfileName() {
-                    return "dummy";
-                }
+            final ActionListener<TransportResponse> listener = new ActionListener<>() {
 
                 @Override
-                public String getChannelType() {
-                    return "dummy";
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response) {
+                public void onResponse(TransportResponse transportResponse) {
                     logger.debug("{} completed", future);
                     future.markAsDone();
                 }
 
                 @Override
-                public void sendResponse(Exception e) {
+                public void onFailure(Exception e) {
                     logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
                     future.markAsFailed(e);
                 }
-            });
+            };
+
+            joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
             future.markAsFailed(e);
@@ -402,27 +396,17 @@ public class NodeJoinTests extends ESTestCase {
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {
         final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = (RequestHandlerRegistry<StartJoinRequest>)
             transport.getRequestHandler(JoinHelper.START_JOIN_ACTION_NAME);
-        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TransportChannel() {
+        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(new ActionListener<>() {
             @Override
-            public String getProfileName() {
-                return "dummy";
-            }
-
-            @Override
-            public String getChannelType() {
-                return "dummy";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) {
+            public void onResponse(TransportResponse transportResponse) {
 
             }
 
             @Override
-            public void sendResponse(Exception exception) {
+            public void onFailure(Exception e) {
                 fail();
             }
-        });
+        }));
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.CANDIDATE));
@@ -432,27 +416,19 @@ public class NodeJoinTests extends ESTestCase {
         final RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest> followerCheckHandler =
             (RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest>)
             transport.getRequestHandler(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
-        followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), new TransportChannel() {
+        final TestTransportChannel channel = new TestTransportChannel(new ActionListener<>() {
             @Override
-            public String getProfileName() {
-                return "dummy";
-            }
-
-            @Override
-            public String getChannelType() {
-                return "dummy";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) {
+            public void onResponse(TransportResponse transportResponse) {
 
             }
 
             @Override
-            public void sendResponse(Exception exception) {
+            public void onFailure(Exception e) {
                 fail();
             }
         });
+        followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), channel);
+        // Will throw exception if failed
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.FOLLOWER));

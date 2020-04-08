@@ -73,6 +73,8 @@ public final class RepositoriesModule {
         Map<String, Repository.Factory> internalRepositoryTypes = Collections.unmodifiableMap(internalFactories);
         repositoriesService = new RepositoriesService(settings, clusterService, transportService, repositoryTypes,
             internalRepositoryTypes, threadPool);
+
+        repoPlugins.forEach(rp -> rp.onRepositoriesModule(this));
     }
 
     public RepositoriesService getRepositoryService() {

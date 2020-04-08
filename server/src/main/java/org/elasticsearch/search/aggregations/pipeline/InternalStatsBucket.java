@@ -30,8 +30,8 @@ import java.util.Map;
 
 public class InternalStatsBucket extends InternalStats implements StatsBucket {
     public InternalStatsBucket(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, count, sum, min, max, formatter, pipelineAggregators, metadata);
+                               Map<String, Object> metadata) {
+        super(name, count, sum, min, max, formatter, metadata);
     }
 
     /**

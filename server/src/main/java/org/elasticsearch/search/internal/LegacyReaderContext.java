@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
@@ -32,6 +34,9 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
+    private Engine.Searcher searcher;
+    private Releasable onClose;
+
     public LegacyReaderContext(long id, IndexShard indexShard, Engine.Reader reader,
                                ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
         super(id, indexShard, reader, keepAliveInMillis, false);
@@ -43,6 +48,30 @@ public class LegacyReaderContext extends ReaderContext {
         } else {
             this.scrollContext = null;
         }
+    }
+
+    @Override
+    public Engine.Searcher acquireSearcher(String source) {
+        if (scrollContext != null && "search".equals(source)) {
+            // Search scroll requests are special, they don't hold indices names so we have
+            // to reuse the searcher created on the request that initialized the scroll.
+            // This ensures that we wrap the searcher's reader with the user's permissions
+            // when they are available.
+            if (searcher == null) {
+                Engine.Searcher delegate = reader.acquireSearcher(source);
+                onClose = delegate::close;
+                searcher = new Engine.Searcher(delegate.source(), delegate.getDirectoryReader(),
+                    delegate.getSimilarity(), delegate.getQueryCache(), delegate.getQueryCachingPolicy(), () -> {});
+            }
+            return searcher;
+        }
+        return super.acquireSearcher(source);
+    }
+
+    @Override
+    protected void closeInternal() {
+        Releasables.close(onClose);
+        super.closeInternal();
     }
 
     @Override

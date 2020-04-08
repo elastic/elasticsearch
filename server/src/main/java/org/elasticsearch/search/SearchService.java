@@ -408,7 +408,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // fork the execution in the search thread pool
                     runAsync(shard, () -> executeQueryPhase(orig, task, readerContext), listener);
                 } catch (Exception exc) {
-                    IOUtils.closeWhileHandlingException(releasable);
+                    Releasables.close(releasable);
                     listener.onFailure(exc);
                 }
             }

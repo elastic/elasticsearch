@@ -89,7 +89,7 @@ final class MockInternalEngine extends InternalEngine {
         return new Reader(searcher -> support().wrapSearcher(searcher)) {
             @Override
             protected Searcher acquireSearcherInternal(String source) {
-                return support().wrapSearcher(reader.acquireSearcher(source));
+                return reader.acquireSearcher(source);
             }
 
             @Override

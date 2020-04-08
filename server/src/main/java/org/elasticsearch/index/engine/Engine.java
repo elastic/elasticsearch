@@ -58,7 +58,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -666,7 +665,7 @@ public abstract class Engine implements Closeable {
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
             return new Searcher(source, searcher.getDirectoryReader(), searcher.getSimilarity(),
-                searcher.getQueryCache(), searcher.getQueryCachingPolicy(), () -> IOUtils.close(searcher, reader));
+                searcher.getQueryCache(), searcher.getQueryCachingPolicy(), () -> Releasables.close(searcher, reader));
         } finally {
             Releasables.close(releasable);
         }

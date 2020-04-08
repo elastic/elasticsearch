@@ -130,20 +130,21 @@ public class FrozenEngineTests extends EngineTestCase {
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     try (Engine.Reader reader = frozenEngine.acquireReader(Function.identity())) {
+                        SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                            SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
+                            segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                             assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                             assertEquals(1, listener.afterRefresh.get());
                         }
+                        segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
+                        assertEquals(0, segmentsStats.getCount());
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                            SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
-                            assertEquals(0, segmentsStats.getCount());
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
                             assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
-                            assertEquals(1, listener.afterRefresh.get());
-                            assertFalse(frozenEngine.isReaderOpen());
+                            assertEquals(2, listener.afterRefresh.get());
                         }
-                        SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
+                        assertFalse(frozenEngine.isReaderOpen());
+                        segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
                         assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     }
                 }
@@ -222,9 +223,9 @@ public class FrozenEngineTests extends EngineTestCase {
             try (InternalEngine engine = createEngine(config)) {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
-                int numIters = 1;//randomIntBetween(100, 1000);
+                int numIters = randomIntBetween(100, 1000);
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
-                    int numThreads = 2;//randomIntBetween(2, 4);
+                    int numThreads = randomIntBetween(2, 4);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads);
                     CountDownLatch latch = new CountDownLatch(numThreads);
@@ -240,7 +241,7 @@ public class FrozenEngineTests extends EngineTestCase {
                                     }
                                 }
                                 if (randomBoolean()) {
-                                    //reader.acquireSearcher("test").close();
+                                    reader.acquireSearcher("test").close();
                                 }
                             } catch (Exception e) {
                                 throw new AssertionError(e);

@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ReaderContext extends AbstractRefCounted implements Releasable {
     private final SearchContextId id;
     private final IndexShard indexShard;
-    private final Engine.Reader reader;
+    protected final Engine.Reader reader;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean singleSession;
 
@@ -98,10 +98,6 @@ public class ReaderContext extends AbstractRefCounted implements Releasable {
 
     public Engine.Searcher acquireSearcher(String source) {
         return reader.acquireSearcher(source);
-    }
-
-    public String source() {
-        return "search";
     }
 
     public void keepAlive(long keepAlive) {

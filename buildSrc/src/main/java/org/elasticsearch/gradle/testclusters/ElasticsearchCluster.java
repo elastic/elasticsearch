@@ -26,6 +26,7 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -145,6 +146,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void plugin(Provider<URI> plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
+    public void plugin(RegularFileProperty plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
 

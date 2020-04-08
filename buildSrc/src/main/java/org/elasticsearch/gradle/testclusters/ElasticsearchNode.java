@@ -262,6 +262,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void plugin(RegularFileProperty plugin) {
+        this.plugins.add(plugin.map(p -> p.getAsFile().toURI()));
+    }
+
+    @Override
     public void plugin(Provider<URI> plugin) {
         requireNonNull(plugin, "Plugin name can't be null");
         checkFrozen();

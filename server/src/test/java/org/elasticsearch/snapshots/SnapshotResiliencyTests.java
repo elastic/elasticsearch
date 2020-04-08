@@ -131,6 +131,7 @@ import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -777,11 +778,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         final ShardRouting shardRouting =
                             updatedClusterState.getState().routingTable().shardRoutingTable(shardToRelocate.shardId()).primaryShard();
                         if (shardRouting.unassigned() && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
-                            if (masterNodeCount > 1) {
+                            final boolean masterFailOver = masterNodeCount > 1;
+                            if (masterFailOver) {
                                 scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                             }
-                            testClusterNodes.randomMasterNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(snapshotStartedListener);
+                            testClusterNodes.randomMasterNodeSafe(
+                                masterFailOver ? new String[]{masterNode.node.getName()} : Strings.EMPTY_ARRAY).client.admin().cluster()
+                                .prepareCreateSnapshot(repoName, snapshotName).execute(snapshotStartedListener);
                             scheduleNow(
                                 () -> testClusterNodes.randomDataNodeSafe().client.admin().cluster().reroute(
                                     new ClusterRerouteRequest().add(new AllocateEmptyPrimaryAllocationCommand(
@@ -1104,15 +1107,24 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     Collections.singleton(role), Version.CURRENT));
         }
 
-        public TestClusterNode randomMasterNodeSafe() {
-            return randomMasterNode().orElseThrow(() -> new AssertionError("Expected to find at least one connected master node"));
+        public TestClusterNode randomMasterNodeSafe(String... excludeNames) {
+            return randomMasterNode(excludeNames).orElseThrow(
+                () -> new AssertionError("Expected to find at least one connected master node"));
         }
 
-        public Optional<TestClusterNode> randomMasterNode() {
+        public Optional<TestClusterNode> randomMasterNode(String... excludedNames) {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
             final List<TestClusterNode> masterNodes = testClusterNodes.nodes.values().stream()
                 .filter(n -> n.node.isMasterNode())
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
+                .filter(n -> {
+                    for (final String nodeName : excludedNames) {
+                        if (n.node.getName().equals(nodeName)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
                 .sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList());
             return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }

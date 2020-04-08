@@ -17,25 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.tasksplugin;
+package org.elasticsearch.client.indices;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
-
-import java.util.Collection;
-import java.util.Collections;
-
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import org.elasticsearch.common.Strings;
 
 /**
- * This plugin currently only exists to register `.tasks` as a system index.
+ * A request to check for the existence of index templates
  */
-public class TasksPlugin extends Plugin implements SystemIndexPlugin {
+public class IndexTemplateV2ExistRequest extends GetComponentTemplatesRequest {
 
-    @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
+    /**
+     * Create a request to check for the existence of index template. Name must be provided
+     *
+     * @param name the name of template to check for the existence of
+     */
+    public IndexTemplateV2ExistRequest(String name) {
+        super(name);
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("must provide index template name");
+        }
     }
 }

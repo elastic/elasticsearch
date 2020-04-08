@@ -17,25 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.tasksplugin;
+package org.elasticsearch.client.indices;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.client.TimedRequest;
 
-import java.util.Collection;
-import java.util.Collections;
+public class DeleteIndexTemplateV2Request extends TimedRequest {
 
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+    private final String name;
 
-/**
- * This plugin currently only exists to register `.tasks` as a system index.
- */
-public class TasksPlugin extends Plugin implements SystemIndexPlugin {
+    public DeleteIndexTemplateV2Request(String name) {
+        this.name = name;
+    }
 
-    @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
+    public String getName() {
+        return name;
     }
 }

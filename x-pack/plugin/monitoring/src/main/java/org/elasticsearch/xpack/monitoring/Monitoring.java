@@ -103,7 +103,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver, RepositoriesService repositoriesService) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled == false) {
             return Collections.singletonList(new MonitoringUsageServices(null, null));
         }

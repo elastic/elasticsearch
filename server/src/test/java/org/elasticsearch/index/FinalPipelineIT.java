@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -246,7 +247,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final RepositoriesService repositoriesService) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
             return List.of();
         }
 

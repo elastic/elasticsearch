@@ -278,7 +278,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        RepositoriesService repositoriesService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (enabled == false) {
             return emptyList();

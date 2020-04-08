@@ -87,7 +87,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
-                                               RepositoriesService repositoriesService) {
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {

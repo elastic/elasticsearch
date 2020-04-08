@@ -197,7 +197,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        RepositoriesService repositoriesService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (enabled == false) {
             return List.of();

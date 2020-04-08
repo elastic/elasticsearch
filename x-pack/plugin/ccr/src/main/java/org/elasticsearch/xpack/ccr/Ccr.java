@@ -176,7 +176,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final RepositoriesService repositoriesService) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.client = client;
         if (enabled == false) {
             return emptyList();

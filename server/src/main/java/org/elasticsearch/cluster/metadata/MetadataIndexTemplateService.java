@@ -690,7 +690,7 @@ public class MetadataIndexTemplateService {
         }
 
         final List<IndexTemplateV2> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.nullsFirst(Comparator.comparingLong(IndexTemplateV2::priority).reversed()));
+        CollectionUtil.timSort(candidates, Comparator.comparingLong(IndexTemplateV2::priority).reversed());
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);

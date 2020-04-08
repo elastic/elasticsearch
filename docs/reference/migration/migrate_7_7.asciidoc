@@ -22,7 +22,7 @@ coming[7.7.0]
 
 [discrete]
 [[breaking-77-ml-text-dependent-vars]]
-==== {classanalysis-cap} no longer supports dependent variables in text fields
+==== {classanalysis-cap} no longer supports text fields as dependent variables
 
 If you try to create a {dfanalytics-job} that uses {classanalysis} to predict a
 `text` field, the job creation fails in 7.7 and later releases. That is to say,

@@ -119,8 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:25: Unknown function [indexOf]",
-                error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",
                 error("process where add(serial_event_id, 0) == 1"));
         assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",

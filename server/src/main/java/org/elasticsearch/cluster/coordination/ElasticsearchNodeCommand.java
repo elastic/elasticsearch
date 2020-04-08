@@ -29,12 +29,11 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -53,7 +52,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,12 +70,8 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected static final String CS_MISSING_MSG =
         "cluster state is empty, cluster has never been bootstrapped?";
 
-    static final List<NamedXContentRegistry.Entry> REQUIRED_CUSTOM_METADATA = List.of(
-        new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(DataStreamMetadata.TYPE), DataStreamMetadata::fromXContent)
-    );
-
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
-    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(REQUIRED_CUSTOM_METADATA) {
+    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
 
         @SuppressWarnings("unchecked")
         @Override

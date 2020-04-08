@@ -164,7 +164,8 @@ public class RestRequest implements ToXContent.Params {
                 return;
             }
 
-        } else if ( previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion) || acceptVersion == null) {
+        } else if ( previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion)
+            || acceptVersion == null || acceptVersion.equals("*/*")) {
             return;
         }
         throw new CompatibleApiHeadersCombinationException(

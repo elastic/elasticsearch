@@ -31,8 +31,8 @@ esplugin {
 
 testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
-  module file(project(':modules:parent-join').tasks.bundlePlugin.archiveFile)
-  module file(project(':modules:lang-painless').tasks.bundlePlugin.archiveFile)
+  module project(':modules:parent-join').tasks.bundlePlugin.archiveFile
+  module project(':modules:lang-painless').tasks.bundlePlugin.archiveFile
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
@@ -57,8 +57,8 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count', 
-                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'  
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
   }
 }
 

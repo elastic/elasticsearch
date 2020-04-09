@@ -60,10 +60,10 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         Map<String, String> params = new HashMap<>();
         params.put("node_ids", "node-1,node-2,node-3");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/_cluster/voting_config_exclusions")
-            .withParams(params)
-            .build();
+                                                .withMethod(RestRequest.Method.PUT)
+                                                .withPath("/_cluster/voting_config_exclusions")
+                                                .withParams(params)
+                                                .build();
 
         AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(request);
         String[] expected = {"node-1","node-2", "node-3"};
@@ -76,10 +76,10 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         Map<String, String> params = new HashMap<>();
         params.put("node_names", "node-1,node-2,node-3");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/_cluster/voting_config_exclusions")
-            .withParams(params)
-            .build();
+                                                .withMethod(RestRequest.Method.PUT)
+                                                .withPath("/_cluster/voting_config_exclusions")
+                                                .withParams(params)
+                                                .build();
 
         AddVotingConfigExclusionsRequest addVotingConfigExclusionsRequest = action.resolveVotingConfigExclusionsRequest(request);
         String[] expected = {"node-1","node-2", "node-3"};

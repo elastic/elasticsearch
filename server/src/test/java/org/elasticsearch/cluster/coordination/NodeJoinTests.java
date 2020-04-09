@@ -425,7 +425,9 @@ public class NodeJoinTests extends ESTestCase {
                                                     new VotingConfiguration(Collections.singleton(initialNode.getId())));
         Metadata newMetadata = Metadata.builder(initialState.metadata())
                                         .coordinationMetadata(CoordinationMetadata.builder(initialState.coordinationMetadata())
-                                                                        .addVotingConfigExclusion(votingConfigExclusion).build()).build();
+                                                                                    .addVotingConfigExclusion(votingConfigExclusion)
+                                                                                    .build())
+                                        .build();
 
         return ClusterState.builder(initialState).metadata(newMetadata).build();
     }

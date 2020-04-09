@@ -98,27 +98,8 @@ specified in both `includes` and `excludes`, then the field will not be included
 in the analysis.
 +
 --
-The supported fields for each type of analysis are as follows:
-
-* {oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
-don't support missing values therefore fields that have data types other than 
-numeric or boolean are ignored. Documents where included fields contain missing 
-values, null values, or an array are also ignored. Therefore the `dest` index 
-may contain documents that don't have an {olscore}.
-* {regression-cap} supports fields that are numeric, `boolean`, `text`, 
-`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
-supported are included in the analysis, other fields are ignored. Documents 
-where included fields contain  an array with two or more values are also 
-ignored. Documents in the `dest` index  that don’t contain a results field are 
-not included in the {reganalysis}.
-* {classification-cap} supports fields that are numeric, `boolean`, `text`,
-`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
-supported are included in the analysis, other fields are ignored. Documents
-where included fields contain an array with two or more values are also ignored. 
-Documents in the `dest` index that don’t contain a results field are not
-included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
-ordinal variable values to a  single number. For example, in case of age ranges,
-you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
+[[dfa-supported-fields]]
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfa-supported-fields]
 
 If `analyzed_fields` is not set, only the relevant fields will be included. For
 example, all the numeric fields for {oldetection}. For more information about
@@ -1057,6 +1038,30 @@ tag::detector-index[]
 A unique identifier for the detector. This identifier is based on the order of 
 the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
+
+tag::dfa-supported-fields[]
+The supported fields for each type of analysis are as follows:
+
+* {oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
+don't support missing values therefore fields that have data types other than 
+numeric or boolean are ignored. Documents where included fields contain missing 
+values, null values, or an array are also ignored. Therefore the `dest` index 
+may contain documents that don't have an {olscore}.
+* {regression-cap} supports fields that are numeric, `boolean`, `text`, 
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents 
+where included fields contain  an array with two or more values are also 
+ignored. Documents in the `dest` index  that don’t contain a results field are 
+not included in the {reganalysis}.
+* {classification-cap} supports fields that are numeric, `boolean`, `text`,
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents
+where included fields contain an array with two or more values are also ignored. 
+Documents in the `dest` index that don’t contain a results field are not
+included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
+ordinal variable values to a  single number. For example, in case of age ranges,
+you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
+end::dfa-supported-fields[]
 
 tag::earliest-record-timestamp[]
 The timestamp of the earliest chronologically input document.

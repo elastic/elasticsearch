@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -126,8 +127,21 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         DocValueFormat format,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        QueryBuilder filterA = filters.get(A_FIELD.getPreferredName());
+        QueryBuilder filterB = filters.get(B_FIELD.getPreferredName());
+        if (filterA == null && filterB == null) {
+            FieldContext fieldContextA = configs.get(A_FIELD.getPreferredName()).fieldContext();
+            FieldContext fieldContextB = configs.get(B_FIELD.getPreferredName()).fieldContext();
+            if (fieldContextA != null && fieldContextB != null) {
+                if (fieldContextA.field().equals(fieldContextB.field())) {
+                    throw new IllegalArgumentException("The same field [" + fieldContextA.field() +
+                        "] is used for both population but no filters are specified.");
+                }
+            }
+        }
+
         return new TTestAggregatorFactory(name, configs, testType, tails,
-            filters.get(A_FIELD.getPreferredName()), filters.get(B_FIELD.getPreferredName()), format, queryShardContext, parent,
+            filterA, filterB, format, queryShardContext, parent,
             subFactoriesBuilder, metadata);
     }
 

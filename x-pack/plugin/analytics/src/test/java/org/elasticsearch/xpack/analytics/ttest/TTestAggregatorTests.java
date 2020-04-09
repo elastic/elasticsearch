@@ -66,8 +66,10 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new TTestAggregationBuilder("foo")
-            .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).build())
-            .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).build());
+            .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                .setFilter(QueryBuilders.rangeQuery(fieldName).lt(10)).build())
+            .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                .setFilter(QueryBuilders.rangeQuery(fieldName).gte(10)).build());
     }
 
     @Override
@@ -150,6 +152,26 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         );
         assertEquals(
             "Encountered more than one value for a single document. Use a script to combine multiple values per doc into a single value.",
+            ex.getMessage());
+    }
+
+    public void testSameFieldAndNoFilters() {
+        TTestType tTestType = randomFrom(TTestType.values());
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("field");
+        TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test")
+            .a(new MultiValuesSourceFieldConfig.Builder().setFieldName("field").setMissing(100).build())
+            .b(new MultiValuesSourceFieldConfig.Builder().setFieldName("field").setMissing(100).build())
+            .testType(tTestType);
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedNumericDocValuesField("field", 102)));
+                iw.addDocument(singleton(new SortedNumericDocValuesField("field", 99)));
+            }, tTest -> fail("Should have thrown exception"), fieldType)
+        );
+        assertEquals(
+            "The same field [field] is used for both population but no filters are specified.",
             ex.getMessage());
     }
 

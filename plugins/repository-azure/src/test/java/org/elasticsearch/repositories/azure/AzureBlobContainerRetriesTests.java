@@ -44,6 +44,8 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -62,6 +64,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -88,9 +91,11 @@ import static org.hamcrest.Matchers.lessThan;
 public class AzureBlobContainerRetriesTests extends ESTestCase {
 
     private HttpServer httpServer;
+    private ThreadPool threadPool;
 
     @Before
     public void setUp() throws Exception {
+        threadPool = new TestThreadPool(getTestClass().getName(), AzureRepositoryPlugin.executorBuilder());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         super.setUp();
@@ -100,6 +105,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     public void tearDown() throws Exception {
         httpServer.stop(0);
         super.tearDown();
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
     private BlobContainer createBlobContainer(final int maxRetries) {
@@ -139,7 +145,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .build());
 
-        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetaData, service));
+        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetaData, service, threadPool), threadPool);
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {

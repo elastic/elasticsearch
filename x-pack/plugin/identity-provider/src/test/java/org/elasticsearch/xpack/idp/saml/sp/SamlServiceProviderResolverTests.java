@@ -19,10 +19,9 @@ import org.opensaml.saml.saml2.core.NameID;
 
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +47,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         index = mock(SamlServiceProviderIndex.class);
         identityProvider = mock(SamlIdentityProvider.class);
         serviceProviderDefaults = configureIdentityProviderDefaults();
-        resolver = new SamlServiceProviderResolver(Settings.EMPTY, index, serviceProviderDefaults);
+        resolver = new SamlServiceProviderResolver(Settings.EMPTY, index, new SamlServiceProviderFactory(serviceProviderDefaults));
     }
 
     public void testResolveWithoutCache() throws Exception {
@@ -59,8 +58,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String principalAttribute = randomAlphaOfLengthBetween(6, 36);
         final String rolesAttribute = randomAlphaOfLengthBetween(6, 36);
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
-        final Map<String, String> rolePrivileges = new HashMap<>();
-        rolePrivileges.put(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
+        final Set<String> rolePrivileges = Collections.singleton("role:(.*)");
 
         final DocumentVersion docVersion = new DocumentVersion(
             randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
@@ -69,7 +67,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         document.setAuthenticationExpiry(null);
         document.setAcs(acs.toString());
         document.privileges.setResource(resource);
-        document.privileges.setRoleActions(rolePrivileges);
+        document.privileges.setRolePatterns(rolePrivileges);
         document.attributeNames.setPrincipal(principalAttribute);
         document.attributeNames.setRoles(rolesAttribute);
 
@@ -93,7 +91,10 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getPrivileges(), notNullValue());
         assertThat(serviceProvider.getPrivileges().getApplicationName(), equalTo(serviceProviderDefaults.applicationName));
         assertThat(serviceProvider.getPrivileges().getResource(), equalTo(resource));
-        assertThat(serviceProvider.getPrivileges().getRoleActions(), equalTo(rolePrivileges));
+        final Function<String, Set<String>> roleMapping = serviceProvider.getPrivileges().getRoleMapping();
+        assertThat(roleMapping, notNullValue());
+        assertThat(roleMapping.apply("role:foo"), equalTo(Collections.singleton("foo")));
+        assertThat(roleMapping.apply("foo:bar"), equalTo(Collections.emptySet()));
     }
 
     public void testResolveReturnsCachedObject() throws Exception {

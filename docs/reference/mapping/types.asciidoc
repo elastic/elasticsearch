@@ -7,7 +7,7 @@ document:
 [float]
 === Core datatypes
 
-string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard`>>
+string::         <<text,`text`>> and <<keyword,`keyword`>>
 <<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::       `date`
 <<date_nanos>>:: `date_nanos`
@@ -135,5 +135,3 @@ include::types/token-count.asciidoc[]
 include::types/shape.asciidoc[]
 
 include::types/constant-keyword.asciidoc[]
-
-include::types/wildcard.asciidoc[]

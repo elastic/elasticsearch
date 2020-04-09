@@ -39,9 +39,14 @@ import static org.hamcrest.Matchers.not;
 public class CompatibleHeaderCombinationTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
+    int OBSOLETE_VERSION = Version.CURRENT.major - 2;
 
-    public void testOld(){
-        createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
+
+    public void testObsoleteVersion(){
+        createRequestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(OBSOLETE_VERSION), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(null), bodyNotPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
     }
     public void testAcceptAndContentTypeCombinations() {
@@ -73,14 +78,15 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
-        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
-
         createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
+        // accept header when null is being defaulted to JSON. but it won't be compatible
         createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+            expect(requestCreated(), not(isCompatible())));
+
+        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
+            expect(requestCreated(), not(isCompatible())));
 
         //tests when body NOT present and one of the headers missing
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyNotPresent(),
@@ -105,7 +111,10 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     }
 
     public void testMediaTypeCombinations(){
-
+        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
 //        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/smile"), bodyPresent(),
 //            expect(requestCreated(), not(isCompatible())));
 

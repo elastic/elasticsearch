@@ -139,7 +139,6 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private void addCompatibleParameter() {
-        validateAcceptContentTypeHeaders();
         if (isRequestCompatible()) {
             String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
             params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
@@ -148,58 +147,76 @@ public class RestRequest implements ToXContent.Params {
         }
     }
 
-    private void validateAcceptContentTypeHeaders() {
+    private boolean isRequestCompatible() {
         String currentVersion = String.valueOf(Version.CURRENT.major);
         String previousVersion = String.valueOf(Version.CURRENT.major - 1);
-        String acceptVersion = getVersion(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
-        String contentTypeVersion = getVersion(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
+
+        String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
+        String acceptVersion = XContentType.parseVersion(acceptHeader);
+        String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
+        String contentTypeVersion = XContentType.parseVersion(contentTypeHeader);
+
+        boolean isSupportedMediaTypeAccept = XContentType.fromMediaTypeOrFormat(acceptHeader) != null ||
+            acceptVersion == null;
+
+        boolean isSupportedMediaTypeContentType = XContentType.fromMediaTypeOrFormat(contentTypeHeader) != null ||
+            contentTypeVersion == null;
 
         if (hasContent()) {
-            if ((previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion) ) &&
-                acceptVersion.equals(contentTypeVersion)) {
-                return;
-            }
-            if(XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER)) == null &&
-                XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER)) == null){
-                return;
+            //both headers versioned
+            if (acceptVersion != null && contentTypeVersion != null) {
+                // both Accept and Content-Type are versioned and set to a previous version
+                if (previousVersion.equals(acceptVersion) && previousVersion.equals(contentTypeVersion)) {
+                    return true;
+                }
+                // both Accept and Content-Type are versioned to a current version
+                if (currentVersion.equals(acceptVersion) && currentVersion.equals(contentTypeVersion)) {
+                    return false;
+                }
+                // both headers are versioned but set to incorrect version
+                throw new CompatibleApiHeadersCombinationException(
+                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
+                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
             }
 
-        } else if ( previousVersion.equals(acceptVersion) || currentVersion.equals(acceptVersion)
-            || acceptVersion == null || acceptVersion.equals("*/*")) {
-            return;
+            // Content type is set but accept is not present. It will be defaulted to JSON
+            if(isSupportedMediaTypeContentType &&
+                (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
+                return false;
+            }
+            // both Accept and Content-Type are not a compatible format, but are supported and the same and not empty
+            if (isSupportedMediaTypeContentType && isSupportedMediaTypeAccept &&
+                acceptHeader != null && contentTypeHeader != null &&
+                acceptHeader.equals(contentTypeHeader)) {
+                return false;
+            }
+        } else {
+            if (acceptVersion != null) {
+                //Accept header is versioned and set to previous
+                if (previousVersion.equals(acceptVersion)) {
+                    return true;
+                }
+                if (currentVersion.equals(acceptVersion)) {
+                    return false;
+                }
+                // Accept header is versioned but set to incorrect version
+                throw new CompatibleApiHeadersCombinationException(
+                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
+                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+            }
+            //Accept header is not versioned but is supported
+            if (isSupportedMediaTypeAccept) {
+                return false;
+            }
         }
+
         throw new CompatibleApiHeadersCombinationException(
             String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                    "Accept=%s Content-Type=%s hasContent=%b %s %s %s", header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER),
-                header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER), hasContent(),path(), params.toString(),method().toString()));
+                    "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
     }
-
-    private String getVersion(String headerName) {
-        String headerValue = header(headerName);
-        String version = XContentType.parseVersion(headerValue);
-        if(version != null){
-            return version;
-        }
-        // if version was not provided but mediaType is parsable - return Current
-        if(XContentType.fromMediaTypeOrFormat(headerValue) != null){
-            return String.valueOf(Version.CURRENT.major);
-        }
-        return headerValue;
-    }
-
-    private boolean isRequestCompatible() {
-        if (hasContent()) {
-            return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER)) &&
-                isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER));
-        }
-        return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
-    }
-
-    private boolean isHeaderCompatible(String headerValue) {
-        String version = XContentType.parseVersion(headerValue);
-        return CompatibleConstants.COMPATIBLE_VERSION.equals(version);
-    }
-
 
     private static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();

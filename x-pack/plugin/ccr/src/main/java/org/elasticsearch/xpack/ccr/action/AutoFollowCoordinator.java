@@ -177,6 +177,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 LOGGER.warn(new ParameterizedMessage("failure occurred while fetching cluster state for auto follow pattern [{}]",
                     result.autoFollowPatternName), result.clusterStateFetchException);
             } else {
+                recentAutoFollowErrors.remove(result.autoFollowPatternName);
                 for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
@@ -186,6 +187,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             "pattern [{}]", entry.getKey(), result.autoFollowPatternName), entry.getValue());
                     } else {
                         numberOfSuccessfulIndicesAutoFollowed++;
+                        recentAutoFollowErrors.remove(result.autoFollowPatternName + ":" + entry.getKey().getName());
                     }
                 }
             }

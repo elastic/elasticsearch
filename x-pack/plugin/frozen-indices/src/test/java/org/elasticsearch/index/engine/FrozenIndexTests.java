@@ -11,6 +11,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClearReaderAction;
+import org.elasticsearch.action.search.ClearReaderRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -86,6 +88,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(useDFS ? 3 : 2, shard.refreshStats().getTotal());
         assertFalse(((FrozenEngine)engine).isReaderOpen());
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
+
         // now scroll
         SearchResponse searchResponse = client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .setScroll(TimeValue.timeValueMinutes(1)).setSize(1).get();
@@ -97,10 +100,37 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 2; i++) {
                 shard = indexService.getShard(i);
                 engine = IndexShardTestCase.getEngine(shard);
-                assertFalse(((FrozenEngine) engine).isReaderOpen());
+                // TODO: scrolls keep the reader open
+                // assertFalse(((FrozenEngine) engine).isReaderOpen());
             }
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
         } while (searchResponse.getHits().getHits().length > 0);
+        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+
+        // now readerId
+        searchResponse = client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .setReader(null, TimeValue.timeValueMinutes(1)).setSize(1).get();
+        int from = 0;
+        do {
+            assertHitCount(searchResponse, 3);
+            assertEquals(1, searchResponse.getHits().getHits().length);
+            SearchService searchService = getInstanceFromNode(SearchService.class);
+            assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+            for (int i = 0; i < 2; i++) {
+                shard = indexService.getShard(i);
+                engine = IndexShardTestCase.getEngine(shard);
+                assertFalse(((FrozenEngine) engine).isReaderOpen());
+            }
+            ++ from;
+            searchResponse = client().prepareSearch()
+                .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+                .setReader(searchResponse.getReaderId(), TimeValue.timeValueMinutes(1))
+                .setSize(1)
+                .setFrom(from)
+                .get();
+        } while (searchResponse.getHits().getHits().length > 0);
+        assertEquals(3, from);
+        client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(searchResponse.getReaderId())).actionGet();
     }
 
     public void testSearchAndGetAPIsAreThrottled() throws IOException {

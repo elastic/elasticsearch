@@ -11,6 +11,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.ClearReaderAction;
+import org.elasticsearch.action.search.ClearReaderRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -672,7 +674,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testScroll() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
+                .setSettings(Settings.builder()
+                    .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
                 .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
@@ -765,12 +768,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             } while (response.getHits().getHits().length > 0);
             assertEquals(numDocs, from);
         } finally {
-            if (response != null) {
-                String scrollId = response.getScrollId();
-                if (scrollId != null) {
-                    client().prepareClearScroll().addScrollId(scrollId).get();
-                }
-            }
+            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(response.getReaderId())).actionGet();
         }
     }
 

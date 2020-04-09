@@ -12,6 +12,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.ClearReaderAction;
+import org.elasticsearch.action.search.ClearReaderRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -756,6 +758,54 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     client().prepareClearScroll().addScrollId(scrollId).get();
                 }
             }
+        }
+    }
+
+    public void testReaderId() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
+            .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
+        );
+        final int numVisible = scaledRandomIntBetween(2, 10);
+        final int numInVisible = scaledRandomIntBetween(2, 10);
+        int id = 1;
+        for (int i = 0; i < numVisible; i++) {
+            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
+        }
+
+        for (int i = 0; i < numInVisible; i++) {
+            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
+            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
+        }
+        refresh();
+
+        SearchResponse response = null;
+        try {
+            response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setSize(1)
+                .setReader(null, TimeValue.timeValueMinutes(1))
+                .setQuery(termQuery("field1", "value1"))
+                .get();
+            int from = 0;
+            do {
+                assertNoFailures(response);
+                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
+                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                ++ from;
+                response = client()
+                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch()
+                    .setSize(1)
+                    .setFrom(from)
+                    .setReader(response.getReaderId(), TimeValue.timeValueMinutes(1))
+                    .setQuery(termQuery("field1", "value1"))
+                    .get();
+            } while (response.getHits().getHits().length > 0);
+        } finally {
+            client().execute(ClearReaderAction.INSTANCE, new ClearReaderRequest(response.getReaderId())).actionGet();
         }
     }
 

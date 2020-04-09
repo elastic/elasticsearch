@@ -574,6 +574,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
         }
+        assert assertConsistentWithClusterState(event.state());
+    }
+
+    private boolean assertConsistentWithClusterState(ClusterState state) {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
+            final Set<Snapshot> runningSnapshots =
+                snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
+            assert runningSnapshots.containsAll(snapshotListenerKeys) : "Saw completion listeners for unknown snapshots in "
+                + snapshotListenerKeys + " but running snapshots are " + runningSnapshots;
+        }
+        return true;
     }
 
     /**

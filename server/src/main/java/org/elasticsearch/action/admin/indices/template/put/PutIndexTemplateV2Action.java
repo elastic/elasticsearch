@@ -89,15 +89,14 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
             }
             if (indexTemplate == null) {
                 validationException = addValidationError("an index template is required", validationException);
-            }
-            assert indexTemplate != null : "an index template is required";
-            
-            if (indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-                if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
-                    validationException = addValidationError(
-                        "global V2 templates may not specify the setting " + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
-                        validationException
-                    );
+            } else {
+                if (indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+                    if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
+                        validationException = addValidationError("global V2 templates may not specify the setting "
+                                + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
+                            validationException
+                        );
+                    }
                 }
             }
 

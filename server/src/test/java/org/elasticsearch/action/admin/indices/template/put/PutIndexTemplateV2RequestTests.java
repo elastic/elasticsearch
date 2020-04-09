@@ -68,4 +68,15 @@ public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
         String error = validationErrors.get(0);
         assertThat(error, is("global V2 templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
     }
+
+    public void testPutIndexTemplateV2RequestMustContainTemplate() {
+        PutIndexTemplateV2Action.Request requestWithoutTemplate = new PutIndexTemplateV2Action.Request("test");
+
+        ActionRequestValidationException validationException = requestWithoutTemplate.validate();
+        assertThat(validationException, is(notNullValue()));
+        List<String> validationErrors = validationException.validationErrors();
+        assertThat(validationErrors.size(), is(1));
+        String error = validationErrors.get(0);
+        assertThat(error, is("an index template is required"));
+    }
 }

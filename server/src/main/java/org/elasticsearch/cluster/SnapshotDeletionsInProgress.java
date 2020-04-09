@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 
@@ -174,6 +175,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             this.snapshot = snapshot;
             this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;
+            assert repositoryStateId > RepositoryData.EMPTY_REPO_GEN :
+                "Can't delete based on an empty or unknown repository generation but saw [" + repositoryStateId + "]";
         }
 
         public Entry(StreamInput in) throws IOException {

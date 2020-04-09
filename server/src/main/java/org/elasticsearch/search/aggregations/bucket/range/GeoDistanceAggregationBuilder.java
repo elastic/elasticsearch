@@ -273,8 +273,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     GeoDistanceAggregationBuilder origin(GeoPoint origin) {

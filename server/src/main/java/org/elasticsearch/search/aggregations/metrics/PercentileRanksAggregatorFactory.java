@@ -50,10 +50,10 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                 @Override
                 public Aggregator build(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                         double[] percents, PercentilesConfig percentilesConfig, boolean keyed, DocValueFormat formatter,
-                                         Map<String, Object> metaData) throws IOException {
+                                         Map<String, Object> metadata) throws IOException {
 
                     return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed,
-                        formatter, metaData);
+                        formatter, metadata);
                 }
             }
         );
@@ -88,7 +88,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             PercentileRanksAggregationBuilder.NAME);
 
@@ -98,6 +98,6 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
         PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
         return percentilesAggregatorSupplier.build(name, valuesSource, searchContext, parent, percents, percentilesConfig, keyed,
-            config.format(), metaData);
+            config.format(), metadata);
     }
 }

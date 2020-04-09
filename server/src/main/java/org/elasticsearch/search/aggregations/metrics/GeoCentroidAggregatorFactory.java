@@ -58,7 +58,7 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
 
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             GeoCentroidAggregationBuilder.NAME);
@@ -66,12 +66,12 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoCentroidAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, metaData);
+        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, metaData) ->
-                new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, metaData));
+            (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, metadata) ->
+                new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, metadata));
     }
 }

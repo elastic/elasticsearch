@@ -61,7 +61,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
             if (entry.getValue() instanceof ValuesSource.Numeric == false) {
@@ -71,6 +71,6 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
             // TODO: There must be a better option than this.
             typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());
         }
-        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metaData);
+        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metadata);
     }
 }

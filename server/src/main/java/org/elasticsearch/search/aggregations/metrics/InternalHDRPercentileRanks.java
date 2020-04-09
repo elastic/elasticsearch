@@ -30,8 +30,8 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     public static final String NAME = "hdr_percentile_ranks";
 
     public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                       Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter,  metaData);
+                                       Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter,  metadata);
     }
 
     /**

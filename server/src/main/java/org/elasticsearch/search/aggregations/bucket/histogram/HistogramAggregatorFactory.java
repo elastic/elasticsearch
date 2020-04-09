@@ -61,14 +61,14 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                                         ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
                     ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
                     if (rangeValueSource.rangeType().isNumeric() == false) {
                         throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
                             + rangeValueSource.rangeType().name + "]");
                     }
                     return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
-                        maxBound, rangeValueSource, formatter, context, parent, metaData);
+                        maxBound, rangeValueSource, formatter, context, parent, metadata);
                 }
             }
         );
@@ -83,9 +83,9 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                                         ValuesSource valuesSource, DocValueFormat formatter, SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
                     return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
-                        maxBound, (ValuesSource.Numeric) valuesSource, formatter, context, parent, metaData);
+                        maxBound, (ValuesSource.Numeric) valuesSource, formatter, context, parent, metadata);
                 }
             }
         );

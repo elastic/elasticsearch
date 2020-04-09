@@ -134,8 +134,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {

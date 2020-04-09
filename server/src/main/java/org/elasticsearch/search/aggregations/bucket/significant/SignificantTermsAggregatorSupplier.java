@@ -43,5 +43,5 @@ interface SignificantTermsAggregatorSupplier extends AggregatorSupplier {
                      Aggregator parent,
                      SignificanceHeuristic significanceHeuristic,
                      SignificantTermsAggregatorFactory sigTermsFactory,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

@@ -62,7 +62,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), GeoBoundsAggregationBuilder.NAME);
 
@@ -71,13 +71,13 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 + GeoBoundsAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, wrapLongitude, metaData);
+        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, wrapLongitude, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metaData)
+            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoBoundsAggregator(name, aggregationContext, parent, (ValuesSource.GeoPoint) valuesSource,
-                    wrapLongitude, metaData));
+                    wrapLongitude, metadata));
     }
 }

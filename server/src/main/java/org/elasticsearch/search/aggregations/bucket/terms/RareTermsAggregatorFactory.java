@@ -72,7 +72,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     IncludeExclude includeExclude,
                                     SearchContext context,
                                     Aggregator parent,
-                                    Map<String, Object> metaData) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 ExecutionMode execution = ExecutionMode.MAP; //TODO global ords not implemented yet, only supports "map"
 
@@ -83,7 +83,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 return execution.create(name, factories, valuesSource, format,
-                    includeExclude, context, parent, metaData, maxDocCount, precision);
+                    includeExclude, context, parent, metadata, maxDocCount, precision);
 
             }
         };
@@ -105,7 +105,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     IncludeExclude includeExclude,
                                     SearchContext context,
                                     Aggregator parent,
-                                    Map<String, Object> metaData) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot support regular expression " +
@@ -121,7 +121,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     longFilter = includeExclude.convertToLongFilter(format);
                 }
                 return new LongRareTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format,
-                    context, parent, longFilter, maxDocCount, precision, metaData);
+                    context, parent, longFilter, maxDocCount, precision, metadata);
             }
         };
     }

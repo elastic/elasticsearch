@@ -23,6 +23,6 @@ public interface BoxplotAggregatorSupplier extends AggregatorSupplier {
                      double compression,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 
 }

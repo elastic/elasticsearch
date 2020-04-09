@@ -383,8 +383,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-            return new TestAggregationBuilder(this, factoriesBuilder, metaData);
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            return new TestAggregationBuilder(this, factoriesBuilder, metadata);
         }
         /**
          * Read from a stream.

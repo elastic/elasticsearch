@@ -33,5 +33,5 @@ public interface MinMaxAggregatorSupplier extends AggregatorSupplier {
                      ValuesSource valuesSource,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

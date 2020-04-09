@@ -91,7 +91,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    Map<String, Object> metaData) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -122,7 +122,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
                 return execution.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude,
-                    context, parent, subAggCollectMode, showTermDocCountError, metaData);
+                    context, parent, subAggCollectMode, showTermDocCountError, metadata);
 
             }
         };
@@ -147,7 +147,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    Map<String, Object> metaData) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style "
@@ -170,14 +170,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                     return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
                         bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                        metaData);
+                        metadata);
                 }
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToLongFilter(format);
                 }
                 return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
                     bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                    metaData);
+                    metadata);
             }
         };
     }
@@ -193,8 +193,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                            QueryShardContext queryShardContext,
                            AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
-                           Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                           Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
@@ -236,7 +236,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
@@ -261,7 +261,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         return termsAggregatorSupplier.build(name, factories, valuesSource, order, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent, collectMode,
-            showTermDocCountError, metaData);
+            showTermDocCountError, metadata);
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size

@@ -79,8 +79,8 @@ public class ChildrenAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ChildrenAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ChildrenAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**

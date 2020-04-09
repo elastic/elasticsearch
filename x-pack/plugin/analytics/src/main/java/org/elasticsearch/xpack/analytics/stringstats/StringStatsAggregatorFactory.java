@@ -46,9 +46,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         DocValueFormat format,
                                         SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
                     return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource,
-                        format, context, parent, metaData);
+                        format, context, parent, metadata);
                 }
             });
     }
@@ -65,7 +65,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             StringStatsAggregationBuilder.NAME);
 
@@ -74,7 +74,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((StringStatsAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, showDistribution, config.format(),
-            searchContext, parent, metaData);
+            searchContext, parent, metadata);
     }
 
 }

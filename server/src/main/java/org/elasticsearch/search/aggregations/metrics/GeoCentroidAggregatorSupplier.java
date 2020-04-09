@@ -32,5 +32,5 @@ public interface GeoCentroidAggregatorSupplier extends AggregatorSupplier {
 
     GeoCentroidAggregator build(String name, SearchContext context, Aggregator parent,
                           ValuesSource valuesSource,
-                          Map<String, Object> metaData) throws IOException;
+                          Map<String, Object> metadata) throws IOException;
 }

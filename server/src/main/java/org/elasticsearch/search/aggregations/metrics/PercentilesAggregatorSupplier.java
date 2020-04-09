@@ -36,5 +36,5 @@ public interface PercentilesAggregatorSupplier extends AggregatorSupplier {
                      PercentilesConfig percentilesConfig,
                      boolean keyed,
                      DocValueFormat formatter,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

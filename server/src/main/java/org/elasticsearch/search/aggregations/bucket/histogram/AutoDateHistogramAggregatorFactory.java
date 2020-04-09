@@ -58,7 +58,7 @@ public final class AutoDateHistogramAggregatorFactory
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof Numeric == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
@@ -66,7 +66,7 @@ public final class AutoDateHistogramAggregatorFactory
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        return createAggregator((Numeric) valuesSource, searchContext, parent, metaData);
+        return createAggregator((Numeric) valuesSource, searchContext, parent, metadata);
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource,

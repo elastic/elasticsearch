@@ -58,9 +58,9 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                                 DocValueFormat formatter,
                                                 SearchContext aggregationContext,
                                                 Aggregator parent,
-                                                Map<String, Object> metaData) -> new DateHistogramAggregator(name,
+                                                Map<String, Object> metadata) -> new DateHistogramAggregator(name,
                 factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds, (ValuesSource.Numeric) valuesSource,
-                formatter, aggregationContext, parent, metaData));
+                formatter, aggregationContext, parent, metadata));
 
         valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
             CoreValuesSourceType.RANGE,
@@ -76,7 +76,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                                 DocValueFormat formatter,
                                                 SearchContext aggregationContext,
                                                 Aggregator parent,
-                                                Map<String, Object> metaData) -> {
+                                                Map<String, Object> metadata) -> {
 
                 ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
                 if (rangeValueSource.rangeType() != RangeType.DATE) {
@@ -85,7 +85,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 }
                 return new DateRangeHistogramAggregator(name,
                     factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds, rangeValueSource, formatter,
-                    aggregationContext, parent, metaData); });
+                    aggregationContext, parent, metadata); });
     }
 
     private final BucketOrder order;
@@ -135,8 +135,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
-            null, config.format(), searchContext, parent, metaData);
+            null, config.format(), searchContext, parent, metadata);
     }
 }

@@ -21,9 +21,9 @@ public class HistoBackedHDRPercentilesAggregator extends AbstractHistoBackedHDRP
 
     HistoBackedHDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent, double[] percents,
                              int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
-                             Map<String, Object> metaData) throws IOException {
+                             Map<String, Object> metadata) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter,
-            metaData);
+            metadata);
     }
 
     @Override

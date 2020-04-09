@@ -60,8 +60,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     int precision,
                                     SearchContext context,
                                     Aggregator parent,
-                                    Map<String, Object> metaData) throws IOException {
-                return new CardinalityAggregator(name, valuesSource, precision, context, parent, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+                return new CardinalityAggregator(name, valuesSource, precision, context, parent, metadata);
             }
         };
     }
@@ -78,7 +78,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             CardinalityAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
@@ -86,7 +86,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         CardinalityAggregatorSupplier cardinalityAggregatorSupplier = (CardinalityAggregatorSupplier) aggregatorSupplier;
-        return cardinalityAggregatorSupplier.build(name, valuesSource, precision(), searchContext, parent, metaData);
+        return cardinalityAggregatorSupplier.build(name, valuesSource, precision(), searchContext, parent, metadata);
     }
 
     private int precision() {

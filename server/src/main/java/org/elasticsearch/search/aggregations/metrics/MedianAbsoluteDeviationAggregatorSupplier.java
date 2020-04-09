@@ -33,6 +33,6 @@ public interface MedianAbsoluteDeviationAggregatorSupplier extends AggregatorSup
                      DocValueFormat format,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData,
+                     Map<String, Object> metadata,
                      double compression) throws IOException;
 }

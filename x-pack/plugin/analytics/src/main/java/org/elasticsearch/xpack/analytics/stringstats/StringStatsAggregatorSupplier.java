@@ -22,5 +22,5 @@ public interface StringStatsAggregatorSupplier extends AggregatorSupplier {
                      DocValueFormat format,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

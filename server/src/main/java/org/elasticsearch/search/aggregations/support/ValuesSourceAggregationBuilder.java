@@ -126,8 +126,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<AB> clone,
-                                             Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                             Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.field = clone.field;
         this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;

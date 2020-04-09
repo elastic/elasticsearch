@@ -27,8 +27,8 @@ class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigest
                                  double compression,
                                  boolean keyed,
                                  DocValueFormat formatter,
-                                 Map<String, Object> metaData) throws IOException {
-        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metaData);
+                                 Map<String, Object> metadata) throws IOException {
+        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metadata);
     }
 
     @Override

@@ -69,7 +69,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
 
     public abstract Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                                            double[] values, boolean keyed, DocValueFormat formatter,
-                                                           Map<String, Object> metaData) throws IOException;
+                                                           Map<String, Object> metadata) throws IOException;
 
     abstract Aggregator createPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context,
                                                         Aggregator parent, double[] values, boolean keyed,

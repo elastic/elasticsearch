@@ -105,7 +105,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificantTermsAggregatorFactory sigTermsFactory,
-                                    Map<String, Object> metaData) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -125,7 +125,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
 
                 return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
-                    significanceHeuristic, sigTermsFactory, metaData);
+                    significanceHeuristic, sigTermsFactory, metadata);
 
             }
         };
@@ -149,7 +149,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificantTermsAggregatorFactory sigTermsFactory,
-                                    Map<String, Object> metaData) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
@@ -168,7 +168,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format,
                     bucketCountThresholds, context, parent, significanceHeuristic, sigTermsFactory, longFilter,
-                    metaData);
+                    metadata);
 
             }
         };
@@ -184,8 +184,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       QueryShardContext queryShardContext,
                                       AggregatorFactory parent,
                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                      Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                      Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         if (config.unmapped() == false) {
             if (config.fieldContext().fieldType().isSearchable() == false) {

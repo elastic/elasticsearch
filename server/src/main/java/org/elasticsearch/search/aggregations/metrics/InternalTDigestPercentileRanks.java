@@ -29,8 +29,8 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     public static final String NAME = "tdigest_percentile_ranks";
 
     public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, DocValueFormat formatter,
-                                          Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, metaData);
+                                          Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, metadata);
     }
 
     /**

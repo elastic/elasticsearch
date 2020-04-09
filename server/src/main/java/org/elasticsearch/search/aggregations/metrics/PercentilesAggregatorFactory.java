@@ -54,10 +54,10 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                 @Override
                 public Aggregator build(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                         double[] percents, PercentilesConfig percentilesConfig, boolean keyed, DocValueFormat formatter,
-                                         Map<String, Object> metaData) throws IOException {
+                                         Map<String, Object> metadata) throws IOException {
 
                     return percentilesConfig.createPercentilesAggregator(name, valuesSource, context, parent, percents, keyed,
-                        formatter, metaData);
+                        formatter, metadata);
                 }
             }
         );

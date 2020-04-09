@@ -62,13 +62,13 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                         DocValueFormat format,
                                         SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData,
+                                        Map<String, Object> metadata,
                                         double compression) throws IOException {
                     return new MedianAbsoluteDeviationAggregator(
                         name,
                         context,
                         parent,
-                        metaData,
+                        metadata,
                         (ValuesSource.Numeric) valuesSource,
                         format,
                         compression
@@ -80,7 +80,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
@@ -98,7 +98,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             MedianAbsoluteDeviationAggregationBuilder.NAME);
 
@@ -107,6 +107,6 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(),
-            searchContext, parent, metaData, compression);
+            searchContext, parent, metadata, compression);
     }
 }

@@ -34,14 +34,14 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
     public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                         Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                         Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.config = config;
     }
 
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                     Map<String, Object> metaData) throws IOException {
+                                     Map<String, Object> metadata) throws IOException {
         ValuesSource vs = config.toValuesSource();
         if (vs == null) {
             return createUnmapped(searchContext, parent, metadata);

@@ -49,16 +49,16 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         ValuesSource valuesSource,
                                         SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
-                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent, metadata);
                 }
             });
     }
 
     MinAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                         Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -73,7 +73,7 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             MinAggregationBuilder.NAME);
 
@@ -81,6 +81,6 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MinMaxAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metaData);
+        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
     }
 }

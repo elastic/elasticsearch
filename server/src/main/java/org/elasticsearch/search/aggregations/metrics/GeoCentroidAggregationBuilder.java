@@ -65,8 +65,8 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**

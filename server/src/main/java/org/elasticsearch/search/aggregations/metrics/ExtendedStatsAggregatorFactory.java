@@ -60,12 +60,12 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof Numeric == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
         }
         return new ExtendedStatsAggregator(name, (Numeric) valuesSource, config.format(), searchContext,
-            parent, sigma, metaData);
+            parent, sigma, metadata);
     }
 }

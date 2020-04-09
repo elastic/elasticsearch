@@ -46,5 +46,5 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
                      DocValueFormat formatter,
                      SearchContext aggregationContext,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

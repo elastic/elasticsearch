@@ -38,5 +38,5 @@ interface RareTermsAggregatorSupplier extends AggregatorSupplier {
                      IncludeExclude includeExclude,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

@@ -146,8 +146,8 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override

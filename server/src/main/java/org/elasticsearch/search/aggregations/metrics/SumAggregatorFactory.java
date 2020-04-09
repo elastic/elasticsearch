@@ -59,8 +59,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         DocValueFormat formatter,
                                         SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
-                    return new SumAggregator(name, (Numeric) valuesSource, formatter, context, parent, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+                    return new SumAggregator(name, (Numeric) valuesSource, formatter, context, parent, metadata);
                 }
             });
     }
@@ -78,7 +78,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             SumAggregationBuilder.NAME);
 
@@ -86,6 +86,6 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent, metaData);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent, metadata);
     }
 }

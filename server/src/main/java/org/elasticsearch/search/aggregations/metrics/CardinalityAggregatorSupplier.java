@@ -33,5 +33,5 @@ public interface CardinalityAggregatorSupplier extends AggregatorSupplier {
                      int precision,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

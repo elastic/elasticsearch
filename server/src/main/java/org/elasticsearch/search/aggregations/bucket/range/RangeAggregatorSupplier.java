@@ -38,5 +38,5 @@ public interface RangeAggregatorSupplier extends AggregatorSupplier {
                      boolean keyed,
                      SearchContext context,
                      Aggregator parent,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

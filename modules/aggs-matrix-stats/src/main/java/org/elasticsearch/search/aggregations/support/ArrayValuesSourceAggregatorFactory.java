@@ -46,7 +46,7 @@ public abstract class ArrayValuesSourceAggregatorFactory
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {

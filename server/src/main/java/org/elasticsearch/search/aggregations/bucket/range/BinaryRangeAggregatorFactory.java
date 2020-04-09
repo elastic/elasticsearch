@@ -59,13 +59,13 @@ public class BinaryRangeAggregatorFactory
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof ValuesSource.Bytes == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
         }
         return new BinaryRangeAggregator(name, factories, (ValuesSource.Bytes) valuesSource, config.format(),
-                ranges, keyed, searchContext, parent, metaData);
+                ranges, keyed, searchContext, parent, metadata);
     }
 
 }

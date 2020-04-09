@@ -56,8 +56,8 @@ public class GeoDistanceRangeAggregatorFactory
                                              Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed,
                                              QueryShardContext queryShardContext, AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                             Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;
@@ -78,7 +78,7 @@ public class GeoDistanceRangeAggregatorFactory
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof ValuesSource.GeoPoint  == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());

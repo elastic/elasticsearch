@@ -61,9 +61,9 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                         boolean keyed,
                                         SearchContext context,
                                         Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
                     return new RangeAggregator(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent,
-                        metaData);
+                        metadata);
                 }
             });
     }
@@ -76,8 +76,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                           QueryShardContext queryShardContext,
                                           AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                          Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
@@ -96,7 +96,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             aggregationTypeName);
         if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
@@ -104,6 +104,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
-            ranges, keyed, searchContext, parent, metaData);
+            ranges, keyed, searchContext, parent, metadata);
     }
 }

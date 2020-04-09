@@ -76,7 +76,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), GeoTileGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
@@ -87,17 +87,17 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
-            requiredSize, shardSize, searchContext, parent, metaData);
+            requiredSize, shardSize, searchContext, parent, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, metaData) -> {
+                                         aggregationContext, parent, metadata) -> {
                 CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox,
                     GeoTileUtils::longEncode);
                 return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
-                    parent, metaData);
+                    parent, metadata);
             });
     }
 }

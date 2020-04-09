@@ -9,7 +9,9 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * Between minor versions
 * From 5.6 to 6.8
 * From 6.8 to {version}
-* Between {minor-version} versions
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
 
 The following table shows the recommended upgrade paths to {version}.

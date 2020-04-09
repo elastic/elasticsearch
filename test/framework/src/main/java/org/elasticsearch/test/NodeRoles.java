@@ -28,6 +28,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Utility methods for creating {@link Settings} instances defining a set of {@link DiscoveryNodeRole}.
+ */
 public class NodeRoles {
 
     public static Settings onlyRole(final DiscoveryNodeRole role) {
@@ -59,7 +62,11 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream().filter(Predicate.not(roles::contains)).map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList())
+            NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
+                .stream()
+                .filter(Predicate.not(roles::contains))
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.toUnmodifiableList())
         );
         return builder.build();
     }
@@ -72,7 +79,10 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream().filter(roles::contains).map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList())
+            NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
+                .stream().filter(roles::contains)
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.toUnmodifiableList())
         );
         return builder.build();
     }

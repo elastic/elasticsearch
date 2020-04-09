@@ -14,17 +14,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.hamcrest.Description;
 import org.mockito.ArgumentMatcher;
 
-import static java.util.Collections.emptyMap;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -32,9 +28,9 @@ import static org.mockito.Mockito.verify;
 
 public class TransportStopILMActionTests extends ESTestCase {
 
-    private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<>() {
+    private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<AcknowledgedResponse>() {
         @Override
-        public void onResponse(AcknowledgedResponse response) {
+        public void onResponse(AcknowledgedResponse o) {
 
         }
 
@@ -50,10 +46,8 @@ public class TransportStopILMActionTests extends ESTestCase {
 
         TransportStopILMAction transportStopILMAction = new TransportStopILMAction(mock(TransportService.class),
             clusterService, mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class));
-        Task task = new Task(randomLong(), "transport", StopILMAction.NAME, "description",
-            new TaskId(randomLong() + ":" + randomLong()), emptyMap());
         StopILMRequest request = new StopILMRequest();
-        transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
+        transportStopILMAction.masterOperation(request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 
         verify(clusterService).submitStateUpdateTask(
             eq("ilm_operation_mode_update"),

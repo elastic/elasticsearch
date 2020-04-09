@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
@@ -632,6 +633,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         IndicesOptions indicesOptions =
             IndicesOptions.fromOptions(true, true, true, false, false, true, true, false, false, true);
         verify(client().prepareSearch("logs*").setIndicesOptions(indicesOptions), false, 0);
+
+        DeleteDataStreamAction.Request deleteRequest = new DeleteDataStreamAction.Request("*");
+        client().admin().indices().deleteDataStream(deleteRequest).actionGet();
     }
 
     private static SearchRequestBuilder search(String... indices) {

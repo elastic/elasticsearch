@@ -194,8 +194,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     /**
      * Helper method to validate whether field is mapped
-     *
-     * @return true if the field is unmapped, false otherwise
+     * @return true if the field is mapped, false otherwise
      */
 
     private static boolean isFieldMapped(QueryShardContext context, String fieldPattern) {

@@ -123,7 +123,7 @@ public abstract class PipelineAggregator implements NamedWriteable {
             bucketsPaths = in.readStringArray();
             metadata = in.readMap();
         } else {
-           throw new IllegalStateException("Cannot deserialize pipeline [" + getClass() + "] because it 7.8.0");
+           throw new IllegalStateException("Cannot deserialize pipeline [" + getClass() + "] from before 7.8.0");
         }
     }
 

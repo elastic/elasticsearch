@@ -90,7 +90,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
     return
   }
   // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
     return
   }
   // FIXME

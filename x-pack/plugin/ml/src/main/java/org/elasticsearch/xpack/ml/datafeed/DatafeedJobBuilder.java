@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -74,16 +76,17 @@ public class DatafeedJobBuilder {
         this.nodeName = nodeName;
     }
 
-    void build(String datafeedId, ActionListener<DatafeedJob> listener) {
+    void build(String datafeedId, TaskId parentTaskId, ActionListener<DatafeedJob> listener) {
         AtomicReference<Job> jobHolder = new AtomicReference<>();
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
+        final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         // Step 5. Build datafeed job object
         Consumer<Context> contextHanlder = context -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry);
             TimeValue queryDelay = datafeedConfigHolder.get().getQueryDelay();
-            DelayedDataDetector delayedDataDetector =
-                    DelayedDataDetectorFactory.buildDetector(jobHolder.get(), datafeedConfigHolder.get(), client, xContentRegistry);
+            DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(jobHolder.get(),
+                    datafeedConfigHolder.get(), parentTaskAssigningClient, xContentRegistry);
             DatafeedJob datafeedJob =
                 new DatafeedJob(
                     jobHolder.get().getId(),
@@ -92,7 +95,7 @@ public class DatafeedJobBuilder {
                     queryDelay.millis(),
                     context.dataExtractorFactory,
                     context.timingStatsReporter,
-                    client,
+                    parentTaskAssigningClient,
                     auditor,
                     annotationPersister,
                     currentTimeSupplier,
@@ -123,7 +126,7 @@ public class DatafeedJobBuilder {
             context.timingStatsReporter =
                 new DatafeedTimingStatsReporter(initialTimingStats, jobResultsPersister::persistDatafeedTimingStats);
             DataExtractorFactory.create(
-                client,
+                parentTaskAssigningClient,
                 datafeedConfigHolder.get(),
                 jobHolder.get(),
                 xContentRegistry,

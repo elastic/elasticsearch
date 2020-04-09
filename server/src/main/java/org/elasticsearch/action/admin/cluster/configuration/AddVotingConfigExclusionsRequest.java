@@ -54,6 +54,15 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     private final TimeValue timeout;
 
     /**
+     * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for a
+     * default 30 seconds for these exclusions to take effect, removing the nodes from the voting configuration.
+     * @param nodeDescriptions Descriptions of the nodes to add - see {@link DiscoveryNodes#resolveNodes(String...)}
+     */
+    public AddVotingConfigExclusionsRequest(String[] nodeDescriptions) {
+        this(nodeDescriptions, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30));
+    }
+
+    /**
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
      * nodes to be removed from the voting configuration.
      * @param nodeDescriptions Descriptions of the nodes whose exclusions to add - see {@link DiscoveryNodes#resolveNodes(String...)}.

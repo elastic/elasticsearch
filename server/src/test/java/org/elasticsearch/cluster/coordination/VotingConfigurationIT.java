@@ -24,8 +24,6 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -57,8 +55,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
 
         logger.info("--> excluding master node {}", originalMaster);
         client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY,
-                                                new String[]{originalMaster}, TimeValue.timeValueSeconds(30))).get();
+            new AddVotingConfigExclusionsRequest(new String[]{originalMaster})).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }

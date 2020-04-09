@@ -31,9 +31,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -125,8 +123,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().getMasterName();
         String otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
-                                                    Strings.EMPTY_ARRAY, new String[]{otherNode}, TimeValue.timeValueSeconds(30))).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{otherNode})).get();
         logger.info("--> stop master node, no master block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
@@ -173,8 +170,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         masterNode = internalCluster().getMasterName();
         otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
-                                                Strings.EMPTY_ARRAY, new String[]{masterNode}, TimeValue.timeValueSeconds(30))).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{masterNode})).get();
         logger.info("--> stop non-master node, no master block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));

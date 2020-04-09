@@ -26,10 +26,13 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public abstract class RetryableAction<Response> {
 
     private final Logger logger;
 
+    private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final ThreadPool threadPool;
     private final long initialDelayMillis;
     private final long timeoutMillis;
@@ -57,6 +60,13 @@ public abstract class RetryableAction<Response> {
         runTryAction(new RetryingListener(initialDelayMillis, null));
     }
 
+    public void cancel(Exception e) {
+        if (isDone.compareAndSet(false, true)) {
+            finalListener.onFailure(e);
+        }
+
+    }
+
     private void runTryAction(ActionListener<Response> listener) {
         try {
             tryAction(listener);
@@ -81,7 +91,9 @@ public abstract class RetryableAction<Response> {
 
         @Override
         public void onResponse(Response response) {
-            finalListener.onResponse(response);
+            if (isDone.compareAndSet(false, true)) {
+                finalListener.onResponse(response);
+            }
         }
 
         @Override
@@ -92,7 +104,9 @@ public abstract class RetryableAction<Response> {
                     logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
                         TimeValue.timeValueMillis(elapsedMillis)), e);
                     addExisting(e);
-                    finalListener.onFailure(e);
+                    if (isDone.compareAndSet(false, true)) {
+                        finalListener.onFailure(e);
+                    }
                 } else {
                     logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}",
                         TimeValue.timeValueMillis(nextDelayMillis)), e);
@@ -101,11 +115,15 @@ public abstract class RetryableAction<Response> {
                     final long midpoint = (nextDelayMillis / 2);
                     final int randomness = Randomness.get().nextInt((int) Math.min(midpoint, Integer.MAX_VALUE));
                     final long delayMillis = midpoint + randomness;
-                    threadPool.schedule(runnable, TimeValue.timeValueMillis(delayMillis), retryExecutor);
+                    if (isDone.get() == false) {
+                        threadPool.schedule(runnable, TimeValue.timeValueMillis(delayMillis), retryExecutor);
+                    }
                 }
             } else {
                 addExisting(e);
-                finalListener.onFailure(e);
+                if (isDone.compareAndSet(false,true)) {
+                    finalListener.onFailure(e);
+                }
             }
         }
 

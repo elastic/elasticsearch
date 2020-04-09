@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -49,7 +51,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -62,7 +64,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final ShardId shardId;
     private final DiscoveryNode targetNode;
     private final RecoverySettings recoverySettings;
-    private final ConcurrentLinkedQueue<RetryableAction<Void>> onGoingFileChunkRequest = new ConcurrentLinkedQueue<>();
+    private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
 
     private final TransportRequestOptions translogOpsRequestOptions;
     private final TransportRequestOptions fileChunkRequestOptions;
@@ -70,6 +72,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     private final Consumer<Long> onSourceThrottle;
+    private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
                                        DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
@@ -127,18 +130,36 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
-        final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
-                recoveryId,
-                shardId,
-                operations,
-                totalTranslogOps,
-                maxSeenAutoIdTimestampOnPrimary,
-                maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                retentionLeases,
-                mappingVersionOnPrimary);
-        transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, request, translogOpsRequestOptions,
-            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> r.localCheckpoint),
-                RecoveryTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
+        final ThreadPool threadPool = transportService.getThreadPool();
+        final TimeValue initialDelay = TimeValue.timeValueMillis(50);
+        final TimeValue timeout = translogOpsRequestOptions.timeout();
+        final Object key = new Object();
+        final ActionListener<Long> removeListener = ActionListener.runBefore(listener, () -> onGoingRetryableActions.remove(key));
+        final RetryableAction<Long> translogAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener) {
+
+            @Override
+            public void tryAction(ActionListener<Long> listener) {
+                final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
+                    recoveryId,
+                    shardId,
+                    operations,
+                    totalTranslogOps,
+                    maxSeenAutoIdTimestampOnPrimary,
+                    maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                    retentionLeases,
+                    mappingVersionOnPrimary);
+                transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, request, translogOpsRequestOptions,
+                    new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> r.localCheckpoint),
+                        RecoveryTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return retryableException(e);
+            }
+        };
+
+        startRetryableAction(key, translogAction);
     }
 
     @Override
@@ -190,8 +211,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final ThreadPool threadPool = transportService.getThreadPool();
         final TimeValue initialDelay = TimeValue.timeValueMillis(50);
         final TimeValue timeout = fileChunkRequestOptions.timeout();
-        final ActionListener<Void> wrapper = ActionListener.runBefore(listener, () -> {});
-        final RetryableAction<Void> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, wrapper) {
+        final Object key = new Object();
+        final ActionListener<Void> removeListener = ActionListener.runBefore(listener, () -> onGoingRetryableActions.remove(key));
+        final RetryableAction<Void> fileChunkAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener) {
 
             @Override
             public void tryAction(ActionListener<Void> listener) {
@@ -208,21 +230,38 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                if (e instanceof RemoteTransportException) {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    return cause instanceof ConnectTransportException ||
-                        cause instanceof CircuitBreakingException ||
-                        cause instanceof EsRejectedExecutionException;
-                }
-                return false;
+                return retryableException(e);
             }
         };
 
-        retryableAction.run();
+        startRetryableAction(key, fileChunkAction);
     }
 
     @Override
     public void cancel() {
-        // Cancel the RetryableAction
+        isCancelled = true;
+        final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("recovery was cancelled");
+        for (Map.Entry<Object, RetryableAction<?>> action : onGoingRetryableActions.entrySet()) {
+            action.getValue().cancel(exception);
+        }
+        onGoingRetryableActions.clear();
+    }
+
+    private <T> void startRetryableAction(Object key, RetryableAction<T> action) {
+        onGoingRetryableActions.put(key, action);
+        action.run();
+        if (isCancelled) {
+            action.cancel(new CancellableThreads.ExecutionCancelledException("recovery was cancelled"));
+        }
+    }
+
+    private static boolean retryableException(Exception e) {
+        if (e instanceof RemoteTransportException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause instanceof ConnectTransportException ||
+                cause instanceof CircuitBreakingException ||
+                cause instanceof EsRejectedExecutionException;
+        }
+        return false;
     }
 }

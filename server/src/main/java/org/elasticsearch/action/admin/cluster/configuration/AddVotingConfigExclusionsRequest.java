@@ -54,18 +54,20 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     private final TimeValue timeout;
 
     /**
-     * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for a
+     * Construct a request to add voting config exclusions for master-eligible nodes matching the given node names, and wait for a
      * default 30 seconds for these exclusions to take effect, removing the nodes from the voting configuration.
-     * @param nodeDescriptions Descriptions of the nodes to add - see {@link DiscoveryNodes#resolveNodes(String...)}
+     * @param nodeNames Names of the nodes to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}
      */
-    public AddVotingConfigExclusionsRequest(String[] nodeDescriptions) {
-        this(nodeDescriptions, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30));
+    public AddVotingConfigExclusionsRequest(String... nodeNames) {
+        this(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
     }
 
     /**
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
      * nodes to be removed from the voting configuration.
      * @param nodeDescriptions Descriptions of the nodes whose exclusions to add - see {@link DiscoveryNodes#resolveNodes(String...)}.
+     * @param nodeIds Ids of the nodes whose exclusions to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)
+     * @param nodeNames Names of the nodes whose exclusions to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)
      * @param timeout How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
     public AddVotingConfigExclusionsRequest(String[] nodeDescriptions, String[] nodeIds, String[] nodeNames, TimeValue timeout) {

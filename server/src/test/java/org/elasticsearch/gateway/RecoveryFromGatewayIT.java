@@ -309,7 +309,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{firstNode})).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(firstNode)).get();
 
         internalCluster().fullRestart(new RestartCallback() {
             @Override

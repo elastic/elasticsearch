@@ -55,7 +55,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
 
         logger.info("--> excluding master node {}", originalMaster);
         client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-            new AddVotingConfigExclusionsRequest(new String[]{originalMaster})).get();
+            new AddVotingConfigExclusionsRequest(originalMaster)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }

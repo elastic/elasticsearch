@@ -66,8 +66,10 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
      * nodes to be removed from the voting configuration.
      * @param nodeDescriptions Descriptions of the nodes whose exclusions to add - see {@link DiscoveryNodes#resolveNodes(String...)}.
-     * @param nodeIds Ids of the nodes whose exclusions to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)
-     * @param nodeNames Names of the nodes whose exclusions to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)
+     * @param nodeIds Ids of the nodes whose exclusions to add - see
+     *                  {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
+     * @param nodeNames Names of the nodes whose exclusions to add - see
+     *                  {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
      * @param timeout How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
     public AddVotingConfigExclusionsRequest(String[] nodeDescriptions, String[] nodeIds, String[] nodeNames, TimeValue timeout) {
@@ -75,7 +77,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }
 
-        if(noneOrMoreThanOneIsSet(nodeDescriptions, nodeIds, nodeNames)) {
+        if (noneOrMoreThanOneIsSet(nodeDescriptions, nodeIds, nodeNames)) {
             throw new IllegalArgumentException("Please set node identifiers correctly. " +
                 "One and only one of [node_name], [node_names] and [node_ids] has to be set");
         }
@@ -96,8 +98,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             nodeIds = in.readStringArray();
             nodeNames = in.readStringArray();
-        }
-        else {
+        } else {
             nodeIds = Strings.EMPTY_ARRAY;
             nodeNames = Strings.EMPTY_ARRAY;
         }
@@ -129,8 +130,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                     if (discoveryNode.isMasterNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
-                }
-                else {
+                } else {
                     newVotingConfigExclusions.add(new VotingConfigExclusion(nodeId, VotingConfigExclusion.MISSING_VALUE_MARKER));
                 }
             }
@@ -144,8 +144,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                     if (discoveryNode.isMasterNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
-                }
-                else {
+                } else {
                     newVotingConfigExclusions.add(new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, nodeName));
                 }
             }
@@ -171,13 +170,11 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     }
 
     private boolean noneOrMoreThanOneIsSet(String[] deprecatedNodeDescription, String[] nodeIds, String[] nodeNames) {
-        if(deprecatedNodeDescription.length > 0) {
+        if (deprecatedNodeDescription.length > 0) {
             return nodeIds.length > 0 || nodeNames.length > 0;
-        }
-        else if (nodeIds.length > 0) {
+        } else if (nodeIds.length > 0) {
             return nodeNames.length > 0;
-        }
-        else {
+        } else {
             return nodeNames.length > 0 == false;
         }
     }

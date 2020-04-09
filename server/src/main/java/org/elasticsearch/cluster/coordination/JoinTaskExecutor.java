@@ -149,7 +149,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
-                    if(node.isMasterNode()) {
+                    if (node.isMasterNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
                 } catch (IllegalArgumentException | IllegalStateException e) {

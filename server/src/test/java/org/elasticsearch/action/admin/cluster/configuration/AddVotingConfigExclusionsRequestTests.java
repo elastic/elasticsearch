@@ -313,7 +313,8 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
                 contains(localNodeExclusion));
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
+            () -> makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name"))
+                .getMessage(),
             equalTo("add voting config exclusions request for [_local] would add [1] exclusions to the existing [1] which would " +
                 "exceed the maximum of [1] set by [setting.name]"));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);

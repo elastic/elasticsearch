@@ -275,18 +275,54 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
 //Begin analyzed_fields
 `analyzed_fields`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields]
+Specify `includes` and/or `excludes` patterns to select which fields will be 
+included in the analysis. The patterns specified in `excludes` are applied last, 
+therefore `excludes` takes precedence. In other words, if the same field is 
+specified in both `includes` and `excludes`, then the field will not be included 
+in the analysis.
++
+--
+[[dfa-supported-fields]]
+The supported fields for each type of analysis are as follows:
+
+* {oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
+don't support missing values therefore fields that have data types other than 
+numeric or boolean are ignored. Documents where included fields contain missing 
+values, null values, or an array are also ignored. Therefore the `dest` index 
+may contain documents that don't have an {olscore}.
+* {regression-cap} supports fields that are numeric, `boolean`, `text`, 
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents 
+where included fields contain  an array with two or more values are also 
+ignored. Documents in the `dest` index  that don’t contain a results field are 
+not included in the {reganalysis}.
+* {classification-cap} supports fields that are numeric, `boolean`, `text`,
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents
+where included fields contain an array with two or more values are also ignored. 
+Documents in the `dest` index that don’t contain a results field are not
+included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
+ordinal variable values to a  single number. For example, in case of age ranges,
+you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
+
+If `analyzed_fields` is not set, only the relevant fields will be included. For
+example, all the numeric fields for {oldetection}. For more information about
+field selection, see <<explain-dfanalytics>>.
+--
 +
 .Properties of `analyzed_fields`
 [%collapsible%open]
 ====
 `excludes`:::
 (Optional, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-excludes]
+An array of strings that defines the fields that will be excluded from the
+analysis. You do not need to add fields with unsupported data types to
+`excludes`, these fields are excluded from the analysis automatically.
 
 `includes`:::
 (Optional, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-includes]
+An array of strings that defines the fields that will be included in the 
+analysis.
 //End analyzed_fields
 ====
 

@@ -214,6 +214,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54995")
     public void testReadRangeBlobWithRetries() throws Exception {
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
@@ -324,6 +325,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         assertThat(exception.getSuppressed().length, equalTo(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54981")
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
@@ -551,7 +553,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         }
         exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
-        final int bytesToSend = randomIntBetween(0, length - 1);
+        final int bytesToSend = length == 0 ? 0 : randomIntBetween(0, length - 1);
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }

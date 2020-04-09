@@ -416,7 +416,7 @@ public class MetadataIndexTemplateService {
             IndexTemplateV2 template = entry.getValue();
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
-                if(checkPriority == false || Objects.equals(priority, template.priority())) {
+                if (checkPriority == false || Objects.equals(priority, template.priority())) {
                     logger.debug("old template {} and index template {} would overlap: {} <=> {}",
                         candidateName, name, indexPatterns, template.indexPatterns());
                     overlappingTemplates.put(name, template.indexPatterns());

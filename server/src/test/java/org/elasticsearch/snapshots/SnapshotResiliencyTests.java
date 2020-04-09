@@ -409,7 +409,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(1));
     }
 
-    public void testSnapshotDeleteWithMasterFailOvers() {
+    public void testSnapshotDeleteWithMasterFailover() {
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(3, 5);
         setupTestCluster(masterNodes, dataNodes);
@@ -449,7 +449,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-        assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+        assertThat(snapshotIds, hasSize(0));
     }
 
     public void testConcurrentSnapshotCreateAndDelete() {
@@ -1207,6 +1207,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ClusterService clusterService;
 
+            private final NodeConnectionsService nodeConnectionsService;
+
             private final RepositoriesService repositoriesService;
 
             private final SnapshotsService snapshotsService;
@@ -1358,6 +1360,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new BatchedRerouteService(clusterService, allocationService::reroute),
                     threadPool
                 );
+                nodeConnectionsService =
+                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 @SuppressWarnings("rawtypes")
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 actions.put(GlobalCheckpointSyncAction.TYPE,
@@ -1511,6 +1515,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 testClusterNodes.disconnectNode(this);
                 indicesService.close();
                 clusterService.close();
+                nodeConnectionsService.stop();
                 indicesClusterStateService.close();
                 if (coordinator != null) {
                     coordinator.close();
@@ -1535,12 +1540,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
-                masterService.start();
-                final NodeConnectionsService nodeConnectionsService =
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
-                clusterService.getClusterApplierService().start();
                 nodeConnectionsService.start();
+                clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();
                 coordinator.startInitialJoin();

@@ -152,6 +152,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(4)).getTrainedModel(eq(model3), eq(true), any());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54986")
     public void testMaxCachedLimitReached() throws Exception {
         String model1 = "test-cached-limit-load-model-1";
         String model2 = "test-cached-limit-load-model-2";

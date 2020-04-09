@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
@@ -78,10 +79,11 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
+    public static void createStateIndexAndAliasIfNecessary(ParentTaskAssigningClient parentTaskClient, ClusterState state,
+                                                           IndexNameExpressionResolver resolver,
                                                            final ActionListener<Boolean> finalListener) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
-            client,
+            parentTaskClient,
             state,
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,

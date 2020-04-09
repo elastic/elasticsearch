@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -301,7 +302,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().templatesV2().get("foo"));
         assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
-        IndexTemplateV2 newTemplate = IndexTemplateV2Tests.randomInstance();
+
+        IndexTemplateV2 newTemplate = randomValueOtherThanMany(t -> Objects.equals(template.priority(), t.priority()),
+            IndexTemplateV2Tests::randomInstance);
 
         final ClusterState throwState = ClusterState.builder(state).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -482,7 +485,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
         assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-            "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1]"));
+            "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple index templates may not " +
+            "match during index creation, please use a different priority"));
     }
 
     public void testFindV2Templates() throws Exception {

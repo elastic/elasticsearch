@@ -25,7 +25,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,30 +46,26 @@ public final class InvalidateTokenResponse {
     public static final ParseField PREVIOUSLY_INVALIDATED_TOKENS = new ParseField("previously_invalidated_tokens");
     public static final ParseField ERROR_COUNT = new ParseField("error_count");
     public static final ParseField ERRORS = new ParseField("error_details");
-    public static final ParseField REST_STATUS = new ParseField("rest_status");
 
     private final int invalidatedTokens;
     private final int previouslyInvalidatedTokens;
     private List<ElasticsearchException> errors;
-    private final RestStatus restStatus;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InvalidateTokenResponse, Void> PARSER = new ConstructingObjectParser<>(
         "tokens_invalidation_result", true,
         // we parse but do not use the count of errors as we implicitly have this in the size of the Exceptions list
-        args -> new InvalidateTokenResponse((int) args[0], (int) args[1], (int) args[3], (List<ElasticsearchException>) args[4]));
+        args -> new InvalidateTokenResponse((int) args[0], (int) args[1], (List<ElasticsearchException>) args[3]));
 
     static {
         PARSER.declareInt(constructorArg(), INVALIDATED_TOKENS);
         PARSER.declareInt(constructorArg(), PREVIOUSLY_INVALIDATED_TOKENS);
         PARSER.declareInt(constructorArg(), ERROR_COUNT);
-        PARSER.declareInt(constructorArg(), REST_STATUS);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), ERRORS);
 
     }
 
-    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens, int restStatus,
-                                   @Nullable List<ElasticsearchException> errors) {
+    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens, @Nullable List<ElasticsearchException> errors) {
         this.invalidatedTokens = invalidatedTokens;
         this.previouslyInvalidatedTokens = previouslyInvalidatedTokens;
         if (null == errors) {
@@ -78,7 +73,6 @@ public final class InvalidateTokenResponse {
         } else {
             this.errors = Collections.unmodifiableList(errors);
         }
-        this.restStatus = RestStatus.fromCode(restStatus);
     }
 
     public int getInvalidatedTokens() {
@@ -97,10 +91,6 @@ public final class InvalidateTokenResponse {
         return errors == null ? 0 : errors.size();
     }
 
-    public RestStatus getRestStatus() {
-        return restStatus;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -108,13 +98,12 @@ public final class InvalidateTokenResponse {
         InvalidateTokenResponse that = (InvalidateTokenResponse) o;
         return invalidatedTokens == that.invalidatedTokens &&
             previouslyInvalidatedTokens == that.previouslyInvalidatedTokens &&
-            restStatus == that.restStatus &&
             Objects.equals(errors, that.errors);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(invalidatedTokens, previouslyInvalidatedTokens, errors, restStatus);
+        return Objects.hash(invalidatedTokens, previouslyInvalidatedTokens, errors);
     }
 
     public static InvalidateTokenResponse fromXContent(XContentParser parser) throws IOException {

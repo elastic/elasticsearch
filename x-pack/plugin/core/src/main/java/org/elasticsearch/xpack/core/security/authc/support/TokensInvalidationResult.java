@@ -88,6 +88,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         builder.startObject()
             .field("invalidated_tokens", invalidatedTokens.size())
             .field("previously_invalidated_tokens", previouslyInvalidatedTokens.size())
+            .field("rest_status", restStatus)
             .field("error_count", errors.size());
         if (errors.isEmpty() == false) {
             builder.field("error_details");

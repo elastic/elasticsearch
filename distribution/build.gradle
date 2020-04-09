@@ -246,6 +246,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
 
+  // Setup all required JDKs
+  project.jdks {
+    ['darwin', 'windows', 'linux'].each { platform ->
+      (platform == 'linux' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        "bundled_${platform}_${architecture}" {
+          it.platform = platform
+          it.version = VersionProperties.getBundledJdk(platform)
+          it.vendor = VersionProperties.bundledJdkVendor
+          it.architecture = architecture
+        }
+      }
+    }
+  }
+
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
@@ -392,14 +406,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
 
     jdkFiles = { Project project, String platform, String architecture ->
-      project.jdks {
-        "bundled_${platform}_${architecture}" {
-          it.platform = platform
-          it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = VersionProperties.bundledJdkVendor
-          it.architecture = architecture
-        }
-      }
       return copySpec {
         from project.jdks."bundled_${platform}_${architecture}"
         exclude "demo/**"
@@ -414,7 +420,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
   }
-
 }
 
 testClusters {

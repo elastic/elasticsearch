@@ -478,7 +478,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), 0L, 1L, null);
+        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), null, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
         IndexTemplateV2 it2 = new IndexTemplateV2(Collections.singletonList("in*"), null, Collections.singletonList("ct"), 10L, 2L, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
@@ -595,7 +595,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        Settings settings = MetadataIndexTemplateService.resolveSettings(state, "my-template");
+        Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), "my-template");
         assertThat(settings.get("index.number_of_replicas"), equalTo("2"));
         assertThat(settings.get("index.blocks.write"), equalTo("false"));
         assertThat(settings.get("index.blocks.read"), equalTo("true"));
@@ -623,7 +623,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state, "my-template");
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(Arrays.asList(a3, a1, a2)));

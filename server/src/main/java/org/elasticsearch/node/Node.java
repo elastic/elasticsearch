@@ -448,7 +448,7 @@ public class Node implements Closeable {
                 .stream()
                 .collect(Collectors.toMap(
                     plugin -> plugin.getClass().getSimpleName(),
-                    plugin -> plugin.getSystemIndexDescriptors())));
+                    plugin -> plugin.getSystemIndexDescriptors(settings))));
             SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptorMap);
 
             final List<SystemIndexDescriptor> systemIndexDescriptors = systemIndexDescriptorMap.values().stream()
@@ -586,7 +586,8 @@ public class Node implements Closeable {
                     b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(
+                        namedWriteableRegistry, searchService::aggReduceContextBuilder));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);

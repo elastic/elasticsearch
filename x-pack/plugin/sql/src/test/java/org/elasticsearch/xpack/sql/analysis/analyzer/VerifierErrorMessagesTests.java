@@ -337,12 +337,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
-    public void testDatTimeParseValidArgs() {
+    public void testDateTimeParseValidArgs() {
         accept("SELECT DATETIME_PARSE(keyword, 'MM/dd/uuuu HH:mm:ss') FROM test");
         accept("SELECT DATETIME_PARSE('04/07/2020 10:20:30 Europe/Berlin', 'MM/dd/uuuu HH:mm:ss VV') FROM test");
     }
 
-    public void testDatTimeParseInvalidArgs() {
+    public void testDateTimeParseInvalidArgs() {
         assertEquals(
             "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
             error("SELECT DATETIME_PARSE(int, keyword) FROM test")

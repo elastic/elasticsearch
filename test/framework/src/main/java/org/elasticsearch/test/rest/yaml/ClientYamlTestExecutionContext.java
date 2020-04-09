@@ -144,7 +144,8 @@ public class ClientYamlTestExecutionContext {
                 bytes[position++] = xContentType.xContent().streamSeparator();
             }
             //TODO clean this up
-            ByteArrayEntity byteArrayEntity = new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            ByteArrayEntity byteArrayEntity =
+                new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
             if(byteArrayEntity.getContentType() != null){
                 byteArrayEntity.setContentType(headers.get(HTTP.CONTENT_TYPE));
             }

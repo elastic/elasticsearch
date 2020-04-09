@@ -78,25 +78,29 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
     private static Consumer<? super ExecutableSection> updateDoSection() {
         return ds -> {
             DoSection doSection = (DoSection) ds;
-            //TODO: be more selective here
+            // TODO: be more selective here
             doSection.setIgnoreWarnings(true);
 
             String compatibleHeader = createCompatibleHeader();
-            if(doSection.getApiCallSection().getApi().startsWith("cat")){
-//                doSection.getApiCallSection()
-//                    .addHeaders(Map.of(
-//                        CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader
-//                    ));
-            }else{
+            if (doSection.getApiCallSection().getApi().startsWith("cat")) {
+                // doSection.getApiCallSection()
+                // .addHeaders(Map.of(
+                // CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader
+                // ));
+            } else {
                 doSection.getApiCallSection()
-                    .addHeaders(Map.of(
-                        CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader,
-                        CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader
-                    ));
+                    .addHeaders(
+                        Map.of(
+                            CompatibleConstants.COMPATIBLE_ACCEPT_HEADER,
+                            compatibleHeader,
+                            CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER,
+                            compatibleHeader
+                        )
+                    );
             }
 
         };
-}
+    }
 
     private static String createCompatibleHeader() {
         return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleConstants.COMPATIBLE_VERSION;

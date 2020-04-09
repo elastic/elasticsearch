@@ -82,12 +82,8 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             doSection.setIgnoreWarnings(true);
 
             String compatibleHeader = createCompatibleHeader();
-            if (doSection.getApiCallSection().getApi().startsWith("cat")) {
-                // doSection.getApiCallSection()
-                // .addHeaders(Map.of(
-                // CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader
-                // ));
-            } else {
+            // for cat apis accept headers would break tests which expect txt response
+            if (doSection.getApiCallSection().getApi().startsWith("cat") == false) {
                 doSection.getApiCallSection()
                     .addHeaders(
                         Map.of(

@@ -42,8 +42,11 @@ public class EStatic extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+        }
 
+        Output output = new Output();
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
         if (output.actual == null) {
@@ -58,10 +61,5 @@ public class EStatic extends AExpression {
         output.expressionNode = staticNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type);
     }
 }

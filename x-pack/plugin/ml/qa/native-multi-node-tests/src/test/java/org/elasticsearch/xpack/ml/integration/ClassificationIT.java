@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -348,16 +347,20 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
-    @AwaitsFix(bugUrl = "Muted until ml-cpp supports multiple classes")
     public void testDependentVariableCardinalityTooHighError() throws Exception {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
 
-        // Index one more document with a class different than the two already used.
-        client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
-            .source(KEYWORD_FIELD, "fox")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
-            .actionGet();
+        // Index enough documents to have more classes than the allowed limit
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
         registerAnalytics(config);
@@ -365,7 +368,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(jobId));
         assertThat(e.status().getStatus(), equalTo(400));
-        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [2] distinct values but there were at least [3]"));
+        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
     }
 
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
@@ -628,7 +631,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Assert that all the class probabilities lie within [0, 1] interval.
         classProbabilities.forEach(p -> assertThat(p, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
         // Assert that the top classes are listed in the order of decreasing scores.
-        assertThat(Ordering.natural().reverse().isOrdered(classScores), is(true));
+        double prevScore = classScores.get(0);
+        for (int i = 1; i < classScores.size(); ++i) {
+            double score = classScores.get(i);
+            assertThat("class " + i, score, lessThanOrEqualTo(prevScore));
+        }
     }
 
     private <T> void assertEvaluation(String dependentVariable, List<T> dependentVariableValues, String predictedClassField) {

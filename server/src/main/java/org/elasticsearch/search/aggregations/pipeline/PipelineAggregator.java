@@ -103,12 +103,12 @@ public abstract class PipelineAggregator implements NamedWriteable {
 
     private String name;
     private String[] bucketsPaths;
-    private Map<String, Object> metaData;
+    private Map<String, Object> metadata;
 
-    protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
+    protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
         this.name = name;
         this.bucketsPaths = bucketsPaths;
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     /**
@@ -117,14 +117,14 @@ public abstract class PipelineAggregator implements NamedWriteable {
     protected PipelineAggregator(StreamInput in) throws IOException {
         name = in.readString();
         bucketsPaths = in.readStringArray();
-        metaData = in.readMap();
+        metadata = in.readMap();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringArray(bucketsPaths);
-        out.writeMap(metaData);
+        out.writeMap(metadata);
         doWriteTo(out);
     }
 
@@ -138,8 +138,8 @@ public abstract class PipelineAggregator implements NamedWriteable {
         return bucketsPaths;
     }
 
-    public Map<String, Object> metaData() {
-        return metaData;
+    public Map<String, Object> metadata() {
+        return metadata;
     }
 
     public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);

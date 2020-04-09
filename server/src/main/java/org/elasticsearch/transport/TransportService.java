@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -81,7 +83,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
-    private final boolean connectToRemoteCluster;
+    private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
 
@@ -161,13 +163,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
-        this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
-            if (connectToRemoteCluster) {
+            if (remoteClusterClient) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
         }
@@ -225,9 +227,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             }
         }
         localNode = localNodeFactory.apply(transport.boundAddress());
-        transport.setLocalNode(localNode);
 
-        if (connectToRemoteCluster) {
+        if (remoteClusterClient) {
             // here we start to connect to the remote clusters
             remoteClusterService.initializeRemoteClusters();
         }
@@ -559,6 +560,34 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
         try {
+            if (request.getParentTask().isSet()) {
+                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
+                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                final TransportResponseHandler<T> delegate = handler;
+                handler = new TransportResponseHandler<>() {
+                    @Override
+                    public void handleResponse(T response) {
+                        unregisterChildNode.close();
+                        delegate.handleResponse(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        unregisterChildNode.close();
+                        delegate.handleException(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return delegate.executor();
+                    }
+
+                    @Override
+                    public T read(StreamInput in) throws IOException {
+                        return delegate.read(in);
+                    }
+                };
+            }
             asyncSender.sendRequest(connection, action, request, options, handler);
         } catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler

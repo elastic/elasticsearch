@@ -78,7 +78,8 @@ public final class Aggregations {
         "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
         "terms", // https://github.com/elastic/elasticsearch/issues/51073
         "top_hits",
-        "top_metrics" // https://github.com/elastic/elasticsearch/issues/52236
+        "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
+        "t_test" // https://github.com/elastic/elasticsearch/issues/54503
     );
 
     private Aggregations() {}
@@ -183,7 +184,7 @@ public final class Aggregations {
         }
 
         if (agg instanceof ValuesSourceAggregationBuilder) {
-            ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
+            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
                 Collections.singletonMap(agg.getName(), agg.getType())

@@ -31,22 +31,23 @@ public class ScriptCacheTests extends ESTestCase {
         final TimeValue expire = ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(Settings.EMPTY);
         final Integer size = ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(Settings.EMPTY);
         Tuple<Integer, TimeValue> rate = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(Settings.EMPTY);
-        ScriptCache cache = new ScriptCache(size, expire, Tuple.tuple(1, TimeValue.timeValueMinutes(1)));
+        String settingName = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey();
+        ScriptCache cache = new ScriptCache(size, expire, Tuple.tuple(1, TimeValue.timeValueMinutes(1)), settingName);
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(2, TimeValue.timeValueMinutes(1))));
+        cache = new ScriptCache(size, expire, (Tuple.tuple(2, TimeValue.timeValueMinutes(1))), settingName);
         cache.checkCompilationLimit(); // should pass
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         int count = randomIntBetween(5, 50);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(count, TimeValue.timeValueMinutes(1))));
+        cache = new ScriptCache(size, expire, (Tuple.tuple(count, TimeValue.timeValueMinutes(1))), settingName);
         for (int i = 0; i < count; i++) {
             cache.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(0, TimeValue.timeValueMinutes(1))));
+        cache = new ScriptCache(size, expire, (Tuple.tuple(0, TimeValue.timeValueMinutes(1))), settingName);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1))));
+        cache = new ScriptCache(size, expire, (Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1))), settingName);
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             cache.checkCompilationLimit();
@@ -56,7 +57,8 @@ public class ScriptCacheTests extends ESTestCase {
     public void testUnlimitedCompilationRate() {
         final Integer size = ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(Settings.EMPTY);
         final TimeValue expire = ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(Settings.EMPTY);
-        ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE);
+        String settingName = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey();
+        ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE, settingName);
         long lastInlineCompileTime = cache.lastInlineCompileTime;
         double scriptsPerTimeWindow = cache.scriptsPerTimeWindow;
         for(int i=0; i < 3000; i++) {

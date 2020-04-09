@@ -48,6 +48,11 @@ public class EUnary extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
         Output output = new Output();
 
         Class<?> promote = null;
@@ -99,10 +104,5 @@ public class EUnary extends AExpression {
         output.expressionNode = unaryMathNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(operation.symbol, child);
     }
 }

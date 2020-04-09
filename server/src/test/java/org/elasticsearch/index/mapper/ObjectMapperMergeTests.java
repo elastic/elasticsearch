@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
@@ -83,7 +83,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.foo.enabled] in index mapping", e.getMessage());
+        assertEquals("The [enabled] parameter can't be updated for the object mapping [foo].", e.getMessage());
     }
 
     public void testMergeWhenEnablingField() {
@@ -93,7 +93,16 @@ public class ObjectMapperMergeTests extends ESTestCase {
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.disabled.enabled] in index mapping", e.getMessage());
+        assertEquals("The [enabled] parameter can't be updated for the object mapping [disabled].", e.getMessage());
+    }
+
+    public void testDisableRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        ObjectMapper firstMapper = createRootObjectMapper(type, true, Collections.emptyMap());
+        ObjectMapper secondMapper = createRootObjectMapper(type, false, Collections.emptyMap());
+
+        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
+        assertEquals("The [enabled] parameter can't be updated for the object mapping [" + type + "].", e.getMessage());
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {

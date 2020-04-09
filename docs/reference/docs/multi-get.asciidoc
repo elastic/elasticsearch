@@ -51,7 +51,9 @@ See <<shard-failures, Shard failures>> for more information.
 [[docs-multi-get-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+`<index>`::
+(Optional, string) Name of the index to retrieve documents from when `ids` are specified,
+or when a document in the `docs` array does not specify an index.
 
 [[docs-multi-get-api-query-params]]
 ==== {api-query-parms-title}

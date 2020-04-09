@@ -119,14 +119,11 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     public static final Setting.AffixSetting<Integer> SCRIPT_CACHE_SIZE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
-            "cache_max_size",
-            key -> Setting.intSetting(key, SCRIPT_GENERAL_CACHE_SIZE_SETTING, 0, Property.NodeScope, Property.Dynamic));
+            "cache_max_size", key -> Setting.intSetting(key, 0, Property.NodeScope, Property.Dynamic));
 
     public static final Setting.AffixSetting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
-            "cache_expire",
-            key -> Setting.positiveTimeSetting(key, SCRIPT_GENERAL_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(0),
-                                               Property.NodeScope, Property.Dynamic));
+            "cache_expire", key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMillis(0), Property.NodeScope, Property.Dynamic));
 
     // Unlimited compilation rate for context-specific script caches
     static final String UNLIMITED_COMPILATION_RATE_KEY = "unlimited";

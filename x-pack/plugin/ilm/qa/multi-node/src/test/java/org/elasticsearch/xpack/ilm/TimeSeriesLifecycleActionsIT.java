@@ -30,10 +30,8 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
-import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
-import org.elasticsearch.xpack.core.ilm.FreezeStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -211,22 +209,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testRetryFailedDeleteAction() throws Exception {
+        createNewSingletonPolicy("delete", new DeleteAction());
         createIndexWithSettings(index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, false));
+            .put(IndexMetadata.SETTING_READ_ONLY, true)
+            .put("index.lifecycle.name", policy));
 
-        createNewSingletonPolicy("delete", new DeleteAction());
-
-        Request request = new Request("PUT", index + "/_settings");
-        request.setJsonEntity("{\"index.blocks.read_only\": true, \"index.lifecycle.name\": \"" + policy + "\"}");
-        assertOK(client().performRequest(request));
-
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(DeleteStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
         assertTrue(indexExists(index));
 
+        Request request = new Request("PUT", index + "/_settings");
         request.setJsonEntity("{\"index.blocks.read_only\":false}");
         assertOK(client().performRequest(request));
 
@@ -242,7 +237,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_READ_ONLY, true)
             .put("index.lifecycle.name", policy));
 
-        assertBusy(() -> assertThat(getFailedStepForIndex(index), equalTo(FreezeStep.NAME)));
+        assertBusy(() -> assertThat((Integer) explainIndex(index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30,
+            TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(index).containsKey("index.frozen"));
 
         Request request = new Request("PUT", index + "/_settings");
@@ -287,7 +283,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testRolloverAction() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -306,7 +301,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testRolloverActionWithIndexingComplete() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -759,7 +753,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53738")
     public void testSetPriority() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 100));
@@ -1912,6 +1905,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return new StepKey(phase, action, step);
     }
 
+    @Nullable
     private String getFailedStepForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {

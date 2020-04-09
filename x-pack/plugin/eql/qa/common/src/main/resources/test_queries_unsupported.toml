@@ -809,12 +809,6 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and indexOf(file_name, 'plorer.', 2)'''
 expected_event_ids  = [88, 92]
 description = "check built-in string functions"
@@ -830,18 +824,6 @@ query = '''
 file where opcode=0 and indexOf(file_name, 'thing that never happened')'''
 expected_event_ids = []
 description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2'''
-expected_event_ids  = [88, 92]
-description = "check substring ranges"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0'''
-expected_event_ids  = [88, 92]
-description = "check substring ranges"
 
 [[queries]]
 query = '''

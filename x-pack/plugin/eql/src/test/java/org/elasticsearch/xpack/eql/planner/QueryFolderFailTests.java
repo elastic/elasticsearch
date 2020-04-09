@@ -132,6 +132,20 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
+    public void testIndexOfFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where indexOf(plain_text, \"foo\") == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [indexOf(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+        
+        e = expectThrows(VerificationException.class,
+                () -> plan("process where indexOf(\"bla\", plain_text) == 1"));
+        msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [indexOf(\"bla\", plain_text)] cannot operate on second argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
     public void testStringContainsWrongParams() {
         assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",
                 errorParsing("process where stringContains()"));

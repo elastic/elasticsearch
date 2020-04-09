@@ -1230,7 +1230,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         wrappedListener = ActionListener.delegateResponse(
                             listener, (l, e) -> removeSnapshotDeletionFromClusterState(snapshotName, e, l));
                     }
-                    afterInitDelete(wrappedListener);
+                    afterInitDelete(newState, wrappedListener);
                 }
             }
 
@@ -1250,14 +1250,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ));
             }
 
-            private void afterInitDelete(ActionListener<Void> onComplete) {
+            private void afterInitDelete(ClusterState newState, ActionListener<Void> onComplete) {
                 if (runningSnapshot == null) {
                     tryDeleteFromRepo(repositoryName, snapshotName, onComplete);
                 } else {
-                    initializingDeletes.remove(newDelete);
+                    initializingDeletes.add(newDelete);
                     addListener(runningSnapshot, ActionListener.wrap(
-                        result ->
-                            deleteCompletedSnapshotStep(repositoryName, result.v2().snapshotId(), result.v1().getGenId(), onComplete),
+                        result -> deleteSnapshotFromRepository(newDelete, onComplete, newState.nodes().getMinNodeVersion()),
                         e -> handleErrorDuringWait(e, onComplete)));
                 }
             }
@@ -1299,62 +1298,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         l.onFailure(new SnapshotMissingException(repositoryName, snapshotName));
                     }
                 }, l::onFailure))));
-    }
-
-    /**
-     * Deletes a snapshot that is known to exist in the repository at the given repository generation from the repository.
-     *
-     * @param repositoryName Repository name
-     * @param snapshot       SnapshotId of deleted snapshot
-     * @param repositoryGen  Repository generation that this delete is based on
-     * @param listener       listener to complete once done
-     */
-    private void deleteCompletedSnapshotStep(String repositoryName, SnapshotId snapshot, long repositoryGen,
-                                             ActionListener<Void> listener) {
-        clusterService.submitStateUpdateTask("delete snapshot [" + snapshot + "] step 2", new ClusterStateUpdateTask() {
-
-            private SnapshotDeletionsInProgress.Entry foundInit;
-
-            private SnapshotDeletionsInProgress.Entry newDelete;
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final SnapshotDeletionsInProgress existingDeletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                final List<SnapshotDeletionsInProgress.Entry> newEntries = new ArrayList<>();
-                for (SnapshotDeletionsInProgress.Entry entry : existingDeletions.getEntries()) {
-                    if (entry.matches(new Snapshot(repositoryName, snapshot))) {
-                        assert newDelete == null;
-                        assert foundInit == null;
-                        foundInit = entry;
-                        newDelete = new SnapshotDeletionsInProgress.Entry(entry, snapshot, repositoryGen);
-                        newEntries.add(newDelete);
-                    } else {
-                        newEntries.add(entry);
-                    }
-                }
-                if (newDelete == null) {
-                    throw new IllegalStateException("Did not find initialized delete");
-                }
-                return ClusterState.builder(currentState)
-                    .putCustom(SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newEntries)).build();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                if (foundInit != null) {
-                    initializingDeletes.remove(foundInit);
-                }
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                assert newDelete != null;
-                assert foundInit != null;
-                initializingDeletes.remove(foundInit);
-                deleteSnapshotFromRepository(newDelete, listener, newState.nodes().getMinNodeVersion());
-            }
-        });
     }
 
     // Return in-progress snapshot entry by name and repository in the given cluster state or null if none is found

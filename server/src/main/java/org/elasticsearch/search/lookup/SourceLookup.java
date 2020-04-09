@@ -30,6 +30,7 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -126,6 +127,19 @@ public class SourceLookup implements Map<String, Object> {
      */
     public List<Object> extractRawValues(String path) {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
+    }
+
+    public Map<String, Object> extractValues(Collection<String> paths) {
+        Map<String, Object> source = loadSourceIfNeeded();
+        Map<String, Object> result = new HashMap<>(paths.size());
+
+        for (String path : paths) {
+            Object value = XContentMapValues.extractValue(path, source);
+            if (value != null) {
+                result.put(path, value);
+            }
+        }
+        return result;
     }
 
     public Object filter(FetchSourceContext context) {

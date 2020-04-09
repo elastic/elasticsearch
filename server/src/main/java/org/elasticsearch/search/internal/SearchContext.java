@@ -50,6 +50,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -200,6 +201,10 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract FetchDocValuesContext docValuesContext();
 
     public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
+
+    public abstract FetchFieldsContext fetchFieldsContext();
+
+    public abstract SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext);
 
     public abstract ContextIndexSearcher searcher();
 

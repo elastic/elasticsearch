@@ -92,7 +92,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 

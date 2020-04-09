@@ -98,6 +98,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         .putAlias(newAliasMetadataBuilder("alias-bar1"))
                         .putAlias(newAliasMetadataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
+                .put(idx1, false)
+                .put(idx2, false)
                 .put(new DataStream("data-stream1", "@timestamp", List.of(idx1.getIndex())))
                 .put(new DataStream("data-stream2", "@timestamp2", List.of(idx2.getIndex())))
                 .build();

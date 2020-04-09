@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +41,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -106,7 +108,9 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         if (randomBoolean()) {
             int numDataStreams = randomIntBetween(0, 5);
             for (int i = 0; i < numDataStreams; i++) {
-                mdBuilder.put(new DataStream("name" + 1, "ts", List.of(new Index("name-" + i + "-000001", "na"))));
+                String dataStreamName = "name" + 1;
+                IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
+                mdBuilder.put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex())));
             }
         }
         mdBuilder.indexGraveyard(graveyard.build());

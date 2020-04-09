@@ -1370,7 +1370,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
-            if (dataStreamMetadata != null) {
+            // If there are no indices then it doesn't make sense to to add data streams to indicesLookup,
+            // since there no concrete indices that a data stream can point to.
+            // (This occurs when only Metadata is read from disk.)
+            if (dataStreamMetadata != null && indices.size() > 0) {
                 for (Map.Entry<String, DataStream> entry : dataStreamMetadata.dataStreams().entrySet()) {
                     DataStream dataStream = entry.getValue();
                     List<IndexMetadata> backingIndices = dataStream.getIndices().stream()

@@ -58,8 +58,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     static final String COORDINATING_ONLY = "coordinating_only";
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
-        final Setting<List<DiscoveryNodeRole>> nodeRolesSetting =
-            Setting.listSetting("node.roles", List.of(role.roleName()), DiscoveryNode::getRoleFromRoleName, Property.NodeScope);
+        final Setting<List<DiscoveryNodeRole>> nodeRolesSetting = Setting.listSetting(
+            NODE_ROLES_SETTING.getKey(),
+            List.of(role.roleName()),
+            DiscoveryNode::getRoleFromRoleName,
+            Property.NodeScope);
         return getRolesFromSettings(settings, nodeRolesSetting, rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream())).contains(role);
     }
 

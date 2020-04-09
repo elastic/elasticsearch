@@ -51,7 +51,6 @@ setup:
   - match: {test_index.mappings.text.mapping.text.type:     text}
   - match: {test_index.mappings.text.mapping.text.analyzer: default}
 
-
 ---
 "Get field mapping with local is deprecated":
 

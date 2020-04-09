@@ -1136,10 +1136,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 if (newDelete != null) {
                     final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                    final SnapshotDeletionsInProgress newDeletions;
-                    if (deletionsInProgress == null) {
-                        newDeletions = new SnapshotDeletionsInProgress(Collections.singletonList(newDelete));
-                    } else {
+                    if (deletionsInProgress != null) {
                         if (deletionsInProgress.getEntries().stream().anyMatch(entry ->
                             (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN
                                 && initializingDeletes.contains(entry) == false) == false
@@ -1147,9 +1144,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
                                 "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
                         }
-                        newDeletions = new SnapshotDeletionsInProgress(Collections.singletonList(newDelete));
                     }
-                    clusterStateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE, newDeletions);
+                    clusterStateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE,
+                        new SnapshotDeletionsInProgress(Collections.singletonList(newDelete)));
                     initializingDeletes.add(newDelete);
                 }
                 return clusterStateBuilder.build();

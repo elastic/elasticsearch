@@ -12,7 +12,6 @@ Changes the allocation of shards in a cluster.
 
 `POST /_cluster/reroute`
 
-[role="child_attributes"]
 [[cluster-reroute-api-desc]]
 ==== {api-description-title}
 
@@ -55,6 +54,7 @@ query parameter, which will attempt a single retry round for these shards.
 
 
 [[cluster-reroute-api-query-params]]
+[role="child_attributes"]
 ==== {api-query-parms-title}
 
 `dry_run`::
@@ -70,7 +70,7 @@ query parameter, which will attempt a single retry round for these shards.
     Defaults to all but metadata The following options are available:
 
 +
-.Properties of `metric`
+.Options for `metric`
 [%collapsible%open]
 ======
 `_all`::
@@ -96,8 +96,6 @@ query parameter, which will attempt a single retry round for these shards.
 `version`::
     Shows the cluster state version.
 ======
-=====
-====
 
 
 `retry_failed`::
@@ -106,12 +104,12 @@ query parameter, which will attempt a single retry round for these shards.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[cluster-reroute-api-request-body]]
 ==== {api-request-body-title}
 
 `commands`::
-    (Required, object) Defines the commands to perform. Supported commands are:
+    (Required, array of objects) Defines the commands to perform. Supported commands are:
 
 +
 .Properties of `commands`
@@ -137,9 +135,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     Allocate an unassigned replica shard to a node. Accepts `index` and `shard`
     for index name and shard number, and `node` to allocate the shard to. Takes
     <<modules-cluster,allocation deciders>> into account.
-======
-=====
-====
 
 Two more commands are available that allow the allocation of a primary shard to
 a node. These commands should however be used with extreme care, as primary
@@ -179,7 +174,7 @@ will be deleted or overwritten.
     data rejoins the cluster later on, that data will be deleted. To ensure
     that these implications are well-understood, this command requires the flag
     `accept_data_loss` to be explicitly set to `true`.
-
+======
 
 [[cluster-reroute-api-example]]
 ==== {api-examples-title}

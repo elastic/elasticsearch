@@ -664,7 +664,8 @@ public class MetadataIndexTemplateService {
         }
 
         final List<IndexTemplateV2> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparingLong(IndexTemplateV2::priority).reversed());
+        CollectionUtil.timSort(candidates, Comparator.comparing(IndexTemplateV2::priority,
+            Comparator.nullsLast(Comparator.reverseOrder())));
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);
@@ -715,14 +716,14 @@ public class MetadataIndexTemplateService {
     /**
      * Resolve the given v2 template into a collected {@link Settings} object
      */
-    public static Settings resolveSettings(final ClusterState state, final String templateName) {
-        final IndexTemplateV2 template = state.metadata().templatesV2().get(templateName);
+    public static Settings resolveSettings(final Metadata metadata, final String templateName) {
+        final IndexTemplateV2 template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve settings for a template [" + templateName +
             "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         List<Settings> componentSettings = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
@@ -760,14 +761,14 @@ public class MetadataIndexTemplateService {
     /**
      * Resolve the given v2 template into an ordered list of aliases
      */
-    public static List<Map<String, AliasMetadata>> resolveAliases(final ClusterState state, final String templateName) {
-        final IndexTemplateV2 template = state.metadata().templatesV2().get(templateName);
+    public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final String templateName) {
+        final IndexTemplateV2 template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
         if (template == null) {
             return List.of();
         }
-        final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         List<Map<String, AliasMetadata>> aliases = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)

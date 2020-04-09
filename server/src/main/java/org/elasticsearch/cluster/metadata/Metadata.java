@@ -1348,16 +1348,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-            SortedMap<String, IndexAbstraction> aliasAndIndexLookup = new TreeMap<>();
+            SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
                 IndexMetadata indexMetadata = cursor.value;
                 IndexAbstraction existing =
-                    aliasAndIndexLookup.put(indexMetadata.getIndex().getName(), new IndexAbstraction.Index(indexMetadata));
+                    indicesLookup.put(indexMetadata.getIndex().getName(), new IndexAbstraction.Index(indexMetadata));
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
                     AliasMetadata aliasMetadata = aliasCursor.value;
-                    aliasAndIndexLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
+                    indicesLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
                             return new IndexAbstraction.Alias(aliasMetadata, indexMetadata);
                         } else {
@@ -1380,7 +1380,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     assert backingIndices.contains(null) == false;
 
                     IndexMetadata writeIndex = backingIndices.get(backingIndices.size() - 1);
-                    IndexAbstraction existing = aliasAndIndexLookup.put(dataStream.getName(),
+                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
                         new IndexAbstraction.DataStream(dataStream, backingIndices, writeIndex));
                     if (existing != null) {
                         throw new IllegalStateException("data stream [" + dataStream.getName() +
@@ -1389,10 +1389,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
-            aliasAndIndexLookup.values().stream()
+            indicesLookup.values().stream()
                 .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
                 .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
-            return aliasAndIndexLookup;
+            return indicesLookup;
         }
 
         private void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup) {

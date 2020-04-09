@@ -268,7 +268,7 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Add the given component template to the cluster state. If {@code create} is true, an
+     * Add the given index template to the cluster state. If {@code create} is true, an
      * exception will be thrown if the component template already exists
      */
     public void putIndexTemplateV2(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
@@ -661,6 +661,27 @@ public class MetadataIndexTemplateService {
 
         if (matchedTemplates.size() == 0) {
             return null;
+        }
+
+        // this is complex but if the index is not hidden in the create request but is hidden as the result of template application,
+        // then we need to exclude global templates
+        if (isHidden == null) {
+            final Optional<Map.Entry<IndexTemplateV2, String>> templateWithHiddenSetting = matchedTemplates.entrySet().stream()
+                .filter(entry -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, entry.getValue()))).findFirst();
+            if (templateWithHiddenSetting.isPresent()) {
+                Map.Entry<IndexTemplateV2, String> indexTemplateV2ToNameEntry = templateWithHiddenSetting.get();
+                final boolean templateIsHidden =
+                    IndexMetadata.INDEX_HIDDEN_SETTING.get(resolveSettings(metadata, indexTemplateV2ToNameEntry.getValue()));
+                if (templateIsHidden) {
+                    // remove the global templates
+                    matchedTemplates.keySet().removeIf(current -> current.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern));
+                }
+                // validate that hidden didn't change
+                if (matchedTemplates.containsKey(indexTemplateV2ToNameEntry.getKey()) == false) {
+                    throw new IllegalStateException("A global index V2 template [" + indexTemplateV2ToNameEntry.getValue() +
+                        "] defined the index hidden setting, which is not allowed");
+                }
+            }
         }
 
         final List<IndexTemplateV2> candidates = new ArrayList<>(matchedTemplates.keySet());

@@ -60,12 +60,15 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.elasticsearch.index.search.QueryParserHelper.checkForTooManyFields;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
 
@@ -96,6 +99,9 @@ public class QueryStringQueryParser extends XQueryParser {
     private MappedFieldType currentFieldType;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
+
+    // set of field names this parser targets, used to check limits on expanded field names
+    private Set<String> queriedFields = new HashSet<>();
 
     /**
      * @param context The query shard context.
@@ -132,13 +138,13 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     /**
-     * Defaults to all queryiable fields extracted from the mapping for query terms
+     * Defaults to all queryable fields extracted from the mapping for query terms
      * @param context The query shard context
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
     public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
         this(context, "*",
-            resolveMappingField(context, "*", 1.0f, false, false),
+            resolveMappingField(context, "*", 1.0f, false, false, null),
             lenient, context.getMapperService().searchAnalyzer());
     }
 
@@ -268,21 +274,24 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Map<String, Float> extractMultiFields(String field, boolean quoted) {
+        Map<String, Float> extractedFields;
         if (field != null) {
             boolean allFields = Regex.isMatchAllPattern(field);
             if (allFields && this.field != null && this.field.equals(field)) {
                 // "*" is the default field
-                return fieldsAndWeights;
+                extractedFields = fieldsAndWeights;
             }
             boolean multiFields = Regex.isSimpleMatchPattern(field);
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
-            return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+            extractedFields = resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
         } else if (quoted && quoteFieldSuffix != null) {
-            return resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
+            extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
-            return fieldsAndWeights;
+            extractedFields = fieldsAndWeights;
         }
+        this.queriedFields.addAll(extractedFields.keySet());
+        return extractedFields;
     }
 
     @Override
@@ -789,6 +798,8 @@ public class QueryStringQueryParser extends XQueryParser {
         if (query.trim().isEmpty()) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
-        return super.parse(query);
+        Query result = super.parse(query);
+        checkForTooManyFields(this.queriedFields.size(), this.context);
+        return result;
     }
 }

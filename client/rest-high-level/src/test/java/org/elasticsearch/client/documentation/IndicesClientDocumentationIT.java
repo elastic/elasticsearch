@@ -53,8 +53,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.GetAliasesResponse;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.core.BroadcastResponse.Shards;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.AnalyzeRequest;
@@ -705,11 +707,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.local(true); // <1>
         // end::get-field-mappings-request-local
 
-        {
+        final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
 
+        {
             // tag::get-field-mappings-execute
             GetFieldMappingsResponse response =
-                client.indices().getFieldMapping(request, RequestOptions.DEFAULT);
+                client.indices().getFieldMapping(request, requestOptions);
             // end::get-field-mappings-execute
 
             // tag::get-field-mappings-response
@@ -760,7 +763,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
 
             // tag::get-field-mappings-execute-async
-            client.indices().getFieldMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().getFieldMappingAsync(request, requestOptions, listener); // <1>
             // end::get-field-mappings-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

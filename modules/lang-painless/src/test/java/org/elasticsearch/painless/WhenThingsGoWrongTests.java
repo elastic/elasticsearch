@@ -309,4 +309,47 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'cat", false));
         assertEquals("unexpected character ['cat].", e.getMessage());
     }
+
+    public void testNotAStatement() {
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 * 1; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from multiplication operation [*]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = false; x && true; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from boolean and operation [&&]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("false; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: boolean constant [false] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = false; x == true; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from equals operation [==]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = false; x ? 1 : 2; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from conditional operation [?:]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1.1; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: decimal constant [1.1] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = null; x ?: [2]; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from elvis operation [?:]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = null; (ArrayList)x; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from explicit cast with target type [ArrayList]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = null; x instanceof List; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from instanceof with target type [List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[]; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from list initializer");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[:]; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from map initializer");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new int[] {1, 2}; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from new array");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("null; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: null constant not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: numeric constant [1] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("/a/; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: regex constant [a] with flags [] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("'1'; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: string constant [1] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("+1; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x; x; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: variable [x] not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[] {1}; x[0]; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result of brace operator not used");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Integer.MAX_VALUE; return null;"));
+        assertEquals(iae.getMessage(), "not a statement: result of dot operator [.] not used");
+    }
 }

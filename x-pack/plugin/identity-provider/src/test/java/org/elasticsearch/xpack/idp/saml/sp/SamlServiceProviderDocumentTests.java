@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -67,6 +68,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         assertThat(assertXContentRoundTrip(doc2), equalTo(doc1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54733")
     public void testXContentRoundTripWithAllFields() throws Exception {
         final SamlServiceProviderDocument doc1 = createFullDocument();
         final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
@@ -79,6 +81,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54733")
     public void testStreamRoundTripWithAllFields() throws Exception {
         final SamlServiceProviderDocument doc1 = createFullDocument();
         final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);
@@ -144,7 +147,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
             assertThat(obj2, equalTo(obj1));
 
             final BytesReference bytes2 = XContentHelper.toXContent(obj2, xContentType, humanReadable);
-            assertThat(bytes2, equalTo(bytes1));
+            assertToXContentEquivalent(bytes1, bytes2, xContentType);
 
             return obj2;
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.Configuration;
@@ -49,10 +50,10 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, request, username(securityContext), clusterName(clusterService), listener);
+        operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), clusterName(clusterService), listener);
     }
 
-    public static void operation(PlanExecutor planExecutor, EqlSearchRequest request, String username,
+    public static void operation(PlanExecutor planExecutor, EqlSearchTask task, EqlSearchRequest request, String username,
                                  String clusterName, ActionListener<EqlSearchResponse> listener) {
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
@@ -67,7 +68,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .implicitJoinKey(request.implicitJoinKeyField());
 
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-                includeFrozen, clientId);
+                includeFrozen, clientId, task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 

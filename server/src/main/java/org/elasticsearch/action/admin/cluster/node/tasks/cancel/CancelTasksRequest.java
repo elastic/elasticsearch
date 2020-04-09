@@ -44,7 +44,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public CancelTasksRequest(StreamInput in) throws IOException {
         super(in);
         this.reason = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             waitForCompletion = in.readBoolean();
         }
     }
@@ -53,7 +53,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(reason);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeBoolean(waitForCompletion);
         }
     }
@@ -79,7 +79,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     }
 
     /**
-     * If {@code true}, the request blocks until the cancellation of the task and its child tasks is completed.
+     * If {@code true}, the request blocks until the cancellation of the task and its descendant tasks is completed.
      * Otherwise, the request can return soon after the cancellation is started. Defaults to {@code false}.
      */
     public void setWaitForCompletion(boolean waitForCompletion) {

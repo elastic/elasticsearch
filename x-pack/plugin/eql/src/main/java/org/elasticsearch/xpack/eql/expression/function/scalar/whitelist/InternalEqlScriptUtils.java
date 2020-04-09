@@ -6,10 +6,13 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
 /*
@@ -21,8 +24,16 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
 
+    public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
+        return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    }
+
     public static Boolean endsWith(String s, String pattern) {
         return (Boolean) EndsWithFunctionProcessor.doProcess(s, pattern);
+    }
+
+    public static Integer indexOf(String s, String substring, Number start) {
+        return (Integer) IndexOfFunctionProcessor.doProcess(s, substring, start);
     }
 
     public static Integer length(String s) {
@@ -31,6 +42,10 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static Boolean startsWith(String s, String pattern) {
         return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern);
+    }
+
+    public static Boolean stringContains(String string, String substring) {
+        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
     }
 
     public static String substring(String s, Number start, Number end) {

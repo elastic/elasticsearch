@@ -57,37 +57,33 @@ class PluginBuildPlugin implements Plugin<Project> {
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
 
-        // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
-        // so that the file name resolution for installing the plugin will be setup
+        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+        boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+
+        createIntegTestTask(project)
+        createBundleTasks(project, extension)
+        project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
+        if (isModule) {
+            project.testClusters.integTest.module(project.tasks.bundlePlugin.archiveFile)
+        } else {
+            project.testClusters.integTest.plugin(project.tasks.bundlePlugin.archiveFile)
+        }
+
         project.afterEvaluate {
-            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
-            boolean isModule = project.path.startsWith(':modules:') || isXPackModule
-            PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
-            String name = extension1.name
-            project.archivesBaseName = name
-            project.description = extension1.description
-            configurePublishing(project, extension1)
-
-            project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
-            if (isModule) {
-                project.testClusters.integTest.module(
-                        project.file(project.tasks.bundlePlugin.archiveFile)
-                )
-            } else {
-                project.testClusters.integTest.plugin(
-                        project.file(project.tasks.bundlePlugin.archiveFile)
-                )
-            }
-
             project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
                 // Auto add dependent modules to the test cluster
                 if (project.findProject(":modules:${pluginName}") != null) {
                     project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
                     project.testClusters.integTest.module(
-                            project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
+                        project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
                     )
                 }
             }
+            PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
+            configurePublishing(project, extension1)
+            String name = extension1.name
+            project.archivesBaseName = name
+            project.description = extension1.description
 
             if (extension1.name == null) {
                 throw new InvalidUserDataException('name is a required setting for esplugin')
@@ -100,15 +96,15 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
             Copy buildProperties = project.tasks.getByName('pluginProperties')
             Map<String, String> properties = [
-                    'name'                : extension1.name,
-                    'description'         : extension1.description,
-                    'version'             : extension1.version,
-                    'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
-                    'javaVersion'         : project.targetCompatibility as String,
-                    'classname'           : extension1.classname,
-                    'extendedPlugins'     : extension1.extendedPlugins.join(','),
-                    'hasNativeController' : extension1.hasNativeController,
-                    'requiresKeystore'    : extension1.requiresKeystore
+                'name'                : extension1.name,
+                'description'         : extension1.description,
+                'version'             : extension1.version,
+                'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
+                'javaVersion'         : project.targetCompatibility as String,
+                'classname'           : extension1.classname,
+                'extendedPlugins'     : extension1.extendedPlugins.join(','),
+                'hasNativeController' : extension1.hasNativeController,
+                'requiresKeystore'    : extension1.requiresKeystore
             ]
             buildProperties.expand(properties)
             buildProperties.inputs.properties(properties)
@@ -116,6 +112,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 addNoticeGeneration(project, extension1)
             }
         }
+
         project.tasks.named('testingConventions').configure {
             naming.clear()
             naming {
@@ -129,8 +126,6 @@ class PluginBuildPlugin implements Plugin<Project> {
                 }
             }
         }
-        createIntegTestTask(project)
-        createBundleTasks(project, extension)
         project.configurations.getByName('default')
             .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build

@@ -109,8 +109,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2019.2 and
-onwards. We would like to support Eclipse, but few of us use it and has fallen
-into [disrepair][eclipse].
+onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -135,6 +134,62 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
  - Select **File > Open**
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
+
+### Importing the project into Eclipse
+
+Elasticsearch builds using Gradle and Java 13. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
+
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
+
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formater**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
 
 ### REST Endpoint Conventions
 
@@ -551,4 +606,3 @@ non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
-[eclipse]: https://github.com/elastic/elasticsearch/issues/53664

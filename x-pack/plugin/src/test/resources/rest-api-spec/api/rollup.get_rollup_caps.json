@@ -1,7 +1,8 @@
 {
   "rollup.get_rollup_caps":{
     "documentation":{
-      "url":""
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-caps.html",
+      "description":"Returns the capabilities of any rollup jobs that have been configured for a specific index or index pattern."
     },
     "stability":"experimental",
     "url":{

@@ -22,8 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.MemberCallNode;
 import org.elasticsearch.painless.ir.FieldNode;
+import org.elasticsearch.painless.ir.MemberCallNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -167,8 +167,6 @@ public class ECallLocal extends AExpression {
             argumentOutputs.add(argumentOutput);
         }
 
-        output.statement = true;
-
         MemberCallNode memberCallNode = new MemberCallNode();
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
@@ -187,10 +185,5 @@ public class ECallLocal extends AExpression {
         output.expressionNode = memberCallNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, name);
     }
 }

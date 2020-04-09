@@ -21,7 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,7 +56,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testDistanceSortingMVFields() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("locations").field("type", "geo_point");
         xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
@@ -182,7 +182,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     // https://github.com/elastic/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("locations").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
@@ -224,7 +224,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testDistanceSortingNestedFields() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("name").field("type", "text").endObject().startObject("branches").field("type", "nested")
                 .startObject("properties").startObject("name").field("type", "text").endObject().startObject("location")
@@ -380,7 +380,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
      */
     public void testGeoDistanceFilter() throws IOException {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         double lat = 40.720611;
         double lon = -73.998776;
 

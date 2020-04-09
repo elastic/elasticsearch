@@ -50,8 +50,6 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
 
         // the following parameters might be overwritten by random ones later,
         // but we need to set these since they are the default we send over http
-        expectedParams.put("request_cache", "true");
-        expectedParams.put("batched_reduce_size", "5");
         setRandomSearchParams(submitRequest, expectedParams);
         setRandomIndicesOptions(submitRequest::setIndicesOptions, submitRequest::getIndicesOptions, expectedParams);
 
@@ -108,8 +106,8 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
+            expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
         }
-        expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
         if (randomBoolean()) {
             request.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }

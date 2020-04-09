@@ -40,11 +40,11 @@ public class EBoolean extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+            throw createError(new IllegalArgumentException("not a statement: boolean constant [" + constant + "] not used"));
         }
+
+        Output output = new Output();
 
         output.actual = boolean.class;
 
@@ -56,10 +56,5 @@ public class EBoolean extends AExpression {
         output.expressionNode = constantNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(constant);
     }
 }

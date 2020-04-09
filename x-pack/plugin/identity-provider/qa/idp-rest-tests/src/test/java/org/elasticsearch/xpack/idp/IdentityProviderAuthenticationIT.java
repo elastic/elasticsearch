@@ -186,8 +186,8 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
 
     private RestClient restClientAsKibanaSystem() throws IOException {
         return buildClient(
-            Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue("kibana",
-                new SecureString("kibana".toCharArray()))).build(),
+            Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue("kibana_system",
+                new SecureString("kibana_system".toCharArray()))).build(),
             getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]));
     }
 }

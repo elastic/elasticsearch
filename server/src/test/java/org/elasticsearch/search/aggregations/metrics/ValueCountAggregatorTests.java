@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -108,6 +110,38 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+
+    public void testGeoField() throws IOException {
+        testCase(new MatchAllDocsQuery(), ValueType.GEOPOINT, iw -> {
+            for (int i = 0; i < 10; i++) {
+                Document document = new Document();
+                document.add(new LatLonDocValuesField("field", 10, 10));
+                iw.addDocument(document);
+            }
+        }, count -> assertEquals(10L, count.getValue()));
+    }
+
+    public void testDoubleField() throws IOException {
+        testCase(new MatchAllDocsQuery(), ValueType.DOUBLE, iw -> {
+            for (int i = 0; i < 15; i++) {
+                Document document = new Document();
+                document.add(new DoubleDocValuesField(FIELD_NAME, 23D));
+                iw.addDocument(document);
+            }
+        }, count -> assertEquals(15L, count.getValue()));
+    }
+
+    public void testKeyWordField() throws IOException {
+        testCase(new MatchAllDocsQuery(), ValueType.STRING, iw -> {
+            for (int i = 0; i < 20; i++) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("stringValue")));
+                document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("string11Value")));
+                iw.addDocument(document);
+            }
+        }, count -> assertEquals(40L, count.getValue()));
     }
 
     public void testNoDocs() throws IOException {

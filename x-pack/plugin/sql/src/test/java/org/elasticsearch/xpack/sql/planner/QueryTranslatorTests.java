@@ -5,6 +5,30 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
+import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
+import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
+
+import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Stream;
+
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -14,9 +38,12 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuild
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -38,10 +65,16 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
@@ -60,30 +93,6 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-
-import java.time.ZonedDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.stream.Stream;
-
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
-import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
-import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
 
@@ -588,7 +597,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue("
                 + "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(" +
                      "doc,params.v3),params.v4),params.v5,params.v6])",
@@ -860,7 +869,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals(
                 "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
@@ -885,7 +894,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals(
                 "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
@@ -1018,7 +1027,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals(
                 "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])",
             scriptTemplate.toString());
@@ -1032,7 +1041,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals(
                 "InternalSqlScriptUtils.nullif(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
             scriptTemplate.toString());
@@ -1046,7 +1055,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(" + ""
                 + "doc,params.v0),params.v1),params.v2,InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v3)," +
                 "params.v4),params.v5,params.v6])",
@@ -1061,7 +1070,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt("  +
                 "InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2,params.v3])",
             scriptTemplate.toString());
@@ -1815,5 +1824,134 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"));
+    }
+
+    public void testErrorMessageForMatrixStatsWithScalars() {
+        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+            String aggFunction = fd.name();
+            if (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
+                SqlIllegalArgumentException siae = expectThrows(
+                    SqlIllegalArgumentException.class,
+                    () -> optimizeAndPlan("SELECT " + aggFunction + "(int * 10.123) FROM test")
+                );
+                assertEquals(
+                    "Cannot use scalar functions or operators: [int * 10.123] in matrix stats aggregate functions " +
+                    "[KURTOSIS] and [SKEWNESS]", siae.getMessage()
+                );
+            }
+        }
+    }
+
+    public void testScriptsInsideAggregateFunctions() {
+        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+            if (AggregateFunction.class.isAssignableFrom(fd.clazz()) && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)) {
+                String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1";
+                if (fd.clazz() == Percentile.class || fd.clazz() == PercentileRank.class) {
+                    aggFunction += ", 50";
+                }
+                aggFunction += ")";
+                PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunction + " FROM test");
+                assertEquals(EsQueryExec.class, p.getClass());
+                EsQueryExec eqe = (EsQueryExec) p;
+                assertEquals(1, eqe.output().size());
+                assertEquals(aggFunction, eqe.output().get(0).qualifiedName());
+                if (fd.clazz() == Count.class) {
+                    assertThat(
+                        eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                        containsString(
+                            ":{\"script\":{\"source\":\"InternalQlScriptUtils.isNotNull(InternalSqlScriptUtils.add("
+                                + "InternalSqlScriptUtils.abs(InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul("
+                                + "InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2)),params.v3))\","
+                                + "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
+                        )
+                    );
+                } else {
+                    assertThat(
+                        eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                        containsString(
+                            ":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs("
+                                + "InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue("
+                                + "doc,params.v0),params.v1),params.v2)),params.v3)\",\"lang\":\"painless\",\"params\":{"
+                                + "\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithHaving() {
+        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+            if (AggregateFunction.class.isAssignableFrom(fd.clazz())
+                    && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)
+                    // First/Last don't support having: https://github.com/elastic/elasticsearch/issues/37938
+                    && (TopHits.class.isAssignableFrom(fd.clazz()) == false)) {
+                String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1";
+                if (fd.clazz() == Percentile.class || fd.clazz() == PercentileRank.class) {
+                    aggFunction += ", 50";
+                }
+                aggFunction += ")";
+                LogicalPlan p = plan("SELECT " + aggFunction + ", keyword FROM test " + "GROUP BY keyword HAVING " + aggFunction + " > 20");
+                assertTrue(p instanceof Filter);
+                assertTrue(((Filter) p).child() instanceof Aggregate);
+                List<Attribute> outputs = ((Filter) p).child().output();
+                assertEquals(2, outputs.size());
+                assertEquals(aggFunction, outputs.get(0).qualifiedName());
+                assertEquals("test.keyword", outputs.get(1).qualifiedName());
+
+                Expression condition = ((Filter) p).condition();
+                assertFalse(condition.foldable());
+                QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+                assertNull(translation.query);
+                AggFilter aggFilter = translation.aggFilter;
+                assertEquals(
+                    "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))",
+                    aggFilter.scriptTemplate().toString()
+                );
+                assertEquals("[{a=" + aggFunction + "}, {v=20}]", aggFilter.scriptTemplate().params().toString());
+            }
+        }
+    }
+
+    public void testScriptsInsideAggregateFunctions_ConvertedToStats() {
+        String aggFunctionArgs1 = "MIN(ABS((int * 10) / 3) + 1)";
+        String aggFunctionArgs2 = "MAX(ABS((int * 10) / 3) + 1)";
+        PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunctionArgs1 + ", " + aggFunctionArgs2 + " FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(2, eqe.output().size());
+        assertEquals(aggFunctionArgs1, eqe.output().get(0).qualifiedName());
+        assertEquals(aggFunctionArgs2, eqe.output().get(1).qualifiedName());
+        assertThat(
+            eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            containsString(
+                "{\"stats\":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs("
+                    + "InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue("
+                    + "doc,params.v0),params.v1),params.v2)),params.v3)\",\"lang\":\"painless\",\"params\":{"
+                    + "\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
+            )
+        );
+    }
+
+    public void testScriptsInsideAggregateFunctions_ExtendedStats() {
+        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+            if (ExtendedStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
+                String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1)";
+                PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunction + " FROM test");
+                assertEquals(EsQueryExec.class, p.getClass());
+                EsQueryExec eqe = (EsQueryExec) p;
+                assertEquals(1, eqe.output().size());
+                assertEquals(aggFunction, eqe.output().get(0).qualifiedName());
+                assertThat(
+                    eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                    containsString(
+                        "{\"extended_stats\":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.abs("
+                            + "InternalSqlScriptUtils.div(InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue("
+                            + "doc,params.v0),params.v1),params.v2)),params.v3)\",\"lang\":\"painless\",\"params\":{"
+                            + "\"v0\":\"int\",\"v1\":10,\"v2\":3,\"v3\":1}}"
+                    )
+                );
+            }
+        }
     }
 }

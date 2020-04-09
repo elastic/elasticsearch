@@ -12,12 +12,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.medianAb
 
 public class MedianAbsoluteDeviationAgg extends LeafAgg {
 
-    public MedianAbsoluteDeviationAgg(String id, String fieldName) {
-        super(id, fieldName);
+    public MedianAbsoluteDeviationAgg(String id, Object fieldOrScript) {
+        super(id, fieldOrScript);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return medianAbsoluteDeviation(id()).field(fieldName());
+        return addFieldOrScript(medianAbsoluteDeviation(id()));
     }
 }

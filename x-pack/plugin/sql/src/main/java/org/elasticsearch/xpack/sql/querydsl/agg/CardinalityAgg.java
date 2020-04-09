@@ -11,12 +11,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinal
 
 public class CardinalityAgg extends LeafAgg {
 
-    public CardinalityAgg(String id, String fieldName) {
-        super(id, fieldName);
+    public CardinalityAgg(String id, Object fieldOrScript) {
+        super(id, fieldOrScript);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return cardinality(id()).field(fieldName());
+        return addFieldOrScript(cardinality(id()));
     }
 }

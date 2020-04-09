@@ -397,6 +397,16 @@ https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution o
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggKurtosis]
 --------------------------------------------------
 
+[NOTE]
+====
+`KURTOSIS` cannot be used on top of scalar functions but only directly on a field. So, for example, the following is
+not allowed and an error is returned:
+[source, sql]
+---------------------------------------
+ SELECT KURTOSIS(salary), gender FROM emp GROUP BY gender
+---------------------------------------
+====
+
 [[sql-functions-aggs-mad]]
 ==== `MAD`
 
@@ -500,6 +510,16 @@ https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of 
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggSkewness]
 --------------------------------------------------
+
+[NOTE]
+====
+`SKEWNESS` cannot be used on top of scalar functions but only directly on a field. So, for example, the following is
+not allowed and an error is returned:
+[source, sql]
+---------------------------------------
+ SELECT SKEWNESS(salary), gender FROM emp GROUP BY gender
+---------------------------------------
+====
 
 [[sql-functions-aggs-stddev-pop]]
 ==== `STDDEV_POP`

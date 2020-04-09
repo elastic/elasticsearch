@@ -5,34 +5,56 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing.LAST;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing.LAST;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 public class TopHitsAgg extends LeafAgg {
 
     private final String sortField;
+    private final ScriptTemplate sortScriptTemplate;
     private final SortOrder sortOrder;
     private final DataType fieldDataType;
     private final DataType sortFieldDataType;
 
-
-    public TopHitsAgg(String id, String fieldName, DataType fieldDataType, String sortField,
-                      DataType sortFieldDataType, SortOrder sortOrder) {
-        super(id, fieldName);
-        this.sortField = sortField;
-        this.sortOrder = sortOrder;
+    public TopHitsAgg(
+        String id,
+        Object fieldOrScript,
+        DataType fieldDataType,
+        Object sortFieldOrScript,
+        DataType sortFieldDataType,
+        SortOrder sortOrder
+    ) {
+        super(id, fieldOrScript);
+        if (sortFieldOrScript == null) {
+            this.sortField = null;
+            this.sortScriptTemplate = null;
+        } else if (sortFieldOrScript instanceof String) {
+            this.sortField = (String) sortFieldOrScript;
+            this.sortScriptTemplate = null;
+        } else if (sortFieldOrScript instanceof ScriptTemplate) {
+            this.sortField = null;
+            this.sortScriptTemplate = (ScriptTemplate) sortFieldOrScript;
+        } else {
+            throw new SqlIllegalArgumentException("sorting argument of TopHits aggregation should be String or ScriptTemplate");
+        }
         this.fieldDataType = fieldDataType;
+        this.sortOrder = sortOrder;
         this.sortFieldDataType = sortFieldDataType;
     }
 
@@ -42,18 +64,40 @@ public class TopHitsAgg extends LeafAgg {
         List<SortBuilder<?>> sortBuilderList = new ArrayList<>(2);
         if (sortField != null) {
             sortBuilderList.add(
-                new FieldSortBuilder(sortField)
-                    .order(sortOrder)
-                    .missing(LAST.position())
-                    .unmappedType(sortFieldDataType.esType()));
+                new FieldSortBuilder(sortField).order(sortOrder).missing(LAST.position()).unmappedType(sortFieldDataType.esType())
+            );
+        } else if (sortScriptTemplate != null) {
+            sortBuilderList.add(
+                new ScriptSortBuilder(
+                    Scripts.nullSafeSort(sortScriptTemplate).toPainless(),
+                    sortScriptTemplate.outputType().isNumeric()
+                        ? ScriptSortBuilder.ScriptSortType.NUMBER
+                        : ScriptSortBuilder.ScriptSortType.STRING
+                ).order(sortOrder)
+            );
         }
-        sortBuilderList.add(
-                new FieldSortBuilder(fieldName())
-                    .order(sortOrder)
-                    .missing(LAST.position())
-                    .unmappedType(fieldDataType.esType()));
 
-        return topHits(id()).docValueField(fieldName(), SqlDataTypes.format(fieldDataType)).sorts(sortBuilderList).size(1);
+        if (fieldName() != null) {
+            sortBuilderList.add(
+                new FieldSortBuilder(fieldName()).order(sortOrder).missing(LAST.position()).unmappedType(fieldDataType.esType())
+            );
+        } else {
+            sortBuilderList.add(
+                new ScriptSortBuilder(
+                    Scripts.nullSafeSort(scriptTemplate()).toPainless(),
+                    scriptTemplate().outputType().isNumeric()
+                        ? ScriptSortBuilder.ScriptSortType.NUMBER
+                        : ScriptSortBuilder.ScriptSortType.STRING
+                ).order(sortOrder)
+            );
+        }
+
+        TopHitsAggregationBuilder builder = topHits(id());
+        if (fieldName() != null) {
+            return builder.docValueField(fieldName(), SqlDataTypes.format(fieldDataType)).sorts(sortBuilderList).size(1);
+        } else {
+            return builder.scriptField(id(), scriptTemplate().toPainless()).sorts(sortBuilderList).size(1);
+        }
     }
 
     @Override
@@ -69,12 +113,13 @@ public class TopHitsAgg extends LeafAgg {
         }
         TopHitsAgg that = (TopHitsAgg) o;
         return Objects.equals(sortField, that.sortField)
+            && Objects.equals(sortScriptTemplate, that.sortScriptTemplate)
             && sortOrder == that.sortOrder
             && fieldDataType == that.fieldDataType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sortField, sortOrder, fieldDataType);
+        return Objects.hash(super.hashCode(), sortField, sortScriptTemplate, sortOrder, fieldDataType);
     }
 }

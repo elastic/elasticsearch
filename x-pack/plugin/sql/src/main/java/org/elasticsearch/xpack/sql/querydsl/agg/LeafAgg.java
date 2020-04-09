@@ -6,12 +6,22 @@
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 public abstract class LeafAgg extends Agg {
 
-    LeafAgg(String id, String fieldName) {
-        super(id, fieldName);
+    LeafAgg(String id, Object fieldOrScript) {
+        super(id, fieldOrScript);
     }
 
     abstract AggregationBuilder toBuilder();
+
+    @SuppressWarnings("rawtypes")
+    protected ValuesSourceAggregationBuilder addFieldOrScript(ValuesSourceAggregationBuilder builder) {
+        if (fieldName() != null) {
+            return builder.field(fieldName());
+        } else {
+            return builder.script(scriptTemplate().toPainless());
+        }
+    }
 }

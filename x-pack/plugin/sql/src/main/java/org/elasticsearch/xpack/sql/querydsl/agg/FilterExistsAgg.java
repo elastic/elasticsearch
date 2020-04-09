@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 
@@ -15,12 +16,16 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
  */
 public class FilterExistsAgg extends LeafAgg {
 
-    public FilterExistsAgg(String id, String fieldName) {
-        super(id, fieldName);
+    public FilterExistsAgg(String id, Object fieldOrScript) {
+        super(id, fieldOrScript);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return filter(id(), QueryBuilders.existsQuery(fieldName()));
+        if (fieldName() != null) {
+            return filter(id(), QueryBuilders.existsQuery(fieldName()));
+        } else {
+            return filter(id(), QueryBuilders.scriptQuery(Scripts.isNotNullCardinality(scriptTemplate()).toPainless()));
+        }
     }
 }

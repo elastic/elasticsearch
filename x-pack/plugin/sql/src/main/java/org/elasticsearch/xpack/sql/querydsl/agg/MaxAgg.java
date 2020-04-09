@@ -11,12 +11,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 
 public class MaxAgg extends LeafAgg {
 
-    public MaxAgg(String id, String fieldName) {
-        super(id, fieldName);
+    public MaxAgg(String id, Object fieldOrScript) {
+        super(id, fieldOrScript);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return max(id()).field(fieldName());
+        return addFieldOrScript(max(id()));
     }
 }

@@ -15,18 +15,13 @@ public class PercentileRanksAgg extends LeafAgg {
 
     private final List<Double> values;
 
-    public PercentileRanksAgg(String id, String fieldName, List<Double> values) {
-        super(id, fieldName);
+    public PercentileRanksAgg(String id, Object fieldOrScript, List<Double> values) {
+        super(id, fieldOrScript);
         this.values = values;
-    }
-
-    public List<Double> percents() {
-        return values;
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return percentileRanks(id(), values.stream().mapToDouble(Double::doubleValue).toArray())
-                .field(fieldName());
+        return addFieldOrScript(percentileRanks(id(), values.stream().mapToDouble(Double::doubleValue).toArray()));
     }
 }

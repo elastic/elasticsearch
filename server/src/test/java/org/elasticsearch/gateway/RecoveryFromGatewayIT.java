@@ -30,7 +30,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -70,8 +70,8 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -144,11 +144,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectCursor<IndexMetaData> cursor : state.metaData().indices().values()) {
-            final IndexMetaData indexMetaData = cursor.value;
-            final String index = indexMetaData.getIndex().getName();
+        for (ObjectCursor<IndexMetadata> cursor : state.metadata().indices().values()) {
+            final IndexMetadata indexMetadata = cursor.value;
+            final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
-            final long[] current = IntStream.range(0, indexMetaData.getNumberOfShards()).mapToLong(indexMetaData::primaryTerm).toArray();
+            final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
             if (previous == null) {
                 result.put(index, current);
             } else {
@@ -359,8 +359,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
-        String metaDataUuid = client().admin().cluster().prepareState().execute().get().getState().getMetaData().clusterUUID();
-        assertThat(metaDataUuid, not(equalTo("_na_")));
+        String metadataUuid = client().admin().cluster().prepareState().execute().get().getState().getMetadata().clusterUUID();
+        assertThat(metadataUuid, not(equalTo("_na_")));
 
         logger.info("--> closing first node, and indexing more data to the second node");
         internalCluster().stopRandomDataNode();
@@ -403,16 +403,16 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
 
-        assertThat(client().admin().cluster().prepareState().execute().get().getState().getMetaData().clusterUUID(), equalTo(metaDataUuid));
+        assertThat(client().admin().cluster().prepareState().execute().get().getState().getMetadata().clusterUUID(), equalTo(metadataUuid));
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
         }
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.metaData().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
-        assertThat(state.metaData().index("test").getAliases().get("test_alias"), notNullValue());
-        assertThat(state.metaData().index("test").getAliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
+        assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
@@ -540,7 +540,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
-        final String customDataPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(
+        final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
             client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test"));
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);
@@ -596,8 +596,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNodes(3,
             Settings.builder().put(ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING.getKey(),
                 "2ms").build());
-        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms").build());
         ensureGreen("test");
         internalCluster().fullRestart();

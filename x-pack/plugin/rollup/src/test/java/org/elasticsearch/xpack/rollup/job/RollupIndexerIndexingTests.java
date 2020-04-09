@@ -91,7 +91,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null, () -> true);
+                null, null, null, null, () -> 0L, null, null, () -> true, null);
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -459,10 +459,10 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         }
         executeTestCase(dataset, job, System.currentTimeMillis(), (resp) -> {
             assertThat(resp.size(), greaterThan(0));
-            for (DocWriteRequest request : resp) {
+            for (IndexRequest request : resp) {
                 assertThat(request.index(), equalTo(rollupIndex));
 
-                Map<String, Object> source = ((IndexRequest) request).sourceAsMap();
+                Map<String, Object> source = request.sourceAsMap();
 
                 assertThat(source.get("_rollup.version"), equalTo(2));
                 assertThat(source.get("ts.date_histogram.interval"), equalTo(timeInterval.toString()));

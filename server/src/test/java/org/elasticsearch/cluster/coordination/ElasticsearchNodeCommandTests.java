@@ -19,22 +19,12 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -44,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,7 +41,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ElasticsearchNodeCommandTests extends ESTestCase {
 
@@ -73,55 +61,40 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
     }
 
     private void runLoadStateTest(boolean hasMissingCustoms, boolean preserveUnknownCustoms) throws IOException {
-        final MetaData latestMetaData = randomMeta();
+        final Metadata latestMetadata = randomMeta();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        latestMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        Metadata.FORMAT.toXContent(builder, latestMetadata);
         builder.endObject();
 
-        MetaData loadedMetaData;
+        Metadata loadedMetadata;
         try (XContentParser parser = createParser(hasMissingCustoms ? ElasticsearchNodeCommand.namedXContentRegistry : xContentRegistry(),
             JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            loadedMetaData = MetaData.fromXContent(parser);
+            loadedMetadata = Metadata.fromXContent(parser);
         }
-        assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
-        assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
-        ImmutableOpenMap<String, IndexMetaData> indices = loadedMetaData.indices();
-        assertThat(indices.size(), equalTo(latestMetaData.indices().size()));
-        for (IndexMetaData original : latestMetaData) {
-            IndexMetaData deserialized = indices.get(original.getIndex().getName());
-            assertThat(deserialized, notNullValue());
-            assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
-            assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
-            assertThat(deserialized.getSettingsVersion(), equalTo(original.getSettingsVersion()));
-            assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
-            assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
-        }
+        assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
+        assertThat(loadedMetadata.clusterUUID(), equalTo(latestMetadata.clusterUUID()));
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
-            assertNotNull(loadedMetaData.custom(IndexGraveyard.TYPE));
-            assertThat(loadedMetaData.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetaDataCustom.class));
+            assertNotNull(loadedMetadata.custom(IndexGraveyard.TYPE));
+            assertThat(loadedMetadata.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetadataCustom.class));
 
             if (preserveUnknownCustoms) {
                 // check that we reserialize unknown metadata correctly again
                 final Path tempdir = createTempDir();
-                MetaData.FORMAT.write(loadedMetaData, tempdir);
-                final MetaData reloadedMetaData = MetaData.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
-                assertThat(reloadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
+                Metadata.FORMAT.write(loadedMetadata, tempdir);
+                final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
+                assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
             }
         }  else {
-            assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
+            assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
         }
     }
 
-    private MetaData randomMeta() {
-        int numIndices = randomIntBetween(1, 10);
-        MetaData.Builder mdBuilder = MetaData.builder();
+    private Metadata randomMeta() {
+        Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.generateClusterUuidIfNeeded();
-        for (int i = 0; i < numIndices; i++) {
-            mdBuilder.put(indexBuilder(randomAlphaOfLength(10) + "idx-"+i));
-        }
         int numDelIndices = randomIntBetween(0, 5);
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         for (int i = 0; i < numDelIndices; i++) {
@@ -129,17 +102,6 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
         mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
-    }
-
-    private IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index)
-            .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)))
-            .putRolloverInfo(new RolloverInfo("test", randomSubsetOf(Arrays.asList(
-                new MaxAgeCondition(TimeValue.timeValueSeconds(100)),
-                new MaxDocsCondition(100L),
-                new MaxSizeCondition(new ByteSizeValue(100))
-            )), 0));
     }
 
     @Override

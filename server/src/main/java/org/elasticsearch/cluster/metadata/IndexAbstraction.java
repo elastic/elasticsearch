@@ -267,8 +267,9 @@ public interface IndexAbstraction {
         public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
                           List<IndexMetadata> dataStreamIndices, IndexMetadata writeIndex) {
             this.dataStream = dataStream;
-            this.dataStreamIndices = dataStreamIndices;
+            this.dataStreamIndices = List.copyOf(dataStreamIndices);
             this.writeIndex = writeIndex;
+            assert dataStreamIndices.contains(writeIndex);
         }
 
         @Override

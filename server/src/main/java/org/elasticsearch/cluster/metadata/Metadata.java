@@ -1377,6 +1377,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         .map(index -> indices.get(index.getName()))
                         .collect(Collectors.toList());
                     assert backingIndices.isEmpty() == false;
+                    assert backingIndices.contains(null) == false;
 
                     IndexMetadata writeIndex = backingIndices.get(backingIndices.size() - 1);
                     IndexAbstraction existing = aliasAndIndexLookup.put(dataStream.getName(),

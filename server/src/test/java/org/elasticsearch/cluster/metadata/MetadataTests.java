@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
@@ -916,6 +917,7 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         Metadata.Builder b = Metadata.builder()
+            .put(idx, false)
             .put(IndexMetadata.builder(dataStreamName)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
@@ -998,7 +1000,7 @@ public class MetadataTests extends ESTestCase {
     public void testBuildIndicesLookupForDataStreams() {
         Metadata.Builder b = Metadata.builder();
         int numDataStreams = randomIntBetween(2, 8);
-        for (int i = 1; i <= numDataStreams; i++) {
+        for (int i = 0; i < numDataStreams; i++) {
             String name = "data-stream-" + i;
             int numBackingIndices = randomIntBetween(1, 4);
             List<Index> indices = new ArrayList<>(numBackingIndices);
@@ -1012,7 +1014,7 @@ public class MetadataTests extends ESTestCase {
 
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(numDataStreams));
-        for (int i = 1; i < numDataStreams; i++) {
+        for (int i = 0; i < numDataStreams; i++) {
             String name = "data-stream-" + i;
             IndexAbstraction value = metadata.getIndicesLookup().get(name);
             assertThat(value, notNullValue());
@@ -1037,7 +1039,9 @@ public class MetadataTests extends ESTestCase {
     }
 
     public static Metadata randomMetadata() {
-        return Metadata.builder()
+        DataStream randomDataStream = DataStreamTests.randomInstance();
+
+        Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
                 .patterns(Arrays.asList("bar-*", "foo-*"))
@@ -1057,7 +1061,15 @@ public class MetadataTests extends ESTestCase {
             .version(randomNonNegativeLong())
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance())
-            .put(DataStreamTests.randomInstance())
-            .build();
+            .put(randomDataStream);
+
+        for (Index index : randomDataStream.getIndices()) {
+            md.put(IndexMetadata.builder(index.getName())
+                .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
+                .numberOfShards(1)
+                .numberOfReplicas(1));
+        }
+
+        return md.build();
     }
 }

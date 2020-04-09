@@ -114,10 +114,7 @@ dependencies {
 
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  compile 'com.netflix.nebula:gradle-info-plugin:5.1.0'
-  compile 'org.eclipse.jgit:org.eclipse.jgit:5.5.0.201909110433-r'
-  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
-  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
+  compile 'com.netflix.nebula:gradle-info-plugin:7.1.3'
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'

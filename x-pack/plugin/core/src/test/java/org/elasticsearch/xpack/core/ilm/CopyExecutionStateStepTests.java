@@ -25,14 +25,16 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new CopyExecutionStateStep(stepKey, nextStepKey, shrunkIndexPrefix);
+        String nextStepName = randomStepKey().getName();
+        return new CopyExecutionStateStep(stepKey, nextStepKey, shrunkIndexPrefix, nextStepName);
     }
 
     @Override
     protected CopyExecutionStateStep mutateInstance(CopyExecutionStateStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
+        String shrunkIndexPrefix = instance.getTargetIndexPrefix();
+        String nextStepName = instance.getTargetNextStepName();
 
         switch (between(0, 2)) {
             case 0:
@@ -44,16 +46,20 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             case 2:
                 shrunkIndexPrefix += randomAlphaOfLength(5);
                 break;
+            case 3:
+                nextStepName = randomAlphaOfLengthBetween(1, 10);
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new CopyExecutionStateStep(key, nextKey, shrunkIndexPrefix);
+        return new CopyExecutionStateStep(key, nextKey, shrunkIndexPrefix, nextStepName);
     }
 
     @Override
     protected CopyExecutionStateStep copyInstance(CopyExecutionStateStep instance) {
-        return new CopyExecutionStateStep(instance.getKey(), instance.getNextStepKey(), instance.getShrunkIndexPrefix());
+        return new CopyExecutionStateStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexPrefix(),
+            instance.getTargetNextStepName());
     }
 
     public void testPerformAction() {
@@ -66,7 +72,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             .numberOfReplicas(randomIntBetween(1,5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
             .build();
-        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(step.getShrunkIndexPrefix() + indexName)
+        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(step.getTargetIndexPrefix() + indexName)
             .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
             .numberOfReplicas(randomIntBetween(1,5))
             .build();
@@ -80,12 +86,14 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
         LifecycleExecutionState newIndexData = LifecycleExecutionState
-            .fromIndexMetadata(newClusterState.metadata().index(step.getShrunkIndexPrefix() + indexName));
+            .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexPrefix() + indexName));
 
-        assertEquals(oldIndexData.getLifecycleDate(), newIndexData.getLifecycleDate());
-        assertEquals(oldIndexData.getPhase(), newIndexData.getPhase());
-        assertEquals(oldIndexData.getAction(), newIndexData.getAction());
-        assertEquals(ShrunkenIndexCheckStep.NAME, newIndexData.getStep());
+        assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
+        assertEquals(newIndexData.getPhase(), oldIndexData.getPhase());
+        assertEquals(newIndexData.getAction(), oldIndexData.getAction());
+        assertEquals(newIndexData.getStep(), step.getTargetNextStepName());
+        assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
+        assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
     }
     public void testPerformActionWithNoTarget() {
         CopyExecutionStateStep step = createRandomInstance();
@@ -106,6 +114,6 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             () -> step.performAction(originalIndexMetadata.getIndex(), originalClusterState));
 
         assertThat(e.getMessage(), equalTo("unable to copy execution state from [" +
-            indexName + "] to [" + step.getShrunkIndexPrefix() + indexName + "] as target index does not exist"));
+            indexName + "] to [" + step.getTargetIndexPrefix() + indexName + "] as target index does not exist"));
     }
 }

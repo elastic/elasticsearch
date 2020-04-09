@@ -51,6 +51,18 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
             return null;
         }
 
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -89,6 +101,19 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Response response = (Response) o;
+            return decisions.equals(response.decisions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(decisions);
         }
 
     }

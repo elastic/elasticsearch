@@ -47,10 +47,10 @@ public class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void assertColumnNamesAndLabels(ResultSetMetaData MetaData, String[] names) throws SQLException {
+    private void assertColumnNamesAndLabels(ResultSetMetaData metaData, String[] names) throws SQLException {
         for(int i = 0; i < fieldsNames.length; i++) {
-            assertEquals(names[i], MetaData.getColumnName(i + 1));
-            assertEquals(names[i], MetaData.getColumnLabel(i + 1));
+            assertEquals(names[i], metaData.getColumnName(i + 1));
+            assertEquals(names[i], metaData.getColumnLabel(i + 1));
         }
     }
 }

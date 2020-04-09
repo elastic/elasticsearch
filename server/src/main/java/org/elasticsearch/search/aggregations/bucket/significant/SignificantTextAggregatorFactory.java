@@ -43,11 +43,9 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class SignificantTextAggregatorFactory extends AggregatorFactory
@@ -173,8 +171,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata)
-            throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
@@ -199,7 +196,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        return new SignificantTextAggregator(name, factories, searchContext, parent, pipelineAggregators, bucketCountThresholds,
+        return new SignificantTextAggregator(name, factories, searchContext, parent, bucketCountThresholds,
                 incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metadata);
 
     }

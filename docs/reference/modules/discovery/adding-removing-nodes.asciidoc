@@ -65,11 +65,11 @@ to the voting configuration exclusion list using the
 # Add node to voting configuration exclusions list and wait for the system
 # to auto-reconfigure the node out of the voting configuration up to the
 # default timeout of 30 seconds
-POST /_cluster/voting_config_exclusions/node_name
+POST /_cluster/voting_config_exclusions?node_names=node_name
 
 # Add node to voting configuration exclusions list and wait for
 # auto-reconfiguration up to one minute
-POST /_cluster/voting_config_exclusions/node_name?timeout=1m
+POST /_cluster/voting_config_exclusions?node_names=node_name&timeout=1m
 --------------------------------------------------
 // TEST[skip:this would break the test cluster if executed]
 

@@ -192,7 +192,7 @@ public final class TokenService {
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
-    static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final Version VERSION_HASHED_TOKENS = Version.V_7_2_0;
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
@@ -390,7 +390,13 @@ public final class TokenService {
                     } else {
                         listener.onResponse(null);
                     }
-                }, listener::onFailure));
+                }, e -> {
+                    if (isShardNotAvailableException(e)) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }));
             }
         } else {
             listener.onResponse(null);
@@ -423,7 +429,13 @@ public final class TokenService {
             } else {
                 listener.onFailure(new IllegalArgumentException("Cannot decode access token"));
             }
-        }, listener::onFailure));
+        }, e -> {
+            if (isShardNotAvailableException(e)) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     /**
@@ -432,14 +444,20 @@ public final class TokenService {
      */
     public void getAuthenticationAndMetadata(String token, ActionListener<Tuple<Authentication, Map<String, Object>>> listener) {
         decodeToken(token, ActionListener.wrap(
-                userToken -> {
-                    if (userToken == null) {
-                        listener.onFailure(new ElasticsearchSecurityException("supplied token is not valid"));
-                    } else {
-                        listener.onResponse(new Tuple<>(userToken.getAuthentication(), userToken.getMetadata()));
-                    }
-                },
-                listener::onFailure
+            userToken -> {
+                if (userToken == null) {
+                    listener.onFailure(new ElasticsearchSecurityException("supplied token is not valid"));
+                } else {
+                    listener.onResponse(new Tuple<>(userToken.getAuthentication(), userToken.getMetadata()));
+                }
+            },
+            e -> {
+                if (isShardNotAvailableException(e)) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         ));
     }
 
@@ -451,7 +469,7 @@ public final class TokenService {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         if (tokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
-            listener.onResponse(null);
+            listener.onFailure(tokensIndex.getUnavailableReason());
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
                     getTokenDocumentId(userTokenId)).request();
@@ -485,12 +503,11 @@ public final class TokenService {
                             // the token is not valid
                             if (isShardNotAvailableException(e)) {
                                 logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId,
-                                        tokensIndex.aliasName());
-                                listener.onResponse(null);
+                                    tokensIndex.aliasName());
                             } else {
                                 logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
-                                listener.onFailure(e);
                             }
+                            listener.onFailure(e);
                         }), client::get)
                 );
         }
@@ -502,6 +519,7 @@ public final class TokenService {
      * expensive so this should not block the current thread, which is typically a network thread. A second reason for being asynchronous is
      * that we can restrain the amount of resources consumed by the key computation to a single thread. For tokens created in an after
      * {@code #VERSION_ACCESS_TOKENS_UUIDS} cluster, the token is just the token document Id so this is used directly without decryption
+     *
      */
     void decodeToken(String token, ActionListener<UserToken> listener) {
         final byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
@@ -579,18 +597,21 @@ public final class TokenService {
     public void invalidateAccessToken(String accessToken, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(accessToken)) {
-            listener.onFailure(traceLog("no access token provided", new IllegalArgumentException("access token must be provided")));
+            listener.onFailure(traceLog("invalidate access token", new IllegalArgumentException("access token must be provided")));
         } else {
+            logger.debug("INVALIDATE ACCESS TOKEN");
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
             decodeToken(accessToken, ActionListener.wrap(userToken -> {
                 if (userToken == null) {
+                    // The chances of a random token string decoding to something that we can read is minimal, so
+                    // we assume that this was a token we have created but is now expired/revoked and deleted
                     logger.trace("The access token [{}] is expired and already deleted", accessToken);
-                    listener.onResponse(TokensInvalidationResult.emptyResult());
+                    listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.NOT_FOUND));
                 } else {
                     indexInvalidation(Collections.singleton(userToken), backoff, "access_token", null, listener);
                 }
-            }, listener::onFailure));
+            }, e -> listener.onFailure(unableToPerformAction(e))));
         }
     }
 
@@ -628,7 +649,7 @@ public final class TokenService {
                 backoff, ActionListener.wrap(searchHits -> {
                     if (searchHits.getHits().length < 1) {
                         logger.debug("could not find token document for refresh token");
-                        listener.onResponse(TokensInvalidationResult.emptyResult());
+                        listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.NOT_FOUND));
                     } else if (searchHits.getHits().length > 1) {
                         listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
                     } else {
@@ -636,7 +657,7 @@ public final class TokenService {
                             parseTokensFromDocument(searchHits.getAt(0).getSourceAsMap(), null);
                         indexInvalidation(Collections.singletonList(parsedTokens.v1()), backoff, "refresh_token", null, listener);
                     }
-                }, listener::onFailure));
+                }, e -> listener.onFailure(unableToPerformAction(e))));
         }
     }
 
@@ -659,7 +680,7 @@ public final class TokenService {
                 findActiveTokensForUser(username, ActionListener.wrap(tokenTuples -> {
                     if (tokenTuples.isEmpty()) {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
-                        listener.onResponse(TokensInvalidationResult.emptyResult());
+                        listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
                         invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
                     }
@@ -672,7 +693,7 @@ public final class TokenService {
                 findActiveTokensForRealm(realmName, filter, ActionListener.wrap(tokenTuples -> {
                     if (tokenTuples.isEmpty()) {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
-                        listener.onResponse(TokensInvalidationResult.emptyResult());
+                        listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
                         invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
                     }
@@ -795,7 +816,7 @@ public final class TokenService {
                             logger.debug("failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
                                     retryTokenDocIds.size(), tokenIds.size());
                             final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
-                                        previouslyInvalidated, failedRequestResponses);
+                                previouslyInvalidated, failedRequestResponses, RestStatus.OK);
                             client.threadPool().schedule(() -> indexInvalidation(retryTokenDocIds, tokensIndexManager, backoff,
                                 srcPrefix, incompleteResult, listener), backoff.next(), GENERIC);
                         } else {
@@ -809,7 +830,7 @@ public final class TokenService {
                                 }
                             }
                             final TokensInvalidationResult result = new TokensInvalidationResult(invalidated, previouslyInvalidated,
-                                    failedRequestResponses);
+                                failedRequestResponses, RestStatus.OK);
                             listener.onResponse(result);
                         }
                     }, e -> {
@@ -853,7 +874,7 @@ public final class TokenService {
                         tokenDocHit.getPrimaryTerm(),
                         clientAuth, backoff, refreshRequested, listener);
                 }
-            }, listener::onFailure));
+            }, e -> listener.onFailure(invalidGrantException("could not refresh the requested token"))));
     }
 
     /**
@@ -918,11 +939,11 @@ public final class TokenService {
         };
         final SecurityIndexManager frozenTokensIndex = tokensIndexManager.freeze();
         if (frozenTokensIndex.indexExists() == false) {
-            logger.warn("index [{}] does not exist therefore refresh token cannot be validated", frozenTokensIndex.aliasName());
-            listener.onFailure(invalidGrantException("could not refresh the requested token"));
+            logger.warn("index [{}] does not exist so we can't find token from refresh token", frozenTokensIndex.aliasName());
+            listener.onFailure(frozenTokensIndex.getUnavailableReason());
         } else if (frozenTokensIndex.isAvailable() == false) {
             logger.debug("index [{}] is not available to find token from refresh token, retrying", frozenTokensIndex.aliasName());
-            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
+            maybeRetryOnFailure.accept(frozenTokensIndex.getUnavailableReason());
         } else {
             final SearchRequest request = client.prepareSearch(tokensIndexManager.aliasName())
                     .setQuery(QueryBuilders.boolQuery()
@@ -1632,10 +1653,10 @@ public final class TokenService {
         }
     }
 
-    static String prependVersionAndEncodeRefreshToken(Version version, String payload) {
+    public static String prependVersionAndEncodeRefreshToken(Version version, String payload) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream();
-                OutputStream base64 = Base64.getEncoder().wrap(os);
-                StreamOutput out = new OutputStreamStreamOutput(base64)) {
+             OutputStream base64 = Base64.getEncoder().wrap(os);
+             StreamOutput out = new OutputStreamStreamOutput(base64)) {
             out.setVersion(version);
             Version.writeVersion(version, out);
             out.writeString(payload);
@@ -1763,15 +1784,10 @@ public final class TokenService {
     }
 
     /**
-     * Creates an {@link ElasticsearchSecurityException} that indicates the token was malformed. It
-     * is up to the client to re-authenticate and obtain a new token. The format for this response
-     * is defined in <a href="https://tools.ietf.org/html/rfc6750#section-3.1"></a>
+     * Creates an {@link ElasticsearchSecurityException} that indicates that we couldn't find the token document in our tokens index
      */
-    private static ElasticsearchSecurityException malformedTokenException() {
-        ElasticsearchSecurityException e =
-                new ElasticsearchSecurityException("token malformed", RestStatus.UNAUTHORIZED);
-        e.addHeader("WWW-Authenticate", MALFORMED_TOKEN_WWW_AUTH_VALUE);
-        return e;
+    private static ElasticsearchException tokenNotFoundException() {
+        return new ElasticsearchSecurityException("token not found", RestStatus.NOT_FOUND);
     }
 
     /**
@@ -1782,6 +1798,10 @@ public final class TokenService {
             new ElasticsearchSecurityException("invalid_grant", RestStatus.BAD_REQUEST);
         e.addHeader("error_description", detail);
         return e;
+    }
+
+    private static ElasticsearchSecurityException unableToPerformAction(@Nullable Throwable cause) {
+        return new ElasticsearchSecurityException("unable to perform requested action", RestStatus.SERVICE_UNAVAILABLE, cause);
     }
 
     /**

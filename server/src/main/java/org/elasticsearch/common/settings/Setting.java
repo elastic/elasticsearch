@@ -1820,7 +1820,7 @@ public class Setting<T> implements ToXContentObject {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
                 // the last part of this regexp is to support both list and group keys
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-*\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
         }
 

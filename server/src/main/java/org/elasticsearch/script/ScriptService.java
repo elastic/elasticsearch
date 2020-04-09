@@ -46,7 +46,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -244,14 +243,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);
-        cacheHolder = new AtomicReference<>(new CacheHolder(updateSettings(settings), contexts.values()));
+        cacheHolder = new AtomicReference<>();
+        setCacheHolder(settings);
     }
 
     /**
      * This is overridden in tests to disable compilation rate limiting.
      */
-    Settings updateSettings(Settings settings) {
-        return settings;
+    boolean compilationLimitsEnabled() {
+        return true;
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
@@ -260,7 +260,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         // Handle all updatable per-context settings at once for each context.
         for (ScriptContext<?> context: contexts.values()) {
             clusterSettings.addSettingsUpdateConsumer(
-                (settings) -> cacheHolder.get().updateContextSettings(settings, context),
+                (settings) -> cacheHolder.get().set(context.name, contextCache(settings, context)),
                 List.of(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name),
                         SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name),
                         SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name),
@@ -272,7 +272,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         // Handle all settings for context and general caches, this flips between general and context caches.
         clusterSettings.addSettingsUpdateConsumer(
-            (settings) -> cacheHolder.set(cacheHolder.get().withUpdatedCacheSettings(settings)),
+            this::setCacheHolder,
             List.of(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
                     SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                     SCRIPT_GENERAL_CACHE_SIZE_SETTING,
@@ -567,6 +567,65 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         clusterState = event.state();
     }
 
+    private void setCacheHolder(Settings settings) {
+        CacheHolder current = cacheHolder.get();
+        boolean useContext = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
+
+        if (current == null) {
+            if (useContext) {
+                cacheHolder.set(contextCacheHolder(settings));
+            } else {
+                this.cacheHolder.set(generalCacheHolder(settings));
+            }
+            return;
+        }
+
+        // Update
+        if (useContext) {
+            if (current.general != null) {
+                // Flipping to context specific
+                cacheHolder.set(contextCacheHolder(settings));
+            }
+        } else if (current.general == null) {
+            // Flipping to general
+            cacheHolder.set(generalCacheHolder(settings));
+        } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false) {
+            // General compilation rate changed, that setting is the only dynamically updated general setting
+            cacheHolder.set(generalCacheHolder(settings));
+        }
+    }
+
+    private CacheHolder generalCacheHolder(Settings settings) {
+        return new CacheHolder(SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings), SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
+            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings), SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
+    }
+
+    private CacheHolder contextCacheHolder(Settings settings) {
+        Map<String, ScriptCache> contextCache = new HashMap<>(contexts.size());
+        contexts.forEach((k, v) -> contextCache.put(k, contextCache(settings, v)));
+        return new CacheHolder(contextCache);
+    }
+
+
+    private ScriptCache contextCache(Settings settings, ScriptContext<?> context) {
+        Setting<Integer> cacheSizeSetting = SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name);
+        int cacheSize = cacheSizeSetting.existsOrFallbackExists(settings) ? cacheSizeSetting.get(settings) : context.cacheSizeDefault;
+
+        Setting<TimeValue> cacheExpireSetting = SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name);
+        TimeValue cacheExpire = cacheExpireSetting.existsOrFallbackExists(settings) ?
+            cacheExpireSetting.get(settings) : context.cacheExpireDefault;
+
+        Setting<Tuple<Integer, TimeValue>> rateSetting = SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
+        Tuple<Integer, TimeValue> rate = null;
+        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings) || compilationLimitsEnabled() == false) {
+            rate = SCRIPT_COMPILATION_RATE_ZERO;
+        } else if (rateSetting.existsOrFallbackExists(settings)) {
+            rate = rateSetting.get(settings);
+        }
+
+        return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());
+    }
+
     /**
      * Container for the ScriptCache(s).  This class operates in two modes:
      * 1) general mode, if the general script cache is configured.  There are no context caches in this case.
@@ -576,74 +635,16 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         final ScriptCache general;
         final Map<String, AtomicReference<ScriptCache>> contextCache;
 
-        final Set<ScriptContext<?>> contexts;
-
-        CacheHolder(Settings settings, Collection<ScriptContext<?>> contexts) {
-            this.contexts = Set.copyOf(contexts);
-            if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE)) {
-                this.general = null;
-                Map<String, AtomicReference<ScriptCache>> contextCache = new HashMap<>(this.contexts.size());
-                for (ScriptContext<?> context : this.contexts) {
-                    contextCache.put(context.name, new AtomicReference<>(contextFromSettings(settings, context)));
-                }
-                this.contextCache = Collections.unmodifiableMap(contextCache);
-            } else {
-                this.contextCache = null;
-                this.general = new ScriptCache(
-                    SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings),
-                    SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
-                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings),
-                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
-            }
+        CacheHolder(int cacheMaxSize, TimeValue cacheExpire, Tuple<Integer, TimeValue> maxCompilationRate, String contextRateSetting) {
+            contextCache = null;
+            general = new ScriptCache(cacheMaxSize, cacheExpire, maxCompilationRate, contextRateSetting);
         }
 
-        /**
-         * Create a ScriptCache for the given context.
-         */
-        private static ScriptCache contextFromSettings(Settings settings, ScriptContext<?> context) {
-            Setting<TimeValue> cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context.name);
-            Setting<Integer> cacheSize = SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name);
-
-            return new ScriptCache(cacheSize.existsOrFallbackExists(settings) ? cacheSize.get(settings) : context.cacheSizeDefault,
-                                   cacheExpire.existsOrFallbackExists(settings) ? cacheExpire.get(settings) : context.cacheExpireDefault,
-                                   maxCompilationsRate(settings, context),
-                                   SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name).getKey());
-        }
-
-        private static  Tuple<Integer, TimeValue> maxCompilationsRate(Settings settings, ScriptContext<?> context) {
-            Setting<Tuple<Integer, TimeValue>> rate = SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
-            if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings)) {
-                return SCRIPT_COMPILATION_RATE_ZERO;
-            } else if (rate.existsOrFallbackExists(settings)) {
-                return  rate.get(settings);
-            }
-            return context.maxCompilationRateDefault;
-        }
-
-        /**
-         * Returns a CacheHolder with the given settings.  Flips between general and context caches if necessary.  Creates new general
-         * cache if in general cache mode and {@code script.max_compilations_rate} has changed to any value other than {@code use-context}.
-         */
-        CacheHolder withUpdatedCacheSettings(Settings settings) {
-            if (SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE)) {
-                if (general != null) {
-                    // Flipping to context specific
-                    logger.debug("Switching to context cache from general cache");
-                    return new CacheHolder(settings, contexts);
-                }
-            } else if (general == null) {
-                // Flipping to general
-                logger.debug("Switching from context cache to general cache");
-                return new CacheHolder(settings, contexts);
-            } else if (general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false) {
-                // General compilation rate changed, that setting is the only dynamically updated general setting
-                logger.debug("General compilation rate changed from [" + general.rate + "] to [" +
-                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) + "], creating new general cache");
-                return new CacheHolder(settings, contexts);
-            }
-
-            // no-op change, this is possible when context settings change while in context mode
-            return this;
+        CacheHolder(Map<String, ScriptCache> context) {
+            Map<String, AtomicReference<ScriptCache>> refs = new HashMap<>(context.size());
+            context.forEach((k, v) -> refs.put(k, new AtomicReference<>(v)));
+            contextCache = Collections.unmodifiableMap(refs);
+            general = null;
         }
 
         /**
@@ -673,25 +674,25 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 return new ScriptCacheStats(general.stats());
             }
             Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
-            for (ScriptContext<?> ctx: contexts) {
-                context.put(ctx.name, contextCache.get(ctx.name).get().stats());
+            for (String name: contextCache.keySet()) {
+                context.put(name, contextCache.get(name).get().stats());
             }
             return new ScriptCacheStats(context);
         }
 
         /**
-         * Update settings for the context cache, if we're in the context cache mode otherwise no-op.
+         * Update a single context cache if we're in the context cache mode otherwise no-op.
          */
-        void updateContextSettings(Settings settings, ScriptContext<?> context) {
+        void set(String name, ScriptCache context) {
             if (general != null) {
                 return;
             }
-            AtomicReference<ScriptCache> ref = contextCache.get(context.name);
-            assert ref != null : "expected script cache to exist for context [" + context.name + "]";
+            AtomicReference<ScriptCache> ref = contextCache.get(name);
+            assert ref != null : "expected script cache to exist for context [" + name + "]";
             ScriptCache cache = ref.get();
-            assert cache != null : "expected script cache to be non-null for context [" + context.name + "]";
-            ref.set(contextFromSettings(settings, context));
-            logger.debug("Replaced context [" + context.name + "] with new settings");
+            assert cache != null : "expected script cache to be non-null for context [" + name + "]";
+            ref.set(context);
+            logger.debug("Replaced context [" + name + "] with new settings");
         }
     }
 }

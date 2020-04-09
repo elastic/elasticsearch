@@ -36,8 +36,7 @@ public class MockScriptService extends ScriptService {
     }
 
     @Override
-    Settings updateSettings(Settings settings) {
-
-        return settings;
+    boolean compilationLimitsEnabled() {
+        return false;
     }
 }

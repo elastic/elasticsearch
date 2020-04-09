@@ -195,9 +195,6 @@ public class EDot extends AExpression {
                         dotSubShortcutNode.setSetter(setter);
                         expressionNode = dotSubShortcutNode;
                     } else {
-                        EConstant index = new EConstant(location, value);
-                        analyze(index, classNode, scriptRoot, scope, new Input());
-
                         if (Map.class.isAssignableFrom(prefixOutput.actual)) {
                             getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
                             setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "put", 2);
@@ -224,7 +221,8 @@ public class EDot extends AExpression {
                                     && (input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 Input indexInput = new Input();
                                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
+                                EString index = new EString(location, value);
+                                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
                                 indexCast = AnalyzerCaster.getLegalCast(index.location,
                                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -268,9 +266,10 @@ public class EDot extends AExpression {
 
                             if ((input.read || input.write)
                                     && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                                ENumeric index = new ENumeric(location, value, 10);
                                 Input indexInput = new Input();
                                 indexInput.expected = int.class;
-                                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
+                                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
                                 indexCast = AnalyzerCaster.getLegalCast(index.location,
                                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 

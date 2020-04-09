@@ -73,7 +73,7 @@ public class ECall extends AExpression {
         Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
 
         if (prefixOutput.partialCanonicalTypeName != null) {
-            throw createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
+            throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
         }
 
         ExpressionNode expressionNode;

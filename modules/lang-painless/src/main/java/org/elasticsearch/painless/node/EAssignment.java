@@ -75,7 +75,7 @@ public class EAssignment extends AExpression {
         Input leftInput = new Input();
         leftInput.read = input.read;
         leftInput.write = true;
-        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(lhs, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
@@ -117,7 +117,7 @@ public class EAssignment extends AExpression {
         }
 
         if (operation != null) {
-            rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+            rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -189,7 +189,7 @@ public class EAssignment extends AExpression {
         } else if (rhs != null) {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
-                rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -209,7 +209,7 @@ public class EAssignment extends AExpression {
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
                 rightInput.expected = leftOutput.actual;
-                rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
             }
 
             rightCast = AnalyzerCaster.getLegalCast(rhs.location,

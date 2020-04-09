@@ -393,4 +393,308 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Double.x() = 1;"));
         assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to method call [x/0]");
     }
+
+    public void testCannotResolveSymbol() {
+        // assignment
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 = 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int x; x = test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 += 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // binary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 + 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // boolean comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 || true"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true || test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // brace access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0[0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[1]; x[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new int[1]; x[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Map x = new HashMap(); x[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // method call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x.add(test0)"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x.add(test0)"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // function call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("staticAddIntsTest(test0, 1)"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // numeric comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 > true"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true > test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // conditional
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 ? 2 : 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? test0 : 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? 2 : test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // dot access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0[0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[1]; x[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // elvis
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 ?: []"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ?: test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // explicit cast
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("(int)test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // instanceof
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0 instanceof List"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // list initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // map initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[test0 : 1]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[1 : test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // new array
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new int[test0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // new object
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new ArrayList(test0)"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // unary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("!test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("-test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int x = test0;"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("do {int x = 1;} while (test0);"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // foreach
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x : test0) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // expression as statement
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("test0"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // for
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (int x = test0;;) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;test0;) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;;++test0) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // if
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (test0) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // if/else
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (test0) {int x = 1;} else {int x = 2;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // return
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("return test0;"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // throw
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("throw test0;"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+
+        // while
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (test0) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [test0]");
+    }
+    
+    public void testPartialType() {
+        int dots = randomIntBetween(1, 5);
+        StringBuilder builder = new StringBuilder("test0");
+        for (int dot = 0; dot < dots; ++dot) {
+            builder.append(".test");
+            builder.append(dot + 1);
+        }
+        String symbol = builder.toString();
+
+        // assignment
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " = 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int x; x = " + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " += 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // binary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " + 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + " + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // boolean comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " || true"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true || " + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // brace access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + "[0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[1]; x[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new int[1]; x[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Map x = new HashMap(); x[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // method call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x.add(" + symbol + ")"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x.add(" + symbol + ")"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // function call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("staticAddIntsTest(" + symbol + ", 1)"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // numeric comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " > true"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true > " + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // conditional
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " ? 2 : 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? " + symbol + " : 1"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? 2 : " + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // dot access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + "[0]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[1]; x[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // elvis
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " ?: []"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ?: " + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // explicit cast
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("(int)" + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // instanceof
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol + " instanceof List"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // list initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // map initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[" + symbol + " : 1]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[1 : " + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // new array
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new int[" + symbol + "]"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // new object
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new ArrayList(" + symbol + ")"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // unary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("!" + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("-" + symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int x = " + symbol + ";"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("do {int x = 1;} while (" + symbol + ");"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // foreach
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x : " + symbol + ") {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // expression as statement
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec(symbol));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // for
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (int x = " + symbol + ";;) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;" + symbol + ";) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;;++" + symbol + ") {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // if
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (" + symbol + ") {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // if/else
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (" + symbol + ") {int x = 1;} else {int x = 2;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // return
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("return " + symbol + ";"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // throw
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("throw " + symbol + ";"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+
+        // while
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (" + symbol + ") {int x = 1;}"));
+        assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
+    }
+
+    public void testStaticType() {
+
+    }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -145,7 +146,8 @@ class MutableSearchResponse {
         if (totalShards != -1) {
             if (sections.aggregations() != null && isFinalReduce == false) {
                 InternalAggregations oldAggs = (InternalAggregations) sections.aggregations();
-                InternalAggregations newAggs = topLevelReduce(singletonList(oldAggs), aggReduceContextSupplier.get());
+                DelayableWriteable<InternalAggregations> newAggs = DelayableWriteable.referencing(
+                    topLevelReduce(singletonList(oldAggs), aggReduceContextSupplier.get()));
                 sections = new InternalSearchResponse(sections.hits(), newAggs, sections.suggest(),
                     null, sections.timedOut(), sections.terminatedEarly(), sections.getNumReducePhases());
                 isFinalReduce = true;

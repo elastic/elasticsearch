@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -114,8 +115,9 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                     });
             newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new,
                 (request, channel, task) -> {
-                    InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
-                        new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+                    InternalSearchResponse response = new InternalSearchResponse(
+                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                        DelayableWriteable.referencing(InternalAggregations.EMPTY), null, null, false, null, 1);
                     SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY);
                     channel.sendResponse(searchResponse);

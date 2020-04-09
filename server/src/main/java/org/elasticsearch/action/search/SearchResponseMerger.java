@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -132,6 +133,7 @@ final class SearchResponseMerger {
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
         for (SearchResponse searchResponse : searchResponses) {
+            InternalSearchResponse internal = (InternalSearchResponse) searchResponse.getInternalResponse();
             totalShards += searchResponse.getTotalShards();
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();
@@ -141,8 +143,8 @@ final class SearchResponseMerger {
 
             profileResults.putAll(searchResponse.getProfileResults());
 
-            if (searchResponse.getAggregations() != null) {
-                InternalAggregations internalAggs = (InternalAggregations) searchResponse.getAggregations();
+            InternalAggregations internalAggs = internal.consumeAggregations();
+            if (internalAggs != null) {
                 aggs.add(internalAggs);
             }
 
@@ -200,8 +202,8 @@ final class SearchResponseMerger {
         SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         //make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
-            topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
+        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, DelayableWriteable.referencing(reducedAggs),
+            suggest, profileShardResults, topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
         long tookInMillis = searchTimeProvider.buildTookInMillis();
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
     }

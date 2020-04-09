@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,32 +44,66 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         return new InternalSearchResponse(SearchHits.empty(withTotalHits), null, null, null, false, null, 1);
     }
 
-    public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
+    private final boolean hasAggregations;
+    private DelayableWriteable<InternalAggregations> aggregations;
+
+    public InternalSearchResponse(SearchHits hits, DelayableWriteable<InternalAggregations> aggregations, Suggest suggest,
                                   SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly,
                                   int numReducePhases) {
-        super(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases);
+        super(hits, suggest, timedOut, terminatedEarly, profileResults, numReducePhases);
+        this.hasAggregations = aggregations != null;
+        this.aggregations = aggregations;
     }
 
-    public InternalSearchResponse(StreamInput in) throws IOException {
-        super(
-                new SearchHits(in),
-                in.readBoolean() ? new InternalAggregations(in) : null,
-                in.readBoolean() ? new Suggest(in) : null,
-                in.readBoolean(),
-                in.readOptionalBoolean(),
-                in.readOptionalWriteable(SearchProfileShardResults::new),
-                in.readVInt()
-        );
+    public static InternalSearchResponse read(StreamInput in) throws IOException {
+        SearchHits hits = new SearchHits(in);
+        /*
+         * We don't delay reading the aggs here because it'd do two things:
+         * 1. Delay reading aggs for cross cluster search until all clusters
+         *    are ready to be reduced. This is almost certainly a good thing.
+         * 2. Delay reading aggs in the any *other* time we serialize the
+         *    search response.
+         * We haven't done the digging to be sure that the second one is ok yet. 
+         */
+        DelayableWriteable<InternalAggregations> aggs = in.readOptionalWriteable(
+                si -> DelayableWriteable.referencing(new InternalAggregations(si)));
+        Suggest suggest = in.readOptionalWriteable(Suggest::new);
+        boolean timedOut = in.readBoolean();
+        Boolean terminatedEarly = in.readOptionalBoolean();
+        SearchProfileShardResults profileResults = in.readOptionalWriteable(SearchProfileShardResults::new);
+        int numReducePhases = in.readVInt();
+        return new InternalSearchResponse(hits, aggs, suggest, profileResults, timedOut, terminatedEarly, numReducePhases);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
-        out.writeOptionalWriteable((InternalAggregations)aggregations);
+        out.writeOptionalWriteable(aggregations.get());
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
         out.writeVInt(numReducePhases);
+    }
+
+    @Override
+    public InternalAggregations aggregations() {
+        if (hasAggregations) {
+            if (aggregations == null) {
+                throw new IllegalStateException("aggregations already consumed");
+            }
+            return aggregations.get();
+        }
+        return null;
+    }
+
+    /**
+     * Get the aggregation results and remove the reference to them so they
+     * can be GCed.
+     */
+    public InternalAggregations consumeAggregations() {
+        InternalAggregations aggs = aggregations();
+        this.aggregations = null;
+        return aggs;
     }
 }

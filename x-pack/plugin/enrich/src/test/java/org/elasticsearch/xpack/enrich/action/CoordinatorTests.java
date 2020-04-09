@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -298,7 +299,7 @@ public class CoordinatorTests extends ESTestCase {
     private static SearchResponse emptySearchResponse() {
         InternalSearchResponse response = new InternalSearchResponse(
             new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-            InternalAggregations.EMPTY,
+            DelayableWriteable.referencing(InternalAggregations.EMPTY),
             null,
             null,
             false,

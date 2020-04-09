@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -113,7 +114,7 @@ public class SearchResponseTests extends ESTestCase {
         InternalSearchResponse internalSearchResponse;
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
-            InternalAggregations aggregations = aggregationsTests.createTestInstance();
+            DelayableWriteable<InternalAggregations> aggregations = DelayableWriteable.referencing(aggregationsTests.createTestInstance());
             Suggest suggest = SuggestTests.createTestItem();
             SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
             internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,

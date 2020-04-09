@@ -96,7 +96,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponseSections sections = new SearchResponseSections.Simple(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
@@ -452,7 +452,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                             return null;
                         }
                     }));
-                    final SearchResponseSections sections = new SearchResponseSections(
+                    final SearchResponseSections sections = new SearchResponseSections.Simple(
                         new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                         aggs, null, false, null, null, 1);
                     final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
@@ -658,7 +658,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponseSections sections = new SearchResponseSections.Simple(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
@@ -771,7 +771,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponseSections sections = new SearchResponseSections.Simple(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
@@ -928,7 +928,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponseSections sections = new SearchResponseSections.Simple(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,

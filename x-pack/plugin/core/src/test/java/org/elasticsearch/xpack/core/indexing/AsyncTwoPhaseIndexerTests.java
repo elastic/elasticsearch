@@ -98,7 +98,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
             assertThat(step, equalTo(2));
             ++step;
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponseSections sections = new SearchResponseSections.Simple(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
                 null, false, null, null, 1);
 
@@ -194,7 +194,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         @Override
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
             ++searchOps;
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponseSections sections = new SearchResponseSections.Simple(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
                 null, false, null, null, 1);
 

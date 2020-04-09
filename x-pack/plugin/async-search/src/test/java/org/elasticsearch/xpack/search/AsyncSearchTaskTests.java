@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
@@ -166,7 +167,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards) {
         InternalSearchResponse response = new InternalSearchResponse(SearchHits.empty(),
-            InternalAggregations.EMPTY, null, null, false, null, 1);
+                DelayableWriteable.referencing(InternalAggregations.EMPTY), null, null, false, null, 1);
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards,
             100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }

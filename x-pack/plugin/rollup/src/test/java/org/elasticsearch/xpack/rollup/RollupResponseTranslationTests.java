@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -68,7 +69,6 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -498,12 +498,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         // TODO SearchResponse.Clusters is not public, using null for now.  Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(new SearchResponse(
-                new InternalSearchResponse(null,
-                        new InternalAggregations(Collections.singletonList(responses.get(0))), null, null, false, false, 1),
+                new SearchResponseSections.Simple(null,
+                        new InternalAggregations(Collections.singletonList(responses.get(0))), null, false, false, null, 1),
                         null, 1, 1, 0, 10, null, null), null);
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(new SearchResponse(
-                new InternalSearchResponse(null,
-                        new InternalAggregations(Collections.singletonList(responses.get(1))), null, null, false, false, 1),
+                new SearchResponseSections.Simple(null,
+                        new InternalAggregations(Collections.singletonList(responses.get(1))), null, false, false, null, 1),
                         null, 1, 1, 0, 10, null, null), null);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledItem, rolledItem};

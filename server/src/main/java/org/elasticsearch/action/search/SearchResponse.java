@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -77,7 +78,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        internalResponse = new InternalSearchResponse(in);
+        internalResponse = InternalSearchResponse.read(in);
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         int size = in.readVInt();
@@ -358,7 +359,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 }
             }
         }
-        SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
+        SearchResponseSections searchResponseSections = new SearchResponseSections.Simple(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
@@ -484,7 +485,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
-            InternalAggregations.EMPTY, null, null, false, null, 0);
+            DelayableWriteable.referencing(InternalAggregations.EMPTY), null, null, false, null, 0);
         return new SearchResponse(internalSearchResponse, null, 0, 0, 0, tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY, clusters);
     }

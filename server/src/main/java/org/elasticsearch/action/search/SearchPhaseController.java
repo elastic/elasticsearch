@@ -614,7 +614,8 @@ public final class SearchPhaseController {
          * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
          */
         public InternalSearchResponse buildResponse(SearchHits hits) {
-            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
+            return new InternalSearchResponse(hits, DelayableWriteable.referencing(aggregations), suggest, shardResults,
+                    timedOut, terminatedEarly, numReducePhases);
         }
     }
 
@@ -697,14 +698,14 @@ public final class SearchPhaseController {
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
             if (querySearchResult.isNull() == false) {
                 if (index == bufferSize) {
-                    InternalAggregations reducedAggs = null;
                     if (hasAggs) {
                         List<InternalAggregations> aggs = new ArrayList<>(aggsBuffer.length);
                         for (int i = 0; i < aggsBuffer.length; i++) {
                             aggs.add(aggsBuffer[i].get());
                             aggsBuffer[i] = null; // null the buffer so it can be GCed now.
                         }
-                        reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forPartialReduction());
+                        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(
+                                aggs, aggReduceContextBuilder.forPartialReduction());
                         aggsBuffer[0] = DelayableWriteable.referencing(reducedAggs)
                                 .asSerialized(InternalAggregations::new, namedWriteableRegistry);
                         long previousBufferSize = aggsCurrentBufferSize;
@@ -724,7 +725,7 @@ public final class SearchPhaseController {
                     index = 1;
                     if (hasAggs || hasTopDocs) {
                         progressListener.notifyPartialReduce(SearchProgressListener.buildSearchShards(processedShards),
-                            topDocsStats.getTotalHits(), reducedAggs, numReducePhases);
+                            topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0] : null, numReducePhases);
                     }
                 }
                 final int i = index++;

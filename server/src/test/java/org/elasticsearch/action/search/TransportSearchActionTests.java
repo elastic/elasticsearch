@@ -65,6 +65,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
@@ -366,7 +367,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
     private static SearchResponse emptySearchResponse() {
         InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+            new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), DelayableWriteable.referencing(InternalAggregations.EMPTY), null,
+            null, false, null, 1);
         return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 

@@ -660,7 +660,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            SearchResponseSections sections = new SearchResponseSections(null, new Aggregations(Collections.singletonList(result)),
+            SearchResponseSections sections = new SearchResponseSections.Simple(null, new Aggregations(Collections.singletonList(result)),
                     null, false, null, null, 1);
             SearchResponse response = new SearchResponse(sections, null, 1, 1,
                     0, 0, ShardSearchFailure.EMPTY_ARRAY, null);

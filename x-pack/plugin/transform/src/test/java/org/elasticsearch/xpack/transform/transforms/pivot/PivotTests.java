@@ -169,7 +169,7 @@ public class PivotTests extends ESTestCase {
                     }
                 }
 
-                final SearchResponseSections sections = new SearchResponseSections(
+                final SearchResponseSections sections = new SearchResponseSections.Simple(
                     new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
                     null,
                     null,

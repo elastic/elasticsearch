@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHits;
@@ -357,7 +358,8 @@ final class AsyncSearchTask extends SearchTask {
         }
 
         @Override
-        public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+        public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
+                DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(),
@@ -370,7 +372,7 @@ final class AsyncSearchTask extends SearchTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(),
-                new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
+                new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), DelayableWriteable.referencing(aggs),
                     null, null, false, null, reducePhase), true);
         }
 

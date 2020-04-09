@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -279,11 +280,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
+                    InternalSearchResponse internal = (InternalSearchResponse) searchResponse.getInternalResponse();
                     Map<String, ProfileShardResult> profileResults = searchResponse.getProfileResults();
                     SearchProfileShardResults profile = profileResults == null || profileResults.isEmpty()
                         ? null : new SearchProfileShardResults(profileResults);
+                    InternalAggregations aggs = internal.consumeAggregations();
+                    DelayableWriteable<InternalAggregations> delayedAggs = aggs == null ? null : DelayableWriteable.referencing(aggs);
                     InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchResponse.getHits(),
-                        (InternalAggregations) searchResponse.getAggregations(), searchResponse.getSuggest(), profile,
+                        delayedAggs, searchResponse.getSuggest(), profile,
                         searchResponse.isTimedOut(), searchResponse.isTerminatedEarly(), searchResponse.getNumReducePhases());
                     listener.onResponse(new SearchResponse(internalSearchResponse, searchResponse.getScrollId(),
                         searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getSkippedShards(),

@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -136,7 +137,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
                     InternalSearchResponse response = new InternalSearchResponse(searchHits,
-                        InternalAggregations.EMPTY, null, null, false, null, 1);
+                        DelayableWriteable.referencing(InternalAggregations.EMPTY), null, null, false, null, 1);
                     SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY);
                     channel.sendResponse(searchResponse);

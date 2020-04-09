@@ -40,20 +40,18 @@ import java.util.Map;
  * to parse aggregations into, which are not serializable. This is the common part that can be
  * shared between core and client.
  */
-public class SearchResponseSections implements ToXContentFragment {
+public abstract class SearchResponseSections implements ToXContentFragment {
 
     protected final SearchHits hits;
-    protected final Aggregations aggregations;
     protected final Suggest suggest;
     protected final SearchProfileShardResults profileResults;
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
-    public SearchResponseSections(SearchHits hits, Aggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly,
-                                  SearchProfileShardResults profileResults,  int numReducePhases) {
+    public SearchResponseSections(SearchHits hits, Suggest suggest, boolean timedOut,
+                                  Boolean terminatedEarly, SearchProfileShardResults profileResults, int numReducePhases) {
         this.hits = hits;
-        this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
@@ -73,9 +71,7 @@ public class SearchResponseSections implements ToXContentFragment {
         return hits;
     }
 
-    public final Aggregations aggregations() {
-        return aggregations;
-    }
+    public abstract Aggregations aggregations();
 
     public final Suggest suggest() {
         return suggest;
@@ -104,6 +100,7 @@ public class SearchResponseSections implements ToXContentFragment {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
+        Aggregations aggregations = aggregations();
         if (aggregations != null) {
             aggregations.toXContent(builder, params);
         }
@@ -118,5 +115,25 @@ public class SearchResponseSections implements ToXContentFragment {
 
     protected void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * A "simple" implementation of {@link SearchResponseSections} that
+     * doens't do any of the funny server side things like implement
+     * serialization.
+     */
+    public static class Simple extends SearchResponseSections {
+        private final Aggregations aggregations;
+
+        public Simple(SearchHits hits, Aggregations aggregations, Suggest suggest, boolean timedOut,
+                Boolean terminatedEarly, SearchProfileShardResults profileResults, int numReducePhases) {
+            super(hits, suggest, timedOut, terminatedEarly, profileResults, numReducePhases);
+            this.aggregations = aggregations;
+        }
+
+        @Override
+        public Aggregations aggregations() {
+            return aggregations;
+        }
     }
 }

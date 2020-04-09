@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
@@ -329,8 +330,8 @@ public class RollupResponseTranslator {
             numReducePhases += liveResponse.getNumReducePhases();
         }
 
-        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), aggs, null, null,
-            isTimedOut, isTerminatedEarly, numReducePhases);
+        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), DelayableWriteable.referencing(aggs),
+            null, null, isTimedOut, isTerminatedEarly, numReducePhases);
 
         // Shard failures are ignored atm, so returning an empty array is fine
         return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,

@@ -164,7 +164,8 @@ public class WatcherServiceTests extends ESTestCase {
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), any(ActionListener.class));
 
         // empty scroll response, no further scrolling needed
-        SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
+        SearchResponseSections scrollSearchSections = new SearchResponseSections.Simple(
+                SearchHits.empty(), null, null, false, false, null, 1);
         SearchResponse scrollSearchResponse = new SearchResponse(scrollSearchSections, "scrollId", 1, 1, 0, 10,
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
         doAnswer(invocation -> {
@@ -196,7 +197,7 @@ public class WatcherServiceTests extends ESTestCase {
             when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON), anyLong(), anyLong())).thenReturn(watch);
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
-        SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
+        SearchResponseSections sections = new SearchResponseSections.Simple(searchHits, null, null, false, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         doAnswer(invocation -> {

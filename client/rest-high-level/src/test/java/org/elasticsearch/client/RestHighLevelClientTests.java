@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -238,7 +239,8 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testSearchScroll() throws IOException {
-        SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
+        SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections.Simple(
+                SearchHits.empty(), InternalAggregations.EMPTY,
                 null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         mockResponse(mockSearchResponse);

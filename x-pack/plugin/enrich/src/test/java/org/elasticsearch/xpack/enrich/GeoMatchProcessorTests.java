@@ -179,7 +179,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
             return searchHit;
         }).toArray(SearchHit[]::new);
         return new SearchResponse(
-            new SearchResponseSections(
+            new SearchResponseSections.Simple(
                 new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
                 new Aggregations(Collections.emptyList()),
                 new Suggest(Collections.emptyList()),

@@ -85,12 +85,13 @@ public class EDot extends AExpression {
                 output.partialCanonicalTypeName = canonicalTypeName;
             } else {
                 if (input.write) {
-                    throw createError(new IllegalArgumentException(
-                            "invalid assignment: cannot write a value to a static type [" + type + "]"));
+                    throw createError(new IllegalArgumentException("invalid assignment: " +
+                            "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
                 }
 
                 if (input.read == false) {
-                    throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+                    throw createError(new IllegalArgumentException(
+                            "not a statement: static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
                 }
 
                 output.actual = type;

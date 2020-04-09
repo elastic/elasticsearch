@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -49,11 +50,13 @@ public class EVariable extends AExpression {
 
         if (type != null)  {
             if (input.write) {
-                throw createError(new IllegalArgumentException("invalid assignment: cannot write a value to a static type [" + type + "]"));
+                throw createError(new IllegalArgumentException("invalid assignment: " +
+                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
             }
 
             if (input.read == false) {
-                throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+                throw createError(new IllegalArgumentException("not a statement: " +
+                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
             }
 
             output.actual = type;

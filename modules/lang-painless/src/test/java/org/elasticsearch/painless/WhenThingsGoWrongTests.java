@@ -694,7 +694,593 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "cannot resolve symbol [" + symbol + "]");
     }
 
-    public void testStaticType() {
+    public void testInvalidStaticPrimitiveType() {
+        // assignment
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int = 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int x; x = int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int += 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [int]");
 
+        // binary
+        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int + 1"));
+        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // boolean comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int || true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true || int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // brace access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[1]; x[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new int[1]; x[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Map x = new HashMap(); x[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // method call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x.add(int)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x.add(int)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // function call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("staticAddIntsTest(int, 1)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // numeric comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int > true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true > int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // conditional
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int ? 2 : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? int : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? 2 : int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // dot access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int[] x = new int[1]; x[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // elvis
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int ?: []"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ?: int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // explicit cast
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("(int)int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // instanceof
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int instanceof List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // list initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // map initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[int : 1]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[1 : int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // new array
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new int[int]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // new object
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new ArrayList(int)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // unary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("!int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("-int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int x = int;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("do {int x = 1;} while (int);"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // foreach
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x : int) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // expression as statement
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // for
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (int x = int;;) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;int;) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;;++int) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [int]");
+
+        // if
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (int) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // if/else
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (int) {int x = 1;} else {int x = 2;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // return
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("return int;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // throw
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("throw int;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+
+        // while
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (int) {int x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");  
+    }
+
+    public void testInvalidStaticReferenceType() {
+        // assignment
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List = 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x; x = List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List += 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
+
+        // binary
+        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List + 1"));
+        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // boolean comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List || true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true || List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // brace access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List[] x = new List[1]; x[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new List[1]; x[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Map x = new HashMap(); x[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // method call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = new ArrayList(); x.add(List)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x.add(List)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // function call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("staticAddIntsTest(List, 1)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // numeric comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List > true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true > List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // conditional
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List ? 2 : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? List : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? 2 : List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // dot access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List[] x = new List[1]; x[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // elvis
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List ?: []"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ?: List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // explicit cast
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("(List)List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // instanceof
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List instanceof List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // list initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // map initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[List : 1]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[1 : List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // new array
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new List[List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // new object
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new ArrayList(List)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // unary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("!List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("-List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List x = List;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("do {List x = [];} while (List);"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // foreach
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x : List) {List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // expression as statement
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // for
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (List x = List;;) {List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;List;) {List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;;++List) {List x = 1;}"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
+
+        // if
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (List) {List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // if/else
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (List) {List x = 1;} else {List x = 2;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // return
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("return List;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // throw
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("throw List;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // while
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (List) {List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+    }
+
+    public void testInvalidFullyQualifiedStaticReferenceType() {
+        // assignment
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List = 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List x; x = java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List += 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
+
+        // binary
+        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List + 1"));
+        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // boolean comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List || true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true || java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // brace access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                exec("java.util.List[] x = new java.util.List[1]; x[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new java.util.List[1]; x[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Map x = new HashMap(); x[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                exec("java.util.List x = new java.util.ArrayList(); x[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // method call
+        iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                exec("java.util.List x = new java.util.ArrayList(); x.add(java.util.List)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new java.util.ArrayList(); x.add(java.util.List)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // function call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("staticAddIntsTest(java.util.List, 1)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // numeric comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List > true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true > java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // conditional
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List ? 2 : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? java.util.List : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? 2 : java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // dot access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                exec("java.util.List[] x = new java.util.List[1]; x[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // elvis
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List ?: []"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ?: java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // explicit cast
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("(java.util.List)java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // instanceof
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List instanceof java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // list initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // map initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[java.util.List : 1]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[1 : java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // new array
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new java.util.List[java.util.List]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // new object
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new java.util.ArrayList(java.util.List)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // unary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("!java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("-java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List x = java.util.List;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("do {java.util.List x = [];} while (java.util.List);"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // foreach
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x : java.util.List) {java.util.List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // expression as statement
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // for
+        iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                exec("for (java.util.List x = java.util.List;;) {java.util.List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;java.util.List;) {java.util.List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;;++java.util.List) {java.util.List x = 1;}"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
+
+        // if
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (java.util.List) {java.util.List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // if/else
+        iae = expectScriptThrows(IllegalArgumentException.class, () ->
+                exec("if (java.util.List) {java.util.List x = 1;} else {java.util.List x = 2;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // return
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("return java.util.List;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // throw
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("throw java.util.List;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+
+        // while
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (java.util.List) {java.util.List x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+    }
+
+    public void testInvalidDefReferenceType() {
+        // assignment
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def = 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x; x = def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def += 1"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [def]");
+
+        // binary
+        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def + 1"));
+        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // boolean comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def || true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true || def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // brace access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def[] x = new def[1]; x[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new def[1]; x[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Map x = new HashMap(); x[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // method call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x.add(def)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = new ArrayList(); x.add(def)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // function call
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("staticAddIntsTest(def, 1)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // numeric comparison
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def > true"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("true > def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // conditional
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def ? 2 : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? def : 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ? 2 : def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // dot access
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def[0]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def[] x = new def[1]; x[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // elvis
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def ?: []"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("boolean x = true; x ?: def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // explicit cast
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("(def)def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // instanceof
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def instanceof def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // list initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // map initialization
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[def : 1]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("[1 : def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // new array
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new def[def]"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // new object
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("new ArrayList(def)"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // unary
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("!def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("-def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def x = def;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // declaration
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("do {def x = [];} while (def);"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // foreach
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x : def) {def x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // expression as statement
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // for
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (def x = def;;) {def x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;def;) {def x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("for (;;++def) {def x = 1;}"));
+        assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [def]");
+
+        // if
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (def) {def x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // if/else
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("if (def) {def x = 1;} else {def x = 2;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // return
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("return def;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // throw
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("throw def;"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+
+        // while
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (def) {def x = 1;}"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
     }
 }

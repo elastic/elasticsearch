@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -180,7 +179,7 @@ public class RBACEngine implements AuthorizationEngine {
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
                     assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
@@ -233,7 +232,7 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
+                                     Map<String, AliasOrIndex> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
@@ -339,10 +338,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
+                                      Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), indicesLookup));
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), aliasOrIndexLookup));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
@@ -499,12 +498,12 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
-    static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, IndexAbstraction> aliasAndIndexLookup) {
+    static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, AliasOrIndex> aliasAndIndexLookup) {
         Predicate<String> predicate = role.allowedIndicesMatcher(action);
 
         List<String> indicesAndAliases = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        for (Map.Entry<String, IndexAbstraction> entry : aliasAndIndexLookup.entrySet()) {
+        for (Map.Entry<String, AliasOrIndex> entry : aliasAndIndexLookup.entrySet()) {
             String aliasOrIndex = entry.getKey();
             if (predicate.test(aliasOrIndex)) {
                 indicesAndAliases.add(aliasOrIndex);
@@ -515,7 +514,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private void buildIndicesAccessControl(Authentication authentication, String action,
                                            AuthorizationInfo authorizationInfo, Set<String> indices,
-                                           Map<String, IndexAbstraction> aliasAndIndexLookup,
+                                           Map<String, AliasOrIndex> aliasAndIndexLookup,
                                            ActionListener<IndexAuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
@@ -543,8 +542,8 @@ public class RBACEngine implements AuthorizationEngine {
         // Ensure that the user is not authenticated with an access token or an API key.
         // Also ensure that the user was authenticated by a realm that we can change a password for. The native realm is an internal realm
         // and right now only one can exist in the realm configuration - if this changes we should update this check
-        final AuthenticationType authType = authentication.getAuthenticationType();
-        return (authType.equals(AuthenticationType.REALM)
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        return (authType.equals(Authentication.AuthenticationType.REALM)
             && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType)));
     }
 

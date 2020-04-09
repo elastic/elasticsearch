@@ -1,8 +1,7 @@
 {
   "async_search.get":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html",
-      "description": "Retrieves the results of a previously submitted async search request given its ID."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"
     },
     "stability":"stable",
     "url":{
@@ -22,13 +21,15 @@
       ]
     },
     "params":{
-      "wait_for_completion_timeout":{
+      "wait_for_completion":{
         "type":"time",
-        "description":"Specify the time that the request should block waiting for the final response"
+        "description":"Specify the time that the request should block waiting for the final response",
+        "default": "1s"
       },
       "keep_alive": {
         "type": "time",
-        "description": "Specify the time interval in which the results (partial or final) for this search will be available"
+        "description": "Specify the time interval in which the results (partial or final) for this search will be available",
+        "default": "5d"
       },
       "typed_keys":{
         "type":"boolean",

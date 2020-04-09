@@ -28,7 +28,7 @@ public class LdapSession implements Releasable {
     protected final LDAPInterface connection;
     protected final String userDn;
     protected final GroupsResolver groupsResolver;
-    private LdapMetadataResolver metadataResolver;
+    private LdapMetaDataResolver metaDataResolver;
     protected final TimeValue timeout;
     protected final Collection<Attribute> attributes;
 
@@ -41,13 +41,13 @@ public class LdapSession implements Releasable {
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
     public LdapSession(Logger logger, RealmConfig realm, LDAPInterface connection, String userDn, GroupsResolver groupsResolver,
-                       LdapMetadataResolver metadataResolver, TimeValue timeout, Collection<Attribute> attributes) {
+                       LdapMetaDataResolver metaDataResolver, TimeValue timeout, Collection<Attribute> attributes) {
         this.logger = logger;
         this.realm = realm;
         this.connection = connection;
         this.userDn = userDn;
         this.groupsResolver = groupsResolver;
-        this.metadataResolver = metadataResolver;
+        this.metaDataResolver = metaDataResolver;
         this.timeout = timeout;
         this.attributes = attributes;
     }
@@ -92,8 +92,8 @@ public class LdapSession implements Releasable {
         groupsResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
-    public void metadata(ActionListener<Map<String, Object>> listener) {
-        metadataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
+    public void metaData(ActionListener<Map<String, Object>> listener) {
+        metaDataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
     public void resolve(ActionListener<LdapUserData> listener) {
@@ -101,7 +101,7 @@ public class LdapSession implements Releasable {
         groups(ActionListener.wrap(
                 groups -> {
                     logger.debug("Resolved {} LDAP groups [{}] for user [{}]",  groups.size(), groups, userDn);
-                    metadata(ActionListener.wrap(
+                    metaData(ActionListener.wrap(
                             meta -> {
                                 logger.debug("Resolved {} meta-data fields [{}] for user [{}]",  meta.size(), meta, userDn);
                                 listener.onResponse(new LdapUserData(groups, meta));
@@ -113,11 +113,11 @@ public class LdapSession implements Releasable {
 
     public static class LdapUserData {
         public final List<String> groups;
-        public final Map<String, Object> metadata;
+        public final Map<String, Object> metaData;
 
-        public LdapUserData(List<String> groups, Map<String, Object> metadata) {
+        public LdapUserData(List<String> groups, Map<String, Object> metaData) {
             this.groups = groups;
-            this.metadata = metadata;
+            this.metaData = metaData;
         }
     }
 

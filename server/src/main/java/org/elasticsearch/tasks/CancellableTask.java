@@ -22,15 +22,14 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A task that can be canceled
  */
 public abstract class CancellableTask extends Task {
 
-    private volatile String reason;
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final AtomicReference<String> reason = new AtomicReference<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -41,10 +40,8 @@ public abstract class CancellableTask extends Task {
      */
     final void cancel(String reason) {
         assert reason != null;
-        if (cancelled.compareAndSet(false, true)) {
-            this.reason = reason;
-            onCancelled();
-        }
+        this.reason.compareAndSet(null, reason);
+        onCancelled();
     }
 
     /**
@@ -61,15 +58,15 @@ public abstract class CancellableTask extends Task {
     public abstract boolean shouldCancelChildrenOnCancellation();
 
     public boolean isCancelled() {
-        return cancelled.get();
+        return reason.get() != null;
     }
 
     /**
      * The reason the task was cancelled or null if it hasn't been cancelled.
      */
     @Nullable
-    public final String getReasonCancelled() {
-        return reason;
+    public String getReasonCancelled() {
+        return reason.get();
     }
 
     /**

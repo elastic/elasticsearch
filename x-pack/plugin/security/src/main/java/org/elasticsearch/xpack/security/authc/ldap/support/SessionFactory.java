@@ -60,7 +60,7 @@ public abstract class SessionFactory {
     protected final boolean sslUsed;
     protected final boolean ignoreReferralErrors;
 
-    protected final LdapMetadataResolver metadataResolver;
+    protected final LdapMetaDataResolver metaDataResolver;
 
     protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
@@ -80,7 +80,7 @@ public abstract class SessionFactory {
         this.serverSet = serverSet(config, sslService, ldapServers);
         this.sslUsed = ldapServers.ssl;
         this.ignoreReferralErrors = config.getSetting(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING);
-        this.metadataResolver = new LdapMetadataResolver(config, ignoreReferralErrors);
+        this.metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
     }
 
     /**

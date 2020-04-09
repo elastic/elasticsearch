@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
@@ -215,8 +215,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get().getTasks().get(0);
 
-        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService().state().getMetadata()
-                .custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetaData tasksInProgress = internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasksCustomMetaData.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
         assertThat(tasksInProgress.tasks().iterator().next().getState(), nullValue());
 
@@ -372,11 +372,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
     }
 
     private static void assertClusterStateHasTask(String taskId) {
-        Collection<PersistentTask<?>> clusterTasks = ((PersistentTasksCustomMetadata) internalCluster()
+        Collection<PersistentTask<?>> clusterTasks = ((PersistentTasksCustomMetaData) internalCluster()
             .clusterService()
             .state()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE))
+            .getMetaData()
+            .custom(PersistentTasksCustomMetaData.TYPE))
             .tasks();
         assertThat(clusterTasks, hasSize(1));
         assertThat(clusterTasks.iterator().next().getId(), equalTo(taskId));
@@ -391,8 +391,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             assertThat(tasks.size(), equalTo(0));
 
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksCustomMetadata) internalCluster().clusterService().state().getMetadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE)).tasks(), empty());
+            assertThat(((PersistentTasksCustomMetaData) internalCluster().clusterService().state().getMetaData()
+                    .custom(PersistentTasksCustomMetaData.TYPE)).tasks(), empty());
         });
     }
 

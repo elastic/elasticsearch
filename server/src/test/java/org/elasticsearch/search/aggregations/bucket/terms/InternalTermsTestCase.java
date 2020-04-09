@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -43,20 +44,28 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected InternalTerms<?, ?> createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
-        return createTestInstance(name, metadata, aggregations, showDocCount, docCountError);
+    protected InternalTerms<?, ?> createTestInstance(String name,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
+                                                     InternalAggregations aggregations) {
+        return createTestInstance(name, pipelineAggregators, metaData, aggregations, showDocCount, docCountError);
     }
 
     protected abstract InternalTerms<?, ?> createTestInstance(String name,
-                                                              Map<String, Object> metadata,
+                                                              List<PipelineAggregator> pipelineAggregators,
+                                                              Map<String, Object> metaData,
                                                               InternalAggregations aggregations,
                                                               boolean showTermDocCountError,
                                                               long docCountError);
 
     @Override
-    protected InternalTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
-        InternalTerms<?, ?> testInstance = createTestInstance(name, metadata);
-        return new UnmappedTerms(name, testInstance.order, testInstance.requiredSize, testInstance.minDocCount, metadata);
+    protected InternalTerms<?, ?> createUnmappedInstance(
+            String name,
+            List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        InternalTerms<?, ?> testInstance = createTestInstance(name, pipelineAggregators, metaData);
+        return new UnmappedTerms(name, testInstance.order, testInstance.requiredSize, testInstance.minDocCount,
+                pipelineAggregators, metaData);
     }
 
     @Override

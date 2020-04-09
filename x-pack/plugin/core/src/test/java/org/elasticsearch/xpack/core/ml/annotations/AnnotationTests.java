@@ -22,10 +22,6 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation createTestInstance() {
-        return randomAnnotation();
-    }
-
-    static Annotation randomAnnotation() {
         return new Annotation(randomAlphaOfLengthBetween(100, 1000),
             new Date(randomNonNegativeLong()),
             randomAlphaOfLengthBetween(5, 20),

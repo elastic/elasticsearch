@@ -10,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Collections;
@@ -57,23 +57,23 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         String alias = randomAlphaOfLength(3);
         long creationDate = randomLongBetween(0, 1000000);
         long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
-        IndexMetadata newIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(11))
+        IndexMetaData newIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
             .settings(settings(Version.CURRENT)).creationDate(creationDate)
-            .putAlias(AliasMetadata.builder(alias)).numberOfShards(randomIntBetween(1, 5))
+            .putAlias(AliasMetaData.builder(alias)).numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5)).build();
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putRolloverInfo(new RolloverInfo(alias, Collections.emptyList(), rolloverTime))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)
-                .put(newIndexMetadata, false)).build();
+            .metaData(MetaData.builder()
+                .put(indexMetaData, false)
+                .put(newIndexMetaData, false)).build();
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
-        ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
+        ClusterState newState = step.performAction(indexMetaData.getIndex(), clusterState);
         long actualRolloverTime = LifecycleExecutionState
-            .fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
+            .fromIndexMetadata(newState.metaData().index(indexMetaData.getIndex()))
             .getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
@@ -81,34 +81,34 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
     public void testPerformActionBeforeRolloverHappened() {
         String alias = randomAlphaOfLength(3);
         long creationDate = randomLongBetween(0, 1000000);
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(11))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .creationDate(creationDate).putAlias(AliasMetadata.builder(alias)).numberOfShards(randomIntBetween(1, 5))
+            .creationDate(creationDate).putAlias(AliasMetaData.builder(alias)).numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false)).build();
+            .metaData(MetaData.builder().put(indexMetaData, false)).build();
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
 
         IllegalStateException exceptionThrown = expectThrows(IllegalStateException.class,
-            () -> step.performAction(indexMetadata.getIndex(), clusterState));
+            () -> step.performAction(indexMetaData.getIndex(), clusterState));
         assertThat(exceptionThrown.getMessage(),
-            equalTo("no rollover info found for [" + indexMetadata.getIndex().getName() + "] with alias [" + alias + "], the index " +
+            equalTo("no rollover info found for [" + indexMetaData.getIndex().getName() + "] with alias [" + alias + "], the index " +
                 "has not yet rolled over with that alias"));
     }
 
     public void testPerformActionWithNoRolloverAliasSetting() {
         long creationDate = randomLongBetween(0, 1000000);
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(11))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
             .settings(settings(Version.CURRENT)).creationDate(creationDate).numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false)).build();
+            .metaData(MetaData.builder().put(indexMetaData, false)).build();
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
 
         IllegalStateException exceptionThrown = expectThrows(IllegalStateException.class,
-            () -> step.performAction(indexMetadata.getIndex(), clusterState));
+            () -> step.performAction(indexMetaData.getIndex(), clusterState));
         assertThat(exceptionThrown.getMessage(),
-            equalTo("setting [index.lifecycle.rollover_alias] is not set on index [" + indexMetadata.getIndex().getName() +"]"));
+            equalTo("setting [index.lifecycle.rollover_alias] is not set on index [" + indexMetaData.getIndex().getName() +"]"));
     }
 
     public void testPerformActionWithIndexingComplete() {
@@ -116,19 +116,19 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         long creationDate = randomLongBetween(0, 1000000);
         long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)).build();
+            .metaData(MetaData.builder()
+                .put(indexMetaData, false)).build();
 
         UpdateRolloverLifecycleDateStep step = createRandomInstanceWithFallbackTime(() -> rolloverTime);
-        ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
+        ClusterState newState = step.performAction(indexMetaData.getIndex(), clusterState);
         long actualRolloverTime = LifecycleExecutionState
-            .fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
+            .fromIndexMetadata(newState.metaData().index(indexMetaData.getIndex()))
             .getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }

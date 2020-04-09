@@ -116,8 +116,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                            GetAsyncSearchAction.Request request,
                                            long nowInMillis,
                                            ActionListener<AsyncSearchResponse> listener) {
-        store.getResponse(searchId, true,
-            new ActionListener<>() {
+        store.getResponse(searchId, new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse response) {
                     sendFinalResponse(request, response, nowInMillis, listener);

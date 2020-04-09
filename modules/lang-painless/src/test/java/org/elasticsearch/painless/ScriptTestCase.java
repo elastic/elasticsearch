@@ -96,7 +96,7 @@ public abstract class ScriptTestCase extends ESTestCase {
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
             Walker.buildPainlessTree(scriptClassInfo, getTestName(), script, pickySettings,
-                    scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT));
+                    scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT), null);
         }
         // test actual script execution
         PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);

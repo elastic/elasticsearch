@@ -93,7 +93,7 @@ public class AggregatorFactories {
             BaseAggregationBuilder aggBuilder = null;
             AggregatorFactories.Builder subFactories = null;
 
-            Map<String, Object> metadata = null;
+            Map<String, Object> metaData = null;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
@@ -108,7 +108,7 @@ public class AggregatorFactories {
                 if (token == XContentParser.Token.START_OBJECT) {
                     switch (fieldName) {
                     case "meta":
-                        metadata = parser.map();
+                        metaData = parser.map();
                         break;
                     case "aggregations":
                     case "aggs":
@@ -136,8 +136,8 @@ public class AggregatorFactories {
                 throw new ParsingException(parser.getTokenLocation(), "Missing definition for aggregation [" + aggregationName + "]",
                         parser.getTokenLocation());
             } else {
-                if (metadata != null) {
-                    aggBuilder.setMetadata(metadata);
+                if (metaData != null) {
+                    aggBuilder.setMetaData(metaData);
                 }
 
                 if (subFactories != null) {
@@ -221,6 +221,13 @@ public class AggregatorFactories {
      */
     public int countAggregators() {
         return factories.length;
+    }
+
+    /**
+     * @return the number of pipeline aggregator factories
+     */
+    public int countPipelineAggregators() {
+        return pipelineAggregatorFactories.size();
     }
 
     public static class Builder implements Writeable, ToXContentObject {

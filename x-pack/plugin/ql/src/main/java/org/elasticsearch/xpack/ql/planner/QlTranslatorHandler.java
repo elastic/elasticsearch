@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 public class QlTranslatorHandler implements TranslatorHandler {
 
@@ -42,10 +40,5 @@ public class QlTranslatorHandler implements TranslatorHandler {
     @Override
     public String dateFormat(Expression e) {
         return null;
-    }
-
-    @Override
-    public Object convert(Object value, DataType dataType) {
-        return DataTypeConverter.convert(value, dataType);
     }
 }

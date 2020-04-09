@@ -21,35 +21,35 @@ package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
-public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory<WithOrdinals> {
 
     private final Query parentFilter;
     private final Query childFilter;
 
     public ParentAggregatorFactory(String name,
-                                   ValuesSourceConfig config,
+                                   ValuesSourceConfig<WithOrdinals> config,
                                    Query childFilter,
                                    Query parentFilter,
                                    QueryShardContext queryShardContext,
                                    AggregatorFactory parent,
                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                   Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                   Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
 
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;
@@ -57,30 +57,26 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
-                return new InternalParent(name, 0, buildEmptySubAggregations(), metadata());
+                return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
             }
         };
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
+    protected Aggregator doCreateInternal(WithOrdinals valuesSource,
                                           SearchContext searchContext, Aggregator children,
                                           boolean collectsFromSingleBucket,
-                                          Map<String, Object> metadata) throws IOException {
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
 
-        if (rawValuesSource instanceof WithOrdinals == false) {
-            throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
-                "is not supported for aggregation " + this.name());
-        }
-        WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
         if (collectsFromSingleBucket) {
             return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
-                parentFilter, valuesSource, maxOrd, metadata);
+                parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
         } else {
             return asMultiBucketAggregator(this, searchContext, children);
         }

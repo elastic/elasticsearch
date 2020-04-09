@@ -127,16 +127,16 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         final Request request = new Request("POST", indexName + "/_async_search");
         setRunAsHeader(request, user);
         request.addParameter("q", query);
-        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
+        request.addParameter("wait_for_completion", waitForCompletion.toString());
         // we do the cleanup explicitly
-        request.addParameter("keep_on_completion", "true");
+        request.addParameter("clean_on_completion", "false");
         return client().performRequest(request);
     }
 
     static Response getAsyncSearch(String id, String user) throws IOException {
         final Request request = new Request("GET",  "/_async_search/" + id);
         setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion_timeout", "0ms");
+        request.addParameter("wait_for_completion", "0ms");
         return client().performRequest(request);
     }
 

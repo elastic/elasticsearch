@@ -100,4 +100,9 @@ public class SWhile extends AStatement {
 
         return output;
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, block);
+    }
 }

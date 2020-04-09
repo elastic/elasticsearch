@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
@@ -54,7 +54,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
-        private String id = "_all";
+        private String id;
         private boolean allowNoMatch = true;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -94,7 +94,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
         }
 
         public void setId(String id) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID.getPreferredName());
+            this.id = id;
         }
 
         public String getId() {
@@ -166,8 +166,10 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
              */
             private final List<PhaseProgress> progress;
 
+            @Nullable
             private final DataCounts dataCounts;
 
+            @Nullable
             private final MemoryUsage memoryUsage;
 
             @Nullable
@@ -185,8 +187,8 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
                 this.progress = Objects.requireNonNull(progress);
-                this.dataCounts = dataCounts == null ? new DataCounts(id) : dataCounts;
-                this.memoryUsage = memoryUsage == null ? new MemoryUsage(id) : memoryUsage;
+                this.dataCounts = dataCounts;
+                this.memoryUsage = memoryUsage;
                 this.analysisStats = analysisStats;
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
@@ -202,12 +204,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     progress = in.readList(PhaseProgress::new);
                 }
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    dataCounts = new DataCounts(in);
+                    dataCounts = in.readOptionalWriteable(DataCounts::new);
                 } else {
                     dataCounts = null;
                 }
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    memoryUsage = new MemoryUsage(in);
+                    memoryUsage = in.readOptionalWriteable(MemoryUsage::new);
                 } else {
                     memoryUsage = null;
                 }
@@ -274,12 +276,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return dataCounts;
             }
 
+            @Nullable
             public MemoryUsage getMemoryUsage() {
                 return memoryUsage;
-            }
-
-            public AnalysisStats getAnalysisStats() {
-                return analysisStats;
             }
 
             public DiscoveryNode getNode() {
@@ -309,8 +308,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 if (progress != null) {
                     builder.field("progress", progress);
                 }
-                builder.field("data_counts", dataCounts);
-                builder.field("memory_usage", memoryUsage);
+                if (dataCounts != null) {
+                    builder.field("data_counts", dataCounts);
+                }
+                if (memoryUsage != null) {
+                    builder.field("memory_usage", memoryUsage);
+                }
                 if (analysisStats != null) {
                     builder.startObject("analysis_stats");
                     builder.field(analysisStats.getWriteableName(), analysisStats);
@@ -347,10 +350,10 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     out.writeList(progress);
                 }
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    dataCounts.writeTo(out);
+                    out.writeOptionalWriteable(dataCounts);
                 }
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    memoryUsage.writeTo(out);
+                    out.writeOptionalWriteable(memoryUsage);
                 }
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                     out.writeOptionalNamedWriteable(analysisStats);

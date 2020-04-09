@@ -1,8 +1,7 @@
 {
   "data_frame_transform_deprecated.stop_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html",
-      "description":"Stops one or more transforms."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html"
     },
     "stability":"beta",
     "url":{

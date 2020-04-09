@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
@@ -44,23 +44,23 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
         return new GetAliasesResponse(status, errorMessage, createIndicesAliasesMap(0, 5));
     }
 
-    private static Map<String, Set<AliasMetadata>> createIndicesAliasesMap(int min, int max) {
-        Map<String, Set<AliasMetadata>> map = new HashMap<>();
+    private static Map<String, Set<AliasMetaData>> createIndicesAliasesMap(int min, int max) {
+        Map<String, Set<AliasMetaData>> map = new HashMap<>();
         int indicesNum = randomIntBetween(min, max);
         for (int i = 0; i < indicesNum; i++) {
             String index = randomAlphaOfLength(5);
-            Set<AliasMetadata> aliasMetadata = new HashSet<>();
+            Set<AliasMetaData> aliasMetaData = new HashSet<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int alias = 0; alias < aliasesNum; alias++) {
-                aliasMetadata.add(createAliasMetadata());
+                aliasMetaData.add(createAliasMetaData());
             }
-            map.put(index, aliasMetadata);
+            map.put(index, aliasMetaData);
         }
         return map;
     }
 
-    public static AliasMetadata createAliasMetadata() {
-        AliasMetadata.Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
+    public static AliasMetaData createAliasMetaData() {
+        AliasMetaData.Builder builder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));
         }
@@ -85,7 +85,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new index
                 || p.endsWith(".aliases") // do not add new alias
-                || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
+                || p.contains(".filter"); // do not insert random data into AliasMetaData#filter
     }
 
     @Override
@@ -167,8 +167,8 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
             assertThat(response.getError(), equalTo("alias [something] missing"));
             assertThat(response.getAliases().size(), equalTo(1));
             assertThat(response.getAliases().get(index).size(), equalTo(1));
-            AliasMetadata aliasMetadata = response.getAliases().get(index).iterator().next();
-            assertThat(aliasMetadata.alias(), equalTo("alias"));
+            AliasMetaData aliasMetaData = response.getAliases().get(index).iterator().next();
+            assertThat(aliasMetaData.alias(), equalTo("alias"));
             assertThat(response.getException(), nullValue());
         }
     }

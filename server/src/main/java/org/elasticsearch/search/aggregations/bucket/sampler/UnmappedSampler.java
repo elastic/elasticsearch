@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,8 +32,8 @@ import java.util.Map;
 public class UnmappedSampler extends InternalSampler {
     public static final String NAME = "unmapped_sampler";
 
-    UnmappedSampler(String name, Map<String, Object> metadata) {
-        super(name, 0, InternalAggregations.EMPTY, metadata);
+    UnmappedSampler(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, 0, InternalAggregations.EMPTY, pipelineAggregators, metaData);
     }
 
     /**
@@ -49,7 +50,7 @@ public class UnmappedSampler extends InternalSampler {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedSampler(name, metadata);
+        return new UnmappedSampler(name, pipelineAggregators(), metaData);
     }
 
     @Override

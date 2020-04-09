@@ -1,8 +1,7 @@
 {
   "watcher.deactivate_watch":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html",
-      "description":"Deactivates a currently active watch."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html"
     },
     "stability":"stable",
     "url":{

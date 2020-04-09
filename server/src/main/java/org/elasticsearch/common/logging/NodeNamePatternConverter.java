@@ -19,15 +19,14 @@
 
 package org.elasticsearch.common.logging;
 
+import java.util.Arrays;
+
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.lucene.util.SetOnce;
-
-import java.util.Arrays;
 
 /**
  * Converts {@code %node_name} in log4j patterns into the current node name.
@@ -36,7 +35,7 @@ import java.util.Arrays;
  * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
-@ConverterKeys({"ESnode_name","node_name"})
+@ConverterKeys({"node_name"})
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * The name of this node.
@@ -48,11 +47,6 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
      */
     static void setNodeName(String nodeName) {
         NODE_NAME.set(nodeName);
-    }
-
-    public static void setGlobalNodeName(String nodeName){
-        LoggerContext ctx = LoggerContext.getContext(false);
-        ctx.getConfiguration().getProperties().put("node_name",nodeName);
     }
 
     /**

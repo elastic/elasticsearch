@@ -36,7 +36,17 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = NodesInfoRequest.Metric.allMetrics();
+    static final Set<String> ALLOWED_METRICS = Sets.newHashSet(
+            "http",
+            "ingest",
+            "indices",
+            "jvm",
+            "os",
+            "plugins",
+            "process",
+            "settings",
+            "thread_pool",
+            "transport");
 
     private final SettingsFilter settingsFilter;
 
@@ -98,9 +108,16 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.all();
         } else {
             nodesInfoRequest.clear();
-            // disregard unknown metrics
-            metrics.retainAll(ALLOWED_METRICS);
-            nodesInfoRequest.addMetrics(metrics.toArray(String[]::new));
+            nodesInfoRequest.settings(metrics.contains("settings"));
+            nodesInfoRequest.os(metrics.contains("os"));
+            nodesInfoRequest.process(metrics.contains("process"));
+            nodesInfoRequest.jvm(metrics.contains("jvm"));
+            nodesInfoRequest.threadPool(metrics.contains("thread_pool"));
+            nodesInfoRequest.transport(metrics.contains("transport"));
+            nodesInfoRequest.http(metrics.contains("http"));
+            nodesInfoRequest.plugins(metrics.contains("plugins"));
+            nodesInfoRequest.ingest(metrics.contains("ingest"));
+            nodesInfoRequest.indices(metrics.contains("indices"));
         }
         return nodesInfoRequest;
     }

@@ -13,12 +13,11 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -41,10 +40,8 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.time.Clock;
@@ -65,11 +62,9 @@ import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.newTest
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndexLifecycleServiceTests extends ESTestCase {
@@ -137,18 +132,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong()));
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
@@ -173,19 +168,19 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setPhase(mockShrinkStep.getPhase());
         lifecycleState.setAction(mockShrinkStep.getAction());
         lifecycleState.setStep(mockShrinkStep.getName());
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -226,19 +221,19 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setPhase(mockShrinkStep.getPhase());
         lifecycleState.setAction(mockShrinkStep.getAction());
         lifecycleState.setStep(mockShrinkStep.getName());
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -247,8 +242,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             changedOperationMode.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"),
-            any(OperationModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());
@@ -270,19 +264,19 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         lifecycleState.setPhase(currentStepKey.getPhase());
         lifecycleState.setAction(currentStepKey.getAction());
         lifecycleState.setStep(currentStepKey.getName());
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+        IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 
@@ -300,8 +294,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"),
-            any(OperationModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
@@ -315,40 +308,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testExceptionStillProcessesOtherIndicesOnMaster() {
         doTestExceptionStillProcessesOtherIndices(true);
-    }
-
-    public void testOperationModeUpdateTaskPriority() {
-        indexLifecycleService.submitOperationModeUpdate(OperationMode.STOPPING);
-        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPING, Priority.IMMEDIATE);
-        indexLifecycleService.submitOperationModeUpdate(OperationMode.STOPPED);
-        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPED, Priority.IMMEDIATE);
-        indexLifecycleService.submitOperationModeUpdate(OperationMode.RUNNING);
-        verifyOperationModeUpdateTaskPriority(OperationMode.RUNNING, Priority.NORMAL);
-    }
-
-    private void verifyOperationModeUpdateTaskPriority(OperationMode mode, Priority expectedPriority) {
-        verify(clusterService).submitStateUpdateTask(
-            Mockito.eq("ilm_operation_mode_update {OperationMode " + mode.name() +"}"),
-            argThat(new ArgumentMatcher<OperationModeUpdateTask>() {
-
-                Priority actualPriority = null;
-
-                @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof OperationModeUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((OperationModeUpdateTask) argument).priority();
-                    return actualPriority == expectedPriority;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be "+ expectedPriority+" but got: ")
-                        .appendText(actualPriority.name());
-                }
-            })
-        );
     }
 
     @SuppressWarnings("unchecked")
@@ -411,26 +370,26 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         policyMap.put(policy2, new LifecyclePolicyMetadata(i2policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong()));
 
-        IndexMetadata i1indexMetadata = IndexMetadata.builder(index1.getName())
+        IndexMetaData i1indexMetadata = IndexMetaData.builder(index1.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i1lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        IndexMetadata i2indexMetadata = IndexMetadata.builder(index2.getName())
+        IndexMetaData i2indexMetadata = IndexMetaData.builder(index2.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policy1))
             .putCustom(ILM_CUSTOM_METADATA_KEY, i2lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder()
+        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index1.getName(), i1indexMetadata)
             .fPut(index2.getName(), i2indexMetadata);
 
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
 
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
 

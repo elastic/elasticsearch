@@ -24,29 +24,39 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.apache.lucene.util.SetOnce;
 
 import java.util.Locale;
 
 /**
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
  * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
- *
- * @deprecated this class is kept in order to allow working log configuration from 7.x
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({"node_and_cluster_id"})
-@Deprecated
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-
-    public NodeAndClusterIdConverter() {
-        super("NodeAndClusterId", "node_and_cluster_id");
-    }
+    private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
 
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
         return new NodeAndClusterIdConverter();
+    }
+
+    public NodeAndClusterIdConverter() {
+        super("NodeAndClusterId", "node_and_cluster_id");
+    }
+
+    /**
+     * Updates only once the clusterID and nodeId.
+     * Subsequent executions will throw {@link org.apache.lucene.util.SetOnce.AlreadySetException}.
+     *
+     * @param nodeId      a nodeId received from cluster state update
+     * @param clusterUUID a clusterId received from cluster state update
+     */
+    public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
+         nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
     }
 
     /**
@@ -56,15 +66,13 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (NodeAndClusterIdStateListener.nodeAndClusterId.get() != null) {
-            String nodeId = NodeAndClusterIdStateListener.nodeAndClusterId.get().v1();
-            String clusterUUID = NodeAndClusterIdStateListener.nodeAndClusterId.get().v2();
-            toAppendTo.append(formatIds(nodeId, clusterUUID));
+        if (nodeAndClusterId.get() != null) {
+            toAppendTo.append(nodeAndClusterId.get());
         }
         // nodeId/clusterUuid not received yet, not appending
     }
 
-    private String formatIds(String nodeId, String clusterUUID) {
+    private static String formatIds(String clusterUUID, String nodeId) {
         return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }

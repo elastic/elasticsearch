@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
+import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 
@@ -185,19 +185,19 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             Map<String, Object> document = ConfigurationUtils.readMap(null, null,
                 dataMap, Fields.SOURCE);
             String index = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.INDEX.getFieldName(), "_index");
+                dataMap, MetaData.INDEX.getFieldName(), "_index");
             String id = ConfigurationUtils.readStringOrIntProperty(null, null,
-                dataMap, Metadata.ID.getFieldName(), "_id");
+                dataMap, MetaData.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
-                dataMap, Metadata.ROUTING.getFieldName());
+                dataMap, MetaData.ROUTING.getFieldName());
             Long version = null;
-            if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+            if (dataMap.containsKey(MetaData.VERSION.getFieldName())) {
+                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, MetaData.VERSION.getFieldName());
             }
             VersionType versionType = null;
-            if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
+            if (dataMap.containsKey(MetaData.VERSION_TYPE.getFieldName())) {
                 versionType = VersionType.fromString(ConfigurationUtils.readStringProperty(null, null, dataMap,
-                    Metadata.VERSION_TYPE.getFieldName()));
+                    MetaData.VERSION_TYPE.getFieldName()));
             }
             IngestDocument ingestDocument =
                 new IngestDocument(index, id, routing, version, versionType, document);

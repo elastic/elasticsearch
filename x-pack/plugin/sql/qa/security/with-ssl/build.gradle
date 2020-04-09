@@ -9,9 +9,6 @@ integTest.runner {
 // needed to be consistent with ssl host checking
 Object san = new SanEvaluator()
 
-// needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress();
-
 // location of generated keystores and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
 
@@ -26,7 +23,7 @@ task createNodeKeyStore(type: LoggedExec) {
       delete nodeKeystore
     }
   }
-  executable = "${BuildParams.compilerJavaHome}/bin/keytool"
+  executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
     '-alias', 'test-node',
@@ -34,7 +31,7 @@ task createNodeKeyStore(type: LoggedExec) {
     '-keyalg', 'RSA',
     '-keysize', '2048',
     '-validity', '712',
-    '-dname', 'CN=' + host,
+    '-dname', 'CN=smoke-test-plugins-ssl',
     '-keypass', 'keypass',
     '-storepass', 'keypass',
     '-ext', san
@@ -59,7 +56,7 @@ task createClientKeyStore(type: LoggedExec) {
     '-keyalg', 'RSA',
     '-keysize', '2048',
     '-validity', '712',
-    '-dname', 'CN=' + host,
+    '-dname', 'CN=smoke-test-plugins-ssl',
     '-keypass', 'keypass',
     '-storepass', 'keypass',
     '-ext', san

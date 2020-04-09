@@ -33,7 +33,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -42,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -61,20 +63,20 @@ public class TransportClusterAllocationExplainAction
     private final ClusterInfoService clusterInfoService;
     private final AllocationDeciders allocationDeciders;
     private final ShardsAllocator shardAllocator;
-    private final AllocationService allocationService;
+    private final GatewayAllocator gatewayAllocator;
 
     @Inject
     public TransportClusterAllocationExplainAction(TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
-                                                   ShardsAllocator shardAllocator, AllocationService allocationService) {
+                                                   ShardsAllocator shardAllocator, GatewayAllocator gatewayAllocator) {
         super(ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
             ClusterAllocationExplainRequest::new, indexNameExpressionResolver);
         this.clusterInfoService = clusterInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;
-        this.allocationService = allocationService;
+        this.gatewayAllocator = gatewayAllocator;
     }
 
     @Override
@@ -104,21 +106,27 @@ public class TransportClusterAllocationExplainAction
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
         ClusterAllocationExplanation cae = explainShard(shardRouting, allocation,
-            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), allocationService);
+            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), gatewayAllocator, shardAllocator);
         listener.onResponse(new ClusterAllocationExplainResponse(cae));
     }
 
     // public for testing
     public static ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
                                                             ClusterInfo clusterInfo, boolean includeYesDecisions,
-                                                            AllocationService allocationService) {
+                                                            GatewayAllocator gatewayAllocator, ShardsAllocator shardAllocator) {
         allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
 
         ShardAllocationDecision shardDecision;
         if (shardRouting.initializing() || shardRouting.relocating()) {
             shardDecision = ShardAllocationDecision.NOT_TAKEN;
         } else {
-            shardDecision = allocationService.explainShardAllocation(shardRouting, allocation);
+            AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
+                gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
+            if (allocateDecision.isDecisionTaken() == false) {
+                shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
+            } else {
+                shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
+            }
         }
 
         return new ClusterAllocationExplanation(shardRouting,

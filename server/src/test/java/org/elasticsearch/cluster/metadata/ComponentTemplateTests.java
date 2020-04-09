@@ -66,7 +66,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
     public static ComponentTemplate randomInstance() {
         Settings settings = null;
         CompressedXContent mappings = null;
-        Map<String, AliasMetadata> aliases = null;
+        Map<String, AliasMetaData> aliases = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -85,9 +85,9 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
     }
 
-    public static Map<String, AliasMetadata> randomAliases() {
+    public static Map<String, AliasMetaData> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
-        AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
+        AliasMetaData aliasMeta = AliasMetaData.builder(aliasName)
             .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())
@@ -98,7 +98,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     private static CompressedXContent randomMappings() {
         try {
-            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
+            return new CompressedXContent("{\"" + randomAlphaOfLength(3) + "\":\"" + randomAlphaOfLength(7) + "\"}");
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -107,12 +107,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     private static Settings randomSettings() {
         return Settings.builder()
-            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
-            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
-            .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
+            .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
             .build();
     }
 

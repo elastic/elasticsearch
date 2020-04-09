@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterState;
 
 public class InMemoryPersistedState implements CoordinationState.PersistedState {
+    // TODO add support and tests for behaviour with persistence-layer failures
 
     private long currentTerm;
     private ClusterState acceptedState;

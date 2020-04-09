@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,8 +47,8 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
 
     public FiltersAggregatorFactory(String name, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
                                     String otherBucketKey, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+                                    AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metaData);
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
@@ -65,7 +66,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
      * necessary. This is done lazily so that the {@link Weight}s are only
      * created if the aggregation collects documents reducing the overhead of
      * the aggregation in the case where no documents are collected.
-     *
+     * 
      * Note that as aggregations are initialsed and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
@@ -88,9 +89,10 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        Map<String, Object> metadata) throws IOException {
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
         return new FiltersAggregator(name, factories, keys, () -> getWeights(searchContext), keyed,
-            otherBucket ? otherBucketKey : null, searchContext, parent, metadata);
+            otherBucket ? otherBucketKey : null, searchContext, parent, pipelineAggregators, metaData);
     }
 
 

@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -76,35 +76,35 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         lifecycleState.setAction(step.getKey().getAction());
         lifecycleState.setStep(step.getKey().getName());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+        IndexMetaData sourceIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
-            .putAlias(AliasMetadata.builder("my_alias"))
+            .putAlias(AliasMetaData.builder("my_alias"))
             .build();
 
         Mockito.doAnswer(invocation -> {
             ResizeRequest request = (ResizeRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
-            assertThat(request.getSourceIndex(), equalTo(sourceIndexMetadata.getIndex().getName()));
+            assertThat(request.getSourceIndex(), equalTo(sourceIndexMetaData.getIndex().getName()));
             assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
             assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null)
+                .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null)
                 .build()));
             assertThat(request.getTargetIndexRequest().settings()
-                    .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
-            listener.onResponse(new ResizeResponse(true, true, sourceIndexMetadata.getIndex().getName()));
+                    .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
+            listener.onResponse(new ResizeResponse(true, true, sourceIndexMetaData.getIndex().getName()));
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(sourceIndexMetadata, emptyClusterState(), null, new Listener() {
+        step.performAction(sourceIndexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -127,7 +127,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public void testPerformActionNotComplete() throws Exception {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ShrinkStep step = createRandomInstance();
@@ -135,12 +135,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         Mockito.doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
-            listener.onResponse(new ResizeResponse(false, false, indexMetadata.getIndex().getName()));
+            listener.onResponse(new ResizeResponse(false, false, indexMetaData.getIndex().getName()));
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -163,7 +163,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public void testPerformActionFailure() throws Exception {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
@@ -177,7 +177,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
+        step.performAction(indexMetaData, emptyClusterState(), null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

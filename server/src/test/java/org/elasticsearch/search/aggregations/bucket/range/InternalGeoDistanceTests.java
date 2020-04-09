@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,7 +69,8 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
 
     @Override
     protected InternalGeoDistance createTestInstance(String name,
-                                                     Map<String, Object> metadata,
+                                                     List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData,
                                                      InternalAggregations aggregations,
                                                      boolean keyed) {
         final List<InternalGeoDistance.Bucket> buckets = new ArrayList<>();
@@ -79,7 +81,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             double to = range.v2();
             buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
         }
-        return new InternalGeoDistance(name, buckets, keyed, metadata);
+        return new InternalGeoDistance(name, buckets, keyed, pipelineAggregators, metaData);
     }
 
     @Override
@@ -102,7 +104,8 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         String name = instance.getName();
         boolean keyed = instance.keyed;
         List<InternalGeoDistance.Bucket> buckets = instance.getBuckets();
-        Map<String, Object> metadata = instance.getMetadata();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -117,16 +120,16 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
                     InternalAggregations.EMPTY, false));
             break;
         case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
             } else {
-                metadata = new HashMap<>(instance.getMetadata());
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
+            metaData.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoDistance(name, buckets, keyed, metadata);
+        return new InternalGeoDistance(name, buckets, keyed, pipelineAggregators, metaData);
     }
 }

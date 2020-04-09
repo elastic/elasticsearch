@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public class TestSingleValueAggregation extends InternalAggregation {
@@ -20,7 +21,7 @@ public class TestSingleValueAggregation extends InternalAggregation {
     private final Object value;
 
     TestSingleValueAggregation(String name, List<String> path, Object value) {
-        super(name, emptyMap());
+        super(name, emptyList(), emptyMap());
         this.path = path;
         this.value = value;
     }

@@ -1,8 +1,7 @@
 {
   "ml.get_calendars":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html",
-      "description":"Retrieves configuration information for calendars."
+      "url":null
     },
     "stability":"stable",
     "url":{

@@ -99,7 +99,7 @@ public class SamlAuthnRequestValidator {
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
-            getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(
+            getSpFromIssuer(authnRequest.getIssuer(), ActionListener.wrap(
                 sp -> {
                     try {
                         validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
@@ -177,10 +177,11 @@ public class SamlAuthnRequestValidator {
         }
         final Map<String, Object> authnState = new HashMap<>();
         checkDestination(authnRequest);
-        final String acs = checkAcs(authnRequest, sp, authnState);
+        checkAcs(authnRequest, sp, authnState);
         validateNameIdPolicy(authnRequest, sp, authnState);
+        authnState.put(SamlAuthenticationState.Fields.ENTITY_ID.getPreferredName(), sp.getEntityId());
         authnState.put(SamlAuthenticationState.Fields.AUTHN_REQUEST_ID.getPreferredName(), authnRequest.getID());
-        final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(sp.getEntityId(), acs,
+        final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(sp.getEntityId(),
             authnRequest.isForceAuthn(), authnState);
         logger.trace(new ParameterizedMessage("Validated AuthnResponse from queryString [{}] and extracted [{}]",
             parsedQueryString.queryString, response));
@@ -225,17 +226,17 @@ public class SamlAuthnRequestValidator {
         });
     }
 
-    private void getSpFromAuthnRequest(Issuer issuer, String acs, ActionListener<SamlServiceProvider> listener) {
+    private void getSpFromIssuer(Issuer issuer, ActionListener<SamlServiceProvider> listener) {
         if (issuer == null || issuer.getValue() == null) {
             throw new ElasticsearchSecurityException("SAML authentication request has no issuer", RestStatus.BAD_REQUEST);
         }
         final String issuerString = issuer.getValue();
-        idp.resolveServiceProvider(issuerString, acs, false, ActionListener.wrap(
+        idp.getRegisteredServiceProvider(issuerString, false, ActionListener.wrap(
             serviceProvider -> {
                 if (null == serviceProvider) {
                     throw new ElasticsearchSecurityException(
-                        "Service Provider with Entity ID [{}] and ACS [{}] is not known to this Identity Provider", RestStatus.BAD_REQUEST,
-                        issuerString, acs);
+                        "Service Provider with Entity ID [{}] is not registered with this Identity Provider", RestStatus.BAD_REQUEST,
+                        issuerString);
                 }
                 listener.onResponse(serviceProvider);
             },
@@ -252,7 +253,7 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private String checkAcs(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
+    private void checkAcs(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final String acs = request.getAssertionConsumerServiceURL();
         if (Strings.hasText(acs) == false) {
             final String message = request.getAssertionConsumerServiceIndex() == null ?
@@ -265,7 +266,7 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("The registered ACS URL for this Service Provider is [{}] but the authentication " +
                 "request contained [{}]", RestStatus.BAD_REQUEST, sp.getAssertionConsumerService(), acs);
         }
-        return acs;
+        authnState.put(SamlAuthenticationState.Fields.ACS_URL.getPreferredName(), acs);
     }
 
     protected Element parseSamlMessage(byte[] content) {

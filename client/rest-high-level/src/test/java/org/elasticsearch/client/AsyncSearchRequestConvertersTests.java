@@ -50,13 +50,15 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
 
         // the following parameters might be overwritten by random ones later,
         // but we need to set these since they are the default we send over http
+        expectedParams.put("request_cache", "true");
+        expectedParams.put("batched_reduce_size", "5");
         setRandomSearchParams(submitRequest, expectedParams);
         setRandomIndicesOptions(submitRequest::setIndicesOptions, submitRequest::getIndicesOptions, expectedParams);
 
         if (randomBoolean()) {
-            boolean keepOnCompletion = randomBoolean();
-            submitRequest.setKeepOnCompletion(keepOnCompletion);
-            expectedParams.put("keep_on_completion", Boolean.toString(keepOnCompletion));
+            boolean cleanOnCompletion = randomBoolean();
+            submitRequest.setCleanOnCompletion(cleanOnCompletion);
+            expectedParams.put("clean_on_completion", Boolean.toString(cleanOnCompletion));
         }
         if (randomBoolean()) {
             TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
@@ -64,9 +66,9 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
             expectedParams.put("keep_alive", keepAlive.getStringRep());
         }
         if (randomBoolean()) {
-            TimeValue waitForCompletionTimeout = TimeValue.parseTimeValue(randomTimeValue(), "test");
-            submitRequest.setWaitForCompletionTimeout(waitForCompletionTimeout);
-            expectedParams.put("wait_for_completion_timeout", waitForCompletionTimeout.getStringRep());
+            TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
+            submitRequest.setWaitForCompletion(waitForCompletion);
+            expectedParams.put("wait_for_completion", waitForCompletion.getStringRep());
         }
 
         Request request = AsyncSearchRequestConverters.submitAsyncSearch(submitRequest);
@@ -106,8 +108,8 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
-            expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
         }
+        expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
         if (randomBoolean()) {
             request.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
@@ -126,7 +128,7 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
             submitRequest.setWaitForCompletion(waitForCompletion);
-            expectedParams.put("wait_for_completion_timeout", waitForCompletion.getStringRep());
+            expectedParams.put("wait_for_completion", waitForCompletion.getStringRep());
         }
 
         Request request = AsyncSearchRequestConverters.getAsyncSearch(submitRequest);

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.symbol;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.node.SClass;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,8 +38,8 @@ public class ScriptRoot {
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;
     protected final ScriptClassInfo scriptClassInfo;
-    protected final String scriptName;
-    protected final String scriptSource;
+
+    protected final SClass classNode;
 
     protected final FunctionTable functionTable = new FunctionTable();
     protected int syntheticCounter = 0;
@@ -47,16 +48,12 @@ public class ScriptRoot {
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
 
-    public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
-                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource) {
+    public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings, ScriptClassInfo scriptClassInfo, SClass classRoot) {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
-        this.scriptName = Objects.requireNonNull(scriptName);
-        this.scriptSource = Objects.requireNonNull(scriptName);
+        this.classNode = Objects.requireNonNull(classRoot);
 
-        staticConstants.put("$NAME", scriptName);
-        staticConstants.put("$SOURCE", scriptSource);
         staticConstants.put("$DEFINITION", painlessLookup);
         staticConstants.put("$FUNCTIONS", functionTable);
     }
@@ -73,12 +70,8 @@ public class ScriptRoot {
         return scriptClassInfo;
     }
 
-    public String getScriptName() {
-        return scriptName;
-    }
-
-    public String getScriptSource() {
-        return scriptSource;
+    public SClass getClassNode() {
+        return classNode;
     }
 
     public FunctionTable getFunctionTable() {

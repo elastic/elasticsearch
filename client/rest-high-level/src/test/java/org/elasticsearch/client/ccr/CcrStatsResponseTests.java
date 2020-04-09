@@ -109,7 +109,7 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
-                randomNonNegativeLong(),
+                randomLong(),
                 randomBoolean() ? new ElasticsearchException("fatal error") : null);
             responses.add(new FollowStatsAction.StatsResponse(status));
         }

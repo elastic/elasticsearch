@@ -1,8 +1,7 @@
 {
   "watcher.put_watch":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-put-watch.html",
-      "description":"Creates a new watch, or updates an existing one."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-put-watch.html"
     },
     "stability":"stable",
     "url":{

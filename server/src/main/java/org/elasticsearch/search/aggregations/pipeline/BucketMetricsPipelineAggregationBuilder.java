@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
@@ -100,7 +101,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     }
 
     @Override
-    protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     @Override
     protected void validate(ValidationContext context) {
@@ -120,7 +121,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
             context.addBucketPathValidationError("aggregation does not exist for aggregation [" + name + "]: " + bucketsPaths[0]);
             return;
         }
-        if (aggBuilder.get().bucketCardinality() != AggregationBuilder.BucketCardinality.MANY) {
+        if ((aggBuilder.get() instanceof MultiBucketAggregationBuilder) == false) {
             context.addValidationError("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must be a multi-bucket aggregation for aggregation [" + name + "] found :"
                     + aggBuilder.get().getClass().getName() + " for buckets path: " + bucketsPaths[0]);

@@ -22,8 +22,8 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -57,15 +57,15 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
         String index = "tweets-2014-12-29:00";
         AllocationService strategy = createAllocationService(Settings.builder()
                 .build());
-        Metadata metadata = Metadata.builder(state.metadata())
-                .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder(state.metaData())
+                .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable())
-                .addAsNew(metadata.index(index))
+                .addAsNew(metaData.index(index))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(state).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(initialRoutingTable).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         while (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty() == false) {
             clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);

@@ -25,9 +25,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,20 +38,20 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
-        extends ValuesSourceAggregationBuilder<AB> {
+        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> implements MultiBucketAggregationBuilder {
 
     protected final InternalRange.Factory<?, ?> rangeFactory;
     protected List<R> ranges = new ArrayList<>();
     protected boolean keyed = false;
 
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-        super(name);
+        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
     }
 
     protected AbstractRangeBuilder(AbstractRangeBuilder<AB, R> clone,
-                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.rangeFactory = clone.rangeFactory;
         this.ranges = new ArrayList<>(clone.ranges);
         this.keyed = clone.keyed;
@@ -61,16 +62,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
             throws IOException {
-        super(in);
+        super(in, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
         keyed = in.readBoolean();
-    }
-
-    @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        // Copied over from the old targetValueType setting.  Not sure what cases this is still relevant for. --Tozzi 2020-01-13
-        return rangeFactory.getValueSourceType();
     }
 
     /**
@@ -135,11 +130,6 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     public boolean keyed() {
         return keyed;
-    }
-
-    @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.MANY;
     }
 
     @Override

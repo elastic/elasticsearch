@@ -61,7 +61,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
 
         WatcherStatsResponse stats = highLevelClient().watcher().watcherStats(new WatcherStatsRequest(), RequestOptions.DEFAULT);
-        assertFalse(stats.getWatcherMetadata().manuallyStopped());
+        assertFalse(stats.getWatcherMetaData().manuallyStopped());
         assertThat(stats.getNodes(), not(empty()));
         for(WatcherStatsResponse.Node node : stats.getNodes()) {
             assertEquals(WatcherState.STARTED, node.getWatcherState());
@@ -74,7 +74,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
 
         WatcherStatsResponse stats = highLevelClient().watcher().watcherStats(new WatcherStatsRequest(), RequestOptions.DEFAULT);
-        assertTrue(stats.getWatcherMetadata().manuallyStopped());
+        assertTrue(stats.getWatcherMetaData().manuallyStopped());
     }
 
     public void testPutWatch() throws Exception {

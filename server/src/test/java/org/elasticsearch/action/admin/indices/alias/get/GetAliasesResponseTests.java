@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetaData.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -48,14 +48,14 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         return new GetAliasesResponse(mutateAliases(response.getAliases()));
     }
 
-    private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+    private static ImmutableOpenMap<String, List<AliasMetaData>> mutateAliases(ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
         if (aliases.isEmpty()) {
             return createIndicesAliasesMap(1, 3).build();
         }
 
         if (randomBoolean()) {
-            ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder(aliases);
-            ImmutableOpenMap<String, List<AliasMetadata>> list = createIndicesAliasesMap(1, 2).build();
+            ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder(aliases);
+            ImmutableOpenMap<String, List<AliasMetaData>> list = createIndicesAliasesMap(1, 2).build();
             list.forEach(e -> builder.put(e.key, e.value));
             return builder.build();
         }
@@ -67,17 +67,17 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         }
 
         List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder();
 
         for (String index : indices) {
-            List<AliasMetadata> list = new ArrayList<>(aliases.get(index));
+            List<AliasMetaData> list = new ArrayList<>(aliases.get(index));
             if (indicesToBeModified.contains(index)) {
                 if (randomBoolean() || list.isEmpty()) {
-                    list.add(createAliasMetadata());
+                    list.add(createAliasMetaData());
                 } else {
                     int aliasIndex = randomInt(list.size() - 1);
-                    AliasMetadata aliasMetadata = list.get(aliasIndex);
-                    list.add(aliasIndex, mutateAliasMetadata(aliasMetadata));
+                    AliasMetaData aliasMetaData = list.get(aliasIndex);
+                    list.add(aliasIndex, mutateAliasMetaData(aliasMetaData));
                 }
             }
             builder.put(index, list);
@@ -89,23 +89,23 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         return new GetAliasesResponse(createIndicesAliasesMap(0, 5).build());
     }
 
-    private static ImmutableOpenMap.Builder<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
+    private static ImmutableOpenMap.Builder<String, List<AliasMetaData>> createIndicesAliasesMap(int min, int max) {
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> builder = ImmutableOpenMap.builder();
         int indicesNum = randomIntBetween(min, max);
         for (int i = 0; i < indicesNum; i++) {
             String index = randomAlphaOfLength(5);
-            List<AliasMetadata> aliasMetadata = new ArrayList<>();
+            List<AliasMetaData> aliasMetaData = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int alias = 0; alias < aliasesNum; alias++) {
-                aliasMetadata.add(createAliasMetadata());
+                aliasMetaData.add(createAliasMetaData());
             }
-            builder.put(index, aliasMetadata);
+            builder.put(index, aliasMetaData);
         }
         return builder;
     }
 
-    public static AliasMetadata createAliasMetadata() {
-        Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
+    public static AliasMetaData createAliasMetaData() {
+        Builder builder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));
         }
@@ -121,9 +121,9 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         return builder.build();
     }
 
-    public static AliasMetadata mutateAliasMetadata(AliasMetadata alias) {
+    public static AliasMetaData mutateAliasMetaData(AliasMetaData alias) {
         boolean changeAlias = randomBoolean();
-        AliasMetadata.Builder builder = AliasMetadata.builder(changeAlias ? randomAlphaOfLengthBetween(2, 5) : alias.getAlias());
+        AliasMetaData.Builder builder = AliasMetaData.builder(changeAlias ? randomAlphaOfLengthBetween(2, 5) : alias.getAlias());
         builder.searchRouting(alias.searchRouting());
         builder.indexRouting(alias.indexRouting());
         builder.filter(alias.filter());

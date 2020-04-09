@@ -24,11 +24,9 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.util.Util
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
-import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.tasks.TaskProvider
@@ -39,6 +37,8 @@ import org.gradle.api.tasks.TaskProvider
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
+
+    public static final String CHECKSTYLE_VERSION = '8.20'
 
     public static TaskProvider create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
@@ -143,19 +143,6 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
-
-            //  use the runtime classpath if we have it, but some qa projects don't have one...
-            if (name.endsWith('Test')) {
-                FileCollection runtime = project.sourceSets.test.runtimeClasspath
-                if (runtime != null) {
-                    classpath = runtime.plus(project.sourceSets.test.compileClasspath)
-                }
-            } else {
-                FileCollection runtime = project.sourceSets.main.runtimeClasspath
-                if (runtime != null) {
-                    classpath = runtime.plus(project.sourceSets.main.compileClasspath)
-                }
-            }
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
                 project.logger.warn(
@@ -245,10 +232,7 @@ class PrecommitTasks {
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             configDir = checkstyleDir
-        }
-        project.dependencies {
-            checkstyle "com.puppycrawl.tools:checkstyle:${VersionProperties.versions.checkstyle}"
-            checkstyle project.files(Util.buildSrcCodeSource)
+            toolVersion = CHECKSTYLE_VERSION
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->

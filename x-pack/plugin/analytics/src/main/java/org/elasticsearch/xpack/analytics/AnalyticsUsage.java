@@ -25,8 +25,7 @@ public class AnalyticsUsage {
         BOXPLOT,
         CUMULATIVE_CARDINALITY,
         STRING_STATS,
-        TOP_METRICS,
-        T_TEST;
+        TOP_METRICS;
     }
 
     private final Map<Item, AtomicLong> trackers = new EnumMap<>(Item.class);
@@ -55,7 +54,6 @@ public class AnalyticsUsage {
                 trackers.get(Item.BOXPLOT).get(),
                 trackers.get(Item.CUMULATIVE_CARDINALITY).get(),
                 trackers.get(Item.STRING_STATS).get(),
-                trackers.get(Item.TOP_METRICS).get(),
-                trackers.get(Item.T_TEST).get());
+                trackers.get(Item.TOP_METRICS).get());
     }
 }

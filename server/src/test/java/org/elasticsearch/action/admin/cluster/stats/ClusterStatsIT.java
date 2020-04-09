@@ -66,7 +66,6 @@ public class ClusterStatsIT extends ESIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
-        expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -77,13 +76,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
             boolean isDataNode = randomBoolean();
             boolean isMasterNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            boolean isRemoteClusterClientNode = randomBoolean();
-            Settings settings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
-                .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode)
-                .put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
-                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), isRemoteClusterClientNode)
-                .build();
+            Settings settings = Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
+                    .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode).put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
+                    .build();
             internalCluster().startNode(settings);
             total++;
             waitForNodes(total);
@@ -97,10 +92,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
             if (isIngestNode) {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
-            if (isRemoteClusterClientNode) {
-                incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
-            }
-            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
+            if (!isDataNode && !isMasterNode && !isIngestNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 

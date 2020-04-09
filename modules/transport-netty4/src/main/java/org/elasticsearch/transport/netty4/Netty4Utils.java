@@ -30,7 +30,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -81,24 +80,28 @@ public class Netty4Utils {
         if (reference.length() == 0) {
             return Unpooled.EMPTY_BUFFER;
         }
-        final BytesRefIterator iterator = reference.iterator();
-        // usually we have one, two, or three components from the header, the message, and a buffer
-        final List<ByteBuf> buffers = new ArrayList<>(3);
-        try {
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
-            }
+        if (reference instanceof ByteBufBytesReference) {
+            return ((ByteBufBytesReference) reference).toByteBuf();
+        } else {
+            final BytesRefIterator iterator = reference.iterator();
+            // usually we have one, two, or three components from the header, the message, and a buffer
+            final List<ByteBuf> buffers = new ArrayList<>(3);
+            try {
+                BytesRef slice;
+                while ((slice = iterator.next()) != null) {
+                    buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
+                }
 
-            if (buffers.size() == 1) {
-                return buffers.get(0);
-            } else {
-                CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
+                if (buffers.size() == 1) {
+                    return buffers.get(0);
+                } else {
+                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                    composite.addComponents(true, buffers);
+                    return composite;
+                }
+            } catch (IOException ex) {
+                throw new AssertionError("no IO happens here", ex);
             }
-        } catch (IOException ex) {
-            throw new AssertionError("no IO happens here", ex);
         }
     }
 
@@ -109,9 +112,7 @@ public class Netty4Utils {
         final int readableBytes = buffer.readableBytes();
         if (readableBytes == 0) {
             return BytesArray.EMPTY;
-        } else {
-            final ByteBuffer[] byteBuffers = buffer.nioBuffers();
-            return BytesReference.fromByteBuffers(byteBuffers);
         }
+        return new ByteBufBytesReference(buffer, buffer.readableBytes());
     }
 }

@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -96,7 +95,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     @Override
     protected List<Version> bwcVersions() {
-        return AbstractBWCWireSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
+        return AbstractBWCSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
     }
 
     @Override

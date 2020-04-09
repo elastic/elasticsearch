@@ -19,56 +19,26 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.Page;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.InboundHandler;
-import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
     private final NioTcpChannel channel;
-    private final InboundPipeline pipeline;
+    private final TcpTransport transport;
 
-    public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
+    public TcpReadWriteHandler(NioTcpChannel channel, TcpTransport transport) {
         this.channel = channel;
-        final ThreadPool threadPool = transport.getThreadPool();
-        final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
-        final InboundHandler inboundHandler = transport.getInboundHandler();
-        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            breaker, inboundHandler::getRequestHandler, transport::inboundMessage);
+        this.transport = transport;
     }
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
-        Page[] pages = channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex());
-        BytesReference[] references = new BytesReference[pages.length];
-        for (int i = 0; i < pages.length; ++i) {
-            references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
-        }
-        Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {
-            pipeline.handleBytes(channel, reference);
-            return reference.length();
-        }
-    }
-
-    @Override
-    public void close() {
-        Releasables.closeWhileHandlingException(pipeline);
-        super.close();
+        BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+        return transport.consumeNetworkReads(channel, bytesReference);
     }
 }

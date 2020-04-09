@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -68,7 +69,8 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalMatrixStats createTestInstance(String name, Map<String, Object> metadata) {
+    protected InternalMatrixStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+                                                     Map<String, Object> metaData) {
         double[] values = new double[fields.length];
         for (int i = 0; i < fields.length; i++) {
             values[i] = randomDouble();
@@ -77,7 +79,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         RunningStats runningStats = new RunningStats();
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
-        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata);
+        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
     }
 
     @Override
@@ -91,7 +93,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         long docCount = instance.getDocCount();
         RunningStats runningStats = instance.getStats();
         MatrixStatsResults matrixStatsResults = instance.getResults();
-        Map<String, Object> metadata = instance.getMetadata();
+        Map<String, Object> metaData = instance.getMetaData();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -115,15 +117,15 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             break;
         case 3:
         default:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
             } else {
-                metadata = new HashMap<>(instance.getMetadata());
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
+            metaData.put(randomAlphaOfLength(15), randomInt());
             break;
         }
-        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, metadata);
+        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
     }
 
     @Override
@@ -147,14 +149,14 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
             runningStats.add(new String[]{"a", "b"}, new double[]{valueA, valueB});
             if (++valuePerShardCounter == valuesPerShard) {
-                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
+                shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyList(), Collections.emptyMap()));
                 runningStats = new RunningStats();
                 valuePerShardCounter = 0;
             }
         }
 
         if (valuePerShardCounter != 0) {
-            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyMap()));
+            shardResults.add(new InternalMatrixStats("_name", 1L, runningStats, null, Collections.emptyList(), Collections.emptyMap()));
         }
         MultiPassStats multiPassStats = new MultiPassStats("a", "b");
         multiPassStats.computeStats(aValues, bValues);

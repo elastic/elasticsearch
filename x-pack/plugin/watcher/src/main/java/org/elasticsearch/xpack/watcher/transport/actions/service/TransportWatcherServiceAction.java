@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 
@@ -73,15 +73,15 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                    ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {
             case STOP:
-                setWatcherMetadataAndWait(true, listener);
+                setWatcherMetaDataAndWait(true, listener);
                 break;
             case START:
-                setWatcherMetadataAndWait(false, listener);
+                setWatcherMetaDataAndWait(false, listener);
                 break;
         }
     }
 
-    private void setWatcherMetadataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
+    private void setWatcherMetaDataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
         clusterService.submitStateUpdateTask(source,
@@ -96,16 +96,16 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                     public ClusterState execute(ClusterState clusterState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-                        WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                        WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
+                        WatcherMetaData newWatcherMetaData = new WatcherMetaData(manuallyStopped);
+                        WatcherMetaData currentMetaData = clusterState.metaData().custom(WatcherMetaData.TYPE);
 
                         // adhere to the contract of returning the original state if nothing has changed
-                        if (newWatcherMetadata.equals(currentMetadata)) {
+                        if (newWatcherMetaData.equals(currentMetaData)) {
                             return clusterState;
                         } else {
                             ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                            builder.metadata(Metadata.builder(clusterState.getMetadata())
-                                    .putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
+                            builder.metaData(MetaData.builder(clusterState.getMetaData())
+                                    .putCustom(WatcherMetaData.TYPE, newWatcherMetaData));
                             return builder.build();
                         }
                     }

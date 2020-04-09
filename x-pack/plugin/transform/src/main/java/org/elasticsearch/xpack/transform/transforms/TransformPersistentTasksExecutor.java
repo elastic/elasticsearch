@@ -25,7 +25,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,7 +88,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetaData.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
@@ -98,7 +98,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
-            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+            return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
@@ -117,10 +117,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + "]";
 
             logger.debug(reason);
-            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+            return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
 
-        return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+        return new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
     public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
@@ -146,7 +146,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         // does the transform require a remote and remote is enabled?
-        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
+        if (params.requiresRemote() && Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR)) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
             }
@@ -392,7 +392,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask,
+        PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask,
         Map<String, String> headers
     ) {
         return new TransformTask(

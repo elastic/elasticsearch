@@ -26,8 +26,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -260,18 +260,18 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
     private ClusterState initCluster(AllocationService service, int numberOfNodes, int numberOfIndices, int numberOfShards,
                                      int numberOfReplicas) {
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
+            IndexMetaData.Builder index = IndexMetaData.builder("test" + i)
                 .settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
-            metadataBuilder = metadataBuilder.put(index);
+            metaDataBuilder = metaDataBuilder.put(index);
         }
 
-        Metadata metadata = metadataBuilder.build();
+        MetaData metaData = metaDataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             routingTableBuilder.addAsNew(cursor.value);
         }
 
@@ -283,7 +283,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
             nodes.add(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(initialRoutingTable).build();
         clusterState = service.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");
@@ -298,18 +298,18 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
     private ClusterState addIndex(ClusterState clusterState, AllocationService service, int indexOrdinal, int numberOfShards,
                                   int numberOfReplicas) {
-        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.getMetadata());
+        MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.getMetaData());
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
 
-        IndexMetadata.Builder index = IndexMetadata.builder("test" + indexOrdinal).settings(settings(Version.CURRENT))
+        IndexMetaData.Builder index = IndexMetaData.builder("test" + indexOrdinal).settings(settings(Version.CURRENT))
             .numberOfShards(numberOfShards).numberOfReplicas(
                 numberOfReplicas);
-        IndexMetadata imd = index.build();
-        metadataBuilder = metadataBuilder.put(imd, true);
+        IndexMetaData imd = index.build();
+        metaDataBuilder = metaDataBuilder.put(imd, true);
         routingTableBuilder.addAsNew(imd);
 
-        Metadata metadata = metadataBuilder.build();
-        clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        MetaData metaData = metaDataBuilder.build();
+        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTableBuilder.build()).build();
         clusterState = service.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");

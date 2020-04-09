@@ -24,21 +24,24 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
-public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFactory {
+public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource>
+        extends AggregatorFactory {
 
-    protected final Map<String, ValuesSourceConfig> configs;
+    protected final Map<String, ValuesSourceConfig<VS>> configs;
     protected final DocValueFormat format;
 
-    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
+    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
                                               DocValueFormat format, QueryShardContext queryShardContext,
                                               AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                              Map<String, Object> metaData) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.configs = configs;
         this.format = format;
     }
@@ -47,16 +50,21 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        Map<String, Object> metadata) throws IOException {
-        return doCreateInternal(searchContext, configs, format, parent, collectsFromSingleBucket, metadata);
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+
+        return doCreateInternal(searchContext, configs, format, parent,
+            collectsFromSingleBucket, pipelineAggregators, metaData);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    Map<String, Object> metadata) throws IOException;
+                                                    List<PipelineAggregator> pipelineAggregators,
+                                                    Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
+    protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig<VS>> configs,
                                                    DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
-                                                   Map<String, Object> metadata) throws IOException;
+                                                   List<PipelineAggregator> pipelineAggregators,
+                                                   Map<String, Object> metaData) throws IOException;
 
 }

@@ -20,57 +20,50 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory {
+final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final MultiValueMode multiValueMode;
 
     MatrixStatsAggregatorFactory(String name,
-                                    Map<String, ValuesSourceConfig> configs,
+                                    Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs,
                                     MultiValueMode multiValueMode,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
-        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                    Map<String, Object> metaData) throws IOException {
+        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.multiValueMode = multiValueMode;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            Map<String, Object> metadata)
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, metadata);
+        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
+    protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
-        Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
-        for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
-            if (entry.getValue() instanceof ValuesSource.Numeric == false) {
-                throw new AggregationExecutionException("ValuesSource type " + entry.getValue().toString() +
-                    "is not supported for aggregation " + this.name());
-            }
-            // TODO: There must be a better option than this.
-            typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());
-        }
-        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metadata);
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new MatrixStatsAggregator(name, valuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
     }
 }

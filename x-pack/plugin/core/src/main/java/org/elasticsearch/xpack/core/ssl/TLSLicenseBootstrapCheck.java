@@ -19,7 +19,7 @@ public final class TLSLicenseBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         if (XPackSettings.TRANSPORT_SSL_ENABLED.get(context.settings()) == false) {
-            License license = LicenseService.getLicense(context.metadata());
+            License license = LicenseService.getLicense(context.metaData());
             if (XPackLicenseState.isTransportTlsRequired(license, context.settings())) {
                 return BootstrapCheckResult.failure("Transport SSL must be enabled if security is enabled on a [" +
                     license.operationMode().description() + "] license. " +

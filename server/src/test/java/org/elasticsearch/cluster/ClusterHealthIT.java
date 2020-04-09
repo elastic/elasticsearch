@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -155,7 +155,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
 
         createIndex("index-3", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 50)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 50)
             .build());
         assertAcked(client().admin().indices().prepareClose("index-3"));
 
@@ -227,7 +227,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("index-3")
             .setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas())
                 .build()));
         {
             ClusterHealthResponse response = client().admin().cluster().prepareHealth()
@@ -303,8 +303,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
         // without exceptions
         for (int i = 0; i < 20; ++i) {
-            responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForGreenStatus().execute());
+            responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute());
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {

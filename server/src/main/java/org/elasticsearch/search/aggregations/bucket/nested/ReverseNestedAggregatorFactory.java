@@ -26,9 +26,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class ReverseNestedAggregatorFactory extends AggregatorFactory {
@@ -39,8 +41,8 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
     public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
                                           QueryShardContext queryShardContext, AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactories,
-                                          Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+                                          Map<String, Object> metaData) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metaData);
         this.unmapped = unmapped;
         this.parentObjectMapper = parentObjectMapper;
     }
@@ -49,12 +51,13 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        Map<String, Object> metadata) throws IOException {
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
         if (unmapped) {
-            return new Unmapped(name, searchContext, parent, metadata);
+            return new Unmapped(name, searchContext, parent, pipelineAggregators, metaData);
         } else {
             return new ReverseNestedAggregator(name, factories, parentObjectMapper,
-                searchContext, parent, metadata);
+                searchContext, parent, pipelineAggregators, metaData);
         }
     }
 
@@ -63,13 +66,14 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
         Unmapped(String name,
                     SearchContext context,
                     Aggregator parent,
-                    Map<String, Object> metadata) throws IOException {
-            super(name, context, parent, metadata);
+                    List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
+            super(name, context, parent, pipelineAggregators, metaData);
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metadata());
+            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
         }
     }
 }

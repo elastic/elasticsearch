@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -56,7 +57,7 @@ public class SerialDiffIT extends ESIntegTestCase {
     static int numBuckets;
     static int lag;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> metric;
+    static ValuesSourceAggregationBuilder<? extends ValuesSource, ? extends ValuesSourceAggregationBuilder<?, ?>> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -76,8 +77,8 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceAggregationBuilder<
-        ? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
+    private ValuesSourceAggregationBuilder<? extends ValuesSource,
+        ? extends ValuesSourceAggregationBuilder<?, ?>> randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {

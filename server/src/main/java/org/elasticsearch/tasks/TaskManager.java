@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tasks;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -35,8 +33,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -58,8 +53,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -140,19 +133,12 @@ public class TaskManager implements ClusterStateApplier {
     public <Request extends ActionRequest, Response extends ActionResponse>
     Task registerAndExecute(String type, TransportAction<Request, Response> action, Request request,
                             BiConsumer<Task, Response> onResponse, BiConsumer<Task, Exception> onFailure) {
-        final Releasable unregisterChildNode;
-        if (request.getParentTask().isSet()) {
-            unregisterChildNode = registerChildNode(request.getParentTask().getId(), lastDiscoveryNodes.getLocalNode());
-        } else {
-            unregisterChildNode = () -> {};
-        }
         Task task = register(type, action.actionName, request);
         // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
         action.execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
-                    unregisterChildNode.close();
                     unregister(task);
                 } finally {
                     onResponse.accept(task, response);
@@ -162,7 +148,7 @@ public class TaskManager implements ClusterStateApplier {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                    unregister(task);
                 } finally {
                     onFailure.accept(task, e);
                 }
@@ -176,14 +162,13 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
         assert oldHolder == null;
-        // Check if this task was banned before we start it. The empty check is used to avoid
-        // computing the hash code of the parent taskId as most of the time banedParents is empty.
+        // Check if this task was banned before we start it
         if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
             String reason = banedParents.get(task.getParentTaskId());
             if (reason != null) {
                 try {
                     holder.cancel(reason);
-                    throw new TaskCancelledException("Task cancelled before it started: " + reason);
+                    throw new IllegalStateException("Task cancelled before it started: " + reason);
                 } finally {
                     // let's clean up the registration
                     unregister(task);
@@ -195,18 +180,18 @@ public class TaskManager implements ClusterStateApplier {
     /**
      * Cancels a task
      * <p>
+     * Returns true if cancellation was started successful, null otherwise.
+     *
      * After starting cancellation on the parent task, the task manager tries to cancel all children tasks
      * of the current task. Once cancellation of the children tasks is done, the listener is triggered.
-     * If the task is completed or unregistered from TaskManager, then the listener is called immediately.
      */
-    public void cancel(CancellableTask task, String reason, Runnable listener) {
+    public boolean cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
         if (holder != null) {
             logger.trace("cancelling task with id {}", task.getId());
-            holder.cancel(reason, listener);
-        } else {
-            listener.run();
+            return holder.cancel(reason, listener);
         }
+        return false;
     }
 
     /**
@@ -225,19 +210,6 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             return tasks.remove(task.getId());
         }
-    }
-
-    /**
-     * Register a node on which a child task will execute. The returned {@link Releasable} must be called
-     * to unregister the child node once the child task is completed or failed.
-     */
-    public Releasable registerChildNode(long taskId, DiscoveryNode node) {
-        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
-        if (holder != null) {
-            holder.registerChildNode(node);
-            return Releasables.releaseOnce(() -> holder.unregisterChildNode(node));
-        }
-        return () -> {};
     }
 
     /**
@@ -366,9 +338,8 @@ public class TaskManager implements ClusterStateApplier {
      * Bans all tasks with the specified parent task from execution, cancels all tasks that are currently executing.
      * <p>
      * This method is called when a parent task that has children is cancelled.
-     * @return a list of pending cancellable child tasks
      */
-    public List<CancellableTask> setBan(TaskId parentTaskId, String reason) {
+    public void setBan(TaskId parentTaskId, String reason) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
 
         // Set the ban first, so the newly created tasks cannot be registered
@@ -378,10 +349,14 @@ public class TaskManager implements ClusterStateApplier {
                 banedParents.put(parentTaskId, reason);
             }
         }
-        return cancellableTasks.values().stream()
-            .filter(t -> t.hasParent(parentTaskId))
-            .map(t -> t.task)
-            .collect(Collectors.toUnmodifiableList());
+
+        // Now go through already running tasks and cancel them
+        for (Map.Entry<Long, CancellableTaskHolder> taskEntry : cancellableTasks.entrySet()) {
+            CancellableTaskHolder holder = taskEntry.getValue();
+            if (holder.hasParent(parentTaskId)) {
+                holder.cancel(reason);
+            }
+        }
     }
 
     /**
@@ -392,28 +367,6 @@ public class TaskManager implements ClusterStateApplier {
     public void removeBan(TaskId parentTaskId) {
         logger.trace("removing ban for the parent task {}", parentTaskId);
         banedParents.remove(parentTaskId);
-    }
-
-    // for testing
-    public Set<TaskId> getBannedTaskIds() {
-        return Collections.unmodifiableSet(banedParents.keySet());
-    }
-
-    /**
-     * Start rejecting new child requests as the parent task was cancelled.
-     *
-     * @param taskId                the parent task id
-     * @param onChildTasksCompleted called when all child tasks are completed or failed
-     * @return the set of current nodes that have outstanding child tasks
-     */
-    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
-        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
-        if (holder != null) {
-            return holder.startBan(onChildTasksCompleted);
-        } else {
-            onChildTasksCompleted.run();
-            return Collections.emptySet();
-        }
     }
 
     @Override
@@ -465,76 +418,74 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     private static class CancellableTaskHolder {
+
+        private static final String TASK_FINISHED_MARKER = "task finished";
+
         private final CancellableTask task;
-        private boolean finished = false;
-        private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
-        private boolean banChildren = false;
-        private List<Runnable> childTaskCompletedListeners = null;
+
+        private volatile String cancellationReason = null;
+
+        private volatile Runnable cancellationListener = null;
 
         CancellableTaskHolder(CancellableTask task) {
             this.task = task;
         }
 
-        void cancel(String reason, Runnable listener) {
-            final Runnable toRun;
+        /**
+         * Marks task as cancelled.
+         * <p>
+         * Returns true if cancellation was successful, false otherwise.
+         */
+        public boolean cancel(String reason, Runnable listener) {
+            final boolean cancelled;
             synchronized (this) {
-                if (finished) {
-                    assert cancellationListeners == null;
-                    toRun = listener;
+                assert reason != null;
+                if (cancellationReason == null) {
+                    cancellationReason = reason;
+                    cancellationListener = listener;
+                    cancelled = true;
                 } else {
-                    toRun = () -> {};
-                    if (listener != null) {
-                        if (cancellationListeners == null) {
-                            cancellationListeners = new ArrayList<>();
-                        }
-                        cancellationListeners.add(listener);
-                    }
+                    // Already cancelled by somebody else
+                    cancelled = false;
                 }
             }
-            try {
+            if (cancelled) {
                 task.cancel(reason);
-            } finally {
-                if (toRun != null) {
-                    toRun.run();
-                }
             }
+            return cancelled;
         }
 
-        void cancel(String reason) {
-            task.cancel(reason);
+        /**
+         * Marks task as cancelled.
+         * <p>
+         * Returns true if cancellation was successful, false otherwise.
+         */
+        public boolean cancel(String reason) {
+            return cancel(reason, null);
         }
 
         /**
          * Marks task as finished.
          */
         public void finish() {
-            final List<Runnable> listeners;
+            Runnable listener = null;
             synchronized (this) {
-                this.finished = true;
-                if (cancellationListeners != null) {
-                    listeners = cancellationListeners;
-                    cancellationListeners = null;
+                if (cancellationReason != null) {
+                    // The task was cancelled, we need to notify the listener
+                    if (cancellationListener != null) {
+                        listener = cancellationListener;
+                        cancellationListener = null;
+                    }
                 } else {
-                    listeners = Collections.emptyList();
+                    cancellationReason = TASK_FINISHED_MARKER;
                 }
             }
             // We need to call the listener outside of the synchronised section to avoid potential bottle necks
             // in the listener synchronization
-            notifyListeners(listeners);
-        }
-
-        private void notifyListeners(List<Runnable> listeners) {
-            assert Thread.holdsLock(this) == false;
-            Exception rootException = null;
-            for (Runnable listener : listeners) {
-                try {
-                    listener.run();
-                } catch (RuntimeException inner) {
-                    rootException = ExceptionsHelper.useOrSuppress(rootException, inner);
-                }
+            if (listener != null) {
+                listener.run();
             }
-            ExceptionsHelper.reThrowIfNotNull(rootException);
+
         }
 
         public boolean hasParent(TaskId parentTaskId) {
@@ -543,58 +494,6 @@ public class TaskManager implements ClusterStateApplier {
 
         public CancellableTask getTask() {
             return task;
-        }
-
-        synchronized void registerChildNode(DiscoveryNode node) {
-            if (banChildren) {
-                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
-            }
-            if (childTasksPerNode == null) {
-                childTasksPerNode = new ObjectIntHashMap<>();
-            }
-            childTasksPerNode.addTo(node, 1);
-        }
-
-        void unregisterChildNode(DiscoveryNode node) {
-            final List<Runnable> listeners;
-            synchronized (this) {
-                if (childTasksPerNode.addTo(node, -1) == 0) {
-                    childTasksPerNode.remove(node);
-                }
-                if (childTasksPerNode.isEmpty() && this.childTaskCompletedListeners != null) {
-                    listeners = childTaskCompletedListeners;
-                    childTaskCompletedListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
-                }
-            }
-            notifyListeners(listeners);
-        }
-
-        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
-            final Set<DiscoveryNode> pendingChildNodes;
-            final Runnable toRun;
-            synchronized (this) {
-                banChildren = true;
-                if (childTasksPerNode == null) {
-                    pendingChildNodes = Collections.emptySet();
-                } else {
-                    pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
-                        .map(e -> e.key).collect(Collectors.toUnmodifiableSet());
-                }
-                if (pendingChildNodes.isEmpty()) {
-                    assert childTaskCompletedListeners == null;
-                    toRun = onChildTasksCompleted;
-                } else {
-                    toRun = () -> {};
-                    if (childTaskCompletedListeners == null) {
-                        childTaskCompletedListeners = new ArrayList<>();
-                    }
-                    childTaskCompletedListeners.add(onChildTasksCompleted);
-                }
-            }
-            toRun.run();
-            return pendingChildNodes;
         }
     }
 

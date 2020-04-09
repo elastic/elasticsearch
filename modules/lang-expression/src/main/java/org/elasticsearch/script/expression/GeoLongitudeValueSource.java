@@ -40,7 +40,7 @@ final class GeoLongitudeValueSource extends FieldDataBasedDoubleValuesSource {
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
         final MultiGeoPointValues values = leafData.getGeoPointValues();
-        return new DoubleValues() {
+        return DoubleValues.withDefault(new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
                 return values.nextValue().getLon();
@@ -50,7 +50,7 @@ final class GeoLongitudeValueSource extends FieldDataBasedDoubleValuesSource {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
-        };
+        }, 0.0);
     }
 
     @Override

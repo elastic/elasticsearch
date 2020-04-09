@@ -65,6 +65,7 @@ public class PSubCallInvoke extends AExpression {
             argumentOutputs.add(expressionOutput);
         }
 
+        output.statement = true;
         output.actual = method.returnType;
 
         CallSubNode callSubNode = new CallSubNode();
@@ -81,5 +82,10 @@ public class PSubCallInvoke extends AExpression {
         output.expressionNode = callSubNode;
 
         return output;
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, method.javaMethod.getName());
     }
 }

@@ -183,8 +183,8 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter(), gapPolicy, metadata);
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+        return new BucketScriptPipelineAggregator(name, bucketsPathsMap, script, formatter(), gapPolicy, metaData);
     }
 
     @Override
@@ -200,7 +200,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
     @Override
     protected void validate(ValidationContext context) {
-        context.validateHasParent(NAME, name);
+        // Nothing to check
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -53,7 +54,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -67,7 +67,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +77,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
 
         public NodeRequest(StreamInput in) throws IOException {
@@ -309,9 +308,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Check task counts using taskManager
         Map<Long, Task> localTasks = testNodes[0].transportService.getTaskManager().getTasks();
-        logger.info("local tasks [{}]", localTasks.values().stream()
-            .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true)))
-            .collect(Collectors.joining(",")));
         assertEquals(2, localTasks.size()); // all node tasks + 1 coordinating task
         Task coordinatingTask = localTasks.get(Collections.min(localTasks.keySet()));
         Task subTask = localTasks.get(Collections.max(localTasks.keySet()));

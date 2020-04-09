@@ -1,8 +1,7 @@
 {
   "ml.get_records":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-record.html",
-      "description":"Retrieves anomaly records for an anomaly detection job."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-record.html"
     },
     "stability":"stable",
     "url":{
@@ -15,8 +14,7 @@
           ],
           "parts":{
             "job_id":{
-              "type":"string",
-              "description":"The ID of the job"
+              "type":"string"
             }
           }
         }
@@ -44,8 +42,7 @@
         "description":"End time filter for records"
       },
       "record_score":{
-        "type":"double",
-        "description":"Returns records with anomaly scores greater or equal than this value"
+        "type":"double"
       },
       "sort":{
         "type":"string",

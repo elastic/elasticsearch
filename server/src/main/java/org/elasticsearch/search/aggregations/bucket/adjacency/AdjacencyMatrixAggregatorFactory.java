@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,8 +43,8 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
 
     public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator,
                                             QueryShardContext queryShardContext, AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+                                            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metaData);
         IndexSearcher contextSearcher = queryShardContext.searcher();
         this.separator = separator;
         weights = new Weight[filters.size()];
@@ -60,8 +61,10 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        Map<String, Object> metadata) throws IOException {
-        return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent, metadata);
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+        return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent,
+                pipelineAggregators, metaData);
     }
 
 }

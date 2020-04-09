@@ -291,13 +291,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     public void testManuallyStopped() throws Exception {
         WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
-        assertThat(response.watcherMetadata().manuallyStopped(), is(false));
+        assertThat(response.watcherMetaData().manuallyStopped(), is(false));
         stopWatcher();
         response = new WatcherStatsRequestBuilder(client()).get();
-        assertThat(response.watcherMetadata().manuallyStopped(), is(true));
+        assertThat(response.watcherMetaData().manuallyStopped(), is(true));
         startWatcher();
         response = new WatcherStatsRequestBuilder(client()).get();
-        assertThat(response.watcherMetadata().manuallyStopped(), is(false));
+        assertThat(response.watcherMetaData().manuallyStopped(), is(false));
     }
 
     public void testWatchRecordSavedTwice() throws Exception {

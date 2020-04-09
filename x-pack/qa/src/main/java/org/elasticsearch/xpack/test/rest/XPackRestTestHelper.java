@@ -43,7 +43,6 @@ public final class XPackRestTestHelper {
         assertBusy(() -> {
             Request request = new Request("GET", "/_cat/nodes");
             request.addParameter("h", "master,version");
-            request.addParameter("error_trace", "true");
             String response = EntityUtils.toString(client.performRequest(request).getEntity());
 
             for (String line : response.split("\n")) {
@@ -57,7 +56,6 @@ public final class XPackRestTestHelper {
 
         assertBusy(() -> {
             final Request request = new Request("GET", "_template");
-            request.addParameter("error_trace", "true");
 
             String string = EntityUtils.toString(client.performRequest(request).getEntity());
             Map<String, Object> response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);

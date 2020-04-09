@@ -23,7 +23,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -46,7 +45,6 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private final NodeClient nodeClient;
     private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
-    private final ThreadContext threadContext;
     private final AsyncSearchIndexService store;
 
     @Inject
@@ -62,8 +60,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.nodeClient = nodeClient;
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
-        this.threadContext = transportService.getThreadPool().getThreadContext();
-        this.store = new AsyncSearchIndexService(clusterService, threadContext, client, registry);
+        this.store = new AsyncSearchIndexService(clusterService, transportService.getThreadPool().getThreadContext(), client, registry);
     }
 
     @Override
@@ -76,7 +73,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
-                    if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
+                    if (searchResponse.isRunning() || request.isCleanOnCompletion() == false) {
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {
@@ -129,7 +126,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     submitListener.onFailure(exc);
                 }
-            }, request.getWaitForCompletionTimeout());
+            }, request.getWaitForCompletion());
     }
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, CancellableTask submitTask, TimeValue keepAlive) {
@@ -182,24 +179,23 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
 
         try {
-            store.storeFinalResponse(searchTask.getSearchId().getDocId(), threadContext.getResponseHeaders(), response,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        taskManager.unregister(searchTask);
-                        nextAction.run();
-                    }
+            store.storeFinalResponse(searchTask.getSearchId().getDocId(), response, new ActionListener<>() {
+                @Override
+                public void onResponse(UpdateResponse updateResponse) {
+                    taskManager.unregister(searchTask);
+                    nextAction.run();
+                }
 
-                    @Override
-                    public void onFailure(Exception exc) {
-                        if (exc.getCause() instanceof DocumentMissingException == false) {
-                            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                                searchTask.getSearchId().getEncoded()), exc);
-                        }
-                        taskManager.unregister(searchTask);
-                        nextAction.run();
+                @Override
+                public void onFailure(Exception exc) {
+                    if (exc.getCause() instanceof DocumentMissingException == false) {
+                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
+                            searchTask.getSearchId().getEncoded()), exc);
                     }
-                });
+                    taskManager.unregister(searchTask);
+                    nextAction.run();
+                }
+            });
         } catch (Exception exc) {
             logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getSearchId().getEncoded()), exc);
             taskManager.unregister(searchTask);

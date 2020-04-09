@@ -24,6 +24,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -42,19 +43,20 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
     }
 
     @Override
-    protected InternalExtendedStats createTestInstance(String name, Map<String, Object> metadata) {
+    protected InternalExtendedStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;
         double min = randomDoubleBetween(-1000000, 1000000, true);
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true), sigma, format, metadata);
+        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true),
+                sigma, format, pipelineAggregators, metaData);
     }
 
     protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double sigma, DocValueFormat formatter, Map<String, Object> metadata) {
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
-
+            double sigma, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -125,7 +127,8 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         double sumOfSqrs = instance.getSumOfSquares();
         double sigma = instance.getSigma();
         DocValueFormat formatter = instance.format;
-        Map<String, Object> metadata = instance.getMetadata();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
         switch (between(0, 7)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -173,17 +176,17 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             }
             break;
         case 7:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
             } else {
-                metadata = new HashMap<>(instance.getMetadata());
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
+            metaData.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }
 
     public void testSummationAccuracy() {
@@ -219,9 +222,9 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         double sigma = randomDouble();
         for (double sumOfSqrs : values) {
-            aggregations.add(new InternalExtendedStats("dummy1", 1, 0.0, 0.0, 0.0, sumOfSqrs, sigma, null, null));
+            aggregations.add(new InternalExtendedStats("dummy1", 1, 0.0, 0.0, 0.0, sumOfSqrs, sigma, null, null, null));
         }
-        InternalExtendedStats stats = new InternalExtendedStats("dummy", 1, 0.0, 0.0, 0.0, 0.0, sigma, null, null);
+        InternalExtendedStats stats = new InternalExtendedStats("dummy", 1, 0.0, 0.0, 0.0, 0.0, sigma, null, null, null);
         InternalExtendedStats reduced = stats.reduce(aggregations, null);
         assertEquals(expectedSumOfSqrs, reduced.getSumOfSquares(), delta);
     }

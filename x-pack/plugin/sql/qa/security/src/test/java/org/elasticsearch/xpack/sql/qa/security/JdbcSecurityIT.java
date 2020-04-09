@@ -255,7 +255,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     }
 
     // Metadata methods only available to JDBC
-    public void testMetadataGetTablesWithFullAccess() throws Exception {
+    public void testMetaDataGetTablesWithFullAccess() throws Exception {
         createUser("full_access", "cli_or_drivers_minimal");
 
         expectActionMatchesAdmin(
@@ -264,13 +264,13 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getTables("%", "%", "%", null));
     }
 
-    public void testMetadataGetTablesWithNoAccess() throws Exception {
+    public void testMetaDataGetTablesWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         expectForbidden("no_access", con -> con.getMetaData().getTables("%", "%", "%", null));
     }
 
-    public void testMetadataGetTablesWithLimitedAccess() throws Exception {
+    public void testMetaDataGetTablesWithLimitedAccess() throws Exception {
         createUser("read_bort", "read_bort");
 
         expectActionMatchesAdmin(
@@ -279,7 +279,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getTables("%", "%", "%", null));
     }
 
-    public void testMetadataGetTablesWithInAccessibleIndex() throws Exception {
+    public void testMetaDataGetTablesWithInAccessibleIndex() throws Exception {
         createUser("read_bort", "read_bort");
 
         expectActionMatchesAdmin(
@@ -288,7 +288,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getTables("%", "%", "test", null));
     }
 
-    public void testMetadataGetColumnsWorksAsFullAccess() throws Exception {
+    public void testMetaDataGetColumnsWorksAsFullAccess() throws Exception {
         createUser("full_access", "cli_or_drivers_minimal");
 
         expectActionMatchesAdmin(
@@ -297,13 +297,13 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                 con -> con.getMetaData().getColumns(null, "%", "%t", "%"));
     }
 
-    public void testMetadataGetColumnsWithNoAccess() throws Exception {
+    public void testMetaDataGetColumnsWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         expectForbidden("no_access", con -> con.getMetaData().getColumns("%", "%", "%", "%"));
     }
 
-    public void testMetadataGetColumnsWithWrongAccess() throws Exception {
+    public void testMetaDataGetColumnsWithWrongAccess() throws Exception {
         createUser("wrong_access", "read_something_else");
 
         expectActionMatchesAdmin(
@@ -312,7 +312,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                 con -> con.getMetaData().getColumns(null, "%", "test", "%"));
     }
 
-    public void testMetadataGetColumnsSingleFieldGranted() throws Exception {
+    public void testMetaDataGetColumnsSingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
         expectActionMatchesAdmin(
@@ -321,7 +321,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                 con -> con.getMetaData().getColumns(null, "%", "test", "%"));
     }
 
-    public void testMetadataGetColumnsSingleFieldExcepted() throws Exception {
+    public void testMetaDataGetColumnsSingleFieldExcepted() throws Exception {
         createUser("not_c", "read_test_a_and_b");
 
         /* Since there is no easy way to get a result from the admin side with
@@ -339,7 +339,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
     }
 
-    public void testMetadataGetColumnsDocumentExcluded() throws Exception {
+    public void testMetaDataGetColumnsDocumentExcluded() throws Exception {
         createUser("no_3s", "read_test_without_c_3");
 
         expectActionMatchesAdmin(

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,8 +126,9 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     // bucketMap gets lazily initialized from buckets in getBucketByKey()
     private transient Map<String, InternalBucket> bucketMap;
 
-    public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-        super(name, metadata);
+    public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
         this.keyed = keyed;
     }
@@ -162,7 +164,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public InternalFilters create(List<InternalBucket> buckets) {
-        return new InternalFilters(name, buckets, keyed, metadata);
+        return new InternalFilters(this.name, buckets, this.keyed, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -207,7 +209,8 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
 
         reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, getMetadata());
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, pipelineAggregators(),
+                getMetaData());
         for (List<InternalBucket> sameRangeList : bucketsList) {
             reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
         }

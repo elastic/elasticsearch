@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -36,22 +37,16 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         return result;
     }
 
-    @Override
-    protected InternalStringStats createTestInstance(String name, Map<String, Object> metadata) {
+    protected InternalStringStats createTestInstance(
+            String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         if (randomBoolean()) {
-            return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW, metadata);
+            return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW,
+                    pipelineAggregators, metaData);
         }
-        /*
-         * Pick random count and length that are *much* less than
-         * Long.MAX_VALUE because reduction adds them together and sometimes
-         * serializes them and that serialization would fail if the sum has
-         * wrapped to a negative number.
-         */
-        long count = randomLongBetween(1, Integer.MAX_VALUE);
-        long totalLength = randomLongBetween(0, count * 10);
-        return new InternalStringStats(name, count, totalLength,
-                between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
-                randomBoolean(), DocValueFormat.RAW, metadata);
+        return new InternalStringStats(name, randomLongBetween(1, Long.MAX_VALUE),
+                randomNonNegativeLong(), between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
+                randomBoolean(), DocValueFormat.RAW,
+                pipelineAggregators, metaData);
     };
 
     @Override
@@ -87,7 +82,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
              break;
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
-                DocValueFormat.RAW, instance.getMetadata());
+                DocValueFormat.RAW, instance.pipelineAggregators(), instance.getMetaData());
     }
 
     @Override

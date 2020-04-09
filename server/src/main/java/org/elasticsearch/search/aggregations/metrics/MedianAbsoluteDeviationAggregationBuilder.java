@@ -29,13 +29,12 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,29 +49,25 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     public static final ObjectParser<MedianAbsoluteDeviationAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, MedianAbsoluteDeviationAggregationBuilder::new);
     static {
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
         PARSER.declareDouble(MedianAbsoluteDeviationAggregationBuilder::compression, COMPRESSION_FIELD);
-    }
-
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MedianAbsoluteDeviationAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     private double compression = 1000d;
 
     public MedianAbsoluteDeviationAggregationBuilder(String name) {
-        super(name);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         compression = in.readDouble();
     }
 
     protected MedianAbsoluteDeviationAggregationBuilder(MedianAbsoluteDeviationAggregationBuilder clone,
                                                         AggregatorFactories.Builder factoriesBuilder,
-                                                        Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                                        Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.compression = clone.compression;
     }
 
@@ -96,13 +91,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metadata);
-    }
-
-    @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     @Override
@@ -111,13 +101,13 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder)
+    protected ValuesSourceAggregatorFactory<ValuesSource.Numeric> innerBuild(QueryShardContext queryShardContext,
+                                                                             ValuesSourceConfig<ValuesSource.Numeric> config,
+                                                                             AggregatorFactory parent,
+                                                                             AggregatorFactories.Builder subFactoriesBuilder)
         throws IOException {
         return new MedianAbsoluteDeviationAggregatorFactory(name, config, queryShardContext,
-            parent, subFactoriesBuilder, metadata, compression);
+            parent, subFactoriesBuilder, metaData, compression);
     }
 
     @Override

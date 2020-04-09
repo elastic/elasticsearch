@@ -98,7 +98,7 @@ public class RetentionLeasesTests extends ESTestCase {
         }
     }
 
-    public void testRetentionLeasesMetadataStateFormat() throws IOException {
+    public void testRetentionLeasesMetaDataStateFormat() throws IOException {
         final Path path = createTempDir();
         final RetentionLeases retentionLeases = randomRetentionLeases(true);
         RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, path);

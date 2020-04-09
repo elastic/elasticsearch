@@ -55,12 +55,12 @@ public class NodesStatsRequestBuilder
     }
 
     public NodesStatsRequestBuilder setBreaker(boolean breaker) {
-        addOrRemoveMetric(breaker, NodesStatsRequest.Metric.BREAKER);
+        request.breaker(breaker);
         return this;
     }
 
     public NodesStatsRequestBuilder setScript(boolean script) {
-        addOrRemoveMetric(script, NodesStatsRequest.Metric.SCRIPT);
+        request.script(script);
         return this;
     }
 
@@ -76,7 +76,7 @@ public class NodesStatsRequestBuilder
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setOs(boolean os) {
-        addOrRemoveMetric(os, NodesStatsRequest.Metric.OS);
+        request.os(os);
         return this;
     }
 
@@ -84,7 +84,7 @@ public class NodesStatsRequestBuilder
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setProcess(boolean process) {
-        addOrRemoveMetric(process, NodesStatsRequest.Metric.PROCESS);
+        request.process(process);
         return this;
     }
 
@@ -92,7 +92,7 @@ public class NodesStatsRequestBuilder
      * Should the node JVM stats be returned.
      */
     public NodesStatsRequestBuilder setJvm(boolean jvm) {
-        addOrRemoveMetric(jvm, NodesStatsRequest.Metric.JVM);
+        request.jvm(jvm);
         return this;
     }
 
@@ -100,7 +100,7 @@ public class NodesStatsRequestBuilder
      * Should the node thread pool stats be returned.
      */
     public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, NodesStatsRequest.Metric.THREAD_POOL);
+        request.threadPool(threadPool);
         return this;
     }
 
@@ -108,7 +108,7 @@ public class NodesStatsRequestBuilder
      * Should the node file system stats be returned.
      */
     public NodesStatsRequestBuilder setFs(boolean fs) {
-        addOrRemoveMetric(fs, NodesStatsRequest.Metric.FS);
+        request.fs(fs);
         return this;
     }
 
@@ -116,7 +116,7 @@ public class NodesStatsRequestBuilder
      * Should the node Transport stats be returned.
      */
     public NodesStatsRequestBuilder setTransport(boolean transport) {
-        addOrRemoveMetric(transport, NodesStatsRequest.Metric.TRANSPORT);
+        request.transport(transport);
         return this;
     }
 
@@ -124,7 +124,7 @@ public class NodesStatsRequestBuilder
      * Should the node HTTP stats be returned.
      */
     public NodesStatsRequestBuilder setHttp(boolean http) {
-        addOrRemoveMetric(http, NodesStatsRequest.Metric.HTTP);
+        request.http(http);
         return this;
     }
 
@@ -132,7 +132,7 @@ public class NodesStatsRequestBuilder
      * Should the discovery stats be returned.
      */
     public NodesStatsRequestBuilder setDiscovery(boolean discovery) {
-        addOrRemoveMetric(discovery, NodesStatsRequest.Metric.DISCOVERY);
+        request.discovery(discovery);
         return this;
     }
 
@@ -140,32 +140,13 @@ public class NodesStatsRequestBuilder
      * Should ingest statistics be returned.
      */
     public NodesStatsRequestBuilder setIngest(boolean ingest) {
-        addOrRemoveMetric(ingest, NodesStatsRequest.Metric.INGEST);
+        request.ingest(ingest);
         return this;
     }
 
     public NodesStatsRequestBuilder setAdaptiveSelection(boolean adaptiveSelection) {
-        addOrRemoveMetric(adaptiveSelection, NodesStatsRequest.Metric.ADAPTIVE_SELECTION);
+        request.adaptiveSelection(adaptiveSelection);
         return this;
-    }
-
-    /**
-     * Should script context cache statistics be returned
-     */
-    public NodesStatsRequestBuilder setScriptCache(boolean scriptCache) {
-        addOrRemoveMetric(scriptCache, NodesStatsRequest.Metric.SCRIPT_CACHE);
-        return this;
-    }
-
-    /**
-     * Helper method for adding metrics to a request
-     */
-    private void addOrRemoveMetric(boolean includeMetric, NodesStatsRequest.Metric metric) {
-        if (includeMetric) {
-            request.addMetric(metric.metricName());
-        } else {
-            request.removeMetric(metric.metricName());
-        }
     }
 
 }

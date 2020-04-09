@@ -66,10 +66,6 @@ public class PField extends AStoreable {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        if (input.read == false && input.write == false) {
-            throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
-        }
-
         Output output = new Output();
 
         Input prefixInput = new Input();
@@ -156,5 +152,13 @@ public class PField extends AStoreable {
     @Override
     boolean isDefOptimized() {
         return isDefOptimized;
+    }
+
+    @Override
+    public String toString() {
+        if (nullSafe) {
+            return singleLineToString("nullSafe", prefix, value);
+        }
+        return singleLineToString(prefix, value);
     }
 }

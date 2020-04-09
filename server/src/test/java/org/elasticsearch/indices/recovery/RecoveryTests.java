@@ -32,7 +32,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -101,12 +101,12 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 (indexShard, node) -> new RecoveryDuringReplicationTests.BlockingTarget(RecoveryState.Stage.TRANSLOG,
                     recoveryBlocked, releaseRecovery, indexShard, node, recoveryListener, logger));
             recoveryBlocked.await();
-            IndexMetadata.Builder builder = IndexMetadata.builder(replica.indexSettings().getIndexMetadata());
+            IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
             builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
                 // force a roll and flush
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
             );
-            replica.indexSettings().updateIndexMetadata(builder.build());
+            replica.indexSettings().updateIndexMetaData(builder.build());
             replica.onSettingsChanged();
             releaseRecovery.countDown();
             future.get();
@@ -156,10 +156,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     logger.info("--> flushing shard (translog/soft-deletes will be trimmed)");
-                    IndexMetadata.Builder builder = IndexMetadata.builder(orgReplica.indexSettings().getIndexMetadata());
+                    IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
                     builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
                         .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
-                    orgReplica.indexSettings().updateIndexMetadata(builder.build());
+                    orgReplica.indexSettings().updateIndexMetaData(builder.build());
                     orgReplica.onSettingsChanged();
                 }
                 flushShard(orgReplica);
@@ -263,7 +263,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             }
         }
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
-        updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
+        updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetaData());
         recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
@@ -271,10 +271,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
             @Override
-            public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
+            public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
                                    ActionListener<Void> listener) {
                 assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
-                super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener);
+                super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, listener);
             }
         }, true, true);
         List<IndexCommit> commits = DirectoryReader.listCommits(replicaShard.store().directory());
@@ -333,12 +333,12 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.flush();
 
             final IndexShard replica = shards.addReplica();
-            IndexMetadata.Builder builder = IndexMetadata.builder(replica.indexSettings().getIndexMetadata());
+            IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
             long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, translogSizeOnPrimary);
             builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")
             );
-            replica.indexSettings().updateIndexMetadata(builder.build());
+            replica.indexSettings().updateIndexMetaData(builder.build());
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
@@ -351,7 +351,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
     public void testFailsToIndexDuringPeerRecovery() throws Exception {
         AtomicReference<IOException> throwExceptionDuringIndexing = new AtomicReference<>(new IOException("simulated"));
-        try (ReplicationGroup group = new ReplicationGroup(buildIndexMetadata(0)) {
+        try (ReplicationGroup group = new ReplicationGroup(buildIndexMetaData(0)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 if (routing.primary()) {

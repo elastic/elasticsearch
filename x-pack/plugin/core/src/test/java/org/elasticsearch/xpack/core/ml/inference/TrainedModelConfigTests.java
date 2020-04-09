@@ -21,9 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -48,7 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<TrainedModelConfig> {
+public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
 
     private boolean lenient;
 
@@ -68,8 +66,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 License.OperationMode.ENTERPRISE.description(),
                 License.OperationMode.GOLD.description(),
                 License.OperationMode.BASIC.description()))
-            .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
-                RegressionConfigTests.randomRegressionConfig()))
             .setTags(tags);
     }
 
@@ -147,8 +143,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))));
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
@@ -187,8 +182,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))));
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
@@ -316,17 +310,5 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             })
             .assertToXContentEquivalence(true)
             .test();
-    }
-
-    @Override
-    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
-        TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
-        if (version.before(Version.V_7_7_0)) {
-            builder.setDefaultFieldMap(null);
-        }
-        if (version.before(Version.V_7_8_0)) {
-            builder.setInferenceConfig(null);
-        }
-        return builder.build();
     }
 }

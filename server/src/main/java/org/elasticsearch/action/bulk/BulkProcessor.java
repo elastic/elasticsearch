@@ -420,7 +420,8 @@ public class BulkProcessor implements Closeable {
                 }
             };
         }
-        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
+        final Runnable flushRunnable = scheduler.preserveContext(new Flush());
+        return scheduler.scheduleWithFixedDelay(flushRunnable, flushInterval, ThreadPool.Names.GENERIC);
     }
 
     // needs to be executed under a lock

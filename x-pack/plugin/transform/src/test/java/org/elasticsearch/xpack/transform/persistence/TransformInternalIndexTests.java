@@ -13,8 +13,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -41,28 +41,28 @@ public class TransformInternalIndexTests extends ESTestCase {
     public static ClusterState STATE_WITH_LATEST_AUDIT_INDEX_TEMPLATE;
 
     static {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> mapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> mapBuilder = ImmutableOpenMap.builder();
         try {
-            mapBuilder.put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetadata());
+            mapBuilder.put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetaData());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        Metadata.Builder metaBuilder = Metadata.builder();
+        MetaData.Builder metaBuilder = MetaData.builder();
         metaBuilder.templates(mapBuilder.build());
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        csBuilder.metadata(metaBuilder.build());
+        csBuilder.metaData(metaBuilder.build());
         STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE = csBuilder.build();
 
         mapBuilder = ImmutableOpenMap.builder();
         try {
-            mapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
+            mapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        metaBuilder = Metadata.builder();
+        metaBuilder = MetaData.builder();
         metaBuilder.templates(mapBuilder.build());
         csBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        csBuilder.metadata(metaBuilder.build());
+        csBuilder.metaData(metaBuilder.build());
         STATE_WITH_LATEST_AUDIT_INDEX_TEMPLATE = csBuilder.build();
     }
 

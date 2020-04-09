@@ -107,8 +107,8 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     protected SignificantTextAggregationBuilder(SignificantTextAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                                Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.fieldName = clone.fieldName;
         this.filterBuilder = clone.filterBuilder;
@@ -119,8 +119,8 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new SignificantTextAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
@@ -322,18 +322,13 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.MANY;
-    }
-
-    @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                         Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
 
         return new SignificantTextAggregatorFactory(name, includeExclude, filterBuilder,
                 bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder,
-                fieldName, sourceFieldNames, filterDuplicateText, metadata);
+                fieldName, sourceFieldNames, filterDuplicateText, metaData);
     }
 
     @Override

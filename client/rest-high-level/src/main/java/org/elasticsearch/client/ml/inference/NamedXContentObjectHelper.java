@@ -54,14 +54,4 @@ public final class NamedXContentObjectHelper {
         }
         return builder;
     }
-
-    public static XContentBuilder writeNamedObject(XContentBuilder builder,
-                                                   ToXContent.Params params,
-                                                   String namedObjectName,
-                                                   NamedXContentObject namedObject) throws IOException {
-        builder.startObject(namedObjectName);
-        builder.field(namedObject.getName(), namedObject, params);
-        builder.endObject();
-        return builder;
-    }
 }

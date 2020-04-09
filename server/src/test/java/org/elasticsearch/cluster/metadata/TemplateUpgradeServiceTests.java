@@ -98,10 +98,10 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         boolean shouldRemove = randomBoolean();
         boolean shouldChange = randomBoolean();
 
-        Metadata metadata = randomMetadata(
-            IndexTemplateMetadata.builder("user_template").patterns(randomIndexPatterns()).build(),
-            IndexTemplateMetadata.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
-            IndexTemplateMetadata.builder("changed_test_template").patterns(randomIndexPatterns()).build()
+        MetaData metaData = randomMetaData(
+            IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
         final TemplateUpgradeService service = new TemplateUpgradeService(null, clusterService, threadPool,
@@ -109,7 +109,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 templates -> {
                     if (shouldAdd) {
                         assertNull(templates.put("added_test_template",
-                            IndexTemplateMetadata.builder("added_test_template").patterns(randomIndexPatterns()).build()));
+                            IndexTemplateMetaData.builder("added_test_template").patterns(randomIndexPatterns()).build()));
                     }
                     return templates;
                 },
@@ -122,14 +122,14 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 templates -> {
                     if (shouldChange) {
                         assertNotNull(templates.put("changed_test_template",
-                            IndexTemplateMetadata.builder("changed_test_template").patterns(randomIndexPatterns()).order(10).build()));
+                            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).order(10).build()));
                     }
                     return templates;
                 }
             ));
 
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> optChanges =
-            service.calculateTemplateChanges(metadata.templates());
+            service.calculateTemplateChanges(metaData.templates());
 
         if (shouldAdd || shouldRemove || shouldChange) {
             Tuple<Map<String, BytesReference>, Set<String>> changes = optChanges.orElseThrow(() ->
@@ -261,10 +261,10 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         final Semaphore changedInvocation = new Semaphore(0);
         final Semaphore finishInvocation = new Semaphore(0);
 
-        Metadata metadata = randomMetadata(
-            IndexTemplateMetadata.builder("user_template").patterns(randomIndexPatterns()).build(),
-            IndexTemplateMetadata.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
-            IndexTemplateMetadata.builder("changed_test_template").patterns(randomIndexPatterns()).build()
+        MetaData metaData = randomMetaData(
+            IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
         Client mockClient = mock(Client.class);
@@ -299,7 +299,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         new TemplateUpgradeService(mockClient, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
-                    assertNull(templates.put("added_test_template", IndexTemplateMetadata.builder("added_test_template")
+                    assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
                         .patterns(Collections.singletonList("*")).build()));
                     return templates;
                 },
@@ -308,7 +308,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                     return templates;
                 },
                 templates -> {
-                    assertNotNull(templates.put("changed_test_template", IndexTemplateMetadata.builder("changed_test_template")
+                    assertNotNull(templates.put("changed_test_template", IndexTemplateMetaData.builder("changed_test_template")
                         .patterns(Collections.singletonList("*")).order(10).build()));
                     return templates;
                 }
@@ -328,7 +328,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
             @Override
             Optional<Tuple<Map<String, BytesReference>, Set<String>>>
-                    calculateTemplateChanges(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
+                    calculateTemplateChanges(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
                 final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
                 calculateInvocation.release();
                 return ans;
@@ -345,7 +345,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(prevState).nodes(DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, Version.CURRENT)
             ).localNodeId("node1").masterNodeId("node1").build()
-        ).metadata(metadata).build();
+        ).metaData(metaData).build();
         setState(clusterService, state);
 
         changedInvocation.acquire();
@@ -360,7 +360,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(removedListener.get(), notNullValue());
 
         prevState = state;
-        state = ClusterState.builder(prevState).metadata(Metadata.builder(state.metadata()).removeTemplate("user_template")).build();
+        state = ClusterState.builder(prevState).metaData(MetaData.builder(state.metaData()).removeTemplate("user_template")).build();
         setState(clusterService, state);
 
         // Make sure that update wasn't invoked since we are still running
@@ -413,14 +413,14 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(finishInvocation.availablePermits(), equalTo(0));
     }
 
-    public static Metadata randomMetadata(IndexTemplateMetadata... templates) {
-        Metadata.Builder builder = Metadata.builder();
-        for (IndexTemplateMetadata template : templates) {
+    public static MetaData randomMetaData(IndexTemplateMetaData... templates) {
+        MetaData.Builder builder = MetaData.builder();
+        for (IndexTemplateMetaData template : templates) {
             builder.put(template);
         }
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             builder.put(
-                IndexMetadata.builder(randomAlphaOfLength(10))
+                IndexMetaData.builder(randomAlphaOfLength(10))
                     .settings(settings(Version.CURRENT))
                     .numberOfReplicas(randomIntBetween(0, 3))
                     .numberOfShards(randomIntBetween(1, 5))

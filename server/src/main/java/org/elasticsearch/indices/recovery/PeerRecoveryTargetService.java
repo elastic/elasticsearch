@@ -31,7 +31,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -172,12 +172,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             timer = recoveryTarget.state().getTimer();
             cancellableThreads = recoveryTarget.cancellableThreads();
             try {
-                final IndexShard indexShard = recoveryTarget.indexShard();
-                indexShard.preRecovery();
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
-                indexShard.prepareForIndexRecovery();
-                final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                recoveryTarget.indexShard().prepareForIndexRecovery();
+                final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
                 assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG :
                     "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                 request = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
@@ -454,8 +452,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     });
                 };
-                final IndexMetadata indexMetadata = clusterService.state().metadata().index(request.shardId().getIndex());
-                final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
+                final IndexMetaData indexMetaData = clusterService.state().metaData().index(request.shardId().getIndex());
+                final long mappingVersionOnTarget = indexMetaData != null ? indexMetaData.getMappingVersion() : 0L;
                 recoveryTarget.indexTranslogOperations(
                         request.operations(),
                         request.totalTranslogOps(),

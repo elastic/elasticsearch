@@ -186,14 +186,12 @@ public class LifecycleExecutionStateTests extends ESTestCase {
     }
 
     static Map<String, String> createCustomMetadata() {
-        String phase = randomAlphaOfLengthBetween(5, 20);
-        String action = randomAlphaOfLengthBetween(5, 20);
-        String step = randomAlphaOfLengthBetween(5, 20);
-        String failedStep = randomAlphaOfLengthBetween(5, 20);
-        String stepInfo = randomAlphaOfLengthBetween(15, 50);
-        String phaseDefinition = randomAlphaOfLengthBetween(15, 50);
-        String repositoryName = randomAlphaOfLengthBetween(10, 20);
-        String snapshotName = randomAlphaOfLengthBetween(10, 20);
+        String phase = randomAlphaOfLengthBetween(5,20);
+        String action = randomAlphaOfLengthBetween(5,20);
+        String step = randomAlphaOfLengthBetween(5,20);
+        String failedStep = randomAlphaOfLengthBetween(5,20);
+        String stepInfo = randomAlphaOfLengthBetween(15,50);
+        String phaseDefinition = randomAlphaOfLengthBetween(15,50);
         long indexCreationDate = randomLong();
         long phaseTime = randomLong();
         long actionTime = randomLong();
@@ -210,8 +208,6 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         customMetadata.put("phase_time", String.valueOf(phaseTime));
         customMetadata.put("action_time", String.valueOf(actionTime));
         customMetadata.put("step_time", String.valueOf(stepTime));
-        customMetadata.put("snapshot_repository", repositoryName);
-        customMetadata.put("snapshot_name", snapshotName);
         return customMetadata;
     }
 }

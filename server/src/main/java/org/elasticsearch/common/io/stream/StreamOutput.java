@@ -87,7 +87,6 @@ import static java.util.Map.entry;
 public abstract class StreamOutput extends OutputStream {
 
     private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
-    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
     static {
         final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
@@ -924,15 +923,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeException(Throwable throwable) throws IOException {
-        writeException(throwable, throwable, 0);
-    }
-
-    private void writeException(Throwable rootException, Throwable throwable, int nestedLevel) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
-        } else if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
-            assert failOnTooManyNestedExceptions(rootException);
-            writeException(new IllegalStateException("too many nested exceptions"));
         } else {
             writeBoolean(true);
             boolean writeCause = true;
@@ -1041,14 +1033,10 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeException(rootException, throwable.getCause(), nestedLevel + 1);
+                writeException(throwable.getCause());
             }
-            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
+            ElasticsearchException.writeStackTraces(throwable, this);
         }
-    }
-
-    boolean failOnTooManyNestedExceptions(Throwable throwable) {
-        throw new AssertionError("too many nested exceptions", throwable);
     }
 
     /**

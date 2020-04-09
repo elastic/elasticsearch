@@ -22,16 +22,19 @@ package org.elasticsearch.join.aggregations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Results of the {@link ChildrenToParentAggregator}.
  */
 public class InternalParent extends InternalSingleBucketAggregation implements Parent {
-    public InternalParent(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
-        super(name, docCount, aggregations, metadata);
+    public InternalParent(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
     /**
@@ -48,6 +51,6 @@ public class InternalParent extends InternalSingleBucketAggregation implements P
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalParent(name, docCount, subAggregations, getMetadata());
+        return new InternalParent(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
     }
 }

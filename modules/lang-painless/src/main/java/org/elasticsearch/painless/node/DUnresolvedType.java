@@ -52,5 +52,10 @@ public class DUnresolvedType extends DType {
 
         return new DResolvedType(location, type);
     }
+
+    @Override
+    public String toString() {
+        return "(DUnresolvedType [" + typeName + "])";
+    }
 }
  

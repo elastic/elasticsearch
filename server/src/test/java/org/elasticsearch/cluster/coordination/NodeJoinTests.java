@@ -20,13 +20,12 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -45,8 +44,8 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -109,9 +108,9 @@ public class NodeJoinTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)
                 .localNodeId(localNode.getId()))
-            .metadata(Metadata.builder()
-                    .coordinationMetadata(
-                        CoordinationMetadata.builder()
+            .metaData(MetaData.builder()
+                    .coordinationMetaData(
+                        CoordinationMetaData.builder()
                         .term(term)
                         .lastAcceptedConfiguration(config)
                         .lastCommittedConfiguration(config)
@@ -230,22 +229,29 @@ public class NodeJoinTests extends ESTestCase {
         try {
             final RequestHandlerRegistry<JoinRequest> joinHandler = (RequestHandlerRegistry<JoinRequest>)
                 transport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
-            final ActionListener<TransportResponse> listener = new ActionListener<>() {
+            joinHandler.processMessageReceived(joinRequest, new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return "dummy";
+                }
 
                 @Override
-                public void onResponse(TransportResponse transportResponse) {
+                public String getChannelType() {
+                    return "dummy";
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
                     logger.debug("{} completed", future);
                     future.markAsDone();
                 }
 
                 @Override
-                public void onFailure(Exception e) {
+                public void sendResponse(Exception e) {
                     logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
                     future.markAsFailed(e);
                 }
-            };
-
-            joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
+            });
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
             future.markAsFailed(e);
@@ -270,7 +276,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(randomFrom(node0, node1))));
+            new VotingConfiguration(Collections.singleton(randomFrom(node0, node1).getId()))));
         assertFalse(isLocalNodeElectedMaster());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
@@ -290,7 +296,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node1)));
+            new VotingConfiguration(Collections.singleton(node1.getId()))));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -306,7 +312,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)));
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -320,7 +326,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)));
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -337,7 +343,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)));
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -356,7 +362,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node2)));
+            new VotingConfiguration(Collections.singleton(node2.getId()))));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, newTerm, Optional.of(
@@ -383,7 +389,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)));
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
@@ -398,8 +404,8 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
 
-        CoordinationMetadata.VotingConfigExclusion votingConfigExclusion = new CoordinationMetadata.VotingConfigExclusion(
-                                                        CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
+        CoordinationMetaData.VotingConfigExclusion votingConfigExclusion = new CoordinationMetaData.VotingConfigExclusion(
+                                                        CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
 
         setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
                                                                                                 initialVersion, votingConfigExclusion));
@@ -420,30 +426,40 @@ public class NodeJoinTests extends ESTestCase {
     private ClusterState buildStateWithVotingConfigExclusion(DiscoveryNode initialNode,
                                                              long initialTerm,
                                                              long initialVersion,
-                                                             CoordinationMetadata.VotingConfigExclusion votingConfigExclusion) {
+                                                             CoordinationMetaData.VotingConfigExclusion votingConfigExclusion) {
         ClusterState initialState = initialState(initialNode, initialTerm, initialVersion,
                                                     new VotingConfiguration(Collections.singleton(initialNode.getId())));
-        Metadata newMetaData = Metadata.builder(initialState.metadata())
-                                        .coordinationMetadata(CoordinationMetadata.builder(initialState.coordinationMetadata())
+        MetaData newMetaData = MetaData.builder(initialState.metaData())
+                                        .coordinationMetaData(CoordinationMetaData.builder(initialState.coordinationMetaData())
                                                                         .addVotingConfigExclusion(votingConfigExclusion).build()).build();
 
-        return ClusterState.builder(initialState).metadata(newMetaData).build();
+        return ClusterState.builder(initialState).metaData(newMetaData).build();
     }
 
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {
         final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = (RequestHandlerRegistry<StartJoinRequest>)
             transport.getRequestHandler(JoinHelper.START_JOIN_ACTION_NAME);
-        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(new ActionListener<>() {
+        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TransportChannel() {
             @Override
-            public void onResponse(TransportResponse transportResponse) {
+            public String getProfileName() {
+                return "dummy";
+            }
+
+            @Override
+            public String getChannelType() {
+                return "dummy";
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) {
 
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void sendResponse(Exception exception) {
                 fail();
             }
-        }));
+        });
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.CANDIDATE));
@@ -453,19 +469,27 @@ public class NodeJoinTests extends ESTestCase {
         final RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest> followerCheckHandler =
             (RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest>)
             transport.getRequestHandler(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
-        final TestTransportChannel channel = new TestTransportChannel(new ActionListener<>() {
+        followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), new TransportChannel() {
             @Override
-            public void onResponse(TransportResponse transportResponse) {
+            public String getProfileName() {
+                return "dummy";
+            }
+
+            @Override
+            public String getChannelType() {
+                return "dummy";
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) {
 
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void sendResponse(Exception exception) {
                 fail();
             }
         });
-        followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), channel);
-        // Will throw exception if failed
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.FOLLOWER));
@@ -477,7 +501,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)));
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
@@ -493,7 +517,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node1)));
+            new VotingConfiguration(Collections.singleton(node1.getId()))));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, newTerm,
             Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));

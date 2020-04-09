@@ -10,8 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,8 +37,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         ClusterHealthStatus color = randomColor();
-        String indexPrefix = randomAlphaOfLengthBetween(1, 10);
-        return new WaitForIndexColorStep(stepKey, nextStepKey, color, indexPrefix);
+        return new WaitForIndexColorStep(stepKey, nextStepKey, color);
     }
 
     @Override
@@ -46,8 +45,6 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         ClusterHealthStatus color = instance.getColor(), newColor = randomColor();
-        String indexPrefix = instance.getIndexNamePrefix();
-
         while (color.equals(newColor)) {
             newColor = randomColor();
         }
@@ -62,21 +59,18 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             case 2:
                 color = newColor;
                 break;
-            case 3:
-                indexPrefix = randomAlphaOfLengthBetween(1, 10);
-                break;
         }
 
-        return new WaitForIndexColorStep(key, nextKey, color, indexPrefix);
+        return new WaitForIndexColorStep(key, nextKey, color);
     }
 
     @Override
     protected WaitForIndexColorStep copyInstance(WaitForIndexColorStep instance) {
-        return new WaitForIndexColorStep(instance.getKey(), instance.getNextStepKey(), instance.getColor(), instance.getIndexNamePrefix());
+        return new WaitForIndexColorStep(instance.getKey(), instance.getNextStepKey(), instance.getColor());
     }
 
     public void testConditionMetForGreen() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(2)
@@ -88,7 +82,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
@@ -99,7 +93,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     }
 
     public void testConditionNotMetForGreen() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -111,7 +105,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
@@ -124,14 +118,14 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     }
 
     public void testConditionNotMetNoIndexRoutingTable() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().build())
             .build();
 
@@ -144,7 +138,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     }
 
     public void testConditionMetForYellow() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -156,7 +150,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
@@ -167,7 +161,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     }
 
     public void testConditionNotMetForYellow() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -179,7 +173,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
@@ -192,14 +186,14 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     }
 
     public void testConditionNotMetNoIndexRoutingTableForYellow() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().build())
             .build();
 

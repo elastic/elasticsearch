@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -38,7 +37,6 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
-import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
@@ -84,9 +82,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private ScriptStats scriptStats;
 
     @Nullable
-    private ScriptCacheStats scriptCacheStats;
-
-    @Nullable
     private DiscoveryStats discoveryStats;
 
     @Nullable
@@ -113,11 +108,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
-        } else {
-            scriptCacheStats = null;
-        }
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -127,8 +117,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
                      @Nullable IngestStats ingestStats,
-                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
-                     @Nullable ScriptCacheStats scriptCacheStats) {
+                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -144,7 +133,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
-        this.scriptCacheStats = scriptCacheStats;
     }
 
     public long getTimestamp() {
@@ -239,11 +227,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return adaptiveSelectionStats;
     }
 
-    @Nullable
-    public ScriptCacheStats getScriptCacheStats() {
-        return scriptCacheStats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -266,9 +249,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalWriteable(scriptCacheStats);
-        }
     }
 
     @Override
@@ -331,9 +311,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdaptiveSelectionStats() != null) {
             getAdaptiveSelectionStats().toXContent(builder, params);
-        }
-        if (getScriptCacheStats() != null) {
-            getScriptCacheStats().toXContent(builder, params);
         }
         return builder;
     }

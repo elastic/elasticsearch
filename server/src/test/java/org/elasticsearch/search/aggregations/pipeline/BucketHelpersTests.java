@@ -56,7 +56,7 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, Object> getMetadata() {
+            public Map<String, Object> getMetaData() {
                 return null;
             }
 
@@ -129,7 +129,7 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, Object> getMetadata() {
+            public Map<String, Object> getMetaData() {
                 return null;
             }
 

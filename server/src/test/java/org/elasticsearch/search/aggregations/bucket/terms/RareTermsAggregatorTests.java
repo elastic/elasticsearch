@@ -38,7 +38,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -272,8 +273,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG};
                     String[] fieldNames = new String[]{"string", "long"};
                     for (int i = 0; i < fieldNames.length; i++) {
-                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
-                            .userValueTypeHint(valueTypes[i])
+                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", valueTypes[i])
                             .field(fieldNames[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
@@ -308,9 +308,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
+                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", null)
                         .field("field");
-                    expectThrows(IllegalArgumentException.class,
+                    expectThrows(AggregationExecutionException.class,
                         () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
                 }
             }
@@ -322,8 +322,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
-                    .field(KEYWORD_FIELD);
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", ValueType.STRING).field(KEYWORD_FIELD);
                 aggregation.field(LONG_FIELD).maxDocCount(1).subAggregation(terms);
             },
             agg -> {
@@ -341,8 +340,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         );
 
         testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
-                    .field(KEYWORD_FIELD);
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", ValueType.STRING).field(KEYWORD_FIELD);
                 aggregation.field(KEYWORD_FIELD).maxDocCount(1).subAggregation(terms);
             },
             agg -> {
@@ -377,12 +375,10 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
                     GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global")
                         .subAggregation(
-                            new RareTermsAggregationBuilder("terms")
-                                .userValueTypeHint(ValueType.STRING)
+                            new RareTermsAggregationBuilder("terms", ValueType.STRING)
                                 .field("keyword")
                                 .subAggregation(
-                                    new RareTermsAggregationBuilder("sub_terms")
-                                        .userValueTypeHint(ValueType.STRING)
+                                    new RareTermsAggregationBuilder("sub_terms", ValueType.STRING)
                                         .field("keyword")
                                         .subAggregation(
                                             new TopHitsAggregationBuilder("top_hits")
@@ -426,8 +422,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
 
                 NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                    .subAggregation(new RareTermsAggregationBuilder("terms")
-                        .userValueTypeHint(ValueType.LONG)
+                    .subAggregation(new RareTermsAggregationBuilder("terms", ValueType.LONG)
                         .field("nested_value")
                         .maxDocCount(1)
                     );
@@ -460,8 +455,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
                 for (boolean withScore : new boolean[]{true, false}) {
                     NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                        .subAggregation(new RareTermsAggregationBuilder("terms")
-                            .userValueTypeHint(ValueType.LONG)
+                        .subAggregation(new RareTermsAggregationBuilder("terms", ValueType.LONG)
                             .field("nested_value")
                             .maxDocCount(2)
                             .subAggregation(
@@ -552,7 +546,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         Settings nodeSettings = Settings.builder()
             .put("search.max_buckets", 100000).build();
         return new IndexSettings(
-            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -586,8 +580,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name");
-                aggregationBuilder.userValueTypeHint(valueType);
+                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", valueType);
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
                 }

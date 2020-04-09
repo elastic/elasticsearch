@@ -22,7 +22,6 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,15 +40,14 @@ public class TasksRequestConvertersTests extends ESTestCase {
             new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
         org.elasticsearch.client.tasks.TaskId parentTaskId =
             new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        CancelTasksRequest.Builder builder = new CancelTasksRequest.Builder().withTaskId(taskId).withParentTaskId(parentTaskId);
+        org.elasticsearch.client.tasks.CancelTasksRequest request =
+            new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
+                .withTaskId(taskId)
+                .withParentTaskId(parentTaskId)
+                .build();
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
-        if (randomBoolean()) {
-            boolean waitForCompletion = randomBoolean();
-            builder.withWaitForCompletion(waitForCompletion);
-            expectedParams.put("wait_for_completion", Boolean.toString(waitForCompletion));
-        }
-        Request httpRequest = TasksRequestConverters.cancelTasks(builder.build());
+        Request httpRequest = TasksRequestConverters.cancelTasks(request);
         assertThat(httpRequest, notNullValue());
         assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(httpRequest.getEntity(), nullValue());

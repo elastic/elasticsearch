@@ -38,7 +38,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -322,7 +321,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class TestNodeRequest extends TransportRequest {
+    private static class TestNodeRequest extends BaseNodeRequest {
         TestNodeRequest() {}
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);

@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>,
                                            NodesResponse extends BaseNodesResponse,
-                                           NodeRequest extends TransportRequest,
+                                           NodeRequest extends BaseNodeRequest,
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
 

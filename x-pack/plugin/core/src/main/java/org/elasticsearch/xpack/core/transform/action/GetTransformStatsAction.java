@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +52,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         public Request(String id) {
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = Metadata.ALL;
+                this.id = MetaData.ALL;
             } else {
                 this.id = id;
             }

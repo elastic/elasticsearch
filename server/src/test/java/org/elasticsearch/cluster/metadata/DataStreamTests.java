@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -30,17 +28,13 @@ import java.util.List;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
-    public static List<Index> randomIndexInstances() {
-        int numIndices = randomIntBetween(0, 128);
-        List<Index> indices = new ArrayList<>(numIndices);
-        for (int i = 0; i < numIndices; i++) {
-            indices.add(new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random())));
-        }
-        return indices;
-    }
-
     public static DataStream randomInstance() {
-        return new DataStream(randomAlphaOfLength(10), randomAlphaOfLength(10), randomIndexInstances());
+        int numIndices = randomIntBetween(0, 128);
+        List<String> indices = new ArrayList<>(numIndices);
+        for (int i = 0; i < numIndices; i++) {
+            indices.add(randomAlphaOfLength(10));
+        }
+        return new DataStream(randomAlphaOfLength(10), randomAlphaOfLength(10), indices);
     }
 
     @Override

@@ -47,14 +47,14 @@ final class AsyncSearchRequestConverters {
             request.setEntity(RequestConverters.createEntity(asyncSearchRequest.getSearchSource(), REQUEST_BODY_CONTENT_TYPE));
         }
         // set async search submit specific parameters
-        if (asyncSearchRequest.isKeepOnCompletion() != null) {
-            params.putParam("keep_on_completion", asyncSearchRequest.isKeepOnCompletion().toString());
+        if (asyncSearchRequest.isCleanOnCompletion() != null) {
+            params.putParam("clean_on_completion", asyncSearchRequest.isCleanOnCompletion().toString());
         }
         if (asyncSearchRequest.getKeepAlive() != null) {
             params.putParam("keep_alive", asyncSearchRequest.getKeepAlive().getStringRep());
         }
-        if (asyncSearchRequest.getWaitForCompletionTimeout() != null) {
-            params.putParam("wait_for_completion_timeout", asyncSearchRequest.getWaitForCompletionTimeout().getStringRep());
+        if (asyncSearchRequest.getWaitForCompletion() != null) {
+            params.putParam("wait_for_completion", asyncSearchRequest.getWaitForCompletion().getStringRep());
         }
         request.addParameters(params.asMap());
         return request;
@@ -73,12 +73,10 @@ final class AsyncSearchRequestConverters {
         if (request.getAllowPartialSearchResults() != null) {
             params.withAllowPartialResults(request.getAllowPartialSearchResults());
         }
-        if (request.getBatchedReduceSize() != null) {
-            params.withBatchedReduceSize(request.getBatchedReduceSize());
-        }
+        params.withBatchedReduceSize(request.getBatchedReduceSize());
     }
 
-    static Request getAsyncSearch(GetAsyncSearchRequest asyncSearchRequest) {
+    static Request getAsyncSearch(GetAsyncSearchRequest asyncSearchRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_async_search")
                 .addPathPart(asyncSearchRequest.getId())
@@ -89,13 +87,13 @@ final class AsyncSearchRequestConverters {
             params.putParam("keep_alive", asyncSearchRequest.getKeepAlive().getStringRep());
         }
         if (asyncSearchRequest.getWaitForCompletion() != null) {
-            params.putParam("wait_for_completion_timeout", asyncSearchRequest.getWaitForCompletion().getStringRep());
+            params.putParam("wait_for_completion", asyncSearchRequest.getWaitForCompletion().getStringRep());
         }
         request.addParameters(params.asMap());
         return request;
     }
 
-    static Request deleteAsyncSearch(DeleteAsyncSearchRequest deleteAsyncSearchRequest) {
+    static Request deleteAsyncSearch(DeleteAsyncSearchRequest deleteAsyncSearchRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_async_search")
                 .addPathPart(deleteAsyncSearchRequest.getId())

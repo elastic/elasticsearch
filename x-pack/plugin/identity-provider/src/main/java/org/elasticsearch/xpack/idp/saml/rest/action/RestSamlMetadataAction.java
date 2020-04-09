@@ -42,8 +42,7 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String spEntityId = request.param("sp_entity_id");
-        final String acs = request.param("acs");
-        final SamlMetadataRequest metadataRequest = new SamlMetadataRequest(spEntityId, acs);
+        final SamlMetadataRequest metadataRequest = new SamlMetadataRequest(spEntityId);
         return channel -> client.execute(SamlMetadataAction.INSTANCE, metadataRequest,
             new RestBuilderListener<SamlMetadataResponse>(channel) {
                 @Override

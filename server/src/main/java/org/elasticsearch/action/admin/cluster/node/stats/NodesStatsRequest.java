@@ -24,12 +24,11 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -50,18 +49,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         if (in.getVersion().before(Version.V_7_7_0)) {
-            optionallyAddMetric(in.readBoolean(), Metric.OS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.PROCESS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.JVM.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.FS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.HTTP.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.BREAKER.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.SCRIPT.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.OS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.PROCESS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.JVM.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.FS.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.HTTP.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.BREAKER.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.SCRIPT.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.INGEST.metricName());
+            addOrRemoveMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
         } else {
             requestedMetrics.addAll(in.readStringList());
         }
@@ -93,21 +92,10 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    /**
-     * Get indices. Handles separately from other metrics because it may or
-     * may not have submetrics.
-     * @return flags indicating which indices stats to return
-     */
     public CommonStatsFlags indices() {
         return indices;
     }
 
-    /**
-     * Set indices. Handles separately from other metrics because it may or
-     * may not involve submetrics.
-     * @param indices flags indicating which indices stats to return
-     * @return This object, for request chaining.
-     */
     public NodesStatsRequest indices(CommonStatsFlags indices) {
         this.indices = indices;
         return this;
@@ -126,58 +114,178 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Get the names of requested metrics, excluding indices, which are
-     * handled separately.
+     * Should the node OS be returned.
      */
-    public Set<String> requestedMetrics() {
-        return Set.copyOf(requestedMetrics);
+    public boolean os() {
+        return Metric.OS.containedIn(requestedMetrics);
     }
 
     /**
-     * Add metric
+     * Should the node OS be returned.
      */
-    public NodesStatsRequest addMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
-        requestedMetrics.add(metric);
+    public NodesStatsRequest os(boolean os) {
+        addOrRemoveMetric(os, Metric.OS.metricName());
         return this;
     }
 
     /**
-     * Add an array of metric names
+     * Should the node Process be returned.
      */
-    public NodesStatsRequest addMetrics(String... metrics) {
-        // use sorted set for reliable ordering in error messages
-        SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
-        if (Metric.allMetrics().containsAll(metricsSet) == false) {
-            metricsSet.removeAll(Metric.allMetrics());
-            String plural = metricsSet.size() == 1 ? "" : "s";
-            throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
-        }
-        requestedMetrics.addAll(metricsSet);
+    public boolean process() {
+        return Metric.PROCESS.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node Process be returned.
+     */
+    public NodesStatsRequest process(boolean process) {
+        addOrRemoveMetric(process, Metric.PROCESS.metricName());
         return this;
     }
 
     /**
-     * Remove metric
+     * Should the node JVM be returned.
      */
-    public NodesStatsRequest removeMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
-        requestedMetrics.remove(metric);
+    public boolean jvm() {
+        return Metric.JVM.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node JVM be returned.
+     */
+    public NodesStatsRequest jvm(boolean jvm) {
+        addOrRemoveMetric(jvm, Metric.JVM.metricName());
         return this;
     }
 
     /**
-     * Helper method for adding metrics during deserialization.
+     * Should the node Thread Pool be returned.
+     */
+    public boolean threadPool() {
+        return Metric.THREAD_POOL.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node Thread Pool be returned.
+     */
+    public NodesStatsRequest threadPool(boolean threadPool) {
+        addOrRemoveMetric(threadPool, Metric.THREAD_POOL.metricName());
+        return this;
+    }
+
+    /**
+     * Should the node file system stats be returned.
+     */
+    public boolean fs() {
+        return Metric.FS.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node file system stats be returned.
+     */
+    public NodesStatsRequest fs(boolean fs) {
+        addOrRemoveMetric(fs, Metric.FS.metricName());
+        return this;
+    }
+
+    /**
+     * Should the node Transport be returned.
+     */
+    public boolean transport() {
+        return Metric.TRANSPORT.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node Transport be returned.
+     */
+    public NodesStatsRequest transport(boolean transport) {
+        addOrRemoveMetric(transport, Metric.TRANSPORT.metricName());
+        return this;
+    }
+
+    /**
+     * Should the node HTTP be returned.
+     */
+    public boolean http() {
+        return Metric.HTTP.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node HTTP be returned.
+     */
+    public NodesStatsRequest http(boolean http) {
+        addOrRemoveMetric(http, Metric.HTTP.metricName());
+        return this;
+    }
+
+    public boolean breaker() {
+        return Metric.BREAKER.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node's circuit breaker stats be returned.
+     */
+    public NodesStatsRequest breaker(boolean breaker) {
+        addOrRemoveMetric(breaker, Metric.BREAKER.metricName());
+        return this;
+    }
+
+    public boolean script() {
+        return Metric.SCRIPT.containedIn(requestedMetrics);
+    }
+
+    public NodesStatsRequest script(boolean script) {
+        addOrRemoveMetric(script, Metric.SCRIPT.metricName());
+        return this;
+    }
+
+
+    public boolean discovery() {
+        return Metric.DISCOVERY.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should the node's discovery stats be returned.
+     */
+    public NodesStatsRequest discovery(boolean discovery) {
+        addOrRemoveMetric(discovery, Metric.DISCOVERY.metricName());
+        return this;
+    }
+
+    public boolean ingest() {
+        return Metric.INGEST.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should ingest statistics be returned.
+     */
+    public NodesStatsRequest ingest(boolean ingest) {
+        addOrRemoveMetric(ingest, Metric.INGEST.metricName());
+        return this;
+    }
+
+    public boolean adaptiveSelection() {
+        return Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics);
+    }
+
+    /**
+     * Should adaptiveSelection statistics be returned.
+     */
+    public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
+        addOrRemoveMetric(adaptiveSelection, Metric.ADAPTIVE_SELECTION.metricName());
+        return this;
+    }
+
+    /**
+     * Helper method for adding and removing metrics.
      * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to add.
+     * @param metricName Name of the metric to include or remove.
      */
-    private void optionallyAddMetric(boolean includeMetric, String metricName) {
+    private void addOrRemoveMetric(boolean includeMetric, String metricName) {
         if (includeMetric) {
             requestedMetrics.add(metricName);
+        } else {
+            requestedMetrics.remove(metricName);
         }
     }
 
@@ -207,7 +315,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes stats endpoint. Eventually this list will be pluggable.
      */
-    public enum Metric {
+    private enum Metric {
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),
@@ -219,8 +327,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SCRIPT("script"),
         DISCOVERY("discovery"),
         INGEST("ingest"),
-        ADAPTIVE_SELECTION("adaptive_selection"),
-        SCRIPT_CACHE("script_cache");
+        ADAPTIVE_SELECTION("adaptiveSelection");
 
         private String metricName;
 
@@ -228,7 +335,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             this.metricName = name;
         }
 
-        public String metricName() {
+        String metricName() {
             return this.metricName;
         }
 

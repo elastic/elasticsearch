@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.idp.saml.idp;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
-import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 
@@ -42,7 +40,6 @@ public class SamlIdentityProvider {
     private final ServiceProviderDefaults serviceProviderDefaults;
     private final X509Credential signingCredential;
     private final SamlServiceProviderResolver serviceProviderResolver;
-    private final WildcardServiceProviderResolver wildcardServiceResolver;
     private final X509Credential metadataSigningCredential;
     private ContactInfo technicalContact;
     private OrganizationInfo organization;
@@ -50,8 +47,8 @@ public class SamlIdentityProvider {
     // Package access - use Builder instead
     SamlIdentityProvider(String entityId, Map<String, URL> ssoEndpoints, Map<String, URL> sloEndpoints, Set<String> allowedNameIdFormats,
                          X509Credential signingCredential, X509Credential metadataSigningCredential,
-                         ContactInfo technicalContact, OrganizationInfo organization, ServiceProviderDefaults serviceProviderDefaults,
-                         SamlServiceProviderResolver serviceProviderResolver, WildcardServiceProviderResolver wildcardServiceResolver) {
+                         ContactInfo technicalContact, OrganizationInfo organization,
+                         ServiceProviderDefaults serviceProviderDefaults, SamlServiceProviderResolver serviceProviderResolver) {
         this.entityId = entityId;
         this.ssoEndpoints = ssoEndpoints;
         this.sloEndpoints = sloEndpoints;
@@ -62,12 +59,10 @@ public class SamlIdentityProvider {
         this.technicalContact = technicalContact;
         this.organization = organization;
         this.serviceProviderResolver = serviceProviderResolver;
-        this.wildcardServiceResolver = wildcardServiceResolver;
     }
 
-    public static SamlIdentityProviderBuilder builder(SamlServiceProviderResolver serviceResolver,
-                                                      WildcardServiceProviderResolver wildcardResolver) {
-        return new SamlIdentityProviderBuilder(serviceResolver, wildcardResolver);
+    public static SamlIdentityProviderBuilder builder(SamlServiceProviderResolver resolver) {
+        return new SamlIdentityProviderBuilder(resolver);
     }
 
     public String getEntityId() {
@@ -108,46 +103,28 @@ public class SamlIdentityProvider {
 
     /**
      * Asynchronously lookup the specified {@link SamlServiceProvider} by entity-id.
-     * @param spEntityId The (URI) entity ID of the service provider
-     * @param acs The ACS of the service provider - only used if there is no registered service provider and we need to dynamically define
-     *            one from a template (wildcard). May be null, in which case wildcard services will not be resolved.
      * @param allowDisabled whether to return service providers that are not {@link SamlServiceProvider#isEnabled() enabled}.
      *                      For security reasons, callers should typically avoid working with disabled service providers.
      * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
- *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
+     *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
+     *                 the backing store (elasticsearch index) that hold the SP data).
      */
-    public void resolveServiceProvider(String spEntityId, @Nullable String acs, boolean allowDisabled,
-                                       ActionListener<SamlServiceProvider> listener) {
+    public void getRegisteredServiceProvider(String spEntityId, boolean allowDisabled, ActionListener<SamlServiceProvider> listener) {
         serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(
             sp -> {
                 if (sp == null) {
-                    logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
-                    resolveWildcardService(spEntityId, acs, listener);
+                    logger.info("No service provider exists for entityId [{}]", spEntityId);
+                    listener.onResponse(null);
                 } else if (allowDisabled == false && sp.isEnabled() == false) {
-                    logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
+                    logger.info("Service provider [{}][{}] is not enabled", sp.getEntityId(), sp.getName());
                     listener.onResponse(null);
                 } else {
-                    logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
+                    logger.debug("Service provider for [{}] is [{}]", sp.getEntityId(), sp);
                     listener.onResponse(sp);
                 }
             },
             listener::onFailure
         ));
-    }
-
-    private void resolveWildcardService(String entityId, String acs, ActionListener<SamlServiceProvider> listener) {
-        if (acs == null) {
-            logger.debug("No ACS provided for [{}], skipping wildcard matching", entityId);
-            listener.onResponse(null);
-        } else {
-            try {
-                final SamlServiceProvider sp = wildcardServiceResolver.resolve(entityId, acs);
-                logger.debug("Wildcard service provider for [{}][{}] is [{}]", entityId, acs, sp);
-                listener.onResponse(sp);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        }
     }
 
     @Override

@@ -63,18 +63,18 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
     private static final class RestBulkRequestExecutor implements BulkRequestExecutor {
         private final RestClient client;
-        private final String actionMetadata;
+        private final String actionMetaData;
 
         RestBulkRequestExecutor(RestClient client, String index, String type) {
             this.client = client;
-            this.actionMetadata = String.format(Locale.ROOT, "{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }%n", index, type);
+            this.actionMetaData = String.format(Locale.ROOT, "{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }%n", index, type);
         }
 
         @Override
         public boolean bulkIndex(List<String> bulkData) {
             StringBuilder bulkRequestBody = new StringBuilder();
             for (String bulkItem : bulkData) {
-                bulkRequestBody.append(actionMetadata);
+                bulkRequestBody.append(actionMetaData);
                 bulkRequestBody.append(bulkItem);
                 bulkRequestBody.append("\n");
             }

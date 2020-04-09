@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<CloseFollowerIndexStep> {
 
     @Override
-    protected IndexMetadata getIndexMetadata() {
-        return IndexMetadata.builder("follower-index")
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
@@ -33,7 +33,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
     }
 
     public void testCloseFollowingIndex() {
-        IndexMetadata indexMetadata = getIndexMetadata();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
@@ -63,7 +63,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
     }
 
     public void testCloseFollowingIndexFailed() {
-        IndexMetadata indexMetadata = getIndexMetadata();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         // Mock pause follow api call:
         Exception error = new RuntimeException();
@@ -96,10 +96,10 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
     }
 
     public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetadata.State.CLOSE)
+            .state(IndexMetaData.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

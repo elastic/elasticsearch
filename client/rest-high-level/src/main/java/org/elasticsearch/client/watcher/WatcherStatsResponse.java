@@ -40,21 +40,21 @@ public class WatcherStatsResponse {
     private final NodesResponseHeader header;
     private final String clusterName;
 
-    private final WatcherMetadata watcherMetadata;
+    private final WatcherMetaData watcherMetaData;
 
-    public WatcherStatsResponse(NodesResponseHeader header, String clusterName, WatcherMetadata watcherMetadata, List<Node> nodes) {
+    public WatcherStatsResponse(NodesResponseHeader header, String clusterName, WatcherMetaData watcherMetaData, List<Node> nodes) {
         this.nodes = nodes;
         this.header = header;
         this.clusterName = clusterName;
-        this.watcherMetadata = watcherMetadata;
+        this.watcherMetaData = watcherMetaData;
     }
 
     /**
      * @return the status of the requested watch. If an action was
      * successfully acknowledged, this will be reflected in its status.
      */
-    public WatcherMetadata getWatcherMetadata() {
-        return watcherMetadata;
+    public WatcherMetaData getWatcherMetaData() {
+        return watcherMetaData;
     }
 
     /**
@@ -84,7 +84,7 @@ public class WatcherStatsResponse {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<WatcherStatsResponse, Void> PARSER =
         new ConstructingObjectParser<>("watcher_stats_response", true,
-            a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetadata((boolean) a[2]),
+            a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetaData((boolean) a[2]),
                 (List<Node>) a[3]));
 
     static {
@@ -107,13 +107,13 @@ public class WatcherStatsResponse {
         return Objects.equals(nodes, that.nodes) &&
             Objects.equals(header, that.header) &&
             Objects.equals(clusterName, that.clusterName) &&
-            Objects.equals(watcherMetadata, that.watcherMetadata);
+            Objects.equals(watcherMetaData, that.watcherMetaData);
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(nodes, header, clusterName, watcherMetadata);
+        return Objects.hash(nodes, header, clusterName, watcherMetaData);
     }
 
     public static class Node {

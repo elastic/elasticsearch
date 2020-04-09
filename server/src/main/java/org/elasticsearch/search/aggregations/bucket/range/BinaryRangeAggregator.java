@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -79,8 +80,9 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     public BinaryRangeAggregator(String name, AggregatorFactories factories,
             ValuesSource.Bytes valuesSource, DocValueFormat format,
             List<Range> ranges, boolean keyed, SearchContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = format;
         this.keyed = keyed;
@@ -335,11 +337,11 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                     ranges[i].key, ranges[i].from, ranges[i].to,
                     bucketDocCount(bucketOrd), bucketAggregations(bucketOrd)));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, metadata());
+        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBinaryRange(name, format, keyed, emptyList(), metadata());
+        return new InternalBinaryRange(name, format, keyed, emptyList(), pipelineAggregators(), metaData());
     }
 }

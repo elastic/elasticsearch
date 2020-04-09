@@ -83,7 +83,17 @@ public interface Scheduler {
     }
 
     /**
-     * Schedules a one-shot command to be run after a given delay. The command is run in the context of the calling thread.
+     * Does nothing by default but can be used by subclasses to save the current thread context and wraps the command in a Runnable
+     * that restores that context before running the command.
+     */
+    default Runnable preserveContext(Runnable command) {
+        return command;
+    }
+
+    /**
+     * Schedules a one-shot command to be run after a given delay. The command is not run in the context of the calling thread.
+     * To preserve the context of the calling thread you may call {@link #preserveContext(Runnable)} on the runnable before passing
+     * it to this method.
      * The command runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
      * to execute on a different executor, in which case blocking calls are allowed.
      *

@@ -38,28 +38,23 @@ import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
- * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>.
- * When running from IDE set -Dtests.security.manager=false
+ * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
  */
 public class JsonLoggerTests extends ESTestCase {
 
@@ -67,7 +62,6 @@ public class JsonLoggerTests extends ESTestCase {
 
     @BeforeClass
     public static void initNodeName() {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         JsonLogsTestSetup.init();
     }
 
@@ -84,7 +78,6 @@ public class JsonLoggerTests extends ESTestCase {
         Configurator.shutdown(context);
         super.tearDown();
     }
-
     public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("deprecation.test");
         testLogger.info(DeprecatedMessage.of("someId","deprecated message1"));
@@ -98,8 +91,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "deprecation.test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
@@ -109,6 +102,30 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
+    public void testMessageOverrideWithNoValue() throws IOException {
+        //message field is meant to be overriden (see custom.test config), but is not provided.
+        //Expected is that it will be emptied
+        final Logger testLogger = LogManager.getLogger("custom.test");
+
+        testLogger.info(new ESLogMessage("some message"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"))
+                )
+            );
+        }
+    }
     public void testBuildingMessage() throws IOException {
 
         final Logger testLogger = LogManager.getLogger("test");
@@ -126,8 +143,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "file"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "some message value0 value1"),
@@ -136,6 +153,39 @@ public class JsonLoggerTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testMessageOverride() throws IOException {
+
+        final Logger testLogger = LogManager.getLogger("custom.test");
+        testLogger.info(new ESLogMessage("some message")
+                                    .with("message","overriden"));
+
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "overriden"))
+                )
+            );
+        }
+
+        final Path plaintextPath = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_plaintext.json");
+        List<String> lines = Files.readAllLines(plaintextPath);
+        assertThat(lines, contains("some message"));
+
+
     }
 
     public void testCustomMessageWithMultipleFields() throws IOException {
@@ -154,8 +204,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "file"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("field1", "value1"),
@@ -183,16 +233,16 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "deprecation.test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
                     hasEntry("x-opaque-id", "someId")),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "deprecation.test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message2"),
@@ -200,8 +250,8 @@ public class JsonLoggerTests extends ESTestCase {
                 ),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "deprecation.test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message3"),
@@ -209,8 +259,8 @@ public class JsonLoggerTests extends ESTestCase {
                 ),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "deprecation.test"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message4"),
@@ -254,10 +304,9 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "prefix.shardIdLogger",
-                    "This is an info message with a shardId", Map.of(JsonLogLine::getTags, List.of("[indexName][123]"))),
-                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger",
-                    "This is an info message with a prefix", Map.of(JsonLogLine::getTags, List.of("PREFIX")))
+                logLine("file", Level.INFO, "sample-name", "p.shardIdLogger",
+                    "[indexName][123] This is an info message with a shardId"),
+                logLine("file", Level.INFO, "sample-name", "p.prefixLogger", "PREFIX This is an info message with a prefix")
             ));
         }
     }
@@ -296,14 +345,14 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     logLine("file", Level.ERROR, "sample-name", "test", "error message"),
-                    stacktraceMatches("java.lang.Exception: exception message.*Caused by: java.lang.RuntimeException: cause message.*")
+                    stacktraceWith("java.lang.Exception: exception message"),
+                    stacktraceWith("Caused by: java.lang.RuntimeException: cause message")
                 )
             ));
         }
     }
 
-
-    public void testJsonInStacktraceMessageIsNotSplitted() throws IOException {
+    public void testJsonInStacktraceMessageIsSplitted() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
         String json = "{" + LINE_SEPARATOR +
@@ -327,8 +376,8 @@ public class JsonLoggerTests extends ESTestCase {
                     //message field will have a single line with json escaped
                     logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
 
-                    //stacktrace message will be single line
-                    stacktraceWith("java.lang.Exception: " + json)
+                    //stacktrace field will have each json line will in a separate array element
+                    stacktraceWith(("java.lang.Exception: " + json).split(LINE_SEPARATOR))
                 )
             ));
         }
@@ -356,8 +405,8 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("log.level", "WARN"),
-                        hasEntry("log.logger", "deprecation.test"),
+                        hasEntry("level", "WARN"),
+                        hasEntry("component", "d.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),
@@ -388,8 +437,8 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("log.level", "WARN"),
-                        hasEntry("log.logger", "deprecation.test"),
+                        hasEntry("level", "WARN"),
+                        hasEntry("component", "d.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),
@@ -397,8 +446,8 @@ public class JsonLoggerTests extends ESTestCase {
                     ),
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("log.level", "WARN"),
-                        hasEntry("log.logger", "deprecation.test"),
+                        hasEntry("level", "WARN"),
+                        hasEntry("component", "d.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),
@@ -437,42 +486,23 @@ public class JsonLoggerTests extends ESTestCase {
         LogConfigurator.configure(environment);
     }
 
-
     private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {
-        return logLine(mapOfParamsToCheck(type, level, nodeName, component, message));
-    }
-
-    private Map<Function<JsonLogLine, Object>, Object> mapOfParamsToCheck(
-        String type, Level level, String nodeName, String component, String message) {
-        return Map.of(JsonLogLine::getType, type,
-            JsonLogLine::getLevel, level.toString(),
-            JsonLogLine::getNodeName, nodeName,
-            JsonLogLine::getComponent, component,
-            JsonLogLine::getMessage, message);
-    }
-
-    private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message,
-                                         Map<Function<JsonLogLine,Object>, Object> additionalProperties) {
-        Map<Function<JsonLogLine, Object>, Object> map = new HashMap<>();
-        map.putAll(mapOfParamsToCheck(type, level, nodeName, component, message));
-        map.putAll(additionalProperties);
-        return logLine(map);
-    }
-
-    private Matcher<JsonLogLine> logLine(Map<Function<JsonLogLine,Object>, Object> map) {
         return new FeatureMatcher<JsonLogLine, Boolean>(Matchers.is(true), "logLine", "logLine") {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                return map.entrySet()
-                    .stream()
-                    .allMatch(entry -> Objects.equals(entry.getKey().apply(actual), entry.getValue()));
+                return Objects.equals(actual.type(), type) &&
+                    Objects.equals(actual.level(), level.toString()) &&
+                    Objects.equals(actual.nodeName(), nodeName) &&
+                    Objects.equals(actual.component(), component) &&
+                    Objects.equals(actual.message(), message);
             }
         };
     }
-    private Matcher<JsonLogLine> stacktraceWith(String line) {
-        return new FeatureMatcher<JsonLogLine, List<String>>(hasItems(Matchers.containsString(line)),
-            "error.stack_trace", "error.stack_trace") {
+
+    private Matcher<JsonLogLine> stacktraceWith(String... lines) {
+        return new FeatureMatcher<JsonLogLine, List<String>>(Matchers.hasItems(lines),
+            "stacktrace", "stacktrace") {
 
             @Override
             protected List<String> featureValueOf(JsonLogLine actual) {
@@ -480,16 +510,4 @@ public class JsonLoggerTests extends ESTestCase {
             }
         };
     }
-
-    private Matcher<JsonLogLine> stacktraceMatches(String regexp) {
-        return new FeatureMatcher<JsonLogLine, List<String>>(hasItems(matchesRegex(Pattern.compile(regexp, Pattern.DOTALL))),
-            "error.stack_trace", "error.stack_trace") {
-
-            @Override
-            protected List<String> featureValueOf(JsonLogLine actual) {
-                return actual.stacktrace();
-            }
-        };
-    }
-
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -134,7 +134,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 final ClusterState state = clusterService.state();
                 request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
                 super.doExecute(task, request, ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                    PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
                         response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, state));
@@ -170,10 +170,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private static void setNodeAttributes(
         TransformStats transformStats,
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata,
+        PersistentTasksCustomMetaData persistentTasksCustomMetaData,
         ClusterState state
     ) {
-        var pTask = persistentTasksCustomMetadata.getTask(transformStats.getId());
+        var pTask = persistentTasksCustomMetaData.getTask(transformStats.getId());
         if (pTask != null) {
             transformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
         }

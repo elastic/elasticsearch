@@ -48,13 +48,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -158,13 +158,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
-        final Metadata metadata = clusterService.state().getMetadata();
+        final MetaData metaData = clusterService.state().getMetaData();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, metadata);
+                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, metaData);
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
             }
 
@@ -270,7 +270,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final Metadata metadata) {
+    static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final MetaData metaData) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
             indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
@@ -278,23 +278,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             String defaultPipeline = null;
             String finalPipeline = null;
             // start to look for default or final pipelines via settings found in the index meta data
-            IndexMetadata indexMetadata = metadata.indices().get(originalRequest.index());
+            IndexMetaData indexMetaData = metaData.indices().get(originalRequest.index());
             // check the alias for the index request (this is how normal index requests are modeled)
-            if (indexMetadata == null && indexRequest.index() != null) {
-                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
-                if (indexAbstraction != null) {
-                    indexMetadata = indexAbstraction.getWriteIndex();
+            if (indexMetaData == null && indexRequest.index() != null) {
+                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                    indexMetaData = alias.getWriteIndex();
                 }
             }
             // check the alias for the action request (this is how upserts are modeled)
-            if (indexMetadata == null && originalRequest.index() != null) {
-                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
-                if (indexAbstraction != null) {
-                    indexMetadata = indexAbstraction.getWriteIndex();
+            if (indexMetaData == null && originalRequest.index() != null) {
+                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(originalRequest.index());
+                if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                    indexMetaData = alias.getWriteIndex();
                 }
             }
-            if (indexMetadata != null) {
-                final Settings indexSettings = indexMetadata.getSettings();
+            if (indexMetaData != null) {
+                final Settings indexSettings = indexMetaData.getSettings();
                 if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
                     // find the default pipeline if one is defined from an existing index setting
                     defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
@@ -306,12 +308,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     indexRequest.setFinalPipeline(finalPipeline);
                 }
             } else if (indexRequest.index() != null) {
-                // the index does not exist yet (and this is a valid request), so match index
-                // templates to look for pipelines in either a matching V2 template (which takes
-                // precedence), or if a V2 template does not match, any V1 templates
-                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), null);
-                if (v2Template != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+                // the index does not exist yet (and this is a valid request), so match index templates to look for pipelines
+                List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index(), null);
+                assert (templates != null);
+                // order of templates are highest order first
+                for (final IndexTemplateMetaData template : templates) {
+                    final Settings settings = template.settings();
                     if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
                         // we can not break in case a lower-order template has a final pipeline that we need to collect
@@ -320,31 +322,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
                         // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, IngestService.NOOP_PIPELINE_NAME));
-                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, IngestService.NOOP_PIPELINE_NAME));
-                } else {
-                    List<IndexTemplateMetadata> templates =
-                            MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
-                    assert (templates != null);
-                    // order of templates are highest order first
-                    for (final IndexTemplateMetadata template : templates) {
-                        final Settings settings = template.settings();
-                        if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
-                            defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                            // we can not break in case a lower-order template has a final pipeline that we need to collect
-                        }
-                        if (finalPipeline == null && IndexSettings.FINAL_PIPELINE.exists(settings)) {
-                            finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                            // we can not break in case a lower-order template has a default pipeline that we need to collect
-                        }
-                        if (defaultPipeline != null && finalPipeline != null) {
-                            // we can break if we have already collected a default and final pipeline
-                            break;
-                        }
+                    if (defaultPipeline != null && finalPipeline != null) {
+                        // we can break if we have already collected a default and final pipeline
+                        break;
                     }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, IngestService.NOOP_PIPELINE_NAME));
-                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, IngestService.NOOP_PIPELINE_NAME));
                 }
+                indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, IngestService.NOOP_PIPELINE_NAME));
+                indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, IngestService.NOOP_PIPELINE_NAME));
             }
 
             if (requestPipeline != null) {
@@ -430,14 +414,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
-            Metadata metadata = clusterState.metadata();
+            MetaData metaData = clusterState.metaData();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 //the request can only be null because we set it to null in the previous step, so it gets ignored
                 if (docWriteRequest == null) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metaData)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -446,20 +430,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case CREATE:
                         case INDEX:
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                            final IndexMetadata indexMetadata = metadata.index(concreteIndex);
-                            MappingMetadata mappingMd = indexMetadata.mapping();
-                            Version indexCreated = indexMetadata.getCreationVersion();
-                            indexRequest.resolveRouting(metadata);
+                            final IndexMetaData indexMetaData = metaData.index(concreteIndex);
+                            MappingMetaData mappingMd = indexMetaData.mapping();
+                            Version indexCreated = indexMetaData.getCreationVersion();
+                            indexRequest.resolveRouting(metaData);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
-                            TransportUpdateAction.resolveAndValidateRouting(metadata, concreteIndex.getName(),
+                            TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(),
                                 (UpdateRequest) docWriteRequest);
                             break;
                         case DELETE:
-                            docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+                            docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
+                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName())) {
                                 throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
                             }
                             break;
@@ -586,7 +570,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices,
-                final Metadata metadata) {
+                final MetaData metaData) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
@@ -601,8 +585,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     return true;
                 }
             }
-            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            IndexMetaData indexMetaData = metaData.getIndexSafe(concreteIndex);
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 addFailure(request, idx, new IndexClosedException(concreteIndex));
                 return true;
             }
@@ -782,7 +766,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             itemResponses.add(
                 new BulkItemResponse(slot, indexRequest.opType(),
                     new UpdateResponse(
-                        new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                        new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
                         id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                         indexRequest.version(), DocWriteResponse.Result.NOOP
                     )

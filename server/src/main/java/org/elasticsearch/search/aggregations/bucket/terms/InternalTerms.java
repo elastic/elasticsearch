@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,8 +157,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
-        super(name, metadata);
+    protected InternalTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;

@@ -26,10 +26,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,18 +39,18 @@ import java.util.Map;
 public class InternalStatsTests extends InternalAggregationTestCase<InternalStats> {
 
     @Override
-    protected InternalStats createTestInstance(String name, Map<String, Object> metadata) {
+    protected InternalStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;
         double min = randomDoubleBetween(-1000000, 1000000, true);
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return createInstance(name, count, sum, min, max, format, metadata);
+        return createInstance(name, count, sum, min, max, format, pipelineAggregators, metaData);
     }
 
     protected InternalStats createInstance(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                                           Map<String, Object> metadata) {
-        return new InternalStats(name, count, sum, min, max, formatter, metadata);
+                                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -109,9 +111,9 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         for (double value : values) {
             max = Math.max(max, value);
             min = Math.min(min, value);
-            aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null));
+            aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null, null));
         }
-        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null);
+        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null, null);
         InternalStats reduced = internalStats.reduce(aggregations, null);
         assertEquals("dummy2", reduced.getName());
         assertEquals(values.length, reduced.getCount());
@@ -158,7 +160,8 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double min = instance.getMin();
         double max = instance.getMax();
         DocValueFormat formatter = instance.format;
-        Map<String, Object> metadata = instance.getMetadata();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
         switch (between(0, 5)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -192,17 +195,17 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             }
             break;
         case 5:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
             } else {
-                metadata = new HashMap<>(instance.getMetadata());
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
+            metaData.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalStats(name, count, sum, min, max, formatter, metadata);
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 
     public void testDoXContentBody() throws IOException {
@@ -212,7 +215,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         int count = randomIntBetween(1, 10);
         DocValueFormat format = randomNumericDocValueFormat();
-        InternalStats internalStats = createInstance("stats", count, sum, min, max, format, null);
+        InternalStats internalStats = createInstance("stats", count, sum, min, max, format, Collections.emptyList(), null);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
@@ -240,7 +243,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         max = 0.0;
         sum = 0.0;
         count = 0;
-        internalStats = createInstance("stats", count, sum, min, max, format, null);
+        internalStats = createInstance("stats", count, sum, min, max, format, Collections.emptyList(), null);
         builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);

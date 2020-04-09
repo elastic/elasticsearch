@@ -1,8 +1,7 @@
 {
   "data_frame_transform_deprecated.delete_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html",
-      "description":"Deletes an existing transform."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html"
     },
     "stability":"beta",
     "url":{

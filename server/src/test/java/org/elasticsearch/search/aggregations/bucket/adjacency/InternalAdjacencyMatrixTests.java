@@ -21,8 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,14 +66,15 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     }
 
     @Override
-    protected InternalAdjacencyMatrix createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
+    protected InternalAdjacencyMatrix createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData, InternalAggregations aggregations) {
         final List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, aggregations));
         }
-        return new InternalAdjacencyMatrix(name, buckets, metadata);
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
     }
 
     @Override
@@ -108,7 +110,8 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     protected InternalAdjacencyMatrix mutateInstance(InternalAdjacencyMatrix instance) {
         String name = instance.getName();
         List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
-        Map<String, Object> metadata = instance.getMetadata();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -119,16 +122,16 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
                     InternalAggregations.EMPTY));
             break;
         case 2:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
             } else {
-                metadata = new HashMap<>(instance.getMetadata());
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
+            metaData.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAdjacencyMatrix(name, buckets, metadata);
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
     }
 }

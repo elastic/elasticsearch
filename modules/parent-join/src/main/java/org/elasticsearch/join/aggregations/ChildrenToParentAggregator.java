@@ -24,10 +24,12 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,18 +42,19 @@ public class ChildrenToParentAggregator extends ParentJoinAggregator {
     public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, metadata);
+            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalParent(name, bucketDocCount(owningBucketOrdinal),
-                bucketAggregations(owningBucketOrdinal), metadata());
+                bucketAggregations(owningBucketOrdinal), pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalParent(name, 0, buildEmptySubAggregations(), metadata());
+        return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
+                metaData());
     }
 }

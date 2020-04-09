@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -44,7 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,10 +59,10 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        private final String name;
+        private final String[] names;
 
-        public Request(String name) {
-            this.name = name;
+        public Request(String[] names) {
+            this.names = Objects.requireNonNull(names);
         }
 
         @Override
@@ -73,13 +72,13 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readOptionalString();
+            this.names = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(name);
+            out.writeStringArray(names);
         }
 
         @Override
@@ -87,12 +86,12 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name);
+            return Arrays.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Arrays.hashCode(names);
         }
     }
 
@@ -162,24 +161,25 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
         }
 
         static List<DataStream> getDataStreams(ClusterState clusterState, Request request) {
-            Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
+            Map<String, DataStream> dataStreams = clusterState.metaData().dataStreams();
 
             // return all data streams if no name was specified
-            final String requestedName = request.name == null ? "*" : request.name;
+            if (request.names.length == 0) {
+                return new ArrayList<>(dataStreams.values());
+            }
 
             final List<DataStream> results = new ArrayList<>();
-                if (Regex.isSimpleMatchPattern(requestedName)) {
+            for (String name : request.names) {
+                if (Regex.isSimpleMatchPattern(name)) {
                     for (Map.Entry<String, DataStream> entry : dataStreams.entrySet()) {
-                        if (Regex.simpleMatch(requestedName, entry.getKey())) {
+                        if (Regex.simpleMatch(name, entry.getKey())) {
                             results.add(entry.getValue());
                         }
                     }
-                } else if (dataStreams.containsKey(request.name)) {
-                    results.add(dataStreams.get(request.name));
-                } else {
-                    throw new ResourceNotFoundException("data_stream matching [" + request.name + "] not found");
+                } else if (dataStreams.containsKey(name)) {
+                    results.add(dataStreams.get(name));
                 }
-            results.sort(Comparator.comparing(DataStream::getName));
+            }
             return results;
         }
 

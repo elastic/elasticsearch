@@ -19,23 +19,19 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.BufferedReader;
+import java.io.CharArrayWriter;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.env.Environment;
-
-import java.io.BufferedReader;
-import java.io.CharArrayWriter;
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A subcommand for the keystore cli which adds a string setting.
@@ -46,13 +42,13 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
     private final OptionSpec<String> arguments;
 
     AddStringKeyStoreCommand() {
-        super("Add string settings to the keystore", false);
-        this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting values from stdin");
+        super("Add a string setting to the keystore", false);
+        this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting value from stdin");
         this.forceOption = parser.acceptsAll(
             Arrays.asList("f", "force"),
             "Overwrite existing setting without prompting, creating keystore if necessary"
         );
-        this.arguments = parser.nonOptions("setting names");
+        this.arguments = parser.nonOptions("setting name");
     }
 
     // pkg private so tests can manipulate
@@ -62,53 +58,43 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final List<String> settings = arguments.values(options);
-        if (settings.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "the setting names can not be empty");
+        String setting = arguments.value(options);
+        if (setting == null) {
+            throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
         }
-
         final KeyStoreWrapper keyStore = getKeyStore();
-
-        final Closeable closeable;
-        final CheckedFunction<String, char[], IOException> valueSupplier;
-        if (options.has(stdinOption)) {
-            final BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-            valueSupplier = s -> {
-                try (CharArrayWriter writer = new CharArrayWriter()) {
-                    int c;
-                    while ((c = stdinReader.read()) != -1) {
-                        if ((char) c == '\r' || (char) c == '\n') {
-                            break;
-                        }
-                        writer.write((char) c);
-                    }
-                    return writer.toCharArray();
-                }
-            };
-            closeable = stdinReader;
-        } else {
-            valueSupplier = s -> terminal.readSecret("Enter value for " + s + ": ");
-            closeable = () -> {};
-        }
-
-        try (closeable) {
-            for (final String setting : settings) {
-                if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-                    if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
-                        terminal.println("Exiting without modifying keystore.");
-                        return;
-                    }
-                }
-
-                try {
-                    keyStore.setString(setting, valueSupplier.apply(setting));
-                } catch (final IllegalArgumentException e) {
-                    throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
-                }
+        if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
+                terminal.println("Exiting without modifying keystore.");
+                return;
             }
         }
 
-        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
-    }
+        final char[] value;
+        if (options.has(stdinOption)) {
+            try (
+                BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+                CharArrayWriter writer = new CharArrayWriter()
+            ) {
+                int charInt;
+                while ((charInt = stdinReader.read()) != -1) {
+                    if ((char) charInt == '\r' || (char) charInt == '\n') {
+                        break;
+                    }
+                    writer.write((char) charInt);
+                }
+                value = writer.toCharArray();
+            }
+        } else {
+            value = terminal.readSecret("Enter value for " + setting + ": ");
+        }
 
+        try {
+            keyStore.setString(setting, value);
+        } catch (IllegalArgumentException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
+        }
+        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
+
+    }
 }

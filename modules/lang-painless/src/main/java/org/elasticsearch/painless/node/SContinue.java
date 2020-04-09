@@ -57,4 +57,9 @@ public class SContinue extends AStatement {
 
         return output;
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString();
+    }
 }

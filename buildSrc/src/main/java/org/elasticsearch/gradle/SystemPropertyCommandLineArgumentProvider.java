@@ -5,15 +5,10 @@ import org.gradle.process.CommandLineArgumentProvider;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
     private final Map<String, Object> systemProperties = new LinkedHashMap<>();
-
-    public void systemProperty(String key, Supplier<String> value) {
-        systemProperties.put(key, value);
-    }
 
     public void systemProperty(String key, Object value) {
         systemProperties.put(key, value);
@@ -23,12 +18,7 @@ public class SystemPropertyCommandLineArgumentProvider implements CommandLineArg
     public Iterable<String> asArguments() {
         return systemProperties.entrySet()
             .stream()
-            .map(
-                entry -> "-D"
-                    + entry.getKey()
-                    + "="
-                    + (entry.getValue() instanceof Supplier ? ((Supplier) entry.getValue()).get() : entry.getValue())
-            )
+            .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
             .collect(Collectors.toList());
     }
 

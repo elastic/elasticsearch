@@ -44,12 +44,13 @@ public class ENumeric extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: numeric constant [" + value + "] not used"));
-        }
+        Object constant;
 
         Output output = new Output();
-        Object constant;
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+        }
 
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
@@ -119,5 +120,13 @@ public class ENumeric extends AExpression {
         output.expressionNode = constantNode;
 
         return output;
+    }
+
+    @Override
+    public String toString() {
+        if (radix != 10) {
+            return singleLineToString(value, radix);
+        }
+        return singleLineToString(value);
     }
 }

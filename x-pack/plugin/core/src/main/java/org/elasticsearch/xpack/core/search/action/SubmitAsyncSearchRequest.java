@@ -30,8 +30,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class SubmitAsyncSearchRequest extends ActionRequest {
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
-    private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
-    private boolean keepOnCompletion = false;
+    private TimeValue waitForCompletion = TimeValue.timeValueSeconds(1);
+    private boolean cleanOnCompletion = true;
     private TimeValue keepAlive = TimeValue.timeValueDays(5);
 
     private final SearchRequest request;
@@ -56,17 +56,17 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {
         this.request = new SearchRequest(in);
-        this.waitForCompletionTimeout = in.readTimeValue();
+        this.waitForCompletion = in.readTimeValue();
         this.keepAlive = in.readTimeValue();
-        this.keepOnCompletion = in.readBoolean();
+        this.cleanOnCompletion = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         request.writeTo(out);
-        out.writeTimeValue(waitForCompletionTimeout);
+        out.writeTimeValue(waitForCompletion);
         out.writeTimeValue(keepAlive);
-        out.writeBoolean(keepOnCompletion);
+        out.writeBoolean(cleanOnCompletion);
     }
 
     /**
@@ -84,13 +84,13 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     /**
      * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
-    public SubmitAsyncSearchRequest setWaitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
-        this.waitForCompletionTimeout = waitForCompletionTimeout;
+    public SubmitAsyncSearchRequest setWaitForCompletion(TimeValue waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
         return this;
     }
 
-    public TimeValue getWaitForCompletionTimeout() {
-        return waitForCompletionTimeout;
+    public TimeValue getWaitForCompletion() {
+        return waitForCompletion;
     }
 
     /**
@@ -113,15 +113,15 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     /**
-     * Should the resource be kept on completion or failure (defaults to false).
+     * Should the resource be removed on completion or failure (defaults to true).
      */
-    public SubmitAsyncSearchRequest setKeepOnCompletion(boolean value) {
-        this.keepOnCompletion = value;
+    public SubmitAsyncSearchRequest setCleanOnCompletion(boolean value) {
+        this.cleanOnCompletion = value;
         return this;
     }
 
-    public boolean isKeepOnCompletion() {
-        return keepOnCompletion;
+    public boolean isCleanOnCompletion() {
+        return cleanOnCompletion;
     }
 
     @Override
@@ -162,29 +162,25 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
-        return keepOnCompletion == request1.keepOnCompletion &&
-            waitForCompletionTimeout.equals(request1.waitForCompletionTimeout) &&
+        return cleanOnCompletion == request1.cleanOnCompletion &&
+            waitForCompletion.equals(request1.waitForCompletion) &&
             keepAlive.equals(request1.keepAlive) &&
             request.equals(request1.request);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(waitForCompletionTimeout, keepOnCompletion, keepAlive, request);
+        return Objects.hash(waitForCompletion, cleanOnCompletion, keepAlive, request);
     }
 
     @Override
     public String toString() {
         return "SubmitAsyncSearchRequest{" +
-            "waitForCompletionTimeout=" + waitForCompletionTimeout +
-            ", keepOnCompletion=" + keepOnCompletion +
+            "waitForCompletion=" + waitForCompletion +
+            ", cleanOnCompletion=" + cleanOnCompletion +
             ", keepAlive=" + keepAlive +
             ", request=" + request +
             '}';

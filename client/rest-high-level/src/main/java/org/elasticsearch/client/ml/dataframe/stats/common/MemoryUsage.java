@@ -19,7 +19,6 @@
 package org.elasticsearch.client.ml.dataframe.stats.common;
 
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -40,23 +39,21 @@ public class MemoryUsage implements ToXContentObject {
         true, a -> new MemoryUsage((Instant) a[0], (long) a[1]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
     }
 
-    @Nullable
     private final Instant timestamp;
     private final long peakUsageBytes;
 
-    public MemoryUsage(@Nullable Instant timestamp, long peakUsageBytes) {
-        this.timestamp = timestamp == null ? null : Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
+    public MemoryUsage(Instant timestamp, long peakUsageBytes) {
+        this.timestamp = Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
     }
 
-    @Nullable
     public Instant getTimestamp() {
         return timestamp;
     }
@@ -68,9 +65,7 @@ public class MemoryUsage implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (timestamp != null) {
-            builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
-        }
+        builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
         builder.endObject();
         return builder;
@@ -94,7 +89,7 @@ public class MemoryUsage implements ToXContentObject {
     @Override
     public String toString() {
         return new ToStringBuilder(getClass())
-            .add(TIMESTAMP.getPreferredName(), timestamp == null ? null : timestamp.getEpochSecond())
+            .add(TIMESTAMP.getPreferredName(), timestamp.getEpochSecond())
             .add(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes)
             .toString();
     }

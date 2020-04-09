@@ -18,9 +18,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
-import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_ALIAS;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_INDEX_PREFIX;
@@ -76,7 +75,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         String policyId = randomAlphaOfLength(5);
         SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
         final long timestamp = randomNonNegativeLong();
-        String snapshotId = generateSnapshotName(policy.getName());
+        SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(timestamp);
+        String snapshotId = policy.generateSnapshotName(context);
         SnapshotHistoryItem record = SnapshotHistoryItem.creationSuccessRecord(timestamp, policy, snapshotId);
 
         client.setVerifier((a, r, l) -> {
@@ -91,7 +91,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         String policyId = randomAlphaOfLength(5);
         SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
         final long timestamp = randomNonNegativeLong();
-        String snapshotId = generateSnapshotName(policy.getName());
+        SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(timestamp);
+        String snapshotId = policy.generateSnapshotName(context);
         {
             SnapshotHistoryItem record = SnapshotHistoryItem.creationSuccessRecord(timestamp, policy, snapshotId);
 
@@ -169,7 +170,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testHistoryIndexNeedsCreation() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder())
+            .metaData(MetaData.builder())
             .build();
 
         client.setVerifier((a, r, l) -> {
@@ -197,12 +198,12 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testHistoryIndexProperlyExistsAlready() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(SLM_HISTORY_INDEX_PREFIX + "000001")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .metaData(MetaData.builder()
+                .put(IndexMetaData.builder(SLM_HISTORY_INDEX_PREFIX + "000001")
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(randomIntBetween(1,10))
                     .numberOfReplicas(randomIntBetween(1,10))
-                    .putAlias(AliasMetadata.builder(SLM_HISTORY_ALIAS)
+                    .putAlias(AliasMetaData.builder(SLM_HISTORY_ALIAS)
                         .writeIndex(true)
                         .build())))
             .build();
@@ -225,18 +226,18 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testHistoryIndexHasNoWriteIndex() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(SLM_HISTORY_INDEX_PREFIX + "000001")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .metaData(MetaData.builder()
+                .put(IndexMetaData.builder(SLM_HISTORY_INDEX_PREFIX + "000001")
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(randomIntBetween(1,10))
                     .numberOfReplicas(randomIntBetween(1,10))
-                    .putAlias(AliasMetadata.builder(SLM_HISTORY_ALIAS)
+                    .putAlias(AliasMetaData.builder(SLM_HISTORY_ALIAS)
                         .build()))
-            .put(IndexMetadata.builder(randomAlphaOfLength(5))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .put(IndexMetaData.builder(randomAlphaOfLength(5))
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(randomIntBetween(1,10))
                 .numberOfReplicas(randomIntBetween(1,10))
-                .putAlias(AliasMetadata.builder(SLM_HISTORY_ALIAS)
+                .putAlias(AliasMetaData.builder(SLM_HISTORY_ALIAS)
                     .build())))
             .build();
 
@@ -259,9 +260,9 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testHistoryIndexNotAlias() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(SLM_HISTORY_ALIAS)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .metaData(MetaData.builder()
+                .put(IndexMetaData.builder(SLM_HISTORY_ALIAS)
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(randomIntBetween(1,10))
                     .numberOfReplicas(randomIntBetween(1,10))))
             .build();
@@ -285,7 +286,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testHistoryIndexCreatedConcurrently() throws InterruptedException {
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder())
+            .metaData(MetaData.builder())
             .build();
 
         client.setVerifier((a, r, l) -> {
@@ -314,9 +315,9 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     public void testHistoryAliasDoesntExistButIndexDoes() throws InterruptedException {
         final String initialIndex = SLM_HISTORY_INDEX_PREFIX + "000001";
         ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder(initialIndex)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .metaData(MetaData.builder()
+                .put(IndexMetaData.builder(initialIndex)
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(randomIntBetween(1,10))
                     .numberOfReplicas(randomIntBetween(1,10))))
             .build();

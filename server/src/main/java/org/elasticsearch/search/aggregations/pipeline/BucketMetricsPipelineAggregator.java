@@ -27,10 +27,14 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -44,8 +48,8 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     protected final GapPolicy gapPolicy;
 
     BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
-            Map<String, Object> metadata) {
-        super(name, bucketsPaths, metadata);
+            Map<String, Object> metaData) {
+        super(name, bucketsPaths, metaData);
         this.gapPolicy = gapPolicy;
         this.format = format;
     }
@@ -86,7 +90,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 }
             }
         }
-        return buildAggregation(metadata());
+        return buildAggregation(Collections.emptyList(), metaData());
     }
 
     /**
@@ -100,10 +104,12 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      * Called after a collection run is finished to build the aggregation for
      * the collected state.
      *
+     * @param pipelineAggregators
+     *            the pipeline aggregators to add to the resulting aggregation
      * @param metadata
      *            the metadata to add to the resulting aggregation
      */
-    protected abstract InternalAggregation buildAggregation(Map<String, Object> metadata);
+    protected abstract InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
 
     /**
      * Called for each bucket with a value so the state can be modified based on

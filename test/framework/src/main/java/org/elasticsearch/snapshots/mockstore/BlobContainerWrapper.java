@@ -19,7 +19,7 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
+import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 
@@ -46,16 +46,6 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        return delegate.readBlob(blobName, position, length);
-    }
-
-    @Override
-    public long readBlobPreferredLength() {
-        return delegate.readBlobPreferredLength();
-    }
-
-    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
@@ -77,7 +67,7 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         return delegate.listBlobs();
     }
 
@@ -87,7 +77,7 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
     }
 }

@@ -107,7 +107,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     hit.fields(fields);
                 }
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                hit.setField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                fields.put(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
             }
         }
     }

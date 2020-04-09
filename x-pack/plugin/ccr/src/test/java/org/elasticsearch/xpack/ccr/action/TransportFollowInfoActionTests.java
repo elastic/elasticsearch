@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response;
@@ -44,14 +44,14 @@ public class TransportFollowInfoActionTests extends ESTestCase {
     }
 
     private static ClusterState createCS(String[] indices, boolean[] followerIndices, boolean[] statuses) {
-        PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder();
-        Metadata.Builder mdBuilder = Metadata.builder();
+        PersistentTasksCustomMetaData.Builder persistentTasks = PersistentTasksCustomMetaData.builder();
+        MetaData.Builder mdBuilder = MetaData.builder();
         for (int i = 0; i < indices.length; i++) {
             String index = indices[i];
             boolean isFollowIndex = followerIndices[i];
             boolean active = statuses[i];
 
-            IndexMetadata.Builder imdBuilder = IndexMetadata.builder(index)
+            IndexMetaData.Builder imdBuilder = IndexMetaData.builder(index)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
@@ -60,15 +60,15 @@ public class TransportFollowInfoActionTests extends ESTestCase {
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
                 if (active) {
                     persistentTasks.addTask(Integer.toString(i), ShardFollowTask.NAME,
-                        createShardFollowTask(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE)), null);
+                        createShardFollowTask(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE)), null);
                 }
             }
             mdBuilder.put(imdBuilder);
         }
 
-        mdBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build());
+        mdBuilder.putCustom(PersistentTasksCustomMetaData.TYPE, persistentTasks.build());
         return ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(mdBuilder.build())
+            .metaData(mdBuilder.build())
             .build();
     }
 

@@ -29,51 +29,43 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<MissingAggregationBuilder> {
+public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, MissingAggregationBuilder> {
     public static final String NAME = "missing";
 
     public static final ObjectParser<MissingAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);
+            ObjectParser.fromBuilder(NAME, name -> new MissingAggregationBuilder(name, null));
     static {
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MissingAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public MissingAggregationBuilder(String name, ValueType targetValueType) {
+        super(name, CoreValuesSourceType.ANY, targetValueType);
     }
 
-    public MissingAggregationBuilder(String name) {
-        super(name);
-    }
-
-    protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+    protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
-    }
-
-    @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new MissingAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new MissingAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
      * Read from a stream.
      */
     public MissingAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.ANY);
     }
 
     @Override
@@ -87,22 +79,18 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.ONE;
-    }
-
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
-        return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
+        return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
-
+    
     @Override
     public String getType() {
         return NAME;

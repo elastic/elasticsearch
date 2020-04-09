@@ -28,8 +28,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -77,11 +77,11 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
                 .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metadata, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
 
         logger.info("start one node, do reroute, only 3 should initialize");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -131,11 +131,11 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metadata, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
 
         logger.info("with one node, do reroute, only 3 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -192,11 +192,11 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(settings, gatewayAllocator);
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(9).numberOfReplicas(0))
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(9).numberOfReplicas(0))
             .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metadata, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
 
         logger.info("with one node, do reroute, only 5 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -249,11 +249,11 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
             .build();
 
-        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metadata, gatewayAllocator);
+        ClusterState clusterState = createRecoveryStateAndInitalizeAllocations(metaData, gatewayAllocator);
 
         logger.info("with one node, do reroute, only 1 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -311,9 +311,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         boolean foundThrottledMessage = false;
         for (Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()) {
             if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
-                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, "
-                        + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] "
-                        + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])",
+                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, " 
+                        + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] " 
+                        + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])", 
                         decision.getExplanation());
                 assertEquals(Decision.Type.THROTTLE, decision.type());
                 foundThrottledMessage = true;
@@ -331,48 +331,48 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node2"), 0);
     }
 
-    private ClusterState createRecoveryStateAndInitalizeAllocations(Metadata metadata, TestGatewayAllocator gatewayAllocator) {
+    private ClusterState createRecoveryStateAndInitalizeAllocations(MetaData metaData, TestGatewayAllocator gatewayAllocator) {
         DiscoveryNode node1 = newNode("node1");
-        Metadata.Builder metadataBuilder = new Metadata.Builder(metadata);
+        MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (ObjectCursor<IndexMetadata> cursor: metadata.indices().values()) {
+        for (ObjectCursor<IndexMetaData> cursor: metaData.indices().values()) {
             Index index = cursor.value.getIndex();
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor.value);
+            IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(cursor.value);
             final int recoveryType = randomInt(5);
             if (recoveryType <= 4) {
-                addInSyncAllocationIds(index, indexMetadataBuilder, gatewayAllocator, node1);
+                addInSyncAllocationIds(index, indexMetaDataBuilder, gatewayAllocator, node1);
             }
-            IndexMetadata indexMetadata = indexMetadataBuilder.build();
-            metadataBuilder.put(indexMetadata, false);
+            IndexMetaData indexMetaData = indexMetaDataBuilder.build();
+            metaDataBuilder.put(indexMetaData, false);
             switch (recoveryType) {
                 case 0:
-                    routingTableBuilder.addAsRecovery(indexMetadata);
+                    routingTableBuilder.addAsRecovery(indexMetaData);
                     break;
                 case 1:
-                    routingTableBuilder.addAsFromCloseToOpen(indexMetadata);
+                    routingTableBuilder.addAsFromCloseToOpen(indexMetaData);
                     break;
                 case 2:
-                    routingTableBuilder.addAsFromDangling(indexMetadata);
+                    routingTableBuilder.addAsFromDangling(indexMetaData);
                     break;
                 case 3:
                     snapshotIndices.add(index.getName());
-                    routingTableBuilder.addAsNewRestore(indexMetadata,
+                    routingTableBuilder.addAsNewRestore(indexMetaData,
                         new SnapshotRecoverySource(
                             restoreUUID, snapshot, Version.CURRENT,
-                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))), new IntHashSet());
+                            new IndexId(indexMetaData.getIndex().getName(), UUIDs.randomBase64UUID(random()))), new IntHashSet());
                     break;
                 case 4:
                     snapshotIndices.add(index.getName());
-                    routingTableBuilder.addAsRestore(indexMetadata,
+                    routingTableBuilder.addAsRestore(indexMetaData,
                         new SnapshotRecoverySource(
                             restoreUUID, snapshot, Version.CURRENT,
-                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))));
+                            new IndexId(indexMetaData.getIndex().getName(), UUIDs.randomBase64UUID(random()))));
                     break;
                 case 5:
-                    routingTableBuilder.addAsNew(indexMetadata);
+                    routingTableBuilder.addAsNew(indexMetaData);
                     break;
                 default:
                     throw new IndexOutOfBoundsException();
@@ -399,15 +399,15 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         return ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(node1))
-            .metadata(metadataBuilder.build())
+            .metaData(metaDataBuilder.build())
             .routingTable(routingTable)
             .customs(restores.build())
             .build();
     }
 
-    private void addInSyncAllocationIds(Index index, IndexMetadata.Builder indexMetadata,
+    private void addInSyncAllocationIds(Index index, IndexMetaData.Builder indexMetaData,
                                         TestGatewayAllocator gatewayAllocator, DiscoveryNode node1) {
-        for (int shard = 0; shard < indexMetadata.numberOfShards(); shard++) {
+        for (int shard = 0; shard < indexMetaData.numberOfShards(); shard++) {
 
             final boolean primary = randomBoolean();
             final ShardRouting unassigned = ShardRouting.newUnassigned(new ShardId(index, shard), primary,
@@ -417,7 +417,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
             );
             ShardRouting started = ShardRoutingHelper.moveToStarted(ShardRoutingHelper.initialize(unassigned, node1.getId()));
-            indexMetadata.putInSyncAllocationIds(shard, Collections.singleton(started.allocationId().getId()));
+            indexMetaData.putInSyncAllocationIds(shard, Collections.singleton(started.allocationId().getId()));
             gatewayAllocator.addKnownAllocation(started);
         }
     }

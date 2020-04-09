@@ -12,9 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -47,30 +46,27 @@ public class DatafeedJobBuilder {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final AnomalyDetectionAuditor auditor;
-    private final AnnotationPersister annotationPersister;
     private final Supplier<Long> currentTimeSupplier;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobResultsPersister jobResultsPersister;
-    private final boolean remoteClusterClient;
+    private final boolean remoteClusterSearchSupported;
     private final String nodeName;
 
     public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor,
-                              AnnotationPersister annotationPersister, Supplier<Long> currentTimeSupplier,
-                              JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider,
-                              DatafeedConfigProvider datafeedConfigProvider, JobResultsPersister jobResultsPersister, Settings settings,
-                              String nodeName) {
+                              Supplier<Long> currentTimeSupplier, JobConfigProvider jobConfigProvider,
+                              JobResultsProvider jobResultsProvider, DatafeedConfigProvider datafeedConfigProvider,
+                              JobResultsPersister jobResultsPersister, Settings settings, String nodeName) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);
-        this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
-        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.remoteClusterSearchSupported = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         this.nodeName = nodeName;
     }
 
@@ -94,7 +90,6 @@ public class DatafeedJobBuilder {
                     context.timingStatsReporter,
                     client,
                     auditor,
-                    annotationPersister,
                     currentTimeSupplier,
                     delayedDataDetector,
                     datafeedConfigHolder.get().getMaxEmptySearches(),
@@ -186,7 +181,7 @@ public class DatafeedJobBuilder {
                 configBuilder -> {
                     try {
                         datafeedConfigHolder.set(configBuilder.build());
-                        if (remoteClusterClient == false) {
+                        if (remoteClusterSearchSupported == false) {
                             List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices());
                             if (remoteIndices.isEmpty() == false) {
                                 listener.onFailure(

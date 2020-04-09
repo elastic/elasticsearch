@@ -1,8 +1,7 @@
 {
   "ml.info":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html",
-      "description":"Returns defaults and limits used by machine learning."
+      "url":null
     },
     "stability":"stable",
     "url":{

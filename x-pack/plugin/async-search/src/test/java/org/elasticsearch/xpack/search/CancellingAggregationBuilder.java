@@ -19,9 +19,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,7 +42,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new CancellingAggregationBuilder(name);
     }
 
@@ -79,12 +81,13 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
         final FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(name, QueryBuilders.matchAllQuery());
         filterAgg.subAggregations(subfactoriesBuilder);
         final AggregatorFactory factory = filterAgg.build(queryShardContext, parent);
-        return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata) {
+        return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData) {
             @Override
             protected Aggregator createInternal(SearchContext searchContext,
                                                 Aggregator parent,
                                                 boolean collectsFromSingleBucket,
-                                                Map<String, Object> metadata) throws IOException {
+                                                List<PipelineAggregator> pipelineAggregators,
+                                                Map<String, Object> metaData) throws IOException {
                 while (searchContext.isCancelled() == false) {
                     try {
                         Thread.sleep(SLEEP_TIME);
@@ -95,10 +98,5 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
                 return factory.create(searchContext, parent, collectsFromSingleBucket);
             }
         };
-    }
-
-    @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.NONE;
     }
 }

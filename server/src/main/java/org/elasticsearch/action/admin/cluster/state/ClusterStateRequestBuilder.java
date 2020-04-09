@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
 
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
@@ -54,11 +53,11 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * Should the cluster state result include the {@link Metadata}. Defaults
+     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
      * to {@code true}.
      */
-    public ClusterStateRequestBuilder setMetadata(boolean filter) {
-        request.metadata(filter);
+    public ClusterStateRequestBuilder setMetaData(boolean filter) {
+        request.metaData(filter);
         return this;
     }
 
@@ -90,7 +89,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     }
 
     /**
-     * When {@link #setMetadata(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * When {@link #setMetaData(boolean)} is set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetaData}
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {
@@ -105,15 +104,15 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     /**
      * Causes the request to wait for the metadata version to advance to at least the given version.
-     * @param waitForMetadataVersion The metadata version for which to wait
+     * @param waitForMetaDataVersion The metadata version for which to wait
      */
-    public ClusterStateRequestBuilder setWaitForMetadataVersion(long waitForMetadataVersion) {
-        request.waitForMetadataVersion(waitForMetadataVersion);
+    public ClusterStateRequestBuilder setWaitForMetaDataVersion(long waitForMetaDataVersion) {
+        request.waitForMetaDataVersion(waitForMetaDataVersion);
         return this;
     }
 
     /**
-     * If {@link ClusterStateRequest#waitForMetadataVersion()} is set then this determines how long to wait
+     * If {@link ClusterStateRequest#waitForMetaDataVersion()} is set then this determines how long to wait
      */
     public ClusterStateRequestBuilder setWaitForTimeOut(TimeValue waitForTimeout) {
         request.waitForTimeout(waitForTimeout);

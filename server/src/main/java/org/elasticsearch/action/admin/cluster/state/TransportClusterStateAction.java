@@ -29,10 +29,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -83,8 +83,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                                    final ActionListener<ClusterStateResponse> listener) throws IOException {
 
         final Predicate<ClusterState> acceptableClusterStatePredicate
-            = request.waitForMetadataVersion() == null ? clusterState -> true
-            : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
+            = request.waitForMetaDataVersion() == null ? clusterState -> true
+            : clusterState -> clusterState.metaData().version() >= request.waitForMetaDataVersion();
 
         final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
             ? acceptableClusterStatePredicate
@@ -103,7 +103,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                     } else {
                         listener.onFailure(new NotMasterException(
-                            "master stepped down waiting for metadata version " + request.waitForMetadataVersion()));
+                            "master stepped down waiting for metadata version " + request.waitForMetaDataVersion()));
                     }
                 }
 
@@ -152,32 +152,32 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             builder.blocks(currentState.blocks());
         }
 
-        Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.clusterUUID(currentState.metadata().clusterUUID());
-        mdBuilder.coordinationMetadata(currentState.coordinationMetadata());
+        MetaData.Builder mdBuilder = MetaData.builder();
+        mdBuilder.clusterUUID(currentState.metaData().clusterUUID());
+        mdBuilder.coordinationMetaData(currentState.coordinationMetaData());
 
-        if (request.metadata()) {
+        if (request.metaData()) {
             if (request.indices().length > 0) {
-                mdBuilder.version(currentState.metadata().version());
+                mdBuilder.version(currentState.metaData().version());
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
-                    IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
-                    if (indexMetadata != null) {
-                        mdBuilder.put(indexMetadata, false);
+                    IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
+                    if (indexMetaData != null) {
+                        mdBuilder.put(indexMetaData, false);
                     }
                 }
             } else {
-                mdBuilder = Metadata.builder(currentState.metadata());
+                mdBuilder = MetaData.builder(currentState.metaData());
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (ObjectObjectCursor<String, Custom> custom : currentState.metadata().customs()) {
-                if (custom.value.context().contains(Metadata.XContentContext.API) == false) {
+            for (ObjectObjectCursor<String, Custom> custom : currentState.metaData().customs()) {
+                if (custom.value.context().contains(MetaData.XContentContext.API) == false) {
                     mdBuilder.removeCustom(custom.key);
                 }
             }
         }
-        builder.metadata(mdBuilder);
+        builder.metaData(mdBuilder);
 
         if (request.customs()) {
             for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {

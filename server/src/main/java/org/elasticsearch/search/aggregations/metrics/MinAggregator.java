@@ -40,11 +40,13 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -60,12 +62,13 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray mins;
 
     MinAggregator(String name,
-                    ValuesSourceConfig config,
+                    ValuesSourceConfig<ValuesSource.Numeric> config,
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
                     Aggregator parent,
-                    Map<String, Object> metadata) throws IOException {
-        super(name, context, parent, metadata);
+                    List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
@@ -146,12 +149,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), format, metadata());
+        return new InternalMin(name, mins.get(bucket), format, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, format, metadata());
+        return new InternalMin(name, Double.POSITIVE_INFINITY, format, pipelineAggregators(), metaData());
     }
 
     @Override
@@ -169,7 +172,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param config The config for the values source metric.
      */
     static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                                ValuesSourceConfig config) {
+                                                                ValuesSourceConfig<ValuesSource.Numeric> config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {
             return null;

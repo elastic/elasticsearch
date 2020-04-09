@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,29 +35,29 @@ import static java.util.Collections.singletonMap;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
-    private final List<IndexTemplateMetadata> indexTemplates;
+    private final List<IndexTemplateMetaData> indexTemplates;
 
     public GetIndexTemplatesResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
         indexTemplates = new ArrayList<>();
         for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(IndexTemplateMetadata.readFrom(in));
+            indexTemplates.add(IndexTemplateMetaData.readFrom(in));
         }
     }
 
-    public GetIndexTemplatesResponse(List<IndexTemplateMetadata> indexTemplates) {
+    public GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
         this.indexTemplates = indexTemplates;
     }
 
-    public List<IndexTemplateMetadata> getIndexTemplates() {
+    public List<IndexTemplateMetaData> getIndexTemplates() {
         return indexTemplates;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(indexTemplates.size());
-        for (IndexTemplateMetadata indexTemplate : indexTemplates) {
+        for (IndexTemplateMetaData indexTemplate : indexTemplates) {
             indexTemplate.writeTo(out);
         }
     }
@@ -80,8 +80,8 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
 
         builder.startObject();
-        for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
-            IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
+        for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplates()) {
+            IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
         }
         builder.endObject();
         return builder;

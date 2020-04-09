@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -34,24 +33,21 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 import java.util.Objects;
 
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
@@ -120,14 +116,10 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
-        private final MetadataCreateIndexService metadataCreateIndexService;
-
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               MetadataCreateIndexService metadataCreateIndexService) {
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
-            this.metadataCreateIndexService = metadataCreateIndexService;
         }
 
         @Override
@@ -158,7 +150,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        return createDataStream(metadataCreateIndexService, currentState, request);
+                        return createDataStream(currentState, request);
                     }
 
                     @Override
@@ -168,28 +160,16 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
                 });
         }
 
-        static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
-                                             ClusterState currentState,
-                                             Request request) throws Exception {
-            if (currentState.metadata().dataStreams().containsKey(request.name)) {
+        static ClusterState createDataStream(ClusterState currentState, Request request) {
+            if (currentState.metaData().dataStreams().containsKey(request.name)) {
                 throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
             }
 
-            MetadataCreateIndexService.validateIndexOrAliasName(request.name,
-                (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
+            MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
+                new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
 
-            String firstBackingIndexName = request.name + "-000001";
-            CreateIndexClusterStateUpdateRequest createIndexRequest =
-                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
-                .settings(Settings.builder().put("index.hidden", true).build());
-            currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
-            IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
-            assert firstBackingIndex != null;
-
-            Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-                new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
             logger.info("adding data stream [{}]", request.name);
-            return ClusterState.builder(currentState).metadata(builder).build();
+            return ClusterState.builder(currentState).metaData(builder).build();
         }
 
         @Override

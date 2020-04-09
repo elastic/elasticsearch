@@ -19,10 +19,16 @@ public class TransformTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         boolean transformEnabled = randomBoolean();
         boolean transformPluginEnabled = randomBoolean();
+        boolean remoteEnabled = randomBoolean();
 
         // randomly use explicit or default setting
         if ((transformEnabled && randomBoolean()) == false) {
             builder.put("node.transform", transformEnabled);
+        }
+
+        // randomly use explicit or default setting
+        if ((remoteEnabled && randomBoolean()) == false) {
+            builder.put("cluster.remote.connect", remoteEnabled);
         }
 
         if (transformPluginEnabled == false) {
@@ -36,14 +42,23 @@ public class TransformTests extends ESTestCase {
             transformPluginEnabled && transformEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
+        assertEquals(
+            transformPluginEnabled && remoteEnabled,
+            Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect"))
+        );
     }
 
     public void testNodeAttributesDirectlyGiven() {
         Settings.Builder builder = Settings.builder();
-        builder.put("node.attr.transform.node", randomBoolean());
+
+        if (randomBoolean()) {
+            builder.put("node.attr.transform.node", randomBoolean());
+        } else {
+            builder.put("node.attr.transform.remote_connect", randomBoolean());
+        }
 
         Transform transform = createTransform(builder.build());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, transform::additionalSettings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> transform.additionalSettings());
         assertThat(
             e.getMessage(),
             equalTo("Directly setting transform node attributes is not permitted, please use the documented node settings instead")

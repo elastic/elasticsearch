@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperService;
@@ -44,7 +44,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     private static GetMappingsResponse mutate(GetMappingsResponse original) {
-        ImmutableOpenMap.Builder<String, MappingMetadata> builder = ImmutableOpenMap.builder(original.mappings());
+        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(original.mappings());
         String indexKey = original.mappings().keys().iterator().next().value;
         builder.put(indexKey + "1", createMappingsForIndex());
         return new GetMappingsResponse(builder.build());
@@ -55,7 +55,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
         return mutate(instance);
     }
 
-    public static MappingMetadata createMappingsForIndex() {
+    public static MappingMetaData createMappingsForIndex() {
         Map<String, Object> mappings = new HashMap<>();
         if (rarely() == false) { // rarely have no fields
             mappings.put("field", randomFieldMapping());
@@ -63,14 +63,14 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
                 mappings.put("field2", randomFieldMapping());
             }
             String typeName = MapperService.SINGLE_MAPPING_NAME;
-            return new MappingMetadata(typeName, mappings);
+            return new MappingMetaData(typeName, mappings);
         }
-        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
+        return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
     @Override
     protected GetMappingsResponse createTestInstance() {
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexBuilder = ImmutableOpenMap.builder();
         indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);

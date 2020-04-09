@@ -50,7 +50,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-default]
 (Optional, boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
-[role="child_attributes"]
 [[ml-get-job-stats-results]]
 ==== {api-response-body-title}
 
@@ -61,242 +60,221 @@ job:
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-anomaly-jobs]
 
-//Begin data_counts
 [[datacounts]]`data_counts`::
 (object) An object that describes the quantity of input to the job and any
 related error counts. The `data_count` values are cumulative for the lifetime of
 a job. If a model snapshot is reverted or old results are deleted, the job
 counts are not reset.
-+
-.Properties of `data_counts`
-[%collapsible%open]
-====
-`bucket_count`:::
+
+`data_counts`.`bucket_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count-anomaly-jobs]
 
-`earliest_record_timestamp`:::
+`data_counts`.`earliest_record_timestamp`:::
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=earliest-record-timestamp]
 
-`empty_bucket_count`:::
+`data_counts`.`empty_bucket_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=empty-bucket-count]
 
-`input_bytes`:::
+`data_counts`.`input_bytes`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=input-bytes]
 
-`input_field_count`:::
+`data_counts`.`input_field_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=input-field-count]
 
-`input_record_count`:::
+`data_counts`.`input_record_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=input-record-count]
 
-`invalid_date_count`:::
+`data_counts`.`invalid_date_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=invalid-date-count]
 
-`job_id`:::
+`data_counts`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`last_data_time`:::
+`data_counts`.`last_data_time`:::
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=last-data-time]
 
-`latest_empty_bucket_timestamp`:::
+`data_counts`.`latest_empty_bucket_timestamp`:::
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=latest-empty-bucket-timestamp]
 
-`latest_record_timestamp`:::
+`data_counts`.`latest_record_timestamp`:::
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=latest-record-timestamp]
 
-`latest_sparse_bucket_timestamp`:::
+`data_counts`.`latest_sparse_bucket_timestamp`:::
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=latest-sparse-record-timestamp]
 
-`missing_field_count`:::
+`data_counts`.`missing_field_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=missing-field-count]
 +
 The value of `processed_record_count` includes this count.
 
-`out_of_order_timestamp_count`:::
+`data_counts`.`out_of_order_timestamp_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=out-of-order-timestamp-count]
 
-`processed_field_count`:::
+`data_counts`.`processed_field_count`:::
 include::{docdir}/ml/ml-shared.asciidoc[tag=processed-field-count]
 
-`processed_record_count`:::
+`data_counts`.`processed_record_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=processed-record-count]
 
-`sparse_bucket_count`:::
+`data_counts`.`sparse_bucket_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
-====
-//End data_counts
 
 `deleting`::
 (boolean)
 Indicates that the process of deleting the job is in progress but not yet 
 completed. It is only reported when `true`.
 
-//Begin forecasts_stats
 [[forecastsstats]]`forecasts_stats`::
 (object) An object that provides statistical information about forecasts 
 belonging to this job. Some statistics are omitted if no forecasts have been 
-made.
+made. It has the following properties:
 +
+--
 NOTE: Unless there is at least one forecast, `memory_bytes`, `records`,
 `processing_time_ms` and `status` properties are omitted.
-+
-.Properties of `forecasts_stats`
-[%collapsible%open]
-====
-`forecasted_jobs`:::
+
+--
+
+`forecasts_stats`.`forecasted_jobs`:::
 (long) A value of `0` indicates that forecasts do not exist for this job. A 
 value of `1` indicates that at least one forecast exists.
 
-`memory_bytes`:::
+`forecasts_stats`.`memory_bytes`:::
 (object) The `avg`, `min`, `max` and `total` memory usage in bytes for forecasts 
 related to this job. If there are no forecasts, this property is omitted.
 
-`records`:::
+`forecasts_stats`.`records`:::
 (object) The `avg`, `min`, `max` and `total` number of `model_forecast` documents 
 written for forecasts related to this job. If there are no forecasts, this
 property is omitted.
 
-`processing_time_ms`:::
+`forecasts_stats`.`processing_time_ms`:::
 (object) The `avg`, `min`, `max` and `total` runtime in milliseconds for 
 forecasts related to this job. If there are no forecasts, this property is omitted.
 
-`status`:::
+`forecasts_stats`.`status`:::
 (object) The count of forecasts by their status. For example: 
 {"finished" : 2, "started" : 1}. If there are no forecasts, this property is omitted.
 
-`total`:::
+`forecasts_stats`.`total`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=forecast-total]
-====
-//End forecasts_stats
 
 `job_id`::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-//Begin model_size_stats
 [[modelsizestats]]`model_size_stats`::
 (object) An object that provides information about the size and contents of the
-model.
-+
-.Properties of `model_size_stats`
-[%collapsible%open]
-====
-`bucket_allocation_failures_count`:::
+model. It has the following properties:
+ 
+`model_size_stats`.`bucket_allocation_failures_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-allocation-failures-count]
 
-`categorized_doc_count`:::
+`model_size_stats`.`categorized_doc_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorized-doc-count]
 
-`categorization_status`:::
+`model_size_stats`.`categorization_status`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-status]
 
-`dead_category_count`:::
+`model_size_stats`.`dead_category_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=dead-category-count]
 
-`frequent_category_count`:::
+`model_size_stats`.`frequent_category_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=frequent-category-count]
 
-`job_id`:::
+`model_size_stats`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`log_time`:::
+`model_size_stats`.`log_time`:::
 (date) The timestamp of the `model_size_stats` according to server time.
 
-`memory_status`:::
+`model_size_stats`.`memory_status`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-status]
 
-`model_bytes`:::
+`model_size_stats`.`model_bytes`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-bytes]
 
-`model_bytes_exceeded`:::
+`model_size_stats`.`model_bytes_exceeded`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-bytes-exceeded]
 
-`model_bytes_memory_limit`:::
+`model_size_stats`.`model_bytes_memory_limit`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit-anomaly-jobs]
 
-`rare_category_count`:::
+`model_size_stats`.`rare_category_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=rare-category-count]
 
-`result_type`:::
+`model_size_stats`.`result_type`:::
 (string) For internal use. The type of result.
 
-`total_by_field_count`:::
+`model_size_stats`.`total_by_field_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=total-by-field-count]
 
-`total_category_count`:::
+`model_size_stats`.`total_category_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=total-category-count]
 
-`total_over_field_count`:::
+`model_size_stats`.`total_over_field_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=total-over-field-count]
 
-`total_partition_field_count`:::
+`model_size_stats`.`total_partition_field_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=total-partition-field-count]
 
-`timestamp`:::
+`model_size_stats`.`timestamp`:::
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-timestamp]
-====
-//End model_size_stats
 
-//Begin node
 [[stats-node]]`node`::
 (object) Contains properties for the node that runs the job. This information is
 available only for open jobs.
-+
-.Properties of `node`
-[%collapsible%open]
-====
-`attributes`:::
+
+`node`.`attributes`:::
 (object) Lists node attributes. For example,
 `{"ml.machine_memory": "17179869184", "ml.max_open_jobs" : "20"}`.
   
-`ephemeral_id`:::
+`node`.`ephemeral_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
-`id`:::
+`node`.`id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
 
-`name`:::
+`node`.`name`:::
 (string) The node name.
 
-`transport_address`:::
+`node`.`transport_address`:::
 (string) The host and port where transport HTTP connections are accepted.
-====
-//End node
 
 `open_time`::
 (string)
@@ -306,46 +284,40 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=open-time]
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=state-anomaly-job]
 
-//Begin timing_stats
 [[timingstats]]`timing_stats`::
 (object) An object that provides statistical information about timing aspect of
-this job.
-+
-.Properties of `timing_stats`
-[%collapsible%open]
-====
-`average_bucket_processing_time_ms`:::
+this job. It has the following properties:
+
+`timing_stats`.`average_bucket_processing_time_ms`:::
 (double) Average of all bucket processing times in milliseconds.
 
-`bucket_count`:::
+`timing_stats`.`bucket_count`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
-`exponential_average_bucket_processing_time_ms`:::
+`timing_stats`.`exponential_average_bucket_processing_time_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average]
 
-`exponential_average_bucket_processing_time_per_hour_ms`:::
+`timing_stats`.`exponential_average_bucket_processing_time_per_hour_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-exponential-average-hour]
 
-`job_id`:::
+`timing_stats`.`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`maximum_bucket_processing_time_ms`:::
+`timing_stats`.`maximum_bucket_processing_time_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-maximum]
 
-`minimum_bucket_processing_time_ms`:::
+`timing_stats`.`minimum_bucket_processing_time_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-minimum]
 
-`total_bucket_processing_time_ms`:::
+`timing_stats`.`total_bucket_processing_time_ms`:::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
-====
-//End timing_stats
 
 [[ml-get-job-stats-response-codes]]
 ==== {api-response-codes-title}

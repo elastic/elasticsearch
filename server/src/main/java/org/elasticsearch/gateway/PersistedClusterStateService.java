@@ -49,8 +49,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -69,7 +69,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.index.Index;
 
 import java.io.Closeable;
@@ -112,7 +112,7 @@ import java.util.function.Supplier;
  * | NODE_VERSION_KEY          | "node_version"          | The (ID of the) version of the node that wrote this metadata                  |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  *
- * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
+ * (the last-accepted term is recorded in MetaData → CoordinationMetaData so does not need repeating here)
  */
 public class PersistedClusterStateService {
     private static final Logger logger = LogManager.getLogger(PersistedClusterStateService.class);
@@ -127,7 +127,7 @@ public class PersistedClusterStateService {
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
     private static final int COMMIT_DATA_SIZE = 4;
 
-    public static final String METADATA_DIRECTORY_NAME = MetadataStateFormat.STATE_DIR_NAME;
+    public static final String METADATA_DIRECTORY_NAME = MetaDataStateFormat.STATE_DIR_NAME;
 
     public static final Setting<TimeValue> SLOW_WRITE_LOGGING_THRESHOLD = Setting.timeSetting("gateway.slow_write_logging_threshold",
         TimeValue.timeValueSeconds(10), TimeValue.ZERO, Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -169,7 +169,7 @@ public class PersistedClusterStateService {
      * Creates a new disk-based writer for cluster states
      */
     public Writer createWriter() throws IOException {
-        final List<MetadataIndexWriter> metadataIndexWriters = new ArrayList<>();
+        final List<MetaDataIndexWriter> metaDataIndexWriters = new ArrayList<>();
         final List<Closeable> closeables = new ArrayList<>();
         boolean success = false;
         try {
@@ -179,7 +179,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
+                metaDataIndexWriters.add(new MetaDataIndexWriter(directory, indexWriter));
             }
             success = true;
         } finally {
@@ -187,7 +187,7 @@ public class PersistedClusterStateService {
                 IOUtils.closeWhileHandlingException(closeables);
             }
         }
-        return new Writer(metadataIndexWriters, nodeId, bigArrays, relativeTimeMillisSupplier, () -> slowWriteLoggingThreshold);
+        return new Writer(metaDataIndexWriters, nodeId, bigArrays, relativeTimeMillisSupplier, () -> slowWriteLoggingThreshold);
     }
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
@@ -227,20 +227,20 @@ public class PersistedClusterStateService {
     }
 
     public static class OnDiskState {
-        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, Metadata.EMPTY_METADATA);
+        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
 
         private final String nodeId;
         private final Path dataPath;
         public final long currentTerm;
         public final long lastAcceptedVersion;
-        public final Metadata metadata;
+        public final MetaData metaData;
 
-        private OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, Metadata metadata) {
+        private OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
             this.nodeId = nodeId;
             this.dataPath = dataPath;
             this.currentTerm = currentTerm;
             this.lastAcceptedVersion = lastAcceptedVersion;
-            this.metadata = metadata;
+            this.metaData = metaData;
         }
 
         public boolean empty() {
@@ -253,7 +253,7 @@ public class PersistedClusterStateService {
      * @param dataPaths the data paths to scan
      */
     @Nullable
-    public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
+    public static NodeMetaData nodeMetaData(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
         for (final Path dataPath : dataPaths) {
@@ -280,7 +280,7 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version);
+        return new NodeMetaData(nodeId, version);
     }
 
     /**
@@ -332,13 +332,13 @@ public class PersistedClusterStateService {
                             "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     }
 
-                    if (onDiskState.metadata.clusterUUIDCommitted()) {
+                    if (onDiskState.metaData.clusterUUIDCommitted()) {
                         if (committedClusterUuid == null) {
-                            committedClusterUuid = onDiskState.metadata.clusterUUID();
+                            committedClusterUuid = onDiskState.metaData.clusterUUID();
                             committedClusterUuidPath = dataPath;
-                        } else if (committedClusterUuid.equals(onDiskState.metadata.clusterUUID()) == false) {
+                        } else if (committedClusterUuid.equals(onDiskState.metaData.clusterUUID()) == false) {
                             throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
-                                "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metadata.clusterUUID() + "] in ["
+                                "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metaData.clusterUUID() + "] in ["
                                 + dataPath + "]");
                         }
                     }
@@ -347,8 +347,8 @@ public class PersistedClusterStateService {
                         maxCurrentTermOnDiskState = onDiskState;
                     }
 
-                    long acceptedTerm = onDiskState.metadata.coordinationMetadata().term();
-                    long maxAcceptedTerm = bestOnDiskState.metadata.coordinationMetadata().term();
+                    long acceptedTerm = onDiskState.metaData.coordinationMetaData().term();
+                    long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
                     if (bestOnDiskState.empty()
                         || acceptedTerm > maxAcceptedTerm
                         || (acceptedTerm == maxAcceptedTerm
@@ -376,19 +376,19 @@ public class PersistedClusterStateService {
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
 
-        final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
+        final SetOnce<MetaData.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
-            final Metadata metadata = Metadata.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
+            final MetaData metaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
-            logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
+            logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
             if (builderReference.get() != null) {
                 throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
             }
-            builderReference.set(Metadata.builder(metadata));
+            builderReference.set(MetaData.builder(metaData));
         });
 
-        final Metadata.Builder builder = builderReference.get();
+        final MetaData.Builder builder = builderReference.get();
         if (builder == null) {
             throw new IllegalStateException("no global metadata found in [" + dataPath + "]");
         }
@@ -398,13 +398,13 @@ public class PersistedClusterStateService {
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
-            final IndexMetadata indexMetadata = IndexMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
+            final IndexMetaData indexMetaData = IndexMetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
-            logger.trace("found index metadata for {}", indexMetadata.getIndex());
-            if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
-                throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
+            logger.trace("found index metadata for {}", indexMetaData.getIndex());
+            if (indexUUIDs.add(indexMetaData.getIndexUUID()) == false) {
+                throw new IllegalStateException("duplicate metadata found for " + indexMetaData.getIndex() + " in [" + dataPath + "]");
             }
-            builder.put(indexMetadata, false);
+            builder.put(indexMetaData, false);
         });
 
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
@@ -448,7 +448,7 @@ public class PersistedClusterStateService {
     static {
         Map<String, String> params = new HashMap<>(2);
         params.put("binary", "true");
-        params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+        params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
         FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
 
@@ -479,16 +479,16 @@ public class PersistedClusterStateService {
      * Encapsulates a single {@link IndexWriter} with its {@link Directory} for ease of closing, and a {@link Logger}. There is one of these
      * for each data path.
      */
-    private static class MetadataIndexWriter implements Closeable {
+    private static class MetaDataIndexWriter implements Closeable {
 
         private final Logger logger;
         private final Directory directory;
         private final IndexWriter indexWriter;
 
-        MetadataIndexWriter(Directory directory, IndexWriter indexWriter) {
+        MetaDataIndexWriter(Directory directory, IndexWriter indexWriter) {
             this.directory = directory;
             this.indexWriter = indexWriter;
-            this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
+            this.logger = Loggers.getLogger(MetaDataIndexWriter.class, directory.toString());
         }
 
         void deleteAll() throws IOException {
@@ -496,17 +496,17 @@ public class PersistedClusterStateService {
             this.indexWriter.deleteAll();
         }
 
-        void updateIndexMetadataDocument(Document indexMetadataDocument, Index index) throws IOException {
+        void updateIndexMetaDataDocument(Document indexMetaDataDocument, Index index) throws IOException {
             this.logger.trace("updating metadata for [{}]", index);
-            indexWriter.updateDocument(new Term(INDEX_UUID_FIELD_NAME, index.getUUID()), indexMetadataDocument);
+            indexWriter.updateDocument(new Term(INDEX_UUID_FIELD_NAME, index.getUUID()), indexMetaDataDocument);
         }
 
-        void updateGlobalMetadata(Document globalMetadataDocument) throws IOException {
+        void updateGlobalMetaData(Document globalMetaDataDocument) throws IOException {
             this.logger.trace("updating global metadata doc");
-            indexWriter.updateDocument(new Term(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME), globalMetadataDocument);
+            indexWriter.updateDocument(new Term(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME), globalMetaDataDocument);
         }
 
-        void deleteIndexMetadata(String indexUUID) throws IOException {
+        void deleteIndexMetaData(String indexUUID) throws IOException {
             this.logger.trace("removing metadata for [{}]", indexUUID);
             indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, indexUUID));
         }
@@ -538,7 +538,7 @@ public class PersistedClusterStateService {
 
     public static class Writer implements Closeable {
 
-        private final List<MetadataIndexWriter> metadataIndexWriters;
+        private final List<MetaDataIndexWriter> metaDataIndexWriters;
         private final String nodeId;
         private final BigArrays bigArrays;
         private final LongSupplier relativeTimeMillisSupplier;
@@ -547,9 +547,9 @@ public class PersistedClusterStateService {
         boolean fullStateWritten = false;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        private Writer(List<MetadataIndexWriter> metadataIndexWriters, String nodeId, BigArrays bigArrays,
+        private Writer(List<MetaDataIndexWriter> metaDataIndexWriters, String nodeId, BigArrays bigArrays,
                        LongSupplier relativeTimeMillisSupplier, Supplier<TimeValue> slowWriteLoggingThresholdSupplier) {
-            this.metadataIndexWriters = metadataIndexWriters;
+            this.metaDataIndexWriters = metaDataIndexWriters;
             this.nodeId = nodeId;
             this.bigArrays = bigArrays;
             this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
@@ -567,7 +567,7 @@ public class PersistedClusterStateService {
         }
 
         private void closeIfAnyIndexWriterHasTragedyOrIsClosed() {
-            if (metadataIndexWriters.stream().map(writer -> writer.indexWriter)
+            if (metaDataIndexWriters.stream().map(writer -> writer.indexWriter)
                 .anyMatch(iw -> iw.getTragicException() != null || iw.isOpen() == false)) {
                 try {
                     close();
@@ -584,7 +584,7 @@ public class PersistedClusterStateService {
             ensureOpen();
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
-                final WriterStats stats = overwriteMetadata(clusterState.metadata());
+                final WriterStats stats = overwriteMetaData(clusterState.metaData());
                 commit(currentTerm, clusterState.version());
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
@@ -612,7 +612,7 @@ public class PersistedClusterStateService {
             assert fullStateWritten : "Need to write full state first before doing incremental writes";
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
-                final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
+                final WriterStats stats = updateMetaData(previousClusterState.metaData(), clusterState.metaData());
                 commit(currentTerm, clusterState.version());
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -635,58 +635,58 @@ public class PersistedClusterStateService {
          * Update the persisted metadata to match the given cluster state by removing any stale or unnecessary documents and adding any
          * updated documents.
          */
-        private WriterStats updateMetadata(Metadata previouslyWrittenMetadata, Metadata metadata) throws IOException {
-            assert previouslyWrittenMetadata.coordinationMetadata().term() == metadata.coordinationMetadata().term();
+        private WriterStats updateMetaData(MetaData previouslyWrittenMetaData, MetaData metaData) throws IOException {
+            assert previouslyWrittenMetaData.coordinationMetaData().term() == metaData.coordinationMetaData().term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only",
-                metadata.coordinationMetadata().term());
+                metaData.coordinationMetaData().term());
 
-            final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
+            final boolean updateGlobalMeta = MetaData.isGlobalStateEquals(previouslyWrittenMetaData, metaData) == false;
             if (updateGlobalMeta) {
-                try (ReleasableDocument globalMetadataDocument = makeGlobalMetadataDocument(metadata)) {
-                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                        metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument.getDocument());
+                try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
+                    for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                        metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
                     }
                 }
             }
 
-            final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-            for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
-                assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
+            final Map<String, Long> indexMetaDataVersionByUUID = new HashMap<>(previouslyWrittenMetaData.indices().size());
+            for (ObjectCursor<IndexMetaData> cursor : previouslyWrittenMetaData.indices().values()) {
+                final IndexMetaData indexMetaData = cursor.value;
+                final Long previousValue = indexMetaDataVersionByUUID.putIfAbsent(indexMetaData.getIndexUUID(), indexMetaData.getVersion());
+                assert previousValue == null : indexMetaData.getIndexUUID() + " already mapped to " + previousValue;
             }
 
             int numIndicesUpdated = 0;
             int numIndicesUnchanged = 0;
-            for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
-                if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
+            for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+                final IndexMetaData indexMetaData = cursor.value;
+                final Long previousVersion = indexMetaDataVersionByUUID.get(indexMetaData.getIndexUUID());
+                if (previousVersion == null || indexMetaData.getVersion() != previousVersion) {
                     logger.trace("updating metadata for [{}], changing version from [{}] to [{}]",
-                        indexMetadata.getIndex(), previousVersion, indexMetadata.getVersion());
+                        indexMetaData.getIndex(), previousVersion, indexMetaData.getVersion());
                     numIndicesUpdated++;
-                    try (ReleasableDocument indexMetadataDocument = makeIndexMetadataDocument(indexMetadata)) {
-                        for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                            metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument.getDocument(), indexMetadata.getIndex());
+                    try (ReleasableDocument indexMetaDataDocument = makeIndexMetaDataDocument(indexMetaData)) {
+                        for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                            metaDataIndexWriter.updateIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
                         }
                     }
                 } else {
                     numIndicesUnchanged++;
-                    logger.trace("no action required for [{}]", indexMetadata.getIndex());
+                    logger.trace("no action required for [{}]", indexMetaData.getIndex());
                 }
-                indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
+                indexMetaDataVersionByUUID.remove(indexMetaData.getIndexUUID());
             }
 
-            for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
-                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.deleteIndexMetadata(removedIndexUUID);
+            for (String removedIndexUUID : indexMetaDataVersionByUUID.keySet()) {
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.deleteIndexMetaData(removedIndexUUID);
                 }
             }
 
             // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
             // gracefully than one that occurs during the commit process.
-            for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                metadataIndexWriter.flush();
+            for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                metaDataIndexWriter.flush();
             }
 
             return new WriterStats(updateGlobalMeta, numIndicesUpdated, numIndicesUnchanged);
@@ -695,46 +695,46 @@ public class PersistedClusterStateService {
         /**
          * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
          */
-        private WriterStats overwriteMetadata(Metadata metadata) throws IOException {
-            for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                metadataIndexWriter.deleteAll();
+        private WriterStats overwriteMetaData(MetaData metaData) throws IOException {
+            for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                metaDataIndexWriter.deleteAll();
             }
-            return addMetadata(metadata);
+            return addMetaData(metaData);
         }
 
         /**
          * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
          */
-        private WriterStats addMetadata(Metadata metadata) throws IOException {
-            try (ReleasableDocument globalMetadataDocument = makeGlobalMetadataDocument(metadata)) {
-                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument.getDocument());
+        private WriterStats addMetaData(MetaData metaData) throws IOException {
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(metaData)) {
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.updateGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
             }
 
-            for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                try (ReleasableDocument indexMetadataDocument = makeIndexMetadataDocument(indexMetadata)) {
-                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                        metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument.getDocument(), indexMetadata.getIndex());
+            for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+                final IndexMetaData indexMetaData = cursor.value;
+                try (ReleasableDocument indexMetaDataDocument = makeIndexMetaDataDocument(indexMetaData)) {
+                    for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                        metaDataIndexWriter.updateIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
                     }
                 }
             }
 
             // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
             // gracefully than one that occurs during the commit process.
-            for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                metadataIndexWriter.flush();
+            for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                metaDataIndexWriter.flush();
             }
 
-            return new WriterStats(true, metadata.indices().size(), 0);
+            return new WriterStats(true, metaData.indices().size(), 0);
         }
 
         public void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
             ensureOpen();
             try {
-                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
                 }
             } catch (Exception e) {
                 try {
@@ -748,8 +748,8 @@ public class PersistedClusterStateService {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
             }
             try {
-                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.commit();
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.commit();
                 }
             } catch (IOException e) {
                 // The commit() call has similar semantics to a fsync(): although it's atomic, if it fails then we've no idea whether the
@@ -770,7 +770,7 @@ public class PersistedClusterStateService {
         public void close() throws IOException {
             logger.trace("closing PersistedClusterStateService.Writer");
             if (closed.compareAndSet(false, true)) {
-                IOUtils.close(metadataIndexWriters);
+                IOUtils.close(metaDataIndexWriters);
             }
         }
 
@@ -786,27 +786,27 @@ public class PersistedClusterStateService {
             }
         }
 
-        private ReleasableDocument makeIndexMetadataDocument(IndexMetadata indexMetadata) throws IOException {
-            final ReleasableDocument indexMetadataDocument = makeDocument(INDEX_TYPE_NAME, indexMetadata);
+        private ReleasableDocument makeIndexMetaDataDocument(IndexMetaData indexMetaData) throws IOException {
+            final ReleasableDocument indexMetaDataDocument = makeDocument(INDEX_TYPE_NAME, indexMetaData);
             boolean success = false;
             try {
-                final String indexUUID = indexMetadata.getIndexUUID();
-                assert indexUUID.equals(IndexMetadata.INDEX_UUID_NA_VALUE) == false;
-                indexMetadataDocument.getDocument().add(new StringField(INDEX_UUID_FIELD_NAME, indexUUID, Field.Store.NO));
+                final String indexUUID = indexMetaData.getIndexUUID();
+                assert indexUUID.equals(IndexMetaData.INDEX_UUID_NA_VALUE) == false;
+                indexMetaDataDocument.getDocument().add(new StringField(INDEX_UUID_FIELD_NAME, indexUUID, Field.Store.NO));
                 success = true;
-                return indexMetadataDocument;
+                return indexMetaDataDocument;
             } finally {
                 if (success == false) {
-                    IOUtils.closeWhileHandlingException(indexMetadataDocument);
+                    IOUtils.closeWhileHandlingException(indexMetaDataDocument);
                 }
             }
         }
 
-        private ReleasableDocument makeGlobalMetadataDocument(Metadata metadata) throws IOException {
-            return makeDocument(GLOBAL_TYPE_NAME, metadata);
+        private ReleasableDocument makeGlobalMetaDataDocument(MetaData metaData) throws IOException {
+            return makeDocument(GLOBAL_TYPE_NAME, metaData);
         }
 
-        private ReleasableDocument makeDocument(String typeName, ToXContent metadata) throws IOException {
+        private ReleasableDocument makeDocument(String typeName, ToXContent metaData) throws IOException {
             final Document document = new Document();
             document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
 
@@ -821,7 +821,7 @@ public class PersistedClusterStateService {
                 };
                 try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, outputStream)) {
                     xContentBuilder.startObject();
-                    metadata.toXContent(xContentBuilder, FORMAT_PARAMS);
+                    metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
                     xContentBuilder.endObject();
                 }
                 document.add(new StoredField(DATA_FIELD_NAME, releasableBytesStreamOutput.bytes().toBytesRef()));

@@ -34,9 +34,9 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -57,7 +57,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -238,12 +238,12 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         discoBuilder.masterNodeId(newNode(numberOfNodes - 1).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
-        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder(index)
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfReplicas(0)
                 .numberOfShards(totalIndexShards);
 
-        stateBuilder.metadata(Metadata.builder().put(indexMetadata));
+        stateBuilder.metaData(MetaData.builder().put(indexMetaData));
         stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable.build()).build());
         ClusterState clusterState = stateBuilder.build();
         setState(clusterService, clusterState);
@@ -366,15 +366,14 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
-        TestTransportChannel channel = new TestTransportChannel(future);
+        TestTransportChannel channel = new TestTransportChannel();
 
         handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel, null);
 
         // check the operation was executed only on the expected shards
         assertEquals(shards, action.getResults().keySet());
 
-        TransportResponse response = future.actionGet();
+        TransportResponse response = channel.getCapturedResponse();
         assertTrue(response instanceof TransportBroadcastByNodeAction.NodeResponse);
         TransportBroadcastByNodeAction.NodeResponse nodeResponse = (TransportBroadcastByNodeAction.NodeResponse) response;
 
@@ -469,5 +468,33 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals("successful shards", totalSuccessfulShards, response.getSuccessfulShards());
         assertEquals("failed shards", totalFailedShards, response.getFailedShards());
         assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
+    }
+
+    public class TestTransportChannel implements TransportChannel {
+        private TransportResponse capturedResponse;
+
+        public TransportResponse getCapturedResponse() {
+            return capturedResponse;
+        }
+
+        @Override
+        public String getProfileName() {
+            return "";
+        }
+
+        @Override
+        public void sendResponse(TransportResponse response) throws IOException {
+            capturedResponse = response;
+        }
+
+        @Override
+        public void sendResponse(Exception exception) throws IOException {
+        }
+
+        @Override
+        public String getChannelType() {
+            return "test";
+        }
+
     }
 }

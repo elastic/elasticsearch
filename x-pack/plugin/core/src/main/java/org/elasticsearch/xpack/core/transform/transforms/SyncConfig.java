@@ -19,8 +19,6 @@ public interface SyncConfig extends ToXContentObject, NamedWriteable {
      */
     boolean isValid();
 
-    String getField();
-
     QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint);
 
     QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint);

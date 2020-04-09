@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.IndexNotFoundException;
 
 public class WatchStoreUtils {
@@ -16,22 +16,22 @@ public class WatchStoreUtils {
      * Method to get indexmetadata of a index, that potentially is behind an alias.
      *
      * @param name Name of the index or the alias
-     * @param metadata Metadata to search for the name
-     * @return IndexMetadata of the concrete index
+     * @param metaData Metadata to search for the name
+     * @return IndexMetaData of the concrete index
      * @throws IllegalStateException If an alias points to two indices
      * @throws IndexNotFoundException If no index exists
      */
-    public static IndexMetadata getConcreteIndex(String name, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(name);
-        if (indexAbstraction == null) {
+    public static IndexMetaData getConcreteIndex(String name, MetaData metaData) {
+        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(name);
+        if (aliasOrIndex == null) {
             return null;
         }
 
-        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indexAbstraction.getIndices().size() > 1) {
+        if (aliasOrIndex.isAlias() && aliasOrIndex.getIndices().size() > 1) {
             throw new IllegalStateException("Alias [" + name + "] points to more than one index");
         }
 
-        return indexAbstraction.getIndices().get(0);
+        return aliasOrIndex.getIndices().get(0);
     }
 
 }

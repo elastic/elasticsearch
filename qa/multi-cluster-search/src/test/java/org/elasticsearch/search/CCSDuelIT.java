@@ -524,32 +524,31 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchSourceBuilder buildTermsAggsSource() {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
-        TermsAggregationBuilder cluster = new TermsAggregationBuilder("cluster123").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder cluster = new TermsAggregationBuilder("cluster123", ValueType.STRING);
         cluster.field("_index");
-        TermsAggregationBuilder type = new TermsAggregationBuilder("type").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder type = new TermsAggregationBuilder("type", ValueType.STRING);
         type.field("type.keyword");
         type.showTermDocCountError(true);
         type.order(BucketOrder.key(true));
         cluster.subAggregation(type);
         sourceBuilder.aggregation(cluster);
 
-        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
         tags.field("tags.keyword");
         tags.showTermDocCountError(true);
         tags.size(100);
         sourceBuilder.aggregation(tags);
 
-        TermsAggregationBuilder tags2 = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder tags2 = new TermsAggregationBuilder("tags", ValueType.STRING);
         tags2.field("tags.keyword");
         tags.subAggregation(tags2);
 
         FilterAggregationBuilder answers = new FilterAggregationBuilder("answers", new TermQueryBuilder("type", "answer"));
-        TermsAggregationBuilder answerPerQuestion = new TermsAggregationBuilder("answer_per_question")
-            .userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder answerPerQuestion = new TermsAggregationBuilder("answer_per_question", ValueType.STRING);
         answerPerQuestion.showTermDocCountError(true);
         answerPerQuestion.field("questionId.keyword");
         answers.subAggregation(answerPerQuestion);
-        TermsAggregationBuilder answerPerUser = new TermsAggregationBuilder("answer_per_user").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder answerPerUser = new TermsAggregationBuilder("answer_per_user", ValueType.STRING);
         answerPerUser.field("user.keyword");
         answerPerUser.size(30);
         answerPerUser.showTermDocCountError(true);
@@ -564,7 +563,7 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
         searchRequest.source(sourceBuilder);
-        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
         tags.field("tags.keyword");
         tags.showTermDocCountError(true);
         DateHistogramAggregationBuilder creation = new DateHistogramAggregationBuilder("creation");
@@ -581,7 +580,7 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
         searchRequest.source(sourceBuilder);
-        CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
+        CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags", ValueType.STRING);
         tags.field("tags.keyword");
         sourceBuilder.aggregation(tags);
         duelSearch(searchRequest, CCSDuelIT::assertAggs);
@@ -620,7 +619,7 @@ public class CCSDuelIT extends ESRestTestCase {
         topHits.size(10);
         topHits.sort("creationDate", SortOrder.DESC);
         topHits.sort("id", SortOrder.ASC);
-        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
         tags.field("tags.keyword");
         tags.size(10);
         tags.subAggregation(topHits);

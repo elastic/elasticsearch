@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -33,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -52,8 +52,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
     protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
-        super(name, metadata);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }
@@ -179,11 +179,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             return this;
         }
         return create(rewritten);
-    }
-
-    @Override
-    public void forEachBucket(Consumer<InternalAggregations> consumer) {
-        consumer.accept(aggregations);
     }
 
     @Override

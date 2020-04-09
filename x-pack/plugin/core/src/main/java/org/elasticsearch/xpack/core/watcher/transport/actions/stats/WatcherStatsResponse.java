@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
@@ -28,23 +28,23 @@ import java.util.Locale;
 public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node>
         implements ToXContentObject {
 
-    private WatcherMetadata watcherMetadata;
+    private WatcherMetaData watcherMetaData;
 
     public WatcherStatsResponse(StreamInput in) throws IOException {
         super(in);
-        watcherMetadata = new WatcherMetadata(in.readBoolean());
+        watcherMetaData = new WatcherMetaData(in.readBoolean());
     }
 
-    public WatcherStatsResponse(ClusterName clusterName, WatcherMetadata watcherMetadata,
+    public WatcherStatsResponse(ClusterName clusterName, WatcherMetaData watcherMetaData,
                                 List<Node> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
-        this.watcherMetadata = watcherMetadata;
+        this.watcherMetaData = watcherMetaData;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(watcherMetadata.manuallyStopped());
+        out.writeBoolean(watcherMetaData.manuallyStopped());
     }
 
     @Override
@@ -59,7 +59,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        watcherMetadata.toXContent(builder, params);
+        watcherMetaData.toXContent(builder, params);
         builder.startArray("stats");
         for (Node node : getNodes()) {
             node.toXContent(builder, params);
@@ -78,8 +78,8 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         return getNodes().stream().mapToLong(WatcherStatsResponse.Node::getWatchesCount).sum();
     }
 
-    public WatcherMetadata watcherMetadata() {
-        return watcherMetadata;
+    public WatcherMetaData watcherMetaData() {
+        return watcherMetaData;
     }
 
     public static class Node extends BaseNodeResponse implements ToXContentObject {

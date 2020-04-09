@@ -1,8 +1,7 @@
 {
   "slm.delete_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-delete-policy.html",
-      "description":"Deletes an existing snapshot lifecycle policy."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-delete-policy.html"
     },
     "stability":"stable",
     "url":{

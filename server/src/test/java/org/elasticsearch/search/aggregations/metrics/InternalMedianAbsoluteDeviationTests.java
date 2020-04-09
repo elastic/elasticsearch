@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -31,7 +32,10 @@ import java.util.Map;
 public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTestCase<InternalMedianAbsoluteDeviation> {
 
     @Override
-    protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
+    protected InternalMedianAbsoluteDeviation createTestInstance(String name,
+                                                                 List<PipelineAggregator> pipelineAggregators,
+                                                                 Map<String, Object> metaData) {
+
         final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
         final int numberOfValues = frequently()
             ? randomIntBetween(0, 1000)
@@ -40,7 +44,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
             valuesSketch.add(randomDouble());
         }
 
-        return new InternalMedianAbsoluteDeviation(name, metadata, randomNumericDocValueFormat(), valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, pipelineAggregators, metaData, randomNumericDocValueFormat(), valuesSketch);
     }
 
     @Override
@@ -77,7 +81,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) throws IOException {
         String name = instance.getName();
         TDigestState valuesSketch = instance.getValuesSketch();
-        Map<String, Object> metadata = instance.getMetadata();
+        Map<String, Object> metaData = instance.getMetaData();
 
         switch (between(0, 2)) {
             case 0:
@@ -92,15 +96,15 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
                 valuesSketch = newValuesSketch;
                 break;
             case 2:
-                if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                if (metaData == null) {
+                    metaData = new HashMap<>(1);
                 } else {
-                    metadata = new HashMap<>(metadata);
+                    metaData = new HashMap<>(metaData);
                 }
-                metadata.put(randomAlphaOfLengthBetween(2, 10), randomInt());
+                metaData.put(randomAlphaOfLengthBetween(2, 10), randomInt());
                 break;
         }
 
-        return new InternalMedianAbsoluteDeviation(name, metadata, instance.format, valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, instance.pipelineAggregators(), metaData, instance.format, valuesSketch);
     }
 }

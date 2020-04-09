@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -152,7 +152,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         final Map<String, Object> metadata = createMetadata(groupConfig);
         if (metadata.isEmpty() == false) {
-            composite.setMetadata(metadata);
+            composite.setMetaData(metadata);
         }
         composite.size(config.getPageSize());
 
@@ -272,7 +272,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                 if (metrics.isEmpty() == false) {
                     final String field = metricConfig.getField();
                     for (String metric : metrics) {
-                        ValuesSourceAggregationBuilder.LeafOnly<? extends ValuesSource, ? extends AggregationBuilder> newBuilder;
+                        ValuesSourceAggregationBuilder.LeafOnly newBuilder;
                         if (metric.equals(MetricConfig.MIN.getPreferredName())) {
                             newBuilder = new MinAggregationBuilder(formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.MAX.getPreferredName())) {
@@ -280,19 +280,18 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                         } else if (metric.equals(MetricConfig.AVG.getPreferredName())) {
                             // Avgs are sum + count
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
-                            ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, ValueCountAggregationBuilder> countBuilder
+                            ValuesSourceAggregationBuilder.LeafOnly countBuilder
                                 = new ValueCountAggregationBuilder(
-                                formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD));
+                                formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
                             countBuilder.field(field);
                             builders.add(countBuilder);
                         } else if (metric.equals(MetricConfig.SUM.getPreferredName())) {
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.VALUE_COUNT.getPreferredName())) {
                             // TODO allow non-numeric value_counts.
-                            // I removed the hard coding of NUMERIC as part of cleaning up targetValueType, but I don't think  that resolves
-                            // the above to do note -- Tozzi 2019-12-06
+                            // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
                             newBuilder = new ValueCountAggregationBuilder(
-                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE));
+                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
                         } else {
                             throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
                         }

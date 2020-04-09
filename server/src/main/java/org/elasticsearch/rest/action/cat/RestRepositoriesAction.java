@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -80,11 +80,11 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetRepositoriesResponse getRepositoriesResponse) {
         Table table = getTableWithHeader(req);
-        for (RepositoryMetadata repositoryMetadata : getRepositoriesResponse.repositories()) {
+        for (RepositoryMetaData repositoryMetaData : getRepositoriesResponse.repositories()) {
             table.startRow();
 
-            table.addCell(repositoryMetadata.name());
-            table.addCell(repositoryMetadata.type());
+            table.addCell(repositoryMetaData.name());
+            table.addCell(repositoryMetaData.type());
 
             table.endRow();
         }

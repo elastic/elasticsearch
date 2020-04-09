@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -145,19 +143,27 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
+        boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
-            if (Strings.isEmpty(value) == false) {
+            if (value != null && value.isEmpty() == false) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
                     // treat % as null
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments
-                } else {
+                }
+                // special case for legacy apps (like msquery) that always asks for 'TABLE'
+                // which we manually map to all concrete tables supported
+                else {
                     switch (value.toUpperCase(Locale.ROOT)) {
-                        case IndexResolver.SQL_TABLE:
+                        case IndexType.SQL_TABLE:
+                            legacyTableType = true;
                             types.add(IndexType.STANDARD_INDEX);
                             break;
-                        case IndexResolver.SQL_VIEW:
+                        case IndexType.SQL_BASE_TABLE:
+                            types.add(IndexType.STANDARD_INDEX);
+                            break;
+                        case IndexType.SQL_VIEW:
                             types.add(IndexType.ALIAS);
                             break;
                         default:
@@ -171,7 +177,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         EnumSet<IndexType> set = types.isEmpty() ? null : EnumSet.copyOf(types);
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new SysTables(source(ctx), visitLikePattern(ctx.clusterLike), index, visitLikePattern(ctx.tableLike), set);
+        return new SysTables(source(ctx), visitLikePattern(ctx.clusterLike), index, visitLikePattern(ctx.tableLike), set, legacyTableType);
     }
 
     @Override

@@ -98,4 +98,9 @@ public class PSubListShortcut extends AStoreable {
     boolean isDefOptimized() {
         return false;
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, index);
+    }
 }

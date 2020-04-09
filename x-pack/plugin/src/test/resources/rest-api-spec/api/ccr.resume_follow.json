@@ -1,8 +1,7 @@
 {
   "ccr.resume_follow":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-resume-follow.html",
-      "description": "Resumes a follower index that has been paused"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-resume-follow.html"
     },
     "stability":"stable",
     "url":{

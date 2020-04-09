@@ -38,9 +38,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
+ * Custom {@link MetaData} implementation for storing a map of {@link DataStream}s and their names.
  */
-public class DataStreamMetadata implements Metadata.Custom {
+public class DataStreamMetadata implements MetaData.Custom {
 
     public static final String TYPE = "data_stream";
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
@@ -74,17 +74,17 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<MetaData.Custom> diff(MetaData.Custom before) {
         return new DataStreamMetadata.DataStreamMetadataDiff((DataStreamMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new DataStreamMetadata.DataStreamMetadataDiff(in);
     }
 
     @Override
-    public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+    public EnumSet<MetaData.XContentContext> context() {
+        return MetaData.ALL_CONTEXTS;
     }
 
     @Override
@@ -94,7 +94,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+        return Version.V_8_0_0;
     }
 
     @Override
@@ -156,7 +156,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
     }
 
-    static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class DataStreamMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, DataStream>> dataStreamDiff;
 
@@ -171,7 +171,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetaData.Custom apply(MetaData.Custom part) {
             return new DataStreamMetadata(dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams));
         }
 

@@ -1,8 +1,7 @@
 {
   "rollup.stop_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-stop-job.html",
-      "description":"Stops an existing, started rollup job."
+      "url":""
     },
     "stability":"experimental",
     "url":{

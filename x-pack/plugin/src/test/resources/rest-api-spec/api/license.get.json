@@ -1,8 +1,7 @@
 {
   "license.get":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-license.html",
-      "description":"Retrieves licensing information for the cluster"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-license.html"
     },
     "stability":"stable",
     "url":{
@@ -22,8 +21,8 @@
       },
       "accept_enterprise":{
         "type":"boolean",
-        "description":"Supported for backwards compatibility with 7.x. If this param is used it must be set to true",
-        "deprecated":true
+        "deprecated":true,
+        "description":"Supported for backwards compatibility with 7.x. If this param is used it must be set to true"
       }
     }
   }

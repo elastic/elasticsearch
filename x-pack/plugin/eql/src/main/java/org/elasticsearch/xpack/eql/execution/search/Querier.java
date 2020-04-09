@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.session.Configuration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
@@ -57,9 +56,7 @@ public class Querier {
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
-        if (cfg.isCancelled()) {
-            throw new TaskCancelledException("cancelled");
-        }
+        
         SearchRequest search = prepareRequest(client, sourceBuilder, cfg.requestTimeout(), false,
                 Strings.commaDelimitedListToStringArray(index));
 

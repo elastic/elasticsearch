@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -57,8 +58,8 @@ public class InternalComposite
 
     InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
                       List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls, boolean earlyTerminated,
-                      Map<String, Object> metadata) {
-        super(name, metadata);
+                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.sourceNames = sourceNames;
         this.formats = formats;
         this.buckets = buckets;
@@ -115,7 +116,7 @@ public class InternalComposite
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
         return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, earlyTerminated, getMetadata());
+            reverseMuls, earlyTerminated, pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -206,7 +207,7 @@ public class InternalComposite
             lastKey = lastBucket.getRawKey();
         }
         return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
-            earlyTerminated, metadata);
+            earlyTerminated, pipelineAggregators(), metaData);
     }
 
     @Override

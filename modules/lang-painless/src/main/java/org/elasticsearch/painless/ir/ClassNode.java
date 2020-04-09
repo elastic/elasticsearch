@@ -69,8 +69,35 @@ public class ClassNode extends IRNode {
 
     /* ---- end tree structure, begin node data ---- */
 
+    private ScriptClassInfo scriptClassInfo;
+    private String name;
+    private String sourceText;
     private Printer debugStream;
     private ScriptRoot scriptRoot;
+
+    public void setScriptClassInfo(ScriptClassInfo scriptClassInfo) {
+        this.scriptClassInfo = scriptClassInfo;
+    }
+
+    public ScriptClassInfo getScriptClassInfo() {
+        return scriptClassInfo;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setSourceText(String sourceText) {
+        this.sourceText = sourceText;
+    }
+
+    public String getSourceText() {
+        return sourceText;
+    }
 
     public void setDebugStream(Printer debugStream) {
         this.debugStream = debugStream;
@@ -98,8 +125,7 @@ public class ClassNode extends IRNode {
     }
 
     public byte[] write() {
-        ScriptClassInfo scriptClassInfo = scriptRoot.getScriptClassInfo();
-        BitSet statements = new BitSet(scriptRoot.getScriptSource().length());
+        BitSet statements = new BitSet(sourceText.length());
         scriptRoot.addStaticConstant("$STATEMENTS", statements);
 
         // Create the ClassWriter.
@@ -113,7 +139,7 @@ public class ClassNode extends IRNode {
         ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), statements, debugStream,
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
-        classVisitor.visitSource(Location.computeSourceName(scriptRoot.getScriptName()), null);
+        classVisitor.visitSource(Location.computeSourceName(name), null);
 
         org.objectweb.asm.commons.Method init;
 

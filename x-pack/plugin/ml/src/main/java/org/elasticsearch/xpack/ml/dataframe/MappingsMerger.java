@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -34,7 +34,7 @@ public final class MappingsMerger {
     private MappingsMerger() {}
 
     public static void mergeMappings(Client client, Map<String, String> headers, DataFrameAnalyticsSource source,
-                                     ActionListener<MappingMetadata> listener) {
+                                     ActionListener<MappingMetaData> listener) {
         ActionListener<GetMappingsResponse> mappingsListener = ActionListener.wrap(
             getMappingsResponse -> listener.onResponse(MappingsMerger.mergeMappings(source, getMappingsResponse)),
             listener::onFailure
@@ -45,15 +45,15 @@ public final class MappingsMerger {
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }
 
-    static MappingMetadata mergeMappings(DataFrameAnalyticsSource source,
+    static MappingMetaData mergeMappings(DataFrameAnalyticsSource source,
                                                                    GetMappingsResponse getMappingsResponse) {
-        ImmutableOpenMap<String, MappingMetadata> indexToMappings = getMappingsResponse.getMappings();
+        ImmutableOpenMap<String, MappingMetaData> indexToMappings = getMappingsResponse.getMappings();
 
         Map<String, Object> mergedMappings = new HashMap<>();
 
-        Iterator<ObjectObjectCursor<String, MappingMetadata>> iterator = indexToMappings.iterator();
+        Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = indexToMappings.iterator();
         while (iterator.hasNext()) {
-            MappingMetadata mapping = iterator.next().value;
+            MappingMetaData mapping = iterator.next().value;
             if (mapping != null) {
                 Map<String, Object> currentMappings = mapping.getSourceAsMap();
                 if (currentMappings.containsKey("properties")) {
@@ -78,10 +78,10 @@ public final class MappingsMerger {
             }
         }
 
-        return createMappingMetadata(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
+        return createMappingMetaData(MapperService.SINGLE_MAPPING_NAME, mergedMappings);
     }
 
-    private static MappingMetadata createMappingMetadata(String type, Map<String, Object> mappings) {
-        return new MappingMetadata(type, Collections.singletonMap("properties", mappings));
+    private static MappingMetaData createMappingMetaData(String type, Map<String, Object> mappings) {
+        return new MappingMetaData(type, Collections.singletonMap("properties", mappings));
     }
 }

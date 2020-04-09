@@ -28,8 +28,8 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -199,7 +199,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testCanDeleteShardContent() {
         IndicesService indicesService = getIndicesService();
-        IndexMetadata meta = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(
+        IndexMetaData meta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(
                 1).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
         ShardId shardId = new ShardId(meta.getIndex(), 0);
@@ -222,23 +222,23 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        IndexMetadata firstMetadata = clusterService.state().metadata().index("test");
+        IndexMetaData firstMetaData = clusterService.state().metaData().index("test");
         assertTrue(test.hasShard(0));
         ShardPath firstPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
             test.getIndexSettings().customDataPath());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetaData));
         assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
-        Metadata meta = gwMetaState.getMetadata();
+        MetaData meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
         assertFalse(firstPath.exists());
 
-        meta = gwMetaState.getMetadata();
+        meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
 
@@ -246,13 +246,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
-        IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
+        IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
         ShardPath secondPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0),
             test.getIndexSettings().customDataPath());
         assertTrue(secondPath.exists());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetaData));
         assertTrue(secondPath.exists());
 
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -332,17 +332,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final MetaStateService metaStateService = getInstanceFromNode(MetaStateService.class);
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                        .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
                                                         .build();
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName())
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
                                                              .settings(idxSettings)
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
-        metaStateService.writeIndex("test index being created", indexMetadata);
-        final Metadata metadata = Metadata.builder(clusterService.state().metadata()).put(indexMetadata, true).build();
-        final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metadata(metadata).build();
+        metaStateService.writeIndex("test index being created", indexMetaData);
+        final MetaData metaData = MetaData.builder(clusterService.state().metaData()).put(indexMetaData, true).build();
+        final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metaData(metaData).build();
         try {
             indicesService.verifyIndexIsDeleted(index, csWithIndex);
             fail("Should not be able to delete index contents when the index is part of the cluster state.");
@@ -351,7 +351,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         final ClusterState withoutIndex = new ClusterState.Builder(csWithIndex)
-                                                          .metadata(Metadata.builder(csWithIndex.metadata()).remove(index.getName()))
+                                                          .metaData(MetaData.builder(csWithIndex.metaData()).remove(index.getName()))
                                                           .build();
         indicesService.verifyIndexIsDeleted(index, withoutIndex);
         assertFalse("index files should be deleted", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
@@ -369,16 +369,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         // try to import a dangling index with the same name as the alias, it should fail
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
-        final Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                                       .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                       .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                                        .build();
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder(alias)
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(alias)
                                                              .settings(idxSettings)
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
         CountDownLatch latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetaData), ActionListener.wrap(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
 
@@ -387,10 +387,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
         latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetaData), ActionListener.wrap(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), not(originalState));
-        assertNotNull(clusterService.state().getMetadata().index(alias));
+        assertNotNull(clusterService.state().getMetaData().index(alias));
     }
 
     public void testDanglingIndicesWithLaterVersion() throws Exception {
@@ -400,17 +400,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         //import an index with minor version incremented by one over cluster master version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
-        final Settings idxSettingsLater = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED,
+        final Settings idxSettingsLater = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
                                                                 Version.fromId(Version.CURRENT.id + 10000))
-                                                            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                                             .build();
-        final IndexMetadata indexMetadataLater = new IndexMetadata.Builder(indexNameLater)
+        final IndexMetaData indexMetaDataLater = new IndexMetaData.Builder(indexNameLater)
                                                              .settings(idxSettingsLater)
                                                              .numberOfShards(1)
                                                              .numberOfReplicas(0)
                                                              .build();
         CountDownLatch latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadataLater), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetaDataLater), ActionListener.wrap(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
     }
@@ -429,40 +429,40 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String indexName = "test";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
-        final Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                         .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                         .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
                                          .build();
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName())
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
                                                 .settings(idxSettings)
                                                 .numberOfShards(1)
                                                 .numberOfReplicas(0)
                                                 .build();
         final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
         final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).indexGraveyard(graveyard).build();
-        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metadata(metadata).build();
+        final MetaData metaData = MetaData.builder().put(indexMetaData, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metaData(metaData).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
     }
 
     /**
-     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetadata)} contains
+     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetaData)} contains
      * custom types and similarities registered by plugins
      */
     public void testStandAloneMapperServiceWithPlugins() throws IOException {
         final String indexName = "test";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
-        final Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
             .put(IndexModule.SIMILARITY_SETTINGS_PREFIX + ".test.type", "fake-similarity")
             .build();
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName())
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
             .settings(idxSettings)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+        MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
         assertNotNull(mapperService.documentMapperParser().parserContext().typeParser("fake-mapper"));
         Similarity sim = mapperService.documentMapperParser().parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
@@ -522,16 +522,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
     }
 
-    public void testIsMetadataField() {
+    public void testIsMetaDataField() {
         IndicesService indicesService = getIndicesService();
         final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
+        assertFalse(indicesService.isMetaDataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
+        for (String builtIn : IndicesModule.getBuiltInMetaDataFields()) {
             if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_8_0_0)) {
                 continue;   // Nested field does not exist in the 7x line
             }
             assertTrue("Expected " + builtIn + " to be a metadata field for version " + randVersion,
-                indicesService.isMetadataField(randVersion, builtIn));
+                indicesService.isMetaDataField(randVersion, builtIn));
         }
     }
 
@@ -543,18 +543,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             final String indexName = "foo-" + value;
             final Index index = new Index(indexName, UUIDs.randomBase64UUID());
             final Settings.Builder builder = Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
             if (value != null) {
                 builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
             }
 
-            final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName())
+            final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
                     .settings(builder.build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            final IndexService indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
+            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), false);
             if (value != null && value) {
                 assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
             } else {
@@ -567,12 +567,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
                 .put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), true)
                 .put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), true)
                 .build();
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName())
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
                 .settings(settings)
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -580,7 +580,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final IndicesService indicesService = getIndicesService();
         final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetadata, Collections.emptyList(), false));
+                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList(), false));
         final String pattern =
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
@@ -591,7 +591,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
 
         Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
             .build();
 
         ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
@@ -614,7 +614,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
 
         Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
             .build();
 
         ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
@@ -636,20 +636,20 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getDataNodes()).thenReturn(dataNodes.build());
 
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 15))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .creationDate(randomLong())
             .numberOfShards(shardsInIndex)
             .numberOfReplicas(replicas);
-        Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
+        MetaData.Builder metaData = MetaData.builder().put(indexMetaData);
         if (randomBoolean()) {
-            metadata.transientSettings(clusterSettings);
+            metaData.transientSettings(clusterSettings);
         } else {
-            metadata.persistentSettings(clusterSettings);
+            metaData.persistentSettings(clusterSettings);
         }
 
         return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+            .metaData(metaData)
             .nodes(nodes)
             .build();
     }

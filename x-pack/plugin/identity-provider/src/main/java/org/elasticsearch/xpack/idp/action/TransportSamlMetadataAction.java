@@ -30,7 +30,8 @@ public class TransportSamlMetadataAction extends HandledTransportAction<SamlMeta
 
     @Override
     protected void doExecute(Task task, SamlMetadataRequest request, ActionListener<SamlMetadataResponse> listener) {
+        final String spEntityId = request.getSpEntityId();
         final SamlMetadataGenerator generator = new SamlMetadataGenerator(samlFactory, identityProvider);
-        generator.generateMetadata(request.getSpEntityId(), request.getAssertionConsumerService(), listener);
+        generator.generateMetadata(spEntityId, listener);
     }
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     private ShardId shardId;
     private long position;
     private BytesReference content;
-    private StoreFileMetadata metadata;
+    private StoreFileMetaData metaData;
     private long sourceThrottleTimeInNanos;
 
     private int totalTranslogOps;
@@ -52,17 +52,17 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         content = in.readBytesReference();
         Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
         assert writtenBy != null;
-        metadata = new StoreFileMetadata(name, length, checksum, writtenBy);
+        metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
         lastChunk = in.readBoolean();
         totalTranslogOps = in.readVInt();
         sourceThrottleTimeInNanos = in.readLong();
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetadata metadata, long position, BytesReference content,
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
                                     boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
-        this.metadata = metadata;
+        this.metaData = metaData;
         this.position = position;
         this.content = content;
         this.lastChunk = lastChunk;
@@ -79,7 +79,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     }
 
     public String name() {
-        return metadata.name();
+        return metaData.name();
     }
 
     public long position() {
@@ -87,7 +87,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     }
 
     public long length() {
-        return metadata.length();
+        return metaData.length();
     }
 
     public BytesReference content() {
@@ -107,12 +107,12 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        out.writeString(metadata.name());
+        out.writeString(metaData.name());
         out.writeVLong(position);
-        out.writeVLong(metadata.length());
-        out.writeString(metadata.checksum());
+        out.writeVLong(metaData.length());
+        out.writeString(metaData.checksum());
         out.writeBytesReference(content);
-        out.writeString(metadata.writtenBy().toString());
+        out.writeString(metaData.writtenBy().toString());
         out.writeBoolean(lastChunk);
         out.writeVInt(totalTranslogOps);
         out.writeLong(sourceThrottleTimeInNanos);
@@ -125,8 +125,8 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
                 ", length=" + length();
     }
 
-    public StoreFileMetadata metadata() {
-        return metadata;
+    public StoreFileMetaData metadata() {
+        return metaData;
     }
 
     /**

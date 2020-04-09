@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -48,8 +49,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
-                      Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, aggregationContext, parent, metadata);
+                      Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -94,7 +95,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+                                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     /**
      * This method is used to return a re-usable instance of the bucket when building
@@ -130,12 +132,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return buildAggregation(name, requiredSize, Arrays.asList(list), metadata());
+        return buildAggregation(name, requiredSize, Arrays.asList(list), pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalGeoGrid buildEmptyAggregation() {
-        return buildAggregation(name, requiredSize, Collections.emptyList(), metadata());
+        return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
     @Override

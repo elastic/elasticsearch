@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,16 +47,16 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndicesPermissionTests extends ESTestCase {
 
     public void testAuthorize() {
-        IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
+        IndexMetaData.Builder imbBuilder = IndexMetaData.builder("_index")
                 .settings(Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 )
-                .putAlias(AliasMetadata.builder("_alias"));
-        Metadata md = Metadata.builder().put(imbBuilder).build();
+                .putAlias(AliasMetaData.builder("_alias"));
+        MetaData md = MetaData.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = md.getIndicesLookup();
+        SortedMap<String, AliasOrIndex> lookup = md.getAliasAndIndexLookup();
 
         // basics:
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
@@ -130,15 +130,15 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries().size(), equalTo(1));
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), equalTo(query));
 
-        IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index_1")
+        IndexMetaData.Builder imbBuilder1 = IndexMetaData.builder("_index_1")
                 .settings(Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 )
-                .putAlias(AliasMetadata.builder("_alias"));
-        md = Metadata.builder(md).put(imbBuilder1).build();
-        lookup = md.getIndicesLookup();
+                .putAlias(AliasMetaData.builder("_alias"));
+        md = MetaData.builder(md).put(imbBuilder1).build();
+        lookup = md.getAliasAndIndexLookup();
 
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
@@ -171,16 +171,16 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizeMultipleGroupsMixedDls() {
-        IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
+        IndexMetaData.Builder imbBuilder = IndexMetaData.builder("_index")
                 .settings(Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 )
-                .putAlias(AliasMetadata.builder("_alias"));
-        Metadata md = Metadata.builder().put(imbBuilder).build();
+                .putAlias(AliasMetaData.builder("_alias"));
+        MetaData md = MetaData.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = md.getIndicesLookup();
+        SortedMap<String, AliasOrIndex> lookup = md.getAliasAndIndexLookup();
 
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[]{"_field"};
@@ -231,11 +231,11 @@ public class IndicesPermissionTests extends ESTestCase {
     // tests that field permissions are merged correctly when we authorize with several groups and don't crash when an index has no group
     public void testCorePermissionAuthorize() {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        final Metadata metadata = new Metadata.Builder()
-                .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+        final MetaData metaData = new MetaData.Builder()
+                .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
-        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
@@ -294,16 +294,16 @@ public class IndicesPermissionTests extends ESTestCase {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
             RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
-        final Metadata metadata = new Metadata.Builder()
-                .put(new IndexMetadata.Builder(internalSecurityIndex)
+        final MetaData metaData = new MetaData.Builder()
+                .put(new IndexMetaData.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
-                        .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
+                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
                         .build(), true)
                 .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
 
         // allow_restricted_indices: false
         IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");
@@ -325,15 +325,15 @@ public class IndicesPermissionTests extends ESTestCase {
     public void testAsyncSearchIndicesPermissions() {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         final String asyncSearchIndex = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
-        final Metadata metadata = new Metadata.Builder()
-                .put(new IndexMetadata.Builder(asyncSearchIndex)
+        final MetaData metaData = new MetaData.Builder()
+                .put(new IndexMetaData.Builder(asyncSearchIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
                         .build(), true)
                 .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
 
         // allow_restricted_indices: false
         IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");

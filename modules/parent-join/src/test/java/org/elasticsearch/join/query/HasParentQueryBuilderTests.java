@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -44,11 +44,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,14 +70,14 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Collections.singletonList(ParentJoinPlugin.class);
     }
 
     @Override
     protected Settings createTestIndexSettings() {
         return Settings.builder()
             .put(super.createTestIndexSettings())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
     }
 
@@ -92,10 +90,10 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                     .field(PARENT_DOC, CHILD_DOC)
                 .endObject()
             .endObject()
-            .startObject(TEXT_FIELD_NAME)
+            .startObject(STRING_FIELD_NAME)
                 .field("type", "text")
             .endObject()
-                .startObject(KEYWORD_FIELD_NAME)
+                .startObject(STRING_FIELD_NAME_2)
             .field("type", "keyword")
             .endObject()
             .startObject(INT_FIELD_NAME)
@@ -135,7 +133,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(KEYWORD_FIELD_NAME).order(SortOrder.ASC)));
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
         }
         return hqb;
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -195,13 +195,13 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             return;
         }
 
-        if (event.state().nodes().getLocalNode().isDataNode() && event.metadataChanged()) {
+        if (event.state().nodes().getLocalNode().isDataNode() && event.metaDataChanged()) {
             try {
-                IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
-                if (metadata == null) {
+                IndexMetaData metaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+                if (metaData == null) {
                     configuration = INACTIVE;
                 } else {
-                    checkWatchIndexHasChanged(metadata, event);
+                    checkWatchIndexHasChanged(metaData, event);
                 }
             } catch (IllegalStateException e) {
                 logger.error("error loading watches index: [{}]", e.getMessage());
@@ -210,8 +210,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         }
     }
 
-    private void checkWatchIndexHasChanged(IndexMetadata metadata, ClusterChangedEvent event) {
-        String watchIndex = metadata.getIndex().getName();
+    private void checkWatchIndexHasChanged(IndexMetaData metaData, ClusterChangedEvent event) {
+        String watchIndex = metaData.getIndex().getName();
         ClusterState state = event.state();
         String localNodeId = state.nodes().getLocalNode().getId();
         RoutingNode routingNode = state.getRoutingNodes().node(localNodeId);

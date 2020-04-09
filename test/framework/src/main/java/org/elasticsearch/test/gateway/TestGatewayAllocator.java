@@ -30,7 +30,7 @@ import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,7 +82,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator() {
         @Override
-        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
             return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));
@@ -95,13 +95,13 @@ public class TestGatewayAllocator extends GatewayAllocator {
     };
 
     @Override
-    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
+    public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
         currentNodes = allocation.nodes();
         allocation.routingNodes().shards(ShardRouting::active).forEach(this::addKnownAllocation);
     }
 
     @Override
-    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
+    public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
         currentNodes = allocation.nodes();
         for (FailedShard failedShard : failedShards) {
             final ShardRouting failedRouting = failedShard.getRoutingEntry();
@@ -116,18 +116,9 @@ public class TestGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {
-    }
-
-    @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-    }
-
-    @Override
-    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                   UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
     }
 
     /**

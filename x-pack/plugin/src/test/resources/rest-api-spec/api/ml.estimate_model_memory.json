@@ -1,8 +1,7 @@
 {
   "ml.estimate_model_memory":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html",
-      "description":"Estimates the model memory"
+      "url":null
     },
     "stability":"stable",
     "url":{

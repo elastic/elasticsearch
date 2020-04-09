@@ -18,6 +18,8 @@ setup:
                   type: date
                 geo_point:
                   type: geo_point
+                geo_shape:
+                  type: geo_shape
                 ip:
                   type: ip
                 keyword:
@@ -57,6 +59,9 @@ setup:
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
+            geo_shape:
+              type: "point"
+              coordinates: [0.0, 20.0]
             ip: "192.168.0.1"
             keyword: "foo"
             byte: 1
@@ -82,6 +87,9 @@ setup:
             boolean: false
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
+            geo_shape:
+              type: "point"
+              coordinates: [0.0, 20.0]
             ip: "192.168.0.1"
             keyword: "foo"
             byte: 1
@@ -107,6 +115,9 @@ setup:
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
+            geo_shape:
+              type: "point"
+              coordinates: [0.0, 20.0]
             ip: "192.168.0.1"
             keyword: "foo"
             byte: 1
@@ -146,6 +157,8 @@ setup:
                 geo_point:
                   type: geo_point
                   doc_values: false
+                geo_shape:
+                  type: geo_shape
                 ip:
                   type: ip
                   doc_values: false
@@ -197,6 +210,9 @@ setup:
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
+            geo_shape:
+              type: "point"
+              coordinates: [0.0, 20.0]
             ip: "192.168.0.1"
             keyword: "foo"
             byte: 1
@@ -222,6 +238,9 @@ setup:
             boolean: false
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
+            geo_shape:
+              type: "point"
+              coordinates: [0.0, 20.0]
             ip: "192.168.0.1"
             keyword: "foo"
             byte: 1
@@ -247,6 +266,9 @@ setup:
             boolean: true
             date: "2017-01-01"
             geo_point: [0.0, 20.0]
+            geo_shape:
+              type: "point"
+              coordinates: [0.0, 20.0]
             ip: "192.168.0.1"
             keyword: "foo"
             byte: 1
@@ -296,6 +318,8 @@ setup:
                   type: date
                 geo_point:
                   type: geo_point
+                geo_shape:
+                  type: geo_shape
                 ip:
                   type: ip
                 keyword:
@@ -377,6 +401,19 @@ setup:
             query:
               exists:
                 field: geo_point
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query on mapped geo_shape field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              exists:
+                field: geo_shape
 
   - match: {hits.total: 3}
 
@@ -682,6 +719,19 @@ setup:
   - match: {hits.total: 0}
 
 ---
+"Test exists query on unmapped geo_shape field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-unmapped
+          body:
+            query:
+              exists:
+                field: geo_shape
+
+  - match: {hits.total: 0}
+
+---
 "Test exists query on unmapped ip field":
   - do:
       search:
@@ -886,6 +936,19 @@ setup:
             query:
               exists:
                 field: geo_point
+
+  - match: {hits.total: 0}
+
+---
+"Test exists query on geo_shape field in empty index":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-empty
+          body:
+            query:
+              exists:
+                field: geo_shape
 
   - match: {hits.total: 0}
 
@@ -1097,6 +1160,18 @@ setup:
 
   - match: {hits.total: 3}
 
+---
+"Test exists query on mapped geo_shape field with no doc values":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              exists:
+                field: geo_shape
+
+  - match: {hits.total: 3}
 
 ---
 "Test exists query on mapped ip field with no doc values":

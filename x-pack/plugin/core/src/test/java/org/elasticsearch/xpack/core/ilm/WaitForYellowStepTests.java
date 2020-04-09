@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -51,7 +51,7 @@ public class WaitForYellowStepTests extends AbstractStepTestCase<WaitForYellowSt
     }
 
     public void testConditionMet() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -63,7 +63,7 @@ public class WaitForYellowStepTests extends AbstractStepTestCase<WaitForYellowSt
             .addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
@@ -74,7 +74,7 @@ public class WaitForYellowStepTests extends AbstractStepTestCase<WaitForYellowSt
     }
 
     public void testConditionNotMet() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -86,7 +86,7 @@ public class WaitForYellowStepTests extends AbstractStepTestCase<WaitForYellowSt
             .addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
@@ -99,14 +99,14 @@ public class WaitForYellowStepTests extends AbstractStepTestCase<WaitForYellowSt
     }
 
     public void testConditionNotMetNoIndexRoutingTable() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("former-follower-index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .metaData(MetaData.builder().put(indexMetadata, true).build())
             .routingTable(RoutingTable.builder().build())
             .build();
 

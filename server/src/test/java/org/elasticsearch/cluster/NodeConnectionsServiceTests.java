@@ -524,6 +524,10 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
+        public void setLocalNode(DiscoveryNode localNode) {
+        }
+
+        @Override
         public BoundTransportAddress boundAddress() {
             return null;
         }

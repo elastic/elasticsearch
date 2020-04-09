@@ -22,9 +22,10 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
@@ -41,12 +42,18 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     }
 
     @Override
-    protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
-        return createTestInstance(name, metadata, aggregations, keyed);
+    protected T createTestInstance(String name,
+                                   List<PipelineAggregator> pipelineAggregators,
+                                   Map<String, Object> metaData,
+                                   InternalAggregations aggregations) {
+        return createTestInstance(name, pipelineAggregators, metaData, aggregations, keyed);
     }
 
-    protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations, boolean keyed);
-
+    protected abstract T createTestInstance(String name,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData,
+                                            InternalAggregations aggregations,
+                                            boolean keyed);
     @Override
     protected void assertReduced(T reduced, List<T> inputs) {
         final Map<String, Long> expectedCounts = new TreeMap<>();

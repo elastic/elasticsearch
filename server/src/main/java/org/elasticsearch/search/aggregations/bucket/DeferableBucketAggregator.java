@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     private DeferringBucketCollector recordingWrapper;
 
     protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metaData);
     }
 
     @Override

@@ -56,7 +56,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -100,7 +99,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private ValuesSourceRegistry valuesSourceRegistry;
 
     public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
@@ -117,19 +115,18 @@ public class QueryShardContext extends QueryRewriteContext {
                              LongSupplier nowInMillis,
                              String clusterAlias,
                              Predicate<String> indexNameMatcher,
-                             BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry) {
+                             BooleanSupplier allowExpensiveQueries) {
         this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
                 scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
                 new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                        indexSettings.getIndex().getUUID()), allowExpensiveQueries, valuesSourceRegistry);
+                        indexSettings.getIndex().getUUID()), allowExpensiveQueries);
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry);
+            source.fullyQualifiedIndex, source.allowExpensiveQueries);
     }
 
     private QueryShardContext(int shardId,
@@ -147,8 +144,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               LongSupplier nowInMillis,
                               Predicate<String> indexNameMatcher,
                               Index fullyQualifiedIndex,
-                              BooleanSupplier allowExpensiveQueries,
-                              ValuesSourceRegistry valuesSourceRegistry) {
+                              BooleanSupplier allowExpensiveQueries) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -164,7 +160,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.indexNameMatcher = indexNameMatcher;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
-        this.valuesSourceRegistry = valuesSourceRegistry;
     }
 
     private void reset() {
@@ -261,10 +256,6 @@ public class QueryShardContext extends QueryRewriteContext {
             return fieldType.searchQuoteAnalyzer();
         }
         return getMapperService().searchQuoteAnalyzer();
-    }
-
-    public ValuesSourceRegistry getValuesSourceRegistry() {
-        return valuesSourceRegistry;
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {

@@ -45,7 +45,7 @@ public abstract class AliasAction {
 
     /**
      * Should this action remove the index? Actions that return true from this will never execute
-     * {@link #apply(NewAliasValidator, Metadata.Builder, IndexMetadata)}.
+     * {@link #apply(NewAliasValidator, MetaData.Builder, IndexMetaData)}.
      */
     abstract boolean removeIndex();
 
@@ -57,7 +57,7 @@ public abstract class AliasAction {
      * @param index metadata for the index being changed
      * @return did this action make any changes?
      */
-    abstract boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index);
+    abstract boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index);
 
     /**
      * Validate a new alias.
@@ -126,20 +126,20 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
             aliasValidator.validate(alias, indexRouting, filter, writeIndex);
 
-            AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias).filter(filter).indexRouting(indexRouting)
+            AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)
                     .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
 
             // Check if this alias already exists
-            AliasMetadata currentAliasMd = index.getAliases().get(alias);
+            AliasMetaData currentAliasMd = index.getAliases().get(alias);
             if (currentAliasMd != null && currentAliasMd.equals(newAliasMd)) {
                 // It already exists, ignore it
                 return false;
             }
 
-            metadata.put(IndexMetadata.builder(index).putAlias(newAliasMd));
+            metadata.put(IndexMetaData.builder(index).putAlias(newAliasMd));
             return true;
         }
     }
@@ -174,11 +174,11 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
             if (false == index.getAliases().containsKey(alias)) {
                 return false;
             }
-            metadata.put(IndexMetadata.builder(index).removeAlias(alias));
+            metadata.put(IndexMetaData.builder(index).removeAlias(alias));
             return true;
         }
     }
@@ -198,7 +198,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
             throw new UnsupportedOperationException();
         }
     }

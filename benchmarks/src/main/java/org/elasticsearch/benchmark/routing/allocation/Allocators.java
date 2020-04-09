@@ -47,21 +47,17 @@ public final class Allocators {
         public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
         @Override
-        public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
             // noop
         }
 
         @Override
-        public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
             // noop
         }
 
         @Override
-        public void allocateUnassigned(
-            ShardRouting shardRouting,
-            RoutingAllocation allocation,
-            UnassignedAllocationHandler unassignedAllocationHandler
-        ) {
+        public void allocateUnassigned(RoutingAllocation allocation) {
             // noop
         }
     }

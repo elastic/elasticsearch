@@ -105,7 +105,7 @@ public class AggregationBuilders {
      * Create a new {@link ValueCount} aggregation with the given name.
      */
     public static ValueCountAggregationBuilder count(String name) {
-        return new ValueCountAggregationBuilder(name);
+        return new ValueCountAggregationBuilder(name, null);
     }
 
     /**
@@ -217,7 +217,7 @@ public class AggregationBuilders {
      * Create a new {@link Missing} aggregation with the given name.
      */
     public static MissingAggregationBuilder missing(String name) {
-        return new MissingAggregationBuilder(name);
+        return new MissingAggregationBuilder(name, null);
     }
 
     /**
@@ -266,7 +266,7 @@ public class AggregationBuilders {
      * Create a new {@link SignificantTerms} aggregation with the given name.
      */
     public static SignificantTermsAggregationBuilder significantTerms(String name) {
-        return new SignificantTermsAggregationBuilder(name);
+        return new SignificantTermsAggregationBuilder(name, null);
     }
 
 
@@ -313,7 +313,7 @@ public class AggregationBuilders {
      * Create a new {@link Terms} aggregation with the given name.
      */
     public static TermsAggregationBuilder terms(String name) {
-        return new TermsAggregationBuilder(name);
+        return new TermsAggregationBuilder(name, null);
     }
 
     /**
@@ -341,7 +341,7 @@ public class AggregationBuilders {
      * Create a new {@link Cardinality} aggregation with the given name.
      */
     public static CardinalityAggregationBuilder cardinality(String name) {
-        return new CardinalityAggregationBuilder(name);
+        return new CardinalityAggregationBuilder(name, null);
     }
 
     /**

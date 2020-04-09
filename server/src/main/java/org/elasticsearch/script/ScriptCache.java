@@ -56,17 +56,14 @@ public class ScriptCache {
     final TimeValue cacheExpire;
     final Tuple<Integer, TimeValue> rate;
     private final double compilesAllowedPerNano;
-    private final String contextRateSetting;
 
     ScriptCache(
             int cacheMaxSize,
             TimeValue cacheExpire,
-            Tuple<Integer, TimeValue> maxCompilationRate,
-            String contextRateSetting
+            Tuple<Integer, TimeValue> maxCompilationRate
     ) {
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;
-        this.contextRateSetting = contextRateSetting;
 
         CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
         if (this.cacheSize >= 0) {
@@ -178,7 +175,7 @@ public class ScriptCache {
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
                 rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
-                "this limit can be changed by the [" + contextRateSetting + "] setting",
+                "this limit can be changed by the [script.max_compilations_rate] setting",
                 CircuitBreaker.Durability.TRANSIENT);
         }
     }

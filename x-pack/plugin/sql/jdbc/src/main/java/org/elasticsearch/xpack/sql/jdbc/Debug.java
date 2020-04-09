@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
-import javax.sql.DataSource;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -27,6 +26,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.sql.DataSource;
 
 /**
  * Class handling debug logging. Typically disabled (hence why it's called debug).
@@ -71,7 +72,7 @@ final class Debug {
         return createProxy(Connection.class, new ConnectionProxy(logger(info, managedPrinter), connection));
     }
 
-    static DatabaseMetaData proxy(DatabaseMetaDataProxy handler) {
+    static DatabaseMetaData proxy(DatabaseMetadataProxy handler) {
         return createProxy(DatabaseMetaData.class, handler);
     }
 

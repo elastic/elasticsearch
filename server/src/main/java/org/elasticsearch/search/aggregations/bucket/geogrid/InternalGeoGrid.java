@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,8 +48,9 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
 
-    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
-        super(name, metadata);
+    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -70,7 +72,8 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         out.writeList(buckets);
     }
 
-    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+                                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
@@ -112,7 +115,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return create(getName(), requiredSize, Arrays.asList(list), getMetadata());
+        return create(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
     }
 
     @Override

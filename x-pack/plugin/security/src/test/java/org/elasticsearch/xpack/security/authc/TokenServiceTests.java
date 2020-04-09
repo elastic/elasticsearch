@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -194,7 +194,7 @@ public class TokenServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own salt can also verify
             TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-            anotherService.refreshMetadata(tokenService.getTokenMetadata());
+            anotherService.refreshMetaData(tokenService.getTokenMetaData());
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);
             UserToken fromOtherService = future.get();
@@ -272,10 +272,10 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     private void rotateKeys(TokenService tokenService) {
-        TokenMetadata tokenMetadata = tokenService.generateSpareKey();
-        tokenService.refreshMetadata(tokenMetadata);
-        tokenMetadata = tokenService.rotateToSpareKey();
-        tokenService.refreshMetadata(tokenMetadata);
+        TokenMetaData tokenMetaData = tokenService.generateSpareKey();
+        tokenService.refreshMetaData(tokenMetaData);
+        tokenMetaData = tokenService.rotateToSpareKey();
+        tokenService.refreshMetaData(tokenMetaData);
     }
 
     public void testKeyExchange() throws Exception {
@@ -289,7 +289,7 @@ public class TokenServiceTests extends ESTestCase {
             rotateKeys(tokenService);
         }
         TokenService otherTokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        otherTokenService.refreshMetadata(tokenService.getTokenMetadata());
+        otherTokenService.refreshMetaData(tokenService.getTokenMetaData());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
@@ -310,7 +310,7 @@ public class TokenServiceTests extends ESTestCase {
 
         rotateKeys(tokenService);
 
-        otherTokenService.refreshMetadata(tokenService.getTokenMetadata());
+        otherTokenService.refreshMetaData(tokenService.getTokenMetaData());
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -344,8 +344,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken serialized = future.get();
             assertAuthentication(authentication, serialized.getAuthentication());
         }
-        TokenMetadata metadata = tokenService.pruneKeys(randomIntBetween(0, 100));
-        tokenService.refreshMetadata(metadata);
+        TokenMetaData metaData = tokenService.pruneKeys(randomIntBetween(0, 100));
+        tokenService.refreshMetaData(metaData);
 
         int numIterations = scaledRandomIntBetween(1, 5);
         for (int i = 0; i < numIterations; i++) {
@@ -368,8 +368,8 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(newAccessToken);
         assertNotEquals(newAccessToken, accessToken);
 
-        metadata = tokenService.pruneKeys(1);
-        tokenService.refreshMetadata(metadata);
+        metaData = tokenService.pruneKeys(1);
+        tokenService.refreshMetaData(metaData);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -717,7 +717,7 @@ public class TokenServiceTests extends ESTestCase {
         final String accessToken = tokenService.prependVersionAndEncodeAccessToken(tokenService.getTokenVersionCompatibility(), userTokenId
         );
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
-        tokenService.getAuthenticationAndMetadata(accessToken, authFuture);
+        tokenService.getAuthenticationAndMetaData(accessToken, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();
         assertAuthentication(authentication, retrievedAuth);
     }

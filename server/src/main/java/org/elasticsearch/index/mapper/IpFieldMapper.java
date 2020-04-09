@@ -298,7 +298,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.IP;
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override

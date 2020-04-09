@@ -1,8 +1,7 @@
 {
   "watcher.delete_watch":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-delete-watch.html",
-      "description":"Removes a watch from Watcher."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-delete-watch.html"
     },
     "stability":"stable",
     "url":{

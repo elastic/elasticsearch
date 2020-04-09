@@ -65,16 +65,16 @@ public final class IngestDocument {
                           Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
-        this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
+        this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
+        this.sourceAndMetadata.put(MetaData.ID.getFieldName(), id);
         if (routing != null) {
-            this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
+            this.sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), routing);
         }
         if (version != null) {
-            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
+            sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
-            sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
+            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -566,10 +566,10 @@ public final class IngestDocument {
      * one time operation that extracts the metadata fields from the ingest document and returns them.
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
-    public Map<Metadata, Object> extractMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.remove(metadata.getFieldName()));
+    public Map<MetaData, Object> extractMetadata() {
+        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
+        for (MetaData metaData : MetaData.values()) {
+            metadataMap.put(metaData, sourceAndMetadata.remove(metaData.getFieldName()));
         }
         return metadataMap;
     }
@@ -577,10 +577,10 @@ public final class IngestDocument {
     /**
      * Does the same thing as {@link #extractMetadata} but does not mutate the map.
      */
-    public Map<Metadata, Object> getMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.get(metadata.getFieldName()));
+    public Map<MetaData, Object> getMetadata() {
+        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
+        for (MetaData metaData : MetaData.values()) {
+            metadataMap.put(metaData, sourceAndMetadata.get(metaData.getFieldName()));
         }
         return metadataMap;
     }
@@ -695,7 +695,7 @@ public final class IngestDocument {
                 '}';
     }
 
-    public enum Metadata {
+    public enum MetaData {
         INDEX(IndexFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
@@ -704,7 +704,7 @@ public final class IngestDocument {
 
         private final String fieldName;
 
-        Metadata(String fieldName) {
+        MetaData(String fieldName) {
             this.fieldName = fieldName;
         }
 

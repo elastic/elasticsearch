@@ -20,57 +20,39 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final Long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
+    CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
                                     Long precisionThreshold,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                    Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;
-    }
-
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.registerAny(CardinalityAggregationBuilder.NAME, cardinalityAggregatorSupplier());
-    }
-
-    private static CardinalityAggregatorSupplier cardinalityAggregatorSupplier(){
-        return new CardinalityAggregatorSupplier() {
-            @Override
-            public Aggregator build(String name,
-                                    ValuesSource valuesSource,
-                                    int precision,
-                                    SearchContext context,
-                                    Aggregator parent,
-                                    Map<String, Object> metadata) throws IOException {
-                return new CardinalityAggregator(name, valuesSource, precision, context, parent, metadata);
-            }
-        };
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, null, precision(), searchContext, parent, metadata);
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, null, precision(), searchContext, parent, pipelineAggregators, metaData);
     }
 
     @Override
@@ -78,15 +60,10 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
-            CardinalityAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected CardinalityAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        CardinalityAggregatorSupplier cardinalityAggregatorSupplier = (CardinalityAggregatorSupplier) aggregatorSupplier;
-        return cardinalityAggregatorSupplier.build(name, valuesSource, precision(), searchContext, parent, metadata);
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, valuesSource, precision(), searchContext, parent, pipelineAggregators,
+                metaData);
     }
 
     private int precision() {

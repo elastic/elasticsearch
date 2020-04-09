@@ -129,10 +129,10 @@ public class IndicesModuleTests extends ESTestCase {
         assertEquals(FieldNamesFieldMapper.NAME, last);
     }
 
-    public void testGetBuiltInMetadataFields() {
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
+    public void testGetBuiltInMetaDataFields() {
+        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
         int i = 0;
-        for (String field : builtInMetadataFields) {
+        for (String field : builtInMetaDataFields) {
             assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
         }
     }

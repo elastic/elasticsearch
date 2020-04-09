@@ -1,8 +1,7 @@
 {
   "ml.post_data":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html",
-      "description":"Sends data to an anomaly detection job for analysis."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html"
     },
     "stability":"stable",
     "url":{

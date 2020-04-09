@@ -71,7 +71,7 @@ GET my_index/_search
 {
   "docvalue_fields" : [
     {
-      "field" : "date",
+      "field" : "my_ip_field",
       "format": "strict_date_time" <7>
     }
   ]

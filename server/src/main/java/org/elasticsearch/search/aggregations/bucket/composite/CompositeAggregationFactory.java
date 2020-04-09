@@ -23,9 +23,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 class CompositeAggregationFactory extends AggregatorFactory {
@@ -34,9 +36,9 @@ class CompositeAggregationFactory extends AggregatorFactory {
     private final CompositeKey afterKey;
 
     CompositeAggregationFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
+                                AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData,
                                 int size, CompositeValuesSourceConfig[] sources, CompositeKey afterKey) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.size = size;
         this.sources = sources;
         this.afterKey = afterKey;
@@ -44,7 +46,8 @@ class CompositeAggregationFactory extends AggregatorFactory {
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                        Map<String, Object> metadata) throws IOException {
-        return new CompositeAggregator(name, factories, searchContext, parent, metadata, size, sources, afterKey);
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new CompositeAggregator(name, factories, searchContext, parent, pipelineAggregators, metaData,
+            size, sources, afterKey);
     }
 }

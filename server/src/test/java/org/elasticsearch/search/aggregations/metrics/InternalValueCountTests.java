@@ -21,6 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
+import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -30,8 +33,9 @@ import java.util.Map;
 public class InternalValueCountTests extends InternalAggregationTestCase<InternalValueCount> {
 
     @Override
-    protected InternalValueCount createTestInstance(String name, Map<String, Object> metadata) {
-        return new InternalValueCount(name, randomIntBetween(0, 100), metadata);
+    protected InternalValueCount createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        return new InternalValueCount(name, randomIntBetween(0, 100), pipelineAggregators, metaData);
     }
 
     @Override
@@ -54,7 +58,8 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     protected InternalValueCount mutateInstance(InternalValueCount instance) {
         String name = instance.getName();
         long value = instance.getValue();
-        Map<String, Object> metadata = instance.getMetadata();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -67,16 +72,16 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
             }
             break;
         case 2:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
             } else {
-                metadata = new HashMap<>(instance.getMetadata());
+                metaData = new HashMap<>(instance.getMetaData());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
+            metaData.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalValueCount(name, value, metadata);
+        return new InternalValueCount(name, value, pipelineAggregators, metaData);
     }
 }

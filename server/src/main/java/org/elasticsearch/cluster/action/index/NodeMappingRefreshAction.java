@@ -23,8 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MetadataMappingService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,12 +47,12 @@ public class NodeMappingRefreshAction {
     public static final String ACTION_NAME = "internal:cluster/node/mapping/refresh";
 
     private final TransportService transportService;
-    private final MetadataMappingService metadataMappingService;
+    private final MetaDataMappingService metaDataMappingService;
 
     @Inject
-    public NodeMappingRefreshAction(TransportService transportService, MetadataMappingService metadataMappingService) {
+    public NodeMappingRefreshAction(TransportService transportService, MetaDataMappingService metaDataMappingService) {
         this.transportService = transportService;
-        this.metadataMappingService = metadataMappingService;
+        this.metaDataMappingService = metaDataMappingService;
         transportService.registerRequestHandler(ACTION_NAME,
            ThreadPool.Names.SAME,  NodeMappingRefreshRequest::new, new NodeMappingRefreshTransportHandler());
     }
@@ -69,7 +69,7 @@ public class NodeMappingRefreshAction {
 
         @Override
         public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel, Task task) throws Exception {
-            metadataMappingService.refreshMapping(request.index(), request.indexUUID());
+            metaDataMappingService.refreshMapping(request.index(), request.indexUUID());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -77,7 +77,7 @@ public class NodeMappingRefreshAction {
     public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRequest {
 
         private String index;
-        private String indexUUID = IndexMetadata.INDEX_UUID_NA_VALUE;
+        private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         private String nodeId;
 
         public NodeMappingRefreshRequest(StreamInput in) throws IOException {

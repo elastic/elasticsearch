@@ -69,10 +69,10 @@ public abstract class AggregationBuilder
 
     /** Associate metadata with this {@link AggregationBuilder}. */
     @Override
-    public abstract AggregationBuilder setMetadata(Map<String, Object> metadata);
+    public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
 
     /** Return any associated metadata with this {@link AggregationBuilder}. */
-    public abstract Map<String, Object> getMetadata();
+    public abstract Map<String, Object> getMetaData();
 
     /** Add a sub aggregation to this builder. */
     public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
@@ -104,18 +104,18 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
 
     /**
-     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
+     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metaData</code>.
      * Used by {@link #rewrite(QueryRewriteContext)}.
      */
-    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
+    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData);
 
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
         if (rewritten != this) {
-            return rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
+            return rewritten.setMetaData(getMetaData()).subAggregations(rewrittenSubAggs);
         } else if (rewrittenSubAggs != factoriesBuilder) {
-            return shallowCopy(rewrittenSubAggs, getMetadata());
+            return shallowCopy(rewrittenSubAggs, getMetaData());
         } else {
             return this;
         }
@@ -153,19 +153,6 @@ public abstract class AggregationBuilder
     public PipelineTree buildPipelineTree() {
         return factoriesBuilder.buildPipelineTree();
     }
-
-    /**
-     * Rough measure of how many buckets this aggregation can return. Just
-     * "zero", "one", and "many".
-     */
-    public enum BucketCardinality {
-        NONE, ONE, MANY;
-    }
-    /**
-     * Do aggregations built by this builder contain buckets? If so, do they
-     * contain *always* contain a single bucket?
-     */
-    public abstract BucketCardinality bucketCardinality();
 
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {

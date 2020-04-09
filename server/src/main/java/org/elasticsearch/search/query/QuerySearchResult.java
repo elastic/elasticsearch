@@ -20,10 +20,12 @@
 package org.elasticsearch.search.query;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
@@ -38,6 +40,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -318,13 +321,28 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         setTopDocs(readTopDocs(in));
         if (in.getVersion().before(Version.V_7_7_0)) {
+            InternalAggregations readAggs = null;
             if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.referencing(new InternalAggregations(in));
+                readAggs = new InternalAggregations(in);
             }
             if (in.getVersion().before(Version.V_7_2_0)) {
-                // The list of PipelineAggregators is sent by old versions. We don't need it anyway.
-                in.readNamedWriteableList(PipelineAggregator.class);
+                List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
+                    .map(a -> (SiblingPipelineAggregator) a).collect(toList());
+                if (hasAggs && pipelineAggregators.isEmpty() == false) {
+                    List<InternalAggregation> internalAggs = readAggs.copyResults();
+                    /*
+                     * Earlier versions serialize sibling pipeline aggs
+                     * separately as they used to be set to QuerySearchResult
+                     * directly, while later versions include them in
+                     * InternalAggregations. Note that despite serializing
+                     * sibling pipeline aggs as part of nternalAggregations is
+                     * supported since 6.7.0, the shards set sibling pipeline
+                     * aggs to InternalAggregations only from 7.1.
+                     */
+                    readAggs = new InternalAggregations(internalAggs, pipelineAggregators);
+                }
             }
+            aggregations = DelayableWriteable.referencing(readAggs);
         } else {
             if (hasAggs = in.readBoolean()) {
                 aggregations = DelayableWriteable.delayed(InternalAggregations::new, in);

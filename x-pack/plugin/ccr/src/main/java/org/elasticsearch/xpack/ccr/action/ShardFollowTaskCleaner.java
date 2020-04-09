@@ -13,14 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.PersistentTaskResponse;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -48,19 +48,19 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
             return;
         }
 
-        Metadata metadata = event.state().metadata();
-        PersistentTasksCustomMetadata persistentTasksMetadata = metadata.custom(PersistentTasksCustomMetadata.TYPE);
-        if (persistentTasksMetadata == null) {
+        MetaData metaData = event.state().metaData();
+        PersistentTasksCustomMetaData persistentTasksMetaData = metaData.custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
             return;
         }
-        for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasksMetadata.tasks()) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> persistentTask : persistentTasksMetaData.tasks()) {
             if (ShardFollowTask.NAME.equals(persistentTask.getTaskName()) == false) {
                 // this task is not a shard follow task
                 continue;
             }
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
             Index followerIndex = shardFollowTask.getFollowShardId().getIndex();
-            if (metadata.index(followerIndex) != null) {
+            if (metaData.index(followerIndex) != null) {
                 // the index exists, do not clean this persistent task
                 continue;
             }

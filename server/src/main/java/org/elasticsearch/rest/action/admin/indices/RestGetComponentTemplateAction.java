@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -53,13 +54,14 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
-        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
+        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(names);
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
 
-        final boolean implicitAll = getRequest.name() == null;
+        final boolean implicitAll = getRequest.names().length == 0;
 
         return channel ->
             client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {

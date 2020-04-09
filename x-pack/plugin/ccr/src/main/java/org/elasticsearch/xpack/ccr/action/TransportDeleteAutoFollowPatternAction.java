@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,7 +72,7 @@ public class TransportDeleteAutoFollowPatternAction extends
     }
 
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {
-        AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing",
                 request.getName());
@@ -94,7 +94,7 @@ public class TransportDeleteAutoFollowPatternAction extends
 
         AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(patternsCopy, followedLeaderIndexUUIDSCopy, headers);
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metadata(Metadata.builder(currentState.getMetadata())
+        newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
             .build());
         return newState.build();

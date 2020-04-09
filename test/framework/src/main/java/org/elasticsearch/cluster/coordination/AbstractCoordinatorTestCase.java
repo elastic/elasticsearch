@@ -32,10 +32,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -244,6 +244,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            // TODO does ThreadPool need a node name any more?
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(), random());
         private boolean disruptStorage;
 
@@ -288,13 +289,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 initialNodeCount, masterEligibleNodeIds, initialConfiguration);
         }
 
-        void addNodesAndStabilise(int newNodesCount) {
-
-            // The stabilisation time bound is O(#new nodes) which isn't ideal; it's possible that the real bound is O(1) since node-join
-            // events are batched together, but in practice we have not seen problems in this area so have not invested the time needed to
-            // investigate this more closely.
-
-            addNodes(newNodesCount);
+        List<ClusterNode> addNodesAndStabilise(int newNodesCount) {
+            final List<ClusterNode> addedNodes = addNodes(newNodesCount);
             stabilise(
                 // The first pinging discovers the master
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
@@ -303,6 +299,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
                     // followup reconfiguration
                     + newNodesCount * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            // TODO Investigate whether 4 publications is sufficient due to batching? A bound linear in the number of nodes isn't great.
+            return addedNodes;
         }
 
         List<ClusterNode> addNodes(int newNodesCount) {
@@ -333,6 +331,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
          */
         void runRandomly(boolean allowReboots, boolean coolDown, long delayVariability) {
 
+            // TODO supporting (preserving?) existing disruptions needs implementing if needed, for now we just forbid it
             assertThat("may reconnect disconnected nodes, probably unexpected", disconnectedNodes, empty());
             assertThat("may reconnect blackholed nodes, probably unexpected", blackholedNodes, empty());
 
@@ -450,6 +449,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             deterministicTaskQueue.runRandomTask();
                         }
                     }
+
+                    // TODO other random steps:
+                    // - reboot a node
+                    // - abdicate leadership
+
                 } catch (CoordinationStateRejectedException | UncheckedIOException ignored) {
                     // This is ok: it just means a message couldn't currently be handled.
                 }
@@ -744,20 +748,20 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState,
-                               Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm) {
+                               Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm) {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
-                        final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
+                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
-                        if (updatedMetadata != oldState.getLastAcceptedState().metadata() || updatedTerm != oldState.getCurrentTerm()) {
+                        if (updatedMetaData != oldState.getLastAcceptedState().metaData() || updatedTerm != oldState.getCurrentTerm()) {
                             try (PersistedClusterStateService.Writer writer =
                                      new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                                          new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                                          deterministicTaskQueue::getCurrentTimeMillis)
                                          .createWriter()) {
                                 writer.writeFullStateAndCommit(updatedTerm,
-                                    ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build());
+                                    ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build());
                             }
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
@@ -808,9 +812,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 newVotingConfiguration, newValue).writeTo(outStream);
                         } else {
                             persistedCurrentTerm = oldState.getCurrentTerm();
-                            final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
-                            if (updatedMetadata != oldState.getLastAcceptedState().metadata()) {
-                                ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build().writeTo(outStream);
+                            final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                            if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
+                                ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build().writeTo(outStream);
                             } else {
                                 oldState.getLastAcceptedState().writeTo(outStream);
                             }
@@ -976,7 +980,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return restartedNode(Function.identity(), Function.identity(), nodeSettings);
             }
 
-            ClusterNode restartedNode(Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm,
+            ClusterNode restartedNode(Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm,
                                       Settings nodeSettings) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
@@ -985,7 +989,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     localNode.isMasterNode() && Node.NODE_MASTER_SETTING.get(nodeSettings)
                         ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
-                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings);
+                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm), nodeSettings);
             }
 
             private CoordinationState.PersistedState getPersistedState() {
@@ -1043,10 +1047,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void submitSetAutoShrinkVotingConfiguration(final boolean autoShrinkVotingConfiguration) {
                 submitUpdateTask("set master nodes failure tolerance [" + autoShrinkVotingConfiguration + "]", cs ->
-                    ClusterState.builder(cs).metadata(
-                        Metadata.builder(cs.metadata())
+                    ClusterState.builder(cs).metaData(
+                        MetaData.builder(cs.metaData())
                             .persistentSettings(Settings.builder()
-                                .put(cs.metadata().persistentSettings())
+                                .put(cs.metaData().persistentSettings())
                                 .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
                                 .build())
                             .build())
@@ -1250,6 +1254,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         public void onCommit(TimeValue commitTime) {
+            // TODO we only currently care about per-node acks
         }
 
         @Override
@@ -1398,10 +1403,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public ClusterState setValue(ClusterState clusterState, int key, long value) {
-        return ClusterState.builder(clusterState).metadata(
-            Metadata.builder(clusterState.metadata())
+        return ClusterState.builder(clusterState).metaData(
+            MetaData.builder(clusterState.metaData())
                 .persistentSettings(Settings.builder()
-                    .put(clusterState.metadata().persistentSettings())
+                    .put(clusterState.metaData().persistentSettings())
                     .put("value_" + key, value)
                     .build())
                 .build())
@@ -1413,7 +1418,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public long value(ClusterState clusterState, int key) {
-        return clusterState.metadata().persistentSettings().getAsLong("value_" + key, 0L);
+        return clusterState.metaData().persistentSettings().getAsLong("value_" + key, 0L);
     }
 
     public void assertStateEquals(ClusterState clusterState1, ClusterState clusterState2) {
@@ -1426,7 +1431,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public Set<Integer> keySet(ClusterState clusterState) {
-        return clusterState.metadata().persistentSettings().keySet().stream()
+        return clusterState.metaData().persistentSettings().keySet().stream()
             .filter(s -> s.startsWith("value_")).map(s -> Integer.valueOf(s.substring("value_".length()))).collect(Collectors.toSet());
     }
 

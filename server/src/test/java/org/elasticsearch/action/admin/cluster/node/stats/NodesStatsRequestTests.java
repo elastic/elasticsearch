@@ -24,54 +24,38 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashSet;
-import java.util.Set;
-
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.not;
 
 public class NodesStatsRequestTests extends ESTestCase {
 
     /**
      * Make sure that we can set, serialize, and deserialize arbitrary sets
      * of metrics.
+     *
+     * TODO: Use a looping construct rather than direct API calls
      */
-    public void testAddMetrics() throws Exception {
+    public void testMetricsSetters() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest(randomAlphaOfLength(8));
         request.indices(randomFrom(CommonStatsFlags.ALL));
-        String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(String[]::new);
-        request.addMetrics(metrics);
+        request.os(randomBoolean());
+        request.process(randomBoolean());
+        request.jvm(randomBoolean());
+        request.threadPool(randomBoolean());
+        request.fs(randomBoolean());
+        request.transport(randomBoolean());
+        request.http(randomBoolean());
+        request.breaker(randomBoolean());
+        request.script(randomBoolean());
+        request.discovery(randomBoolean());
+        request.ingest(randomBoolean());
+        request.adaptiveSelection(randomBoolean());
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
     }
 
     /**
-     * Check that we can add a metric.
-     */
-    public void testAddSingleMetric() throws Exception {
-        NodesStatsRequest request = new NodesStatsRequest();
-        request.addMetric(randomFrom(NodesStatsRequest.Metric.allMetrics()));
-        NodesStatsRequest deserializedRequest = roundTripRequest(request);
-        assertRequestsEqual(request, deserializedRequest);
-    }
-
-    /**
-     * Check that we can remove a metric.
-     */
-    public void testRemoveSingleMetric() throws Exception {
-        NodesStatsRequest request = new NodesStatsRequest();
-        request.all();
-        String metric = randomFrom(NodesStatsRequest.Metric.allMetrics());
-        request.removeMetric(metric);
-        NodesStatsRequest deserializedRequest = roundTripRequest(request);
-        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
-        assertThat(metric, not(in(request.requestedMetrics())));
-    }
-
-    /**
-     * Test that a newly constructed NodesStatsRequestObject requests only index metrics.
+     * Test that a newly constructed NodesStatsRequestObject requests all of the
+     * possible metrics defined in {@link NodesStatsRequest}.
      */
     public void testNodesStatsRequestDefaults() {
         NodesStatsRequest defaultNodesStatsRequest = new NodesStatsRequest(randomAlphaOfLength(8));
@@ -83,51 +67,53 @@ public class NodesStatsRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that the {@link NodesStatsRequest#all()} method enables all metrics.
+     * Test that the {@link NodesStatsRequest#all()} method sets all of the
+     * metrics to {@code true}.
+     *
+     * TODO: Use a looping construct rather than direct API calls
      */
     public void testNodesInfoRequestAll() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("node");
         request.all();
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.ALL.getFlags()));
-        assertThat(request.requestedMetrics(), equalTo(NodesStatsRequest.Metric.allMetrics()));
+        assertTrue(request.os());
+        assertTrue(request.process());
+        assertTrue(request.jvm());
+        assertTrue(request.threadPool());
+        assertTrue(request.fs());
+        assertTrue(request.transport());
+        assertTrue(request.http());
+        assertTrue(request.breaker());
+        assertTrue(request.script());
+        assertTrue(request.discovery());
+        assertTrue(request.ingest());
+        assertTrue(request.adaptiveSelection());
     }
 
     /**
-     * Test that the {@link NodesStatsRequest#clear()} method removes all metrics.
+     * Test that the {@link NodesStatsRequest#clear()} method sets all of the
+     * metrics to {@code false}.
+     *
+     * TODO: Use a looping construct rather than direct API calls
      */
     public void testNodesInfoRequestClear() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest("node");
         request.clear();
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.NONE.getFlags()));
-        assertThat(request.requestedMetrics(), empty());
-    }
-
-    /**
-     * Test that (for now) we can only add metrics from a set of known metrics.
-     */
-    public void testUnknownMetricsRejected() {
-        String unknownMetric1 = "unknown_metric1";
-        String unknownMetric2 = "unknown_metric2";
-        Set<String> unknownMetrics = new HashSet<>();
-        unknownMetrics.add(unknownMetric1);
-        unknownMetrics.addAll(randomSubsetOf(NodesStatsRequest.Metric.allMetrics()));
-
-        NodesStatsRequest request = new NodesStatsRequest();
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.addMetric(unknownMetric1));
-        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
-
-        exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric1));
-        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
-
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
-        assertThat(exception.getMessage(), equalTo("Used illegal metric: [" + unknownMetric1 + "]"));
-
-        unknownMetrics.add(unknownMetric2);
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
-        assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
+        assertFalse(request.os());
+        assertFalse(request.process());
+        assertFalse(request.jvm());
+        assertFalse(request.threadPool());
+        assertFalse(request.fs());
+        assertFalse(request.transport());
+        assertFalse(request.http());
+        assertFalse(request.breaker());
+        assertFalse(request.script());
+        assertFalse(request.discovery());
+        assertFalse(request.ingest());
+        assertFalse(request.adaptiveSelection());
     }
 
     /**
@@ -145,7 +131,19 @@ public class NodesStatsRequestTests extends ESTestCase {
     }
 
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
+        // TODO: Use a looping construct rather than direct API calls
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
-        assertThat(request1.requestedMetrics(), equalTo(request2.requestedMetrics()));
+        assertThat(request1.os(), equalTo(request2.os()));
+        assertThat(request1.process(), equalTo(request2.process()));
+        assertThat(request1.jvm(), equalTo(request2.jvm()));
+        assertThat(request1.threadPool(), equalTo(request2.threadPool()));
+        assertThat(request1.fs(), equalTo(request2.fs()));
+        assertThat(request1.transport(), equalTo(request2.transport()));
+        assertThat(request1.http(), equalTo(request2.http()));
+        assertThat(request1.breaker(), equalTo(request2.breaker()));
+        assertThat(request1.script(), equalTo(request2.script()));
+        assertThat(request1.discovery(), equalTo(request2.discovery()));
+        assertThat(request1.ingest(), equalTo(request2.ingest()));
+        assertThat(request1.adaptiveSelection(), equalTo(request2.adaptiveSelection()));
     }
 }

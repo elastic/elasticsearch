@@ -52,6 +52,8 @@ public interface Transport extends LifecycleComponent {
 
     void setMessageListener(TransportMessageListener listener);
 
+    void setLocalNode(DiscoveryNode localNode);
+
     default boolean isSecure() {
         return false;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,8 +45,8 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
 
     @Override
     protected InternalChildren createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
-        return new InternalChildren(name, docCount, aggregations, metadata);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalChildren(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
     @Override

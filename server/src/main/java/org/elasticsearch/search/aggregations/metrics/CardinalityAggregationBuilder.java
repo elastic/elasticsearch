@@ -30,11 +30,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,46 +49,37 @@ public final class CardinalityAggregationBuilder
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
     public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, CardinalityAggregationBuilder::new);
+            ObjectParser.fromBuilder(NAME, name -> new CardinalityAggregationBuilder(name, null));
     static {
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        CardinalityAggregatorFactory.registerAggregators(valuesSourceRegistry);
-    }
-
     private Long precisionThreshold = null;
 
-    public CardinalityAggregationBuilder(String name) {
-        super(name);
+    public CardinalityAggregationBuilder(String name, ValueType targetValueType) {
+        super(name, CoreValuesSourceType.ANY, targetValueType);
     }
 
-    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.precisionThreshold = clone.precisionThreshold;
-    }
-
-    @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
     }
 
     /**
      * Read from a stream.
      */
     public CardinalityAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.ANY);
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new CardinalityAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new CardinalityAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     @Override
@@ -128,9 +119,9 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected CardinalityAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+    protected CardinalityAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource> config,
                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

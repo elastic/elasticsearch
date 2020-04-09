@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,7 +72,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                    ClusterState state,
                                    ActionListener<GetDatafeedsStatsAction.Response> listener) {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
-        final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         ActionListener<SortedSet<String>> expandIdsListener = ActionListener.wrap(
             expandedIds -> {
                 datafeedConfigProvider.expandDatafeedConfigs(
@@ -129,10 +129,10 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
 
     private static GetDatafeedsStatsAction.Response.DatafeedStats buildDatafeedStats(String datafeedId,
                                                                                      ClusterState state,
-                                                                                     PersistentTasksCustomMetadata tasks,
+                                                                                     PersistentTasksCustomMetaData tasks,
                                                                                      String jobId,
                                                                                      DatafeedTimingStats timingStats) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasks);
         DiscoveryNode node = null;
         String explanation = null;

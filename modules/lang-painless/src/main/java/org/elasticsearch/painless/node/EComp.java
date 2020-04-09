@@ -50,11 +50,6 @@ public class EComp extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
         Class<?> promotedType;
 
         Output output = new Output();
@@ -111,5 +106,10 @@ public class EComp extends AExpression {
         output.expressionNode = comparisonNode;
 
         return output;
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(left, operation.symbol, right);
     }
 }

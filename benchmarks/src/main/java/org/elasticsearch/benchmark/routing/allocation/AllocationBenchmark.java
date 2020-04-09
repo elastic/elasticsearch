@@ -21,8 +21,8 @@ package org.elasticsearch.benchmark.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -127,19 +127,19 @@ public class AllocationBenchmark {
             Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build()
         );
 
-        Metadata.Builder mb = Metadata.builder();
+        MetaData.Builder mb = MetaData.builder();
         for (int i = 1; i <= numIndices; i++) {
             mb.put(
-                IndexMetadata.builder("test_" + i)
+                IndexMetaData.builder("test_" + i)
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT))
                     .numberOfShards(numShards)
                     .numberOfReplicas(numReplicas)
             );
         }
-        Metadata metadata = mb.build();
+        MetaData metaData = mb.build();
         RoutingTable.Builder rb = RoutingTable.builder();
         for (int i = 1; i <= numIndices; i++) {
-            rb.addAsNew(metadata.index("test_" + i));
+            rb.addAsNew(metaData.index("test_" + i));
         }
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
@@ -147,7 +147,7 @@ public class AllocationBenchmark {
             nb.add(Allocators.newNode("node" + i, Collections.singletonMap("tag", "tag_" + (i % numTags))));
         }
         initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
+            .metaData(metaData)
             .routingTable(routingTable)
             .nodes(nb)
             .build();

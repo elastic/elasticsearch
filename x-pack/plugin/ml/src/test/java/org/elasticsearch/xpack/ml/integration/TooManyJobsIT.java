@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -55,10 +55,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("close-failed-job-2")).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
+        PersistentTasksCustomMetaData.PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 
@@ -74,7 +74,6 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
-        ensureTemplatesArePresent();
         logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
         // Set our lazy node number
         assertTrue(client().admin()
@@ -188,8 +187,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
                     for (Client client : clients()) {
-                        PersistentTasksCustomMetadata tasks = client.admin().cluster().prepareState().get().getState()
-                                .getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                        PersistentTasksCustomMetaData tasks = client.admin().cluster().prepareState().get().getState()
+                                .getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                         assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });
@@ -209,7 +208,6 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
-        ensureTemplatesArePresent();
     }
 
     private long calculateMaxMlMemory() {

@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,7 +60,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SAME;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -76,13 +76,13 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     @Override
     protected void masterOperation(Task task, final GetRepositoriesRequest request, ClusterState state,
                                    final ActionListener<GetRepositoriesResponse> listener) {
-        Metadata metadata = state.metadata();
-        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
+        MetaData metaData = state.metaData();
+        RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
             if (repositories != null) {
                 listener.onResponse(new GetRepositoriesResponse(repositories));
             } else {
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(Collections.emptyList())));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(Collections.emptyList())));
             }
         } else {
             if (repositories != null) {
@@ -91,23 +91,23 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
                         repositoriesToGet.add(repositoryOrPattern);
                     } else {
-                        for (RepositoryMetadata repository : repositories.repositories()) {
+                        for (RepositoryMetaData repository : repositories.repositories()) {
                             if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
                                 repositoriesToGet.add(repository.name());
                             }
                         }
                     }
                 }
-                List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
+                List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
                 for (String repository : repositoriesToGet) {
-                    RepositoryMetadata repositoryMetadata = repositories.repository(repository);
-                    if (repositoryMetadata == null) {
+                    RepositoryMetaData repositoryMetaData = repositories.repository(repository);
+                    if (repositoryMetaData == null) {
                         listener.onFailure(new RepositoryMissingException(repository));
                         return;
                     }
-                    repositoryListBuilder.add(repositoryMetadata);
+                    repositoryListBuilder.add(repositoryMetaData);
                 }
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(repositoryListBuilder)));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(repositoryListBuilder)));
             } else {
                 listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
             }

@@ -32,10 +32,7 @@ testClusters.integTest {
 
 integTest.runner {
   nonInputProperties.systemProperty 'tests.logfile',
-    "${-> testClusters.integTest.singleNode().getServerLog().absolutePath.replaceAll("_server.json", ".log")}"
-  
-  nonInputProperties.systemProperty 'tests.jsonLogfile',
-    "${-> testClusters.integTest.singleNode().getServerLog()}"
+    "${-> testClusters.integTest.singleNode().getServerLog().absolutePath.replaceAll(".json", ".log")}"
 }
 
 test {

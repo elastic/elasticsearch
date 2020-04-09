@@ -100,4 +100,9 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
     public List<Class<?>> getCaptures() {
         return Collections.singletonList(captured.getType());
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(variable, call);
+    }
 }

@@ -47,7 +47,7 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         SamlFactory factory = new SamlFactory();
         SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
         PlainActionFuture<SamlMetadataResponse> future = new PlainActionFuture<>();
-        generator.generateMetadata("https://sp.org", null, future);
+        generator.generateMetadata("https://sp.org", future);
         SamlMetadataResponse response = future.actionGet();
         final String xml = response.getXmlString();
 
@@ -126,11 +126,7 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         //no exception thrown
         SignatureException e = expectThrows(SignatureException.class,
             () -> SignatureValidator.validate(signature, readCredentials("RSA", 2048)));
-        if (inFipsJvm()) {
-            assertThat(e.getMessage(), containsString("Signature cryptographic validation not successful"));
-        } else {
-            assertThat(e.getMessage(), containsString("Unable to evaluate key against signature"));
-        }
+        assertThat(e.getMessage(), containsString("Unable to evaluate key against signature"));
     }
 
 }

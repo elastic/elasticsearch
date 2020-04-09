@@ -19,6 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import static java.util.Map.entry;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.zone.ZoneOffsetTransition;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -36,35 +47,28 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.zone.ZoneOffsetTransition;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static java.util.Map.entry;
 
 /**
  * A builder for histograms on date fields.
  */
-public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
-        implements DateIntervalConsumer {
+public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, DateHistogramAggregationBuilder>
+        implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
 
@@ -89,7 +93,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, DateHistogramAggregationBuilder::new);
     static {
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
         PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {
@@ -111,10 +115,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 Histogram.ORDER_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        DateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
-    }
-
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
     private long offset = 0;
     private ExtendedBounds extendedBounds;
@@ -124,12 +124,12 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name);
+        super(name, CoreValuesSourceType.ANY, ValueType.DATE);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
-                                              Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                              Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.dateHistogramInterval = clone.dateHistogramInterval;
         this.offset = clone.offset;
         this.extendedBounds = clone.extendedBounds;
@@ -139,13 +139,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new DateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new DateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.ANY, ValueType.DATE);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -155,8 +155,9 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.DATE;
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        // TODO: No idea how we'd support Range scripts here.
+        return CoreValuesSourceType.NUMERIC;
     }
 
 
@@ -370,11 +371,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.MANY;
-    }
-
-    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
         dateHistogramInterval.toXContent(builder, params);
@@ -467,7 +463,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
         final long prevTransition;
-        if (prevOffsetTransition != null) {
+        if (prevOffsetTransition  != null) {
             prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
         } else {
             prevTransition = instant.toEpochMilli();
@@ -477,7 +473,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         if (nextOffsetTransition != null) {
             nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
         } else {
-            nextTransition = Long.MAX_VALUE; // fixed time-zone after prevTransition
+            nextTransition = instant.toEpochMilli();
         }
 
         // We need all not only values but also rounded values to be within
@@ -517,10 +513,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
@@ -537,7 +533,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
         }
         return new DateHistogramAggregatorFactory(name, config, order, keyed, minDocCount,
-                rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metadata);
+                rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

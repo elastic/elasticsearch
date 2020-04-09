@@ -27,8 +27,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -115,18 +115,18 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
     private ClusterState initCluster(AllocationService strategy) {
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetadata.Builder index = IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT))
+            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT))
                 .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
-            metadataBuilder = metadataBuilder.put(index);
+            metaDataBuilder = metaDataBuilder.put(index);
         }
 
-        Metadata metadata = metadataBuilder.build();
+        MetaData metaData = metaDataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             routingTableBuilder.addAsNew(cursor.value);
         }
 
@@ -139,7 +139,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             nodes.add(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(initialRoutingTable).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");
@@ -348,13 +348,13 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 throw new UnsupportedOperationException("explain not supported");
             }
         }, EmptyClusterInfoService.INSTANCE);
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        IndexMetadata.Builder indexMeta = IndexMetadata.builder("test")
+        IndexMetaData.Builder indexMeta = IndexMetaData.builder("test")
             .settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1);
-        metadataBuilder = metadataBuilder.put(indexMeta);
-        Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+        metaDataBuilder = metaDataBuilder.put(indexMeta);
+        MetaData metaData = metaDataBuilder.build();
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             routingTableBuilder.addAsNew(cursor.value);
         }
         RoutingTable routingTable = routingTableBuilder.build();
@@ -365,7 +365,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).nodes(nodes).metadata(metadata).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();

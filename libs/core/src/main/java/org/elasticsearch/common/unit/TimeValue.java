@@ -47,9 +47,6 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public TimeValue(long duration, TimeUnit timeUnit) {
-        if (duration < -1) {
-            throw new IllegalArgumentException("duration cannot be negative, was given [" + duration + "]");
-        }
         this.duration = duration;
         this.timeUnit = timeUnit;
     }
@@ -204,7 +201,7 @@ public class TimeValue implements Comparable<TimeValue> {
      * Returns a {@link String} representation of the current {@link TimeValue}.
      *
      * Note that this method might produce fractional time values (ex 1.6m) which cannot be
-     * parsed by method like {@link TimeValue#parse(String, String, String, String)}.
+     * parsed by method like {@link TimeValue#parse(String, String, String)}.
      *
      * Also note that the maximum string value that will be generated is
      * {@code 106751.9d} due to the way that values are internally converted
@@ -219,7 +216,7 @@ public class TimeValue implements Comparable<TimeValue> {
      * Returns a {@link String} representation of the current {@link TimeValue}.
      *
      * Note that this method might produce fractional time values (ex 1.6m) which cannot be
-     * parsed by method like {@link TimeValue#parse(String, String, String, String)}. The number of
+     * parsed by method like {@link TimeValue#parse(String, String, String)}. The number of
      * fractional decimals (up to 10 maximum) are truncated to the number of fraction pieces
      * specified.
      *
@@ -361,20 +358,20 @@ public class TimeValue implements Comparable<TimeValue> {
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, "nanos", settingName), TimeUnit.NANOSECONDS);
+            return new TimeValue(parse(sValue, normalized, "nanos"), TimeUnit.NANOSECONDS);
         } else if (normalized.endsWith("micros")) {
-            return new TimeValue(parse(sValue, normalized, "micros", settingName), TimeUnit.MICROSECONDS);
+            return new TimeValue(parse(sValue, normalized, "micros"), TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, "ms", settingName), TimeUnit.MILLISECONDS);
+            return new TimeValue(parse(sValue, normalized, "ms"), TimeUnit.MILLISECONDS);
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, "s", settingName), TimeUnit.SECONDS);
+            return new TimeValue(parse(sValue, normalized, "s"), TimeUnit.SECONDS);
         } else if (sValue.endsWith("m")) {
             // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
-            return new TimeValue(parse(sValue, normalized, "m", settingName), TimeUnit.MINUTES);
+            return new TimeValue(parse(sValue, normalized, "m"), TimeUnit.MINUTES);
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, "h", settingName), TimeUnit.HOURS);
+            return new TimeValue(parse(sValue, normalized, "h"), TimeUnit.HOURS);
         } else if (normalized.endsWith("d")) {
-            return new TimeValue(parse(sValue, normalized, "d", settingName), TimeUnit.DAYS);
+            return new TimeValue(parse(sValue, normalized, "d"), TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {
@@ -386,16 +383,10 @@ public class TimeValue implements Comparable<TimeValue> {
         }
     }
 
-    private static long parse(final String initialInput, final String normalized, final String suffix, String settingName) {
+    private static long parse(final String initialInput, final String normalized, final String suffix) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
-            final long value = Long.parseLong(s);
-            if (value < -1) {
-                // -1 is magic, but reject any other negative values
-                throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + initialInput +
-                    "] as a time value: negative durations are not supported");
-            }
-            return value;
+            return Long.parseLong(s);
         } catch (final NumberFormatException e) {
             try {
                 @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);

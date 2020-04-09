@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -57,9 +58,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     private final BucketedSort sort;
     private final Metrics metrics;
 
-    TopMetricsAggregator(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata, int size,
+    TopMetricsAggregator(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData, int size,
             SortBuilder<?> sort, List<MetricSource> metricSources) throws IOException {
-        super(name, context, parent, metadata);
+        super(name, context, parent, pipelineAggregators, metaData);
         this.size = size;
         metrics = new Metrics(size, context.getQueryShardContext().bigArrays(), metricSources);
         /*
@@ -125,12 +127,12 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     public InternalAggregation buildAggregation(long bucket) throws IOException {
         List<InternalTopMetrics.TopMetric> topMetrics = sort.getValues(bucket, metrics.resultBuilder(sort.getFormat()));
         assert topMetrics.size() <= size;
-        return new InternalTopMetrics(name, sort.getOrder(), metrics.names(), size, topMetrics, metadata());
+        return new InternalTopMetrics(name, sort.getOrder(), metrics.names(), size, topMetrics, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalTopMetrics buildEmptyAggregation() {
-        return InternalTopMetrics.buildEmptyAggregation(name, metrics.names(), metadata());
+        return InternalTopMetrics.buildEmptyAggregation(name, metrics.names(), pipelineAggregators(), metaData());
     }
 
     @Override

@@ -28,37 +28,41 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class MatrixStatsAggregationBuilder
-        extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
+    extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;
 
     public MatrixStatsAggregationBuilder(String name) {
-        super(name);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.multiValueMode = clone.multiValueMode;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
      * Read from a stream.
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
@@ -77,10 +81,10 @@ public class MatrixStatsAggregationBuilder
 
     @Override
     protected MatrixStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                        Map<String, ValuesSourceConfig> configs,
+                                                        Map<String, ValuesSourceConfig<Numeric>> configs,
                                                         AggregatorFactory parent,
                                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,8 +51,9 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
         }
     }
 
-    public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
-        super(name, order, requiredSize, minDocCount, metadata);
+    public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
     }
 
     /**
@@ -78,7 +80,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public UnmappedTerms create(List<Bucket> buckets) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+        return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }
 
     @Override
@@ -98,7 +100,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+        return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }
 
     @Override

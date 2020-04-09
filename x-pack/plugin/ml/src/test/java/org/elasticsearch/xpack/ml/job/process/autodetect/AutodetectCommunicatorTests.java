@@ -64,13 +64,15 @@ import static org.mockito.Mockito.when;
 
 public class AutodetectCommunicatorTests extends ESTestCase {
 
+    private Environment environment;
     private AnalysisRegistry analysisRegistry;
     private StateStreamer stateStreamer;
 
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
+        environment = TestEnvironment.newEnvironment(settings);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         stateStreamer = mock(StateStreamer.class);
     }
 
@@ -234,7 +236,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                                                                 BiConsumer<Exception, Boolean> finishHandler) throws IOException {
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
         doNothing().when(dataCountsReporter).finishReporting();
-        return new AutodetectCommunicator(createJobDetails(), autodetectProcess,
+        return new AutodetectCommunicator(createJobDetails(), environment, autodetectProcess,
                 stateStreamer, dataCountsReporter, autodetectResultProcessor, finishHandler,
                 new NamedXContentRegistry(Collections.emptyList()), executorService);
     }

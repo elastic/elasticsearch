@@ -55,10 +55,5 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
 #
 # ASCII Functions
 # 
-  String  between(String, String, String, Boolean, Boolean)
-  Boolean endsWith(String, String)
-  Integer length(String)
-  Boolean startsWith(String, String)
-  Boolean stringContains(String, String)
   String  substring(String, Number, Number)
 }

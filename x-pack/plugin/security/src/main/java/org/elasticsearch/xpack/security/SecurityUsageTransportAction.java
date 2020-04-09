@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 public class SecurityUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final boolean enabledInSettings;
     private final Settings settings;
     private final XPackLicenseState licenseState;
     private final Realms realms;
@@ -59,6 +60,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                                         Settings settings, XPackLicenseState licenseState, SecurityUsageServices securityServices) {
         super(XPackUsageFeatureAction.SECURITY.name(), transportService, clusterService, threadPool,
               actionFilters, indexNameExpressionResolver);
+        this.enabledInSettings = XPackSettings.SECURITY_ENABLED.get(settings);
         this.settings = settings;
         this.licenseState = licenseState;
         this.realms = securityServices.realms;
@@ -81,11 +83,10 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
-
-        final boolean enabled = licenseState.isSecurityEnabled();
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
+                boolean enabled = enabledInSettings && licenseState.isSecurityDisabledByLicenseDefaults() == false;
                 var usage = new SecurityFeatureSetUsage(licenseState.isSecurityAvailable(), enabled,
                         realmsUsageRef.get(), rolesUsageRef.get(), roleMappingUsageRef.get(), sslUsage, auditUsage,
                         ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage, fips140Usage);
@@ -112,17 +113,17 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                 doCountDown.run();
             }, listener::onFailure);
 
-        if (rolesStore == null || enabled == false) {
+        if (rolesStore == null) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             rolesStore.usageStats(rolesStoreUsageListener);
         }
-        if (roleMappingStore == null || enabled == false) {
+        if (roleMappingStore == null) {
             roleMappingStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
-        if (realms == null || enabled == false) {
+        if (realms == null) {
             realmsUsageListener.onResponse(Collections.emptyMap());
         } else {
             realms.usageStats(realmsUsageListener);

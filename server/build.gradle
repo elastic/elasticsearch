@@ -123,10 +123,6 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
 
-
-  compile "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
-  compile "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
-
   if (!isEclipse) {
     java12Compile sourceSets.main.output
   }
@@ -216,7 +212,6 @@ thirdPartyAudit.ignoreMissingClasses(
   // from log4j
   'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
   'com.conversantmedia.util.concurrent.SpinPolicy',
-  'com.fasterxml.jackson.databind.SerializationFeature',
   'com.fasterxml.jackson.annotation.JsonInclude$Include',
   'com.fasterxml.jackson.databind.DeserializationContext',
   'com.fasterxml.jackson.databind.DeserializationFeature',

@@ -28,16 +28,17 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilder<DiversifiedAggregationBuilder> {
+public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, DiversifiedAggregationBuilder> {
     public static final String NAME = "diversified_sampler";
 
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
@@ -45,7 +46,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     public static final ObjectParser<DiversifiedAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, DiversifiedAggregationBuilder::new);
     static {
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, false);
         PARSER.declareInt(DiversifiedAggregationBuilder::shardSize, SamplerAggregator.SHARD_SIZE_FIELD);
         PARSER.declareInt(DiversifiedAggregationBuilder::maxDocsPerValue, SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD);
         PARSER.declareString(DiversifiedAggregationBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);
@@ -56,31 +57,26 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     private String executionHint = null;
 
     public DiversifiedAggregationBuilder(String name) {
-        super(name);
+        super(name, CoreValuesSourceType.ANY, null);
     }
 
-    protected DiversifiedAggregationBuilder(DiversifiedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+    protected DiversifiedAggregationBuilder(DiversifiedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.shardSize = clone.shardSize;
         this.maxDocsPerValue = clone.maxDocsPerValue;
         this.executionHint = clone.executionHint;
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
-    }
-
-    @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new DiversifiedAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new DiversifiedAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
      * Read from a stream.
      */
     public DiversifiedAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.ANY, null);
         shardSize = in.readVInt();
         maxDocsPerValue = in.readVInt();
         executionHint = in.readOptionalString();
@@ -147,17 +143,12 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.ONE;
-    }
-
-    @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
         return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, queryShardContext, parent,
-                subFactoriesBuilder, metadata);
+                subFactoriesBuilder, metaData);
     }
 
     @Override

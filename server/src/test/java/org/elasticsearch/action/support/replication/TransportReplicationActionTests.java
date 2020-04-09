@@ -39,8 +39,8 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -78,7 +78,6 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -110,7 +109,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -235,7 +234,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
 
-        ShardId shardId = new ShardId(clusterService.state().metadata().index("index").getIndex(), 0);
+        ShardId shardId = new ShardId(clusterService.state().metaData().index("index").getIndex(), 0);
 
         {
             setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
@@ -334,7 +333,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         final ClusterState clusterState = clusterService.state();
         final String targetAllocationID = clusterState.getRoutingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
-        final long primaryTerm = clusterState.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = clusterState.metaData().index(index).primaryTerm(shardId.id());
         final Request request = new Request(shardId);
         final ReplicationTask task = maybeTask();
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
@@ -405,7 +404,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
 
         final ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
                 = new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm);
 
@@ -528,9 +527,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, clusterStateChanges.closeIndices(
             clusterStateChanges.createIndex(clusterService.state(), new CreateIndexRequest(index)),
             new CloseIndexRequest(index)));
-        assertThat(clusterService.state().metadata().indices().get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(clusterService.state().metaData().indices().get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        Request request = new Request(new ShardId(clusterService.state().metadata().indices().get(index).getIndex(), 0)).timeout("1ms");
+        Request request = new Request(new ShardId(clusterService.state().metaData().indices().get(index).getIndex(), 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 
@@ -643,7 +642,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicBoolean executed = new AtomicBoolean();
 
         ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         boolean executeOnPrimary = true;
         // whether shard has been marked as relocated already (i.e. relocation completed)
         if (primaryShard.relocating() && randomBoolean()) {
@@ -696,7 +695,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState state = state(index, true, ShardRoutingState.RELOCATING);
         final ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         String primaryTargetNodeId = primaryShard.relocatingNodeId();
         // simulate execution of the primary phase on the relocation target node
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryTargetNodeId)).build();
@@ -754,7 +753,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ClusterState state = stateWithActivePrimary(index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         setState(clusterService, state);
-        final long primaryTerm = state.metadata().index(index).primaryTerm(0);
+        final long primaryTerm = state.metaData().index(index).primaryTerm(0);
         ReplicationOperation.Replicas<Request> proxy = action.newReplicasProxy();
 
         // check that at unknown node fails
@@ -814,11 +813,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             state(index, true, ShardRoutingState.STARTED, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         final ShardRouting routingEntry = clusterService.state().getRoutingTable().index("test").shard(0).primaryShard();
-        final long primaryTerm = clusterService.state().metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(shardId.id());
         Request request = new Request(shardId);
         TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
             new TransportReplicationAction.ConcreteShardRequest<>(request, routingEntry.allocationId().getId(), primaryTerm);
-        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
 
 
         final IndexShard shard = mockIndexShard(shardId, clusterService);
@@ -827,7 +826,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(shard.isRelocatedPrimary()).thenReturn(false);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
         Set<String> inSyncIds = randomBoolean() ? singleton(routingEntry.allocationId().getId()) :
-            clusterService.state().metadata().index(index).inSyncAllocationIds(0);
+            clusterService.state().metaData().index(index).inSyncAllocationIds(0);
         when(shard.getReplicationGroup()).thenReturn(
             new ReplicationGroup(shardRoutingTable,
                 inSyncIds,
@@ -865,7 +864,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
         final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         Request request = new Request(shardId);
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -945,7 +944,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     /**
-     * This test ensures that replication operations adhere to the {@link IndexMetadata#SETTING_WAIT_FOR_ACTIVE_SHARDS} setting
+     * This test ensures that replication operations adhere to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS} setting
      * when the request is using the default value for waitForActiveShards.
      */
     public void testDefaultWaitForActiveShardsUsesIndexSetting() {
@@ -956,22 +955,22 @@ public class TransportReplicationActionTests extends ESTestCase {
         int numReplicas = randomIntBetween(0, 5);
         int idxSettingWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
         ClusterState state = stateWithActivePrimary(indexName, randomBoolean(), numReplicas);
-        IndexMetadata indexMetadata = state.metadata().index(indexName);
-        Settings indexSettings = Settings.builder().put(indexMetadata.getSettings())
+        IndexMetaData indexMetaData = state.metaData().index(indexName);
+        Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
                                      .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(idxSettingWaitForActiveShards))
                                      .build();
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata())
-                                               .put(IndexMetadata.builder(indexMetadata).settings(indexSettings).build(), true);
-        state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        MetaData.Builder metaDataBuilder = MetaData.builder(state.metaData())
+                                               .put(IndexMetaData.builder(indexMetaData).settings(indexSettings).build(), true);
+        state = ClusterState.builder(state).metaData(metaDataBuilder).build();
         setState(clusterService, state);
         Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.DEFAULT); // set to default so index settings are used
-        action.resolveRequest(state.metadata().index(indexName), request);
+        action.resolveRequest(state.metaData().index(indexName), request);
         assertEquals(ActiveShardCount.from(idxSettingWaitForActiveShards), request.waitForActiveShards());
 
         // test wait_for_active_shards when default not set on the request (request value should be honored over index setting)
         int requestWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
         request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(requestWaitForActiveShards));
-        action.resolveRequest(state.metadata().index(indexName), request);
+        action.resolveRequest(state.metaData().index(indexName), request);
         assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
     }
 
@@ -981,8 +980,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         setState(clusterService, state(index, true, ShardRoutingState.STARTED));
         final ShardRouting primary = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = clusterService.state().metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
-        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        final long primaryTerm = clusterService.state().metaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final boolean wrongAllocationId = randomBoolean();
         final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
         Request request = new Request(shardId).timeout("1ms");
@@ -1019,7 +1018,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(replica.currentNodeId())).build();
         setState(clusterService, state);
 
-        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         Request request = new Request(shardId).timeout("1ms");
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(request, "_not_a_valid_aid_", randomNonNegativeLong(),
@@ -1046,7 +1045,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ShardRouting replica = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
-        final long primaryTerm = state.metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = state.metaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
         // simulate execution of the node holding the replica
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(replica.currentNodeId())).build();
         setState(clusterService, state);
@@ -1063,7 +1062,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 return new ReplicaResult();
             }
         };
-        final PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final Request request = new Request(shardId);
         final long checkpoint = randomNonNegativeLong();
         final long maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
@@ -1102,7 +1101,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final ClusterState initialState = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ShardRouting replica = initialState.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
-        final long primaryTerm = initialState.metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = initialState.metaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
         // simulate execution of the node holding the replica
         final ClusterState stateWithNodes = ClusterState.builder(initialState)
                 .nodes(DiscoveryNodes.builder(initialState.nodes()).localNodeId(replica.currentNodeId())).build();
@@ -1131,7 +1130,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 return new ReplicaResult();
             }
         };
-        final PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final Request request = new Request(shardId);
         final long checkpoint = randomNonNegativeLong();
         final long maxSeqNoOfUpdates = randomNonNegativeLong();
@@ -1291,14 +1290,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
             Index index = (Index)invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            final IndexMetadata indexSafe = state.metadata().getIndexSafe(index);
+            final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
             return mockIndexService(indexSafe, clusterService);
         });
         when(indicesService.indexService(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            if (state.metadata().hasIndex(index.getName())) {
-                return mockIndexService(clusterService.state().metadata().getIndexSafe(index), clusterService);
+            if (state.metaData().hasIndex(index.getName())) {
+                return mockIndexService(clusterService.state().metaData().getIndexSafe(index), clusterService);
             } else {
                 return null;
             }
@@ -1306,12 +1305,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         return indicesService;
     }
 
-    private IndexService mockIndexService(final IndexMetadata indexMetadata, ClusterService clusterService) {
+    private IndexService mockIndexService(final IndexMetaData indexMetaData, ClusterService clusterService) {
         final IndexService indexService = mock(IndexService.class);
         when(indexService.getShard(anyInt())).then(invocation -> {
             int shard = (Integer) invocation.getArguments()[0];
-            final ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
-            if (shard > indexMetadata.getNumberOfShards()) {
+            final ShardId shardId = new ShardId(indexMetaData.getIndex(), shard);
+            if (shard > indexMetaData.getNumberOfShards()) {
                 throw new ShardNotFoundException(shardId);
             }
             return mockIndexShard(shardId, clusterService);
@@ -1362,7 +1361,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(i ->
-            clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
+            clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
 
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
@@ -1372,8 +1371,29 @@ public class TransportReplicationActionTests extends ESTestCase {
     /**
      * Transport channel that is needed for replica operation testing.
      */
-    public TransportChannel createTransportChannel(final PlainActionFuture<TransportResponse> listener) {
-        return new TestTransportChannel(listener);
+    public TransportChannel createTransportChannel(final PlainActionFuture<TestResponse> listener) {
+        return new TransportChannel() {
+
+            @Override
+            public String getProfileName() {
+                return "";
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) {
+                listener.onResponse(((TestResponse) response));
+            }
+
+            @Override
+            public void sendResponse(Exception exception) {
+                listener.onFailure(exception);
+            }
+
+            @Override
+            public String getChannelType() {
+                return "replica_test";
+            }
+        };
     }
 
 }

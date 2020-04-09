@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -63,7 +63,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
     }
 
     public void testEligibleForRefresh() {
-        IndexMetadata meta = mkMeta().build();
+        IndexMetaData meta = mkMeta().build();
         assertFalse(TransportPutLifecycleAction.eligibleToCheckForRefresh(meta));
 
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
@@ -194,7 +194,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetadata meta = mkMeta()
+            IndexMetaData meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
@@ -232,7 +232,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetadata meta = mkMeta()
+            IndexMetaData meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
@@ -269,7 +269,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetadata meta = mkMeta()
+            IndexMetaData meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
@@ -303,7 +303,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetadata meta = mkMeta()
+            IndexMetaData meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
@@ -326,7 +326,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 .setPhaseDefinition("potato")
                 .build();
 
-            IndexMetadata meta = mkMeta()
+            IndexMetaData meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
@@ -364,7 +364,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "      }")
             .build();
 
-        IndexMetadata meta = mkMeta()
+        IndexMetaData meta = mkMeta()
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
 
@@ -377,14 +377,14 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
                 .put(meta, false)
                 .build())
             .build();
 
         ClusterState changedState = TransportPutLifecycleAction.refreshPhaseDefinition(existingState, index, policyMetadata);
 
-        IndexMetadata newIdxMeta = changedState.metadata().index(index);
+        IndexMetaData newIdxMeta = changedState.metaData().index(index);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
@@ -408,7 +408,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "{\"max_docs\":1},\"set_priority\":{\"priority\":100}}},\"version\":1,\"modified_date_in_millis\":1578521007076}")
             .build();
 
-        IndexMetadata meta = mkMeta()
+        IndexMetaData meta = mkMeta()
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
 
@@ -432,7 +432,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
                 .put(meta, false)
                 .build())
             .build();
@@ -458,17 +458,17 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         // No change, because the index doesn't have a lifecycle.name setting for this policy
         assertThat(updatedState, equalTo(existingState));
 
-        meta = IndexMetadata.builder(index)
+        meta = IndexMetaData.builder(index)
             .settings(Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_NAME, "my-policy")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
         existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
                 .put(meta, false)
                 .build())
             .build();
@@ -476,7 +476,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         logger.info("--> update with changed policy and this index has the policy");
         updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
 
-        IndexMetadata newIdxMeta = updatedState.metadata().index(index);
+        IndexMetaData newIdxMeta = updatedState.metaData().index(index);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
@@ -491,12 +491,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "\"set_priority\":{\"priority\":150}}},\"version\":2,\"modified_date_in_millis\":2}"));
     }
 
-    private static IndexMetadata.Builder mkMeta() {
-        return IndexMetadata.builder(index)
+    private static IndexMetaData.Builder mkMeta() {
+        return IndexMetaData.builder(index)
             .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)));
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, randomAlphaOfLength(5)));
     }
 }

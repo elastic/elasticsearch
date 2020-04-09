@@ -25,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -106,7 +105,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     @Override
     protected void onCancelled() {
         stop(getReasonCancelled(), TimeValue.ZERO);
-        markAsCompleted();
     }
 
     @Override
@@ -162,11 +160,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         cancelReindex.setTaskId(reindexTaskId);
         cancelReindex.setReason(reason);
         cancelReindex.setTimeout(timeout);
-
-        // We need to cancel the reindexing task within context with ML origin as we started the task
-        // from the same context
-        CancelTasksResponse cancelReindexResponse = cancelTaskWithinMlOriginContext(cancelReindex);
-
+        CancelTasksResponse cancelReindexResponse = client.admin().cluster().cancelTasks(cancelReindex).actionGet();
         Throwable firstError = null;
         if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
             firstError = cancelReindexResponse.getNodeFailures().get(0).getRootCause();
@@ -180,13 +174,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
         } else {
             LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
-        }
-    }
-
-    private CancelTasksResponse cancelTaskWithinMlOriginContext(CancelTasksRequest cancelTasksRequest) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
-            return client.admin().cluster().cancelTasks(cancelTasksRequest).actionGet();
         }
     }
 

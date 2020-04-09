@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -201,26 +202,28 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    public void testReadMessageLengthWithIncompleteHeader() throws IOException {
+    public void testDecodeWithIncompleteHeader() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.write(1);
         streamOutput.write(1);
 
-        assertEquals(-1, TcpTransport.readMessageLength(streamOutput.bytes()));
+        assertNull(TcpTransport.decodeFrame(streamOutput.bytes()));
     }
 
-    public void testReadPingMessageLength() throws IOException {
+    public void testDecodePing() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(-1);
 
-        assertEquals(0, TcpTransport.readMessageLength(streamOutput.bytes()));
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertEquals(0, message.length());
     }
 
-    public void testReadPingMessageLengthWithStartOfSecondMessage() throws IOException {
+    public void testDecodePingWithStartOfSecondMessage() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
@@ -228,10 +231,12 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write('E');
         streamOutput.write('S');
 
-        assertEquals(0, TcpTransport.readMessageLength(streamOutput.bytes()));
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertEquals(0, message.length());
     }
 
-    public void testReadMessageLength() throws IOException {
+    public void testDecodeMessage() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
@@ -239,8 +244,22 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        assertEquals(2, TcpTransport.readMessageLength(streamOutput.bytes()));
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
 
+        assertEquals(streamOutput.bytes().slice(6, 2), message);
+    }
+
+    public void testDecodeIncompleteMessage() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('E');
+        streamOutput.write('S');
+        streamOutput.writeInt(3);
+        streamOutput.write('M');
+        streamOutput.write('A');
+
+        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+
+        assertNull(message);
     }
 
     public void testInvalidLength() throws IOException {
@@ -252,7 +271,7 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write('A');
 
         try {
-            TcpTransport.readMessageLength(streamOutput.bytes());
+            TcpTransport.decodeFrame(streamOutput.bytes());
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -273,7 +292,7 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            TcpTransport.readMessageLength(streamOutput.bytes());
+            TcpTransport.decodeFrame(streamOutput.bytes());
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -296,7 +315,8 @@ public class TcpTransportTests extends ESTestCase {
             streamOutput.write(new byte[6]);
 
             try {
-                TcpTransport.readMessageLength(streamOutput.bytes());
+                BytesReference bytes = streamOutput.bytes();
+                TcpTransport.decodeFrame(bytes);
                 fail("Expected exception");
             } catch (Exception ex) {
                 assertThat(ex, instanceOf(TcpTransport.HttpRequestOnTransportException.class));
@@ -319,7 +339,8 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            TcpTransport.readMessageLength(streamOutput.bytes());
+            BytesReference bytes = streamOutput.bytes();
+            TcpTransport.decodeFrame(bytes);
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -340,7 +361,7 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            TcpTransport.readMessageLength(streamOutput.bytes());
+            TcpTransport.decodeFrame(streamOutput.bytes());
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -410,8 +431,7 @@ public class TcpTransportTests extends ESTestCase {
             channel.addCloseListener(listener);
 
             TcpTransport.handleException(channel, exception, lifecycle,
-                new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, new StatsTracker(), testThreadPool,
-                    BigArrays.NON_RECYCLING_INSTANCE));
+                new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, testThreadPool, BigArrays.NON_RECYCLING_INSTANCE));
 
             if (expectClosed) {
                 assertTrue(listener.isDone());

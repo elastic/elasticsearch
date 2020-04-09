@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -49,21 +49,21 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     }
 
     @Override
-    protected IndexMetadata getIndexMetadata() {
-        return IndexMetadata.builder("follower-index")
+    protected IndexMetaData getIndexMetaData() {
+        return IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetadata.State.CLOSE)
+            .state(IndexMetaData.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
     }
 
     public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .state(IndexMetadata.State.OPEN)
+            .state(IndexMetaData.State.OPEN)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -83,7 +83,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     }
 
     public void testOpenFollowingIndex() {
-        IndexMetadata indexMetadata = getIndexMetadata();
+        IndexMetaData indexMetadata = getIndexMetaData();
 
         Mockito.doAnswer(invocation -> {
             OpenIndexRequest closeIndexRequest = (OpenIndexRequest) invocation.getArguments()[0];
@@ -113,9 +113,9 @@ public class OpenFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCas
     }
 
     public void testOpenFollowingIndexFailed() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .state(IndexMetadata.State.CLOSE)
+            .state(IndexMetaData.State.CLOSE)
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)

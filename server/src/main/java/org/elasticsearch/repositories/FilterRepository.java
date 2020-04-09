@@ -22,11 +22,10 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.index.mapper.MapperService;
@@ -51,7 +50,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public RepositoryMetadata getMetadata() {
+    public RepositoryMetaData getMetadata() {
         return in.getMetadata();
     }
 
@@ -61,13 +60,13 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
-        return in.getSnapshotGlobalMetadata(snapshotId);
+    public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+        return in.getSnapshotGlobalMetaData(snapshotId);
     }
 
     @Override
-    public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId index) throws IOException {
-        return in.getSnapshotIndexMetadata(snapshotId, index);
+    public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
+        return in.getSnapshotIndexMetaData(snapshotId, index);
     }
 
     @Override
@@ -78,10 +77,10 @@ public class FilterRepository implements Repository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
         in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metadata, userMetadata, repositoryMetaVersion, listener);
+            includeGlobalState, metaData, userMetadata, repositoryMetaVersion, listener);
     }
 
     @Override

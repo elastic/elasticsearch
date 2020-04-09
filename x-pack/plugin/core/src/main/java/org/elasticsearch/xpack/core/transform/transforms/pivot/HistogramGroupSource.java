@@ -101,11 +101,7 @@ public class HistogramGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    ) {
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
         // histograms are simple and cheap, so we skip this optimization
         return null;
     }

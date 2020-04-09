@@ -1,8 +1,7 @@
 {
   "ml.update_filter":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-filter.html",
-      "description":"Updates the description of a filter, adds items, or removes items."
+      "url":null
     },
     "stability":"stable",
     "url":{

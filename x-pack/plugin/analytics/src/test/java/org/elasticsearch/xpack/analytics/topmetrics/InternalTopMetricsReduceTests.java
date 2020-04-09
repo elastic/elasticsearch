@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -82,7 +83,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     private InternalTopMetrics buildEmpty() {
-        return InternalTopMetrics.buildEmptyAggregation("test", singletonList("test"), null);
+        return InternalTopMetrics.buildEmptyAggregation("test", singletonList("test"), emptyList(), null);
     }
 
     private InternalTopMetrics buildFilled(int size, InternalTopMetrics.TopMetric... metrics) {
@@ -90,7 +91,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     private InternalTopMetrics buildFilled(SortOrder sortOrder, int size, InternalTopMetrics.TopMetric... metrics) {
-        return new InternalTopMetrics("test", sortOrder, singletonList("test"), size, Arrays.asList(metrics), null);
+        return new InternalTopMetrics("test", sortOrder, singletonList("test"), size, Arrays.asList(metrics), emptyList(), null);
     }
 
     private InternalTopMetrics.TopMetric top(SortValue sortValue, double metricValue) {

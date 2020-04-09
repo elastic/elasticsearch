@@ -85,8 +85,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                         values = Collections.singletonList(value);
                     }
                     hitField = new DocumentField(scriptFieldName, values);
-                    hit.setField(scriptFieldName, hitField);
-
+                    hit.getFields().put(scriptFieldName, hitField);
                 }
             }
         }

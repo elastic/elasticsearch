@@ -32,7 +32,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -43,7 +43,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
@@ -77,8 +77,8 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
             // Currently, two unknown top-level objects are present
-            if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
-                return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+            if (MetaData.Custom.class.isAssignableFrom(categoryClass)) {
+                return (T) new UnknownMetaDataCustom(name, parser.mapOrdered());
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
                 // The parsing for conditions is a bit weird as these represent JSON primitives (strings or numbers)
@@ -104,12 +104,12 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        if (nodeMetadata == null) {
+        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(dataPaths);
+        if (nodeMetaData == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }
 
-        String nodeId = nodeMetadata.nodeId();
+        String nodeId = nodeMetaData.nodeId();
         return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
     }
@@ -117,7 +117,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(environment.settings()))
             .version(onDiskState.lastAcceptedVersion)
-            .metadata(onDiskState.metadata)
+            .metaData(onDiskState.metaData)
             .build();
     }
 
@@ -198,23 +198,23 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public static class UnknownMetadataCustom implements Metadata.Custom {
+    public static class UnknownMetaDataCustom implements MetaData.Custom {
 
         private final String name;
         private final Map<String, Object> contents;
 
-        public UnknownMetadataCustom(String name, Map<String, Object> contents) {
+        public UnknownMetaDataCustom(String name, Map<String, Object> contents) {
             this.name = name;
             this.contents = contents;
         }
 
         @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.GATEWAY);
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
             assert false;
             throw new UnsupportedOperationException();
         }

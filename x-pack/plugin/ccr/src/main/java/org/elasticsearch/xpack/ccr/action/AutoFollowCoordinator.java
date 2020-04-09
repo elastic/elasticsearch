@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
@@ -194,7 +194,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
-        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata().custom(AutoFollowMetadata.TYPE);
+        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             return;
         }
@@ -223,9 +223,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                                            final BiConsumer<ClusterStateResponse, Exception> handler) {
                     final ClusterStateRequest request = new ClusterStateRequest();
                     request.clear();
-                    request.metadata(true);
+                    request.metaData(true);
                     request.routingTable(true);
-                    request.waitForMetadataVersion(metadataVersion);
+                    request.waitForMetaDataVersion(metadataVersion);
                     request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
@@ -379,7 +379,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
             lastAutoFollowTimeInMillis = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
-            final AutoFollowMetadata autoFollowMetadata = clusterState.metadata().custom(AutoFollowMetadata.TYPE);
+            final AutoFollowMetadata autoFollowMetadata = clusterState.metaData().custom(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {
                 LOGGER.info("AutoFollower for cluster [{}] has stopped, because there is no autofollow metadata", remoteCluster);
                 return;
@@ -422,7 +422,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         return;
                     }
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                    metadataVersion = remoteClusterState.metadata().version();
+                    metadataVersion = remoteClusterState.metaData().version();
                     autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns, thread);
                 } else {
                     assert remoteError != null;
@@ -470,7 +470,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result, thread);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameRemoteCluster, remoteClusterState.metadata(), clusterState.metadata(), resultHandler);
+                        patternsForTheSameRemoteCluster, remoteClusterState.metaData(), clusterState.metaData(), resultHandler);
                 }
                 i++;
             }
@@ -483,8 +483,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
                                             List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
-                                            Metadata remoteMetadata,
-                                            Metadata localMetadata,
+                                            MetaData remoteMetadata,
+                                            MetaData localMetadata,
                                             Consumer<AutoFollowResult> resultHandler) {
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(
@@ -527,15 +527,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         private static boolean leaderIndexAlreadyFollowed(AutoFollowPattern autoFollowPattern,
                                                           Index leaderIndex,
-                                                          Metadata localMetadata) {
+                                                          MetaData localMetadata) {
             String followIndexName = getFollowerIndexName(autoFollowPattern, leaderIndex.getName());
-            IndexMetadata indexMetadata = localMetadata.index(followIndexName);
-            if (indexMetadata != null) {
+            IndexMetaData indexMetaData = localMetadata.index(followIndexName);
+            if (indexMetaData != null) {
                 // If an index with the same name exists, but it is not a follow index for this leader index then
                 // we should let the auto follower attempt to auto follow it, so it can fail later and
                 // it is then visible in the auto follow stats. For example a cluster can just happen to have
                 // an index with the same name as the new follower index.
-                Map<String, String> customData = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+                Map<String, String> customData = indexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 if (customData != null) {
                     String recordedLeaderIndexUUID = customData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
                     return leaderIndex.getUUID().equals(recordedLeaderIndexUUID);
@@ -606,21 +606,21 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                                                     ClusterState remoteClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
-            for (IndexMetadata leaderIndexMetadata : remoteClusterState.getMetadata()) {
-                if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
+            for (IndexMetaData leaderIndexMetaData : remoteClusterState.getMetaData()) {
+                if (leaderIndexMetaData.getState() != IndexMetaData.State.OPEN) {
                     continue;
                 }
-                if (autoFollowPattern.isActive() && autoFollowPattern.match(leaderIndexMetadata.getIndex().getName())) {
-                    IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetadata.getIndex());
+                if (autoFollowPattern.isActive() && autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
+                    IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetaData.getIndex());
                     if (indexRoutingTable != null &&
                         // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
                         // This checks ensures all primary shards have started, so that index following does not fail.
                         // If not all primary shards are ready, then the next time the auto follow coordinator runs
                         // this index will be auto followed.
                         indexRoutingTable.allPrimaryShardsActive() &&
-                        followedIndexUUIDs.contains(leaderIndexMetadata.getIndex().getUUID()) == false) {
+                        followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
 
-                        leaderIndicesToFollow.add(leaderIndexMetadata.getIndex());
+                        leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                     }
                 }
             }
@@ -638,7 +638,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String name,
                                                                                       Index indexToFollow) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
                 if (newFollowedIndexUUIDS.containsKey(name) == false) {
                     // A delete auto follow pattern request can have removed the auto follow pattern while we want to update
@@ -656,14 +656,14 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.getMetadata())
+                    .metaData(MetaData.builder(currentState.getMetaData())
                         .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
                     .build();
             };
         }
 
         void cleanFollowedRemoteIndices(final ClusterState remoteClusterState, final List<String> patterns) {
-            updateAutoFollowMetadata(cleanFollowedRemoteIndices(remoteClusterState.metadata(), patterns), e -> {
+            updateAutoFollowMetadata(cleanFollowedRemoteIndices(remoteClusterState.metaData(), patterns), e -> {
                 if (e != null) {
                     LOGGER.warn("Error occured while cleaning followed leader indices", e);
                 }
@@ -671,14 +671,14 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         static Function<ClusterState, ClusterState> cleanFollowedRemoteIndices(
-                final Metadata remoteMetadata, final List<String> autoFollowPatternNames) {
+            final MetaData remoteMetadata, final List<String> autoFollowPatternNames) {
             return currentState -> {
-                AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs =
                     new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
                 Set<String> remoteIndexUUIDS = new HashSet<>();
                 remoteMetadata.getIndices().values()
-                    .forEach((ObjectPredicate<IndexMetadata>) value -> remoteIndexUUIDS.add(value.getIndexUUID()));
+                    .forEach((ObjectPredicate<IndexMetaData>) value -> remoteIndexUUIDS.add(value.getIndexUUID()));
 
                 boolean requiresCSUpdate = false;
                 for (String autoFollowPatternName : autoFollowPatternNames) {
@@ -704,7 +704,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                         autoFollowPatternNameToFollowedIndexUUIDs, currentAutoFollowMetadata.getHeaders());
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.getMetadata())
+                        .metaData(MetaData.builder(currentState.getMetaData())
                             .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
                         .build();
                 } else {

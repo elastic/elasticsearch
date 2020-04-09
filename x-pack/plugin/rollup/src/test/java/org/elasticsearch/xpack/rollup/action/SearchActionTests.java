@@ -9,9 +9,9 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -532,13 +532,13 @@ public class SearchActionTests extends ESTestCase {
 
     public void testNoIndicesToSeparate() {
         String[] indices = new String[]{};
-        ImmutableOpenMap<String, IndexMetadata> meta = ImmutableOpenMap.<String, IndexMetadata>builder().build();
+        ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
         expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.separateIndices(indices, meta));
     }
 
     public void testSeparateAll() {
-        String[] indices = new String[]{Metadata.ALL, "foo"};
-        ImmutableOpenMap<String, IndexMetadata> meta = ImmutableOpenMap.<String, IndexMetadata>builder().build();
+        String[] indices = new String[]{MetaData.ALL, "foo"};
+        ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TransportRollupSearchAction.separateIndices(indices, meta));
         assertThat(e.getMessage(), equalTo("Searching _all via RollupSearch endpoint is not supported at this time."));
@@ -546,7 +546,7 @@ public class SearchActionTests extends ESTestCase {
 
     public void testEmptyMetadata() {
         String[] indices = new String[]{"foo", "bar"};
-        ImmutableOpenMap<String, IndexMetadata> meta = ImmutableOpenMap.<String, IndexMetadata>builder().build();
+        ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
         TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, meta);
         assertThat(result.getLiveIndices().length, equalTo(2));
@@ -556,9 +556,9 @@ public class SearchActionTests extends ESTestCase {
 
     public void testNoMatchingIndexInMetadata() {
         String[] indices = new String[]{"foo"};
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        ImmutableOpenMap.Builder<String, IndexMetadata> meta = ImmutableOpenMap.builder(1);
-        meta.put("bar", indexMetadata);
+        IndexMetaData indexMetaData = mock(IndexMetaData.class);
+        ImmutableOpenMap.Builder<String, IndexMetaData> meta = ImmutableOpenMap.builder(1);
+        meta.put("bar", indexMetaData);
         TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, meta.build());
         assertThat(result.getLiveIndices().length, equalTo(1));
@@ -572,16 +572,16 @@ public class SearchActionTests extends ESTestCase {
         String jobName = randomAlphaOfLength(5);
         RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
-        MappingMetadata mappingMeta = new MappingMetadata(RollupField.TYPE_NAME,
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
                         Collections.singletonMap("_meta",
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        IndexMetadata meta = Mockito.mock(IndexMetadata.class);
+        IndexMetaData meta = Mockito.mock(IndexMetaData.class);
         when(meta.mapping()).thenReturn(mappingMeta);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(1);
+        ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(1);
         metaMap.put("foo", meta);
         TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
@@ -593,9 +593,9 @@ public class SearchActionTests extends ESTestCase {
 
     public void testLiveOnlyProcess() throws Exception {
         String[] indices = new String[]{"foo"};
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        ImmutableOpenMap.Builder<String, IndexMetadata> meta = ImmutableOpenMap.builder(1);
-        meta.put("bar", indexMetadata);
+        IndexMetaData indexMetaData = mock(IndexMetaData.class);
+        ImmutableOpenMap.Builder<String, IndexMetaData> meta = ImmutableOpenMap.builder(1);
+        meta.put("bar", indexMetaData);
         TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, meta.build());
 
@@ -614,16 +614,16 @@ public class SearchActionTests extends ESTestCase {
         String jobName = randomAlphaOfLength(5);
         RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
-        MappingMetadata mappingMeta = new MappingMetadata(RollupField.TYPE_NAME,
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
                         Collections.singletonMap("_meta",
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        IndexMetadata indexMeta = Mockito.mock(IndexMetadata.class);
+        IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
         when(indexMeta.mapping()).thenReturn(mappingMeta);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(1);
+        ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(1);
         metaMap.put("foo", indexMeta);
         TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
@@ -640,7 +640,7 @@ public class SearchActionTests extends ESTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetadata()).thenReturn(metadata);
+        when(sum.getMetaData()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -648,7 +648,7 @@ public class SearchActionTests extends ESTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetadata()).thenReturn(null);
+        when(count.getMetaData()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
@@ -676,16 +676,16 @@ public class SearchActionTests extends ESTestCase {
         String jobName = randomAlphaOfLength(5);
         RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
-        MappingMetadata mappingMeta = new MappingMetadata(RollupField.TYPE_NAME,
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
                         Collections.singletonMap("_meta",
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        IndexMetadata indexMeta = Mockito.mock(IndexMetadata.class);
+        IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
         when(indexMeta.mapping()).thenReturn(mappingMeta);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(2);
+        ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(2);
         metaMap.put("foo", indexMeta);
         metaMap.put("bar", indexMeta);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -710,21 +710,21 @@ public class SearchActionTests extends ESTestCase {
         String jobName = randomAlphaOfLength(5);
         RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
-        MappingMetadata mappingMeta = new MappingMetadata(RollupField.TYPE_NAME,
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
                 Collections.singletonMap(RollupField.TYPE_NAME,
                         Collections.singletonMap("_meta",
                                 Collections.singletonMap(RollupField.ROLLUP_META,
                                         Collections.singletonMap(jobName, job)))));
 
-        IndexMetadata indexMeta = Mockito.mock(IndexMetadata.class);
+        IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
         when(indexMeta.mapping()).thenReturn(mappingMeta);
 
-        MappingMetadata liveMappingMetadata = new MappingMetadata("bar", Collections.emptyMap());
+        MappingMetaData liveMappingMetadata = new MappingMetaData("bar", Collections.emptyMap());
 
-        IndexMetadata liveIndexMeta = Mockito.mock(IndexMetadata.class);
+        IndexMetaData liveIndexMeta = Mockito.mock(IndexMetaData.class);
         when(liveIndexMeta.mapping()).thenReturn(liveMappingMetadata);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(2);
+        ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(2);
         metaMap.put("foo", indexMeta);
         metaMap.put("bar", liveIndexMeta);
         TransportRollupSearchAction.RollupSearchContext separateIndices
@@ -734,7 +734,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
+        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, emptyList(), null);
         protoAggTree.add(internalAvg);
         Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
@@ -752,7 +752,7 @@ public class SearchActionTests extends ESTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetadata()).thenReturn(metadata);
+        when(sum.getMetaData()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -760,7 +760,7 @@ public class SearchActionTests extends ESTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetadata()).thenReturn(null);
+        when(count.getMetaData()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 

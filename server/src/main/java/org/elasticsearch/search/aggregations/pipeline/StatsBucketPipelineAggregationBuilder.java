@@ -47,8 +47,8 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new StatsBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metadata);
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+        return new StatsBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }
 
     @Override

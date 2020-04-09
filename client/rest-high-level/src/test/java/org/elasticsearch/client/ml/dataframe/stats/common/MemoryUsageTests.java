@@ -24,8 +24,6 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.time.Instant;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
 
     @Override
@@ -34,7 +32,7 @@ public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
     }
 
     public static MemoryUsage createRandom() {
-        return new MemoryUsage(randomBoolean() ? null : Instant.now(), randomNonNegativeLong());
+        return new MemoryUsage(Instant.now(), randomNonNegativeLong());
     }
 
     @Override
@@ -45,10 +43,5 @@ public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
     @Override
     protected boolean supportsUnknownFields() {
         return true;
-    }
-
-    public void testToString_GivenNullTimestamp() {
-        MemoryUsage memoryUsage = new MemoryUsage(null, 42L);
-        assertThat(memoryUsage.toString(), equalTo("MemoryUsage[timestamp=null, peak_usage_bytes=42]"));
     }
 }

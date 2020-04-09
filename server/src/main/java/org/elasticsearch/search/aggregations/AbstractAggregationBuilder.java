@@ -34,7 +34,7 @@ import java.util.Objects;
 public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>>
     extends AggregationBuilder {
 
-    protected Map<String, Object> metadata;
+    protected Map<String, Object> metaData;
 
     /**
      * Constructs a new aggregation builder.
@@ -47,9 +47,9 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     protected AbstractAggregationBuilder(AbstractAggregationBuilder<AB> clone,
                                          AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metadata) {
+                                         Map<String, Object> metaData) {
         super(clone, factoriesBuilder);
-        this.metadata = metadata;
+        this.metaData = metaData;
     }
 
     /**
@@ -58,14 +58,14 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     protected AbstractAggregationBuilder(StreamInput in) throws IOException {
         super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
-        metadata = in.readMap();
+        metaData = in.readMap();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         factoriesBuilder.writeTo(out);
-        out.writeMap(metadata);
+        out.writeMap(metaData);
         doWriteTo(out);
     }
 
@@ -115,17 +115,17 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @SuppressWarnings("unchecked")
     @Override
-    public AB setMetadata(Map<String, Object> metadata) {
-        if (metadata == null) {
-            throw new IllegalArgumentException("[metadata] must not be null: [" + name + "]");
+    public AB setMetaData(Map<String, Object> metaData) {
+        if (metaData == null) {
+            throw new IllegalArgumentException("[metaData] must not be null: [" + name + "]");
         }
-        this.metadata = metadata;
+        this.metaData = metaData;
         return (AB) this;
     }
 
     @Override
-    public Map<String, Object> getMetadata() {
-        return metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+    public Map<String, Object> getMetaData() {
+        return metaData == null ? Collections.emptyMap() : Collections.unmodifiableMap(metaData);
     }
 
     @Override
@@ -147,8 +147,8 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
 
-        if (this.metadata != null) {
-            builder.field("meta", this.metadata);
+        if (this.metaData != null) {
+            builder.field("meta", this.metaData);
         }
         builder.field(getType());
         internalXContent(builder, params);
@@ -164,7 +164,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public int hashCode() {
-        return Objects.hash(factoriesBuilder, metadata, name);
+        return Objects.hash(factoriesBuilder, metaData, name);
     }
 
     @Override
@@ -174,7 +174,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
 
         return Objects.equals(name, other.name)
-            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(metaData, other.metaData)
             && Objects.equals(factoriesBuilder, other.factoriesBuilder);
     }
 }

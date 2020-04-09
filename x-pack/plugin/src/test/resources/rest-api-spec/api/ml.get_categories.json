@@ -1,8 +1,7 @@
 {
   "ml.get_categories":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html",
-      "description":"Retrieves anomaly detection job results for one or more categories."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html"
     },
     "stability":"stable",
     "url":{

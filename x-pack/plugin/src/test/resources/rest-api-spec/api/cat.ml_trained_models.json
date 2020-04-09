@@ -1,8 +1,7 @@
 {
   "cat.ml_trained_models":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-trained-model.html",
-      "description": "Gets configuration and usage information about inference trained models."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-trained-model.html"
     },
     "stability":"stable",
     "url":{
@@ -82,13 +81,13 @@
         "type":"enum",
         "description":"The unit in which to display time values",
         "options":[
-          "d",
-          "h",
-          "m",
-          "s",
-          "ms",
-          "micros",
-          "nanos"
+          "d (Days)",
+          "h (Hours)",
+          "m (Minutes)",
+          "s (Seconds)",
+          "ms (Milliseconds)",
+          "micros (Microseconds)",
+          "nanos (Nanoseconds)"
         ]
       },
       "v":{

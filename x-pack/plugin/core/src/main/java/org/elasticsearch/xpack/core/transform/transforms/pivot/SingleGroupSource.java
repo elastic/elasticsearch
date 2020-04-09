@@ -116,11 +116,7 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     public abstract boolean supportsIncrementalBucketUpdate();
 
-    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    );
+    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets);
 
     public String getField() {
         return field;

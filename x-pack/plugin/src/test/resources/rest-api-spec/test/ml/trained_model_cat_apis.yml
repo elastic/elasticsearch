@@ -13,7 +13,6 @@ setup:
           {
             "description": "empty model for tests",
             "tags": ["regression", "tag1"],
-            "inference_config": {"regression":{}},
             "input": {"field_names": ["field1", "field2"]},
             "definition": {
                "preprocessors": [],
@@ -37,7 +36,6 @@ setup:
         body: >
           {
             "description": "empty model for tests",
-            "inference_config": {"regression":{}},
             "input": {"field_names": ["field1", "field2"]},
             "definition": {
                "preprocessors": [],

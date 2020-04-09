@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -72,14 +72,14 @@ final class SettingsUpdater {
          *  - merge in the archived unknown or invalid settings
          */
         final Tuple<Settings, Settings> partitionedTransientSettings =
-                partitionKnownAndValidSettings(currentState.metadata().transientSettings(), "transient", logger);
+                partitionKnownAndValidSettings(currentState.metaData().transientSettings(), "transient", logger);
         final Settings knownAndValidTransientSettings = partitionedTransientSettings.v1();
         final Settings unknownOrInvalidTransientSettings = partitionedTransientSettings.v2();
         final Settings.Builder transientSettings = Settings.builder().put(knownAndValidTransientSettings);
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
         final Tuple<Settings, Settings> partitionedPersistentSettings =
-                partitionKnownAndValidSettings(currentState.metadata().persistentSettings(), "persistent", logger);
+                partitionKnownAndValidSettings(currentState.metaData().persistentSettings(), "persistent", logger);
         final Settings knownAndValidPersistentSettings = partitionedPersistentSettings.v1();
         final Settings unknownOrInvalidPersistentSettings = partitionedPersistentSettings.v2();
         final Settings.Builder persistentSettings = Settings.builder().put(knownAndValidPersistentSettings);
@@ -94,26 +94,26 @@ final class SettingsUpdater {
             clusterSettings.validate(transientFinalSettings, true);
             clusterSettings.validate(persistentFinalSettings, true);
 
-            Metadata.Builder metadata = Metadata.builder(currentState.metadata())
+            MetaData.Builder metaData = MetaData.builder(currentState.metaData())
                     .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())
                     .persistentSettings(Settings.builder().put(persistentFinalSettings).put(unknownOrInvalidPersistentSettings).build());
 
             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-            boolean updatedReadOnly = Metadata.SETTING_READ_ONLY_SETTING.get(metadata.persistentSettings())
-                    || Metadata.SETTING_READ_ONLY_SETTING.get(metadata.transientSettings());
+            boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings())
+                    || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.transientSettings());
             if (updatedReadOnly) {
-                blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
+                blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
             } else {
-                blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
+                blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
             }
-            boolean updatedReadOnlyAllowDelete = Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metadata.persistentSettings())
-                    || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metadata.transientSettings());
+            boolean updatedReadOnlyAllowDelete = MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.persistentSettings())
+                    || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.transientSettings());
             if (updatedReadOnlyAllowDelete) {
-                blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+                blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             } else {
-                blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+                blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
-            clusterState = builder(currentState).metadata(metadata).blocks(blocks).build();
+            clusterState = builder(currentState).metaData(metaData).blocks(blocks).build();
         } else {
             clusterState = currentState;
         }
@@ -122,7 +122,7 @@ final class SettingsUpdater {
          * Now we try to apply things and if they are invalid we fail. This dry run will validate, parse settings, and trigger deprecation
          * logging, but will not actually apply them.
          */
-        final Settings settings = clusterState.metadata().settings();
+        final Settings settings = clusterState.metaData().settings();
         clusterSettings.validateUpdate(settings);
 
         return clusterState;

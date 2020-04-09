@@ -44,11 +44,11 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
     @Override
     protected void masterOperation(Task task, GetBasicStatusRequest request, ClusterState state,
                                    ActionListener<GetBasicStatusResponse> listener) throws Exception {
-        LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
-        if (licensesMetadata == null) {
+        LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
+        if (licensesMetaData == null) {
             listener.onResponse(new GetBasicStatusResponse(true));
         } else {
-            License license = licensesMetadata.getLicense();
+            License license = licensesMetaData.getLicense();
             listener.onResponse(new GetBasicStatusResponse(license == null || License.LicenseType.isBasic(license.type()) == false));
         }
 

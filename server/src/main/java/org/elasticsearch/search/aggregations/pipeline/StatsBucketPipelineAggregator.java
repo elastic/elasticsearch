@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
@@ -34,8 +35,8 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
     private double max = Double.NEGATIVE_INFINITY;
 
     StatsBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
-                                            Map<String, Object> metadata) {
-        super(name, bucketsPaths, gapPolicy, formatter, metadata);
+                                            Map<String, Object> metaData) {
+        super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
 
     public StatsBucketPipelineAggregator(StreamInput in) throws IOException {
@@ -64,7 +65,7 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
     }
 
     @Override
-    protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
-        return new InternalStatsBucket(name(), count, sum, min, max, format, metadata);
+    protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalStatsBucket(name(), count, sum, min, max, format, pipelineAggregators, metadata);
     }
 }

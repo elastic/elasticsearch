@@ -30,9 +30,7 @@ import java.util.List;
  * Parsing log lines with this class confirms the json format of logs
  */
 public class JsonLogLine {
-    public static final ObjectParser<JsonLogLine, Void> ECS_LOG_LINE = createECSParser(true);
-    public static final ObjectParser<JsonLogLine, Void> ES_LOG_LINE = createESParser(true);
-
+    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(true);
 
     private String type;
     private String timestamp;
@@ -43,7 +41,6 @@ public class JsonLogLine {
     private String clusterUuid;
     private String nodeId;
     private String message;
-    private List<String> tags;
     private List<String> stacktrace;
 
     @Override
@@ -58,50 +55,45 @@ public class JsonLogLine {
         sb.append(", clusterUuid='").append(clusterUuid).append('\'');
         sb.append(", nodeId='").append(nodeId).append('\'');
         sb.append(", message='").append(message).append('\'');
-        sb.append(", tags='").append(tags).append('\'');
         sb.append(", stacktrace=").append(stacktrace);
         sb.append('}');
         return sb.toString();
     }
 
-    public String getType() {
+    public String type() {
         return type;
     }
 
-    public String getTimestamp() {
+    public String timestamp() {
         return timestamp;
     }
 
-    public String getLevel() {
+    public String level() {
         return level;
     }
 
-    public String getComponent() {
+    public String component() {
         return component;
     }
 
-    public String getClusterName() {
+    public String clusterName() {
         return clusterName;
     }
 
-    public String getNodeName() {
+    public String nodeName() {
         return nodeName;
     }
 
-    public String getClusterUuid() {
+    public String clusterUuid() {
         return clusterUuid;
     }
 
-    public String getNodeId() {
+    public String nodeId() {
         return nodeId;
     }
 
-    public String getMessage() {
+    public String message() {
         return message;
-    }
-
-    public List<String> getTags() {
-        return tags;
     }
 
     public List<String> stacktrace() {
@@ -144,32 +136,11 @@ public class JsonLogLine {
         this.message = message;
     }
 
-    public void setTags(List<String> tags) {
-        this.tags = tags;
-    }
-
     public void setStacktrace(List<String> stacktrace) {
         this.stacktrace = stacktrace;
     }
 
-    private static ObjectParser<JsonLogLine, Void> createECSParser(boolean ignoreUnknownFields) {
-        ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("json_log_line", ignoreUnknownFields, JsonLogLine::new);
-        parser.declareString(JsonLogLine::setType, new ParseField("type"));
-        parser.declareString(JsonLogLine::setTimestamp, new ParseField("@timestamp"));
-        parser.declareString(JsonLogLine::setLevel, new ParseField("log.level"));
-        parser.declareString(JsonLogLine::setComponent, new ParseField("log.logger"));
-        parser.declareString(JsonLogLine::setClusterName, new ParseField("cluster.name"));
-        parser.declareString(JsonLogLine::setNodeName, new ParseField("node.name"));
-        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
-        parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
-        parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
-        parser.declareStringArray(JsonLogLine::setTags, new ParseField("tags"));
-        parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("error.stack_trace"));
-
-        return parser;
-    }
-
-    private static ObjectParser<JsonLogLine, Void> createESParser(boolean ignoreUnknownFields) {
+    private static ObjectParser<JsonLogLine, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, JsonLogLine::new);
         parser.declareString(JsonLogLine::setType, new ParseField("type"));
         parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));

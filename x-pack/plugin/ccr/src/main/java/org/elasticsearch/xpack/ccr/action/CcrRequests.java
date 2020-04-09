@@ -12,9 +12,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -31,30 +31,30 @@ public final class CcrRequests {
 
     private CcrRequests() {}
 
-    public static ClusterStateRequest metadataRequest(String leaderIndex) {
+    public static ClusterStateRequest metaDataRequest(String leaderIndex) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
-        clusterStateRequest.metadata(true);
+        clusterStateRequest.metaData(true);
         clusterStateRequest.indices(leaderIndex);
         return clusterStateRequest;
     }
 
-    public static PutMappingRequest putMappingRequest(String followerIndex, MappingMetadata mappingMetadata) {
+    public static PutMappingRequest putMappingRequest(String followerIndex, MappingMetaData mappingMetaData) {
         PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex);
         putMappingRequest.origin("ccr");
-        putMappingRequest.source(mappingMetadata.source().string(), XContentType.JSON);
+        putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
         return putMappingRequest;
     }
 
     /**
-     * Gets an {@link IndexMetadata} of the given index. The mapping version and metadata version of the returned {@link IndexMetadata}
+     * Gets an {@link IndexMetaData} of the given index. The mapping version and metadata version of the returned {@link IndexMetaData}
      * must be at least the provided {@code mappingVersion} and {@code metadataVersion} respectively.
      */
     public static void getIndexMetadata(Client client, Index index, long mappingVersion, long metadataVersion,
-                                        Supplier<TimeValue> timeoutSupplier, ActionListener<IndexMetadata> listener) {
-        final ClusterStateRequest request = CcrRequests.metadataRequest(index.getName());
+                                        Supplier<TimeValue> timeoutSupplier, ActionListener<IndexMetaData> listener) {
+        final ClusterStateRequest request = CcrRequests.metaDataRequest(index.getName());
         if (metadataVersion > 0) {
-            request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
+            request.waitForMetaDataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
         client.admin().cluster().state(request, ActionListener.wrap(
             response -> {
@@ -67,10 +67,10 @@ public final class CcrRequests {
                         getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, listener);
                     }
                 } else {
-                    final Metadata metadata = response.getState().metadata();
-                    final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
-                    if (indexMetadata.getMappingVersion() >= mappingVersion) {
-                        listener.onResponse(indexMetadata);
+                    final MetaData metaData = response.getState().metaData();
+                    final IndexMetaData indexMetaData = metaData.getIndexSafe(index);
+                    if (indexMetaData.getMappingVersion() >= mappingVersion) {
+                        listener.onResponse(indexMetaData);
                         return;
                     }
                     if (timeoutSupplier.get().nanos() < 0) {
@@ -78,7 +78,7 @@ public final class CcrRequests {
                             "timeout to get cluster state with mapping version [" + mappingVersion + "]"));
                     } else {
                         // ask for the next version.
-                        getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, listener);
+                        getIndexMetadata(client, index, mappingVersion, metaData.version() + 1, timeoutSupplier, listener);
                     }
                 }
             },
@@ -93,8 +93,8 @@ public final class CcrRequests {
                 }
                 final List<Index> followingIndices = Arrays.stream(indices)
                         .filter(index -> {
-                            final IndexMetadata indexMetadata = state.metadata().index(index);
-                            return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
+                            final IndexMetaData indexMetaData = state.metaData().index(index);
+                            return indexMetaData != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetaData.getSettings());
                         }).collect(Collectors.toList());
                 if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
                     final String errorMessage = "can't put mapping to the following indices "
@@ -112,8 +112,8 @@ public final class CcrRequests {
                 }
                 final List<Index> followingIndices = Arrays.stream(indices)
                         .filter(index -> {
-                            final IndexMetadata indexMetadata = state.metadata().index(index);
-                            return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
+                            final IndexMetaData indexMetaData = state.metaData().index(index);
+                            return indexMetaData != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetaData.getSettings());
                         }).collect(Collectors.toList());
                 if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
                     final String errorMessage = "can't modify aliases on indices "

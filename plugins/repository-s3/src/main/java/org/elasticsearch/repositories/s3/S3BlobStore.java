@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -45,18 +45,18 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
-    private final RepositoryMetadata repositoryMetadata;
+    private final RepositoryMetaData repositoryMetaData;
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetadata repositoryMetadata) {
+                RepositoryMetaData repositoryMetaData) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-        this.repositoryMetadata = repositoryMetadata;
+        this.repositoryMetaData = repositoryMetaData;
     }
 
     @Override
@@ -65,11 +65,11 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(repositoryMetadata);
+        return service.client(repositoryMetaData);
     }
 
     int getMaxRetries() {
-        return service.settings(repositoryMetadata).maxRetries;
+        return service.settings(repositoryMetaData).maxRetries;
     }
 
     public String bucket() {

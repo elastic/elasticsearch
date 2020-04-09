@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,11 +51,11 @@ public final class MappingStats implements ToXContentFragment, Writeable {
      */
     public static MappingStats of(ClusterState state) {
         Map<String, IndexFeatureStats> fieldTypes = new HashMap<>();
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetaData indexMetaData : state.metaData()) {
             Set<String> indexFieldTypes = new HashSet<>();
-            MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata != null) {
-                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), fieldMapping -> {
+            MappingMetaData mappingMetaData = indexMetaData.mapping();
+            if (mappingMetaData != null) {
+                MappingVisitor.visitMapping(mappingMetaData.getSourceAsMap(), fieldMapping -> {
                     String type = null;
                     Object typeO = fieldMapping.get("type");
                     if (typeO != null) {

@@ -36,22 +36,27 @@ import java.util.Optional;
  */
 public class SubmitAsyncSearchRequest implements Validatable {
 
+    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 1;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 5;
+    private static final boolean DEFAULT_CCS_MINIMIZE_ROUNDTRIPS = false;
+    private static final boolean DEFAULT_REQUEST_CACHE_VALUE = true;
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
-    private TimeValue waitForCompletionTimeout;
-    private Boolean keepOnCompletion;
+    private TimeValue waitForCompletion;
+    private Boolean cleanOnCompletion;
     private TimeValue keepAlive;
     private final SearchRequest searchRequest;
-    // The following is optional and will only be sent down with the request if explicitely set by the user
-    private Integer batchedReduceSize;
 
     /**
      * Creates a new request
      */
     public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
         this.searchRequest = new SearchRequest(indices, source);
+        searchRequest.setCcsMinimizeRoundtrips(DEFAULT_CCS_MINIMIZE_ROUNDTRIPS);
+        searchRequest.setPreFilterShardSize(DEFAULT_PRE_FILTER_SHARD_SIZE);
+        searchRequest.setBatchedReduceSize(DEFAULT_BATCHED_REDUCE_SIZE);
+        searchRequest.requestCache(DEFAULT_REQUEST_CACHE_VALUE);
     }
 
     /**
@@ -65,29 +70,29 @@ public class SubmitAsyncSearchRequest implements Validatable {
     /**
      * Get the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
-    public TimeValue getWaitForCompletionTimeout() {
-        return waitForCompletionTimeout;
+    public TimeValue getWaitForCompletion() {
+        return waitForCompletion;
     }
 
     /**
      * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
-    public void setWaitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
-        this.waitForCompletionTimeout = waitForCompletionTimeout;
+    public void setWaitForCompletion(TimeValue waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
     }
 
     /**
-     * Returns whether the resource resource should be kept on completion or failure (defaults to false).
+     * Returns whether the resource resource should be removed on completion or failure (defaults to true).
      */
-    public Boolean isKeepOnCompletion() {
-        return keepOnCompletion;
+    public Boolean isCleanOnCompletion() {
+        return cleanOnCompletion;
     }
 
     /**
-     * Determines if the resource should be kept on completion or failure (defaults to false).
+     * Determines if the resource should be removed on completion or failure (defaults to true).
      */
-    public void setKeepOnCompletion(boolean keepOnCompletion) {
-        this.keepOnCompletion = keepOnCompletion;
+    public void setCleanOnCompletion(boolean cleanOnCompletion) {
+        this.cleanOnCompletion = cleanOnCompletion;
     }
 
     /**
@@ -187,34 +192,33 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Optional. Sets the number of shard results that should be reduced at once on the coordinating node.
-     * This value should be used as a protection mechanism to reduce the memory overhead per search
-     * request if the potential number of shards in the request can be large. Defaults to 5.
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
      */
     public void setBatchedReduceSize(int batchedReduceSize) {
-        this.batchedReduceSize = batchedReduceSize;
+        this.searchRequest.setBatchedReduceSize(batchedReduceSize);
     }
 
     /**
      * Gets the number of shard results that should be reduced at once on the coordinating node.
-     * Returns {@code null} if unset.
+     * This defaults to 5 for {@link SubmitAsyncSearchRequest}.
      */
-    public Integer getBatchedReduceSize() {
-        return this.batchedReduceSize;
+    public int getBatchedReduceSize() {
+        return this.searchRequest.getBatchedReduceSize();
     }
 
     /**
      * Sets if this request should use the request cache or not, assuming that it can (for
-     * example, if "now" is used, it will never be cached).
-     * By default (if not set) this is turned on for {@link SubmitAsyncSearchRequest}.
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if request cache is enabled or not).
      */
     public void setRequestCache(Boolean requestCache) {
         this.searchRequest.requestCache(requestCache);
     }
 
     /**
-     * Gets if this request should use the request cache or not, if set.
-     * This defaults to `true` on the server side if unset in the client.
+     * Gets if this request should use the request cache or not.
+     * Defaults to `true` for {@link SubmitAsyncSearchRequest}.
      */
     public Boolean getRequestCache() {
         return this.searchRequest.requestCache();
@@ -269,12 +273,12 @@ public class SubmitAsyncSearchRequest implements Validatable {
         SubmitAsyncSearchRequest request = (SubmitAsyncSearchRequest) o;
         return Objects.equals(searchRequest, request.searchRequest)
                 && Objects.equals(getKeepAlive(), request.getKeepAlive())
-                && Objects.equals(getWaitForCompletionTimeout(), request.getWaitForCompletionTimeout())
-                && Objects.equals(isKeepOnCompletion(), request.isKeepOnCompletion());
+                && Objects.equals(getWaitForCompletion(), request.getWaitForCompletion())
+                && Objects.equals(isCleanOnCompletion(), request.isCleanOnCompletion());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchRequest, getKeepAlive(), getWaitForCompletionTimeout(), isKeepOnCompletion());
+        return Objects.hash(searchRequest, getKeepAlive(), getWaitForCompletion(), isCleanOnCompletion());
     }
 }

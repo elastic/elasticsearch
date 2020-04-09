@@ -28,8 +28,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -104,7 +107,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             return ctor.apply(name, values, percentilesConfig);
         });
 
-        ValuesSourceAggregationBuilder.declareFields(parser, true, true, false);
+        ValuesSourceParserHelper.declareAnyFields(parser, true, true);
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), valuesField);
         parser.declareBoolean(T::keyed, KEYED_FIELD);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), PercentilesMethod.TDIGEST_PARSER,
@@ -117,7 +120,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     AbstractPercentilesAggregationBuilder(String name, double[] values, PercentilesConfig percentilesConfig,
                                           ParseField valuesField) {
-        super(name);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         if (values == null) {
             throw new IllegalArgumentException("[" + valuesField.getPreferredName() + "] must not be null: [" + name + "]");
         }
@@ -132,8 +135,8 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     AbstractPercentilesAggregationBuilder(AbstractPercentilesAggregationBuilder<T> clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.percentilesConfig = clone.percentilesConfig;
         this.keyed = clone.keyed;
         this.values = clone.values;
@@ -141,10 +144,10 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     AbstractPercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             percentilesConfig
                 = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
         } else {
@@ -159,7 +162,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(percentilesConfig);
         } else {
             // Legacy method serialized both SigFigs and compression, even though we only need one.  So we need

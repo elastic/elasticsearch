@@ -82,7 +82,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new ValueCountAggregationBuilder("foo").field(fieldName);
+        return new ValueCountAggregationBuilder("foo", null).field(fieldName);
     }
 
     @Override
@@ -91,7 +91,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.GEOPOINT,
-            CoreValuesSourceType.RANGE
+            CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.HISTOGRAM
         );
     }
 
@@ -176,7 +177,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingString() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field("number").missing("🍌🍌🍌");
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -190,7 +191,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingNumber() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field("number").missing(1234);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -204,7 +205,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field("number").missing(new GeoPoint(42.39561, -71.13051));
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -224,7 +225,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
         fieldType.setName(fieldName);
-        final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name").field(fieldName);
+        final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", null).field(fieldName);
         testCase(aggregationBuilder,  new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
@@ -237,7 +238,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptNumber() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field(FIELD_NAME)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
@@ -256,7 +257,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleScriptNumber() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field(FIELD_NAME);
 
         MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
@@ -286,7 +287,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScriptString() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field(FIELD_NAME)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
@@ -305,7 +306,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleScriptString() throws IOException {
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
             .field(FIELD_NAME);
 
         MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
@@ -339,23 +340,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                           ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify) throws IOException {
-        // Test both with and without the userValueTypeHint
-        testCase(query, valueType, indexer, verify, true);
-        testCase(query, valueType, indexer, verify, false);
-    }
-
-    private void testCase(Query query,
-                          ValueType valueType,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalValueCount> verify, boolean testWithHint) throws IOException {
         MappedFieldType fieldType = createMappedFieldType(valueType);
         fieldType.setName(FIELD_NAME);
         fieldType.setHasDocValues(true);
 
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name");
-        if (valueType != null && testWithHint) {
-            aggregationBuilder.userValueTypeHint(valueType);
-        }
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
         aggregationBuilder.field(FIELD_NAME);
 
         testCase(aggregationBuilder, query, indexer, verify, fieldType);

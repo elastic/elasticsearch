@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiValue {
@@ -21,7 +22,7 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     private final Map<String, Double> values;
 
     TestMultiValueAggregation(String name, Map<String, Double> values) {
-        super(name, emptyMap());
+        super(name, emptyList(), emptyMap());
         this.values = values;
     }
 

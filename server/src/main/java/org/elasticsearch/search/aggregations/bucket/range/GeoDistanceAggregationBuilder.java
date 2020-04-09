@@ -35,11 +35,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator
 import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range.KEY_FIELD;
 import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range.TO_FIELD;
 
-public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<GeoDistanceAggregationBuilder> {
+public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoDistanceAggregationBuilder> {
     public static final String NAME = "geo_distance";
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
     static final ParseField UNIT_FIELD = new ParseField("unit");
@@ -60,7 +60,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     private static final ObjectParser<GeoDistanceAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoDistanceAggregationBuilder.NAME);
-        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
+        ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
 
         PARSER.declareBoolean(GeoDistanceAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
@@ -230,16 +230,15 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     private GeoDistanceAggregationBuilder(String name, GeoPoint origin,
                                           InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory) {
-        super(name);
+        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.origin = origin;
     }
-
 
     /**
      * Read from a stream.
      */
     public GeoDistanceAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, InternalGeoDistance.FACTORY.getValueSourceType(), InternalGeoDistance.FACTORY.getValueType());
         origin = new GeoPoint(in.readDouble(), in.readDouble());
         int size = in.readVInt();
         ranges = new ArrayList<>(size);
@@ -256,8 +255,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         this(name, null, InternalGeoDistance.FACTORY);
     }
 
-    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.origin = clone.origin;
         this.distanceType = clone.distanceType;
         this.unit = clone.unit;
@@ -266,15 +265,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
-        // TODO: this should set defaultValuesSourceType to GEOPOINT
-        return CoreValuesSourceType.BYTES;
-    }
-
-    @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     GeoDistanceAggregationBuilder origin(GeoPoint origin) {
@@ -419,21 +411,16 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.MANY;
-    }
-
-    @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(QueryShardContext queryShardContext,
+                                                                                ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                                                                AggregatorFactory parent,
+                                                                                Builder subFactoriesBuilder) throws IOException {
         Range[] ranges = this.ranges.toArray(new Range[this.range().size()]);
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, queryShardContext, parent,
-                subFactoriesBuilder, metadata);
+                subFactoriesBuilder, metaData);
     }
 
     @Override

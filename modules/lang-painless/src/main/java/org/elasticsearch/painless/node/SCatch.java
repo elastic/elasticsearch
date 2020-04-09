@@ -88,4 +88,9 @@ public class SCatch extends AStatement {
 
         return output;
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(baseException, declaration, block);
+    }
 }

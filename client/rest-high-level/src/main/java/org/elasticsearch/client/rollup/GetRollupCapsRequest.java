@@ -19,7 +19,7 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
@@ -30,7 +30,7 @@ public class GetRollupCapsRequest implements Validatable {
 
     public GetRollupCapsRequest(final String indexPattern) {
         if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
-            this.indexPattern = Metadata.ALL;
+            this.indexPattern = MetaData.ALL;
         } else {
             this.indexPattern = indexPattern;
         }

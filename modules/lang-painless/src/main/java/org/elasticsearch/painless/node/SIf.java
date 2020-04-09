@@ -80,4 +80,9 @@ public class SIf extends AStatement {
 
         return output;
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, ifblock);
+    }
 }

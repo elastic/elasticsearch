@@ -47,7 +47,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         boolean stepNull = randomBoolean();
         return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
+            randomBoolean() ? null : randomNonNegativeLong(),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
@@ -57,8 +57,6 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
-            stepNull ? null : randomAlphaOfLength(10),
-            stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
@@ -78,8 +76,6 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
-                randomBoolean() ? null : randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -120,13 +116,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         Long phaseTime = instance.getPhaseTime();
         Long actionTime = instance.getActionTime();
         Long stepTime = instance.getStepTime();
-        String repositoryName = instance.getRepositoryName();
-        String snapshotName = instance.getSnapshotName();
         boolean managed = instance.managedByILM();
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 13)) {
+            switch (between(0, 11)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -178,18 +172,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 isAutoRetryableError = true;
                 failedStepRetryCount = randomValueOtherThan(failedStepRetryCount, () -> randomInt(10));
                 break;
-            case 12:
-                repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
-                break;
-            case 13:
-                snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
             return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, policyTime, phase, action, step, failedStep,
-                isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo,
-                phaseExecutionInfo);
+                isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
         } else {
             switch (between(0, 1)) {
             case 0:

@@ -21,17 +21,19 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles implements Percentiles {
     public static final String NAME = "hdr_percentiles";
 
-    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                  Map<String, Object> metadata) {
-        super(name, percents, state, keyed, formatter, metadata);
+    InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }
 
     /**
@@ -71,8 +73,8 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            Map<String, Object> metadata) {
-        return new InternalHDRPercentiles(name, keys, merged, keyed, format, metadata);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalHDRPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);
     }
 
     public static class Iter implements Iterator<Percentile> {

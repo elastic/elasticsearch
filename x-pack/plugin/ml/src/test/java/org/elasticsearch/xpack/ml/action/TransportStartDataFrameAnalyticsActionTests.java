@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -35,16 +35,16 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         // At present the only critical index is the config index
         String indexName = AnomalyDetectorsIndex.configIndexName();
 
-        Metadata.Builder metadata = Metadata.builder();
+        MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
+        indexMetaData.settings(Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        metadata.put(indexMetadata);
+        metaData.put(indexMetaData);
         Index index = new Index(indexName, "_uuid");
         ShardId shardId = new ShardId(index, 0);
         ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
@@ -56,14 +56,14 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
-        csBuilder.metadata(metadata);
+        csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
         assertThat(
             TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver(), indexName),
             empty());
 
-        metadata = new Metadata.Builder(cs.metadata());
+        metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
         if (randomBoolean()) {
             routingTable.remove(indexName);
@@ -78,7 +78,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         }
 
         csBuilder.routingTable(routingTable.build());
-        csBuilder.metadata(metadata);
+        csBuilder.metaData(metaData);
         List<String> result = TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(csBuilder.build(),
             new IndexNameExpressionResolver(), indexName);
         assertThat(result, contains(indexName));

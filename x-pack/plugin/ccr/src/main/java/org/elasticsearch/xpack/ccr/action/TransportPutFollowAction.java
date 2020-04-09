@@ -20,7 +20,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -107,25 +107,25 @@ public final class TransportPutFollowAction
             remoteCluster,
             leaderIndex,
             listener::onFailure,
-            (historyUUID, leaderIndexMetadata) -> createFollowerIndex(leaderIndexMetadata, request, listener));
+            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, request, listener));
     }
 
     private void createFollowerIndex(
-            final IndexMetadata leaderIndexMetadata,
+            final IndexMetaData leaderIndexMetaData,
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
-        if (leaderIndexMetadata == null) {
+        if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] does not have soft deletes enabled"));
             return;
         }
 
         final Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
+            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
         final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)

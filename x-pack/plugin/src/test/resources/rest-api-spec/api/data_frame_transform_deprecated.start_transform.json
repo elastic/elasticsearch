@@ -1,8 +1,7 @@
 {
   "data_frame_transform_deprecated.start_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html",
-      "description":"Starts one or more transforms."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html"
     },
     "stability":"beta",
     "url":{

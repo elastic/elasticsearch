@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
-import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -46,8 +44,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
-
-import static java.util.Collections.emptyList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -63,11 +59,6 @@ public class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitSingleExpression(EqlBaseParser.SingleExpressionContext ctx) {
         return expression(ctx.expression());
-    }
-
-    @Override
-    public List<Expression> visitJoinKeys(JoinKeysContext ctx) {
-        return ctx != null ? expressions(ctx.expression()) : emptyList();
     }
 
     @Override
@@ -146,7 +137,14 @@ public class ExpressionBuilder extends IdentifierBuilder {
         }
 
         List<Expression> container = expressions(predicate.expression());
-        Expression checkInSet = new In(source, expr, container);
+
+        // TODO: Add IN to QL and use that directly
+        Expression checkInSet = null;
+
+        for (Expression inner : container) {
+            Expression termCheck = new Equals(source, expr, inner);
+            checkInSet = checkInSet == null ? termCheck : new Or(source, checkInSet, termCheck);
+        }
 
         return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
     }

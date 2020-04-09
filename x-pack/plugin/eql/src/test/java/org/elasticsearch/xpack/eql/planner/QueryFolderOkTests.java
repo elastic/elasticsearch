@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
@@ -16,14 +15,11 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
-
     private final String name;
     private final String query;
     private final Object expect;
@@ -36,73 +32,54 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return readSpec("/queryfolder_tests.txt");
-    }
-
-    public static Iterable<Object[]> readSpec(String url) throws Exception {
         ArrayList<Object[]> arr = new ArrayList<>();
-        Map<String, Integer> testNames = new LinkedHashMap<>();
-
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                QueryFolderOkTests.class.getResourceAsStream(url), StandardCharsets.UTF_8))) {
-            int lineNumber = 0;
+                QueryFolderOkTests.class.getResourceAsStream("/queryfolder_tests.txt"), StandardCharsets.UTF_8))) {
             String line;
             String name = null;
             String query = null;
-            ArrayList<Object> expectations = new ArrayList<>(8);
-
-            StringBuilder sb = new StringBuilder();
+            ArrayList<Object> expectations = null;
+            int newLineCount = 0;
 
             while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                line = line.trim();
+                if (line.startsWith("//")) {
+                    continue;
+                }
 
-                if (line.isEmpty() || line.startsWith("//")) {
+                line = line.trim();
+                if (Strings.isEmpty(line)) {
+                    if (name != null) {
+                        newLineCount++;
+                    }
+                    if (newLineCount >= 2) {
+                        // Add and zero out for the next spec
+                        addSpec(arr, name, query, expectations == null ? null : expectations.toArray());
+                        name = null;
+                        query = null;
+                        expectations = null;
+                        newLineCount = 0;
+                    }
                     continue;
                 }
 
                 if (name == null) {
                     name = line;
-                    Integer previousName = testNames.put(name, lineNumber);
-                    if (previousName != null) {
-                        throw new IllegalArgumentException("Duplicate test name '" + line + "' at line " + lineNumber
-                                + " (previously seen at line " + previousName + ")");
-                    }
+                    continue;
                 }
 
-                else if (query == null) {
-                    sb.append(line);
-                    if (line.endsWith(";")) {
-                        sb.setLength(sb.length() - 1);
-                        query = sb.toString();
-                        sb.setLength(0);
-                    }
+                if (query == null) {
+                    query = line;
+                    continue;
                 }
 
-                else {
-                    boolean done = false;
-                    if (line.endsWith(";")) {
-                        line = line.substring(0, line.length() - 1);
-                        done = true;
+                if (line.equals("null") == false) {  // special case for no expectations
+                    if (expectations == null) {
+                        expectations = new ArrayList<>();
                     }
-                    // no expectation
-                    if (line.equals("null") == false) {
-                        expectations.add(line);
-                    }
-
-                    if (done) {
-                        // Add and zero out for the next spec
-                        addSpec(arr, name, query, expectations.isEmpty() ? null : expectations.toArray());
-                        name = null;
-                        query = null;
-                        expectations.clear();
-                    }
+                    expectations.add(line);
                 }
             }
-
-            if (name != null) {
-                throw new IllegalStateException("Read a test [" + name + "] without a body at the end of [" + url + "]");
-            }
+            addSpec(arr, name, query, expectations.toArray());
         }
         return arr;
     }
@@ -117,7 +94,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(27, eqe.output().size());
+        assertEquals(23, eqe.output().size());
         assertEquals(KEYWORD, eqe.output().get(0).dataType());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");

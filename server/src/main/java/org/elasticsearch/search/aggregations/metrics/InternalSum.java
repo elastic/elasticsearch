@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,8 +33,9 @@ import java.util.Objects;
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
 
-    InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+    InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.format = formatter;
     }
@@ -77,7 +79,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
             double value = ((InternalSum) aggregation).sum;
             kahanSummation.add(value);
         }
-        return new InternalSum(name, kahanSummation.value(), format, getMetadata());
+        return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetaData());
     }
 
     @Override

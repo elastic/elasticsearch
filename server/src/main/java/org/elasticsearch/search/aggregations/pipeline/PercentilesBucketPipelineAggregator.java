@@ -38,8 +38,8 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     private List<Double> data;
 
     PercentilesBucketPipelineAggregator(String name, double[] percents, boolean keyed, String[] bucketsPaths,
-                                        GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, bucketsPaths, gapPolicy, formatter, metadata);
+                                        GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metaData) {
+        super(name, bucketsPaths, gapPolicy, formatter, metaData);
         this.percents = percents;
         this.keyed = keyed;
     }
@@ -75,7 +75,8 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
+    protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+
         // Perform the sorting and percentile collection now that all the data
         // has been collected.
         Collections.sort(data);
@@ -94,6 +95,6 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         // todo need postCollection() to clean up temp sorted data?
 
-        return new InternalPercentilesBucket(name(), percents, percentiles, keyed, format, metadata);
+        return new InternalPercentilesBucket(name(), percents, percentiles, keyed, format, pipelineAggregators, metadata);
     }
 }

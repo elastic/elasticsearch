@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -122,8 +123,9 @@ public class FiltersAggregator extends BucketsAggregator {
     private final int totalNumKeys;
 
     public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
-            String otherBucketKey, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+            String otherBucketKey, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         this.keyed = keyed;
         this.keys = keys;
         this.filters = filters;
@@ -179,7 +181,7 @@ public class FiltersAggregator extends BucketsAggregator {
                     bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, metadata());
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 
     @Override
@@ -196,7 +198,7 @@ public class FiltersAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
 
-        return new InternalFilters(name, buckets, keyed, metadata());
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

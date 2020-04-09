@@ -82,7 +82,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
-                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, metadata()));
+                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, new ArrayList<>(), metaData()));
                 Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 newBuckets.add(newBucket);
             }

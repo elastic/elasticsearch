@@ -108,4 +108,9 @@ public class PSubDefCall extends AExpression {
 
         return output;
     }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
+    }
 }

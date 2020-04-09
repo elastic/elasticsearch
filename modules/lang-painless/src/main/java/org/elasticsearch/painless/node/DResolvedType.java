@@ -73,4 +73,9 @@ public class DResolvedType extends DType {
     public Class<?> getType() {
         return type;
     }
+
+    @Override
+    public String toString() {
+        return "(DResolvedType [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "])";
+    }
 }

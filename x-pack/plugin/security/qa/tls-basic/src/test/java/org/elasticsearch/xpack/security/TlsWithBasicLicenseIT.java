@@ -98,7 +98,6 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(usage, "security.ssl.transport.enabled"), equalTo(true));
     }
 
-    @SuppressWarnings("unchecked")
     private void checkCertificateAPI() throws IOException {
         Response response = client().performRequest(new Request("GET", "/_ssl/certificates"));
         ObjectPath path = ObjectPath.createFromResponse(response);

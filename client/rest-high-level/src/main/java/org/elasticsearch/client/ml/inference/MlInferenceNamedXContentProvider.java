@@ -19,9 +19,6 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
-import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
@@ -63,14 +60,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class,
             new ParseField(LangIdentNeuralNetwork.NAME),
             LangIdentNeuralNetwork::fromXContent));
-
-        // Inference Config
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class,
-            ClassificationConfig.NAME,
-            ClassificationConfig::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class,
-            RegressionConfig.NAME,
-            RegressionConfig::fromXContent));
 
         // Aggregating output
         namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,

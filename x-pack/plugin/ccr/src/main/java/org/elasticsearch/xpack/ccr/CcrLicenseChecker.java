@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -112,11 +112,11 @@ public class CcrLicenseChecker {
             final String clusterAlias,
             final String leaderIndex,
             final Consumer<Exception> onFailure,
-            final BiConsumer<String[], IndexMetadata> consumer) {
+            final BiConsumer<String[], IndexMetaData> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
-        request.metadata(true);
+        request.metaData(true);
         request.indices(leaderIndex);
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
@@ -126,20 +126,20 @@ public class CcrLicenseChecker {
                 onFailure,
                 remoteClusterStateResponse -> {
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                    IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
-                    if (leaderIndexMetadata == null) {
+                    IndexMetaData leaderIndexMetaData = remoteClusterState.getMetaData().index(leaderIndex);
+                    if (leaderIndexMetaData == null) {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
                     }
-                    if (leaderIndexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                        onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
+                    if (leaderIndexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                        onFailure.accept(new IndexClosedException(leaderIndexMetaData.getIndex()));
                         return;
                     }
                     final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
-                            fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, onFailure, historyUUIDs ->
-                                    consumer.accept(historyUUIDs, leaderIndexMetadata));
+                            fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, onFailure, historyUUIDs ->
+                                    consumer.accept(historyUUIDs, leaderIndexMetaData));
                         } else {
                             onFailure.accept(e);
                         }
@@ -238,7 +238,7 @@ public class CcrLicenseChecker {
      * Fetches the history UUIDs for leader index on per shard basis using the specified remoteClient.
      *
      * @param remoteClient                              the remote client
-     * @param leaderIndexMetadata                       the leader index metadata
+     * @param leaderIndexMetaData                       the leader index metadata
      * @param onFailure                                 the failure consumer
      * @param historyUUIDConsumer                       the leader index history uuid and consumer
      */
@@ -246,11 +246,11 @@ public class CcrLicenseChecker {
     // in case of following a local or a remote cluster.
     public void fetchLeaderHistoryUUIDs(
         final Client remoteClient,
-        final IndexMetadata leaderIndexMetadata,
+        final IndexMetaData leaderIndexMetaData,
         final Consumer<Exception> onFailure,
         final Consumer<String[]> historyUUIDConsumer) {
 
-        String leaderIndex = leaderIndexMetadata.getIndex().getName();
+        String leaderIndex = leaderIndexMetaData.getIndex().getName();
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
             IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
             if (indexStats == null) {
@@ -258,7 +258,7 @@ public class CcrLicenseChecker {
                 return;
             }
 
-            String[] historyUUIDs = new String[leaderIndexMetadata.getNumberOfShards()];
+            String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {
                     // Ignore replica shards as they may not have yet started and

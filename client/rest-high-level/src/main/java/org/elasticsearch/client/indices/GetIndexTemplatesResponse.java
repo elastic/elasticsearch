@@ -31,32 +31,32 @@ public class GetIndexTemplatesResponse  {
 
     @Override
     public String toString() {
-        List<IndexTemplateMetadata> thisList = new ArrayList<>(this.indexTemplates);
-        thisList.sort(Comparator.comparing(IndexTemplateMetadata::name));
+        List<IndexTemplateMetaData> thisList = new ArrayList<>(this.indexTemplates);
+        thisList.sort(Comparator.comparing(IndexTemplateMetaData::name));
         return "GetIndexTemplatesResponse [indexTemplates=" + thisList + "]";
     }
 
-    private final List<IndexTemplateMetadata> indexTemplates;
+    private final List<IndexTemplateMetaData> indexTemplates;
 
     GetIndexTemplatesResponse() {
         indexTemplates = new ArrayList<>();
     }
 
-    GetIndexTemplatesResponse(List<IndexTemplateMetadata> indexTemplates) {
+    GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
         this.indexTemplates = indexTemplates;
     }
 
-    public List<IndexTemplateMetadata> getIndexTemplates() {
+    public List<IndexTemplateMetaData> getIndexTemplates() {
         return indexTemplates;
     }
 
 
     public static GetIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
-        final List<IndexTemplateMetadata> templates = new ArrayList<>();
+        final List<IndexTemplateMetaData> templates = new ArrayList<>();
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                final IndexTemplateMetadata templateMetadata = IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName());
-                templates.add(templateMetadata);
+                final IndexTemplateMetaData templateMetaData = IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName());
+                templates.add(templateMetaData);
             }
         }
         return new GetIndexTemplatesResponse(templates);
@@ -64,8 +64,8 @@ public class GetIndexTemplatesResponse  {
 
     @Override
     public int hashCode() {
-        List<IndexTemplateMetadata> sortedList = new ArrayList<>(this.indexTemplates);
-        sortedList.sort(Comparator.comparing(IndexTemplateMetadata::name));
+        List<IndexTemplateMetaData> sortedList = new ArrayList<>(this.indexTemplates);
+        sortedList.sort(Comparator.comparing(IndexTemplateMetaData::name));
         return Objects.hash(sortedList);
     }
 
@@ -79,12 +79,12 @@ public class GetIndexTemplatesResponse  {
             return false;
         // To compare results we need to make sure the templates are listed in the same order
         GetIndexTemplatesResponse other = (GetIndexTemplatesResponse) obj;
-        List<IndexTemplateMetadata> thisList = new ArrayList<>(this.indexTemplates);
-        List<IndexTemplateMetadata> otherList = new ArrayList<>(other.indexTemplates);
-        thisList.sort(Comparator.comparing(IndexTemplateMetadata::name));
-        otherList.sort(Comparator.comparing(IndexTemplateMetadata::name));
+        List<IndexTemplateMetaData> thisList = new ArrayList<>(this.indexTemplates);
+        List<IndexTemplateMetaData> otherList = new ArrayList<>(other.indexTemplates);
+        thisList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        otherList.sort(Comparator.comparing(IndexTemplateMetaData::name));
         return Objects.equals(thisList, otherList);
     }
-
-
+    
+    
 }

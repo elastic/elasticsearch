@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
@@ -46,6 +47,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -60,6 +62,7 @@ public class AutodetectCommunicator implements Closeable {
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
+    private final Environment environment;
     private final AutodetectProcess autodetectProcess;
     private final StateStreamer stateStreamer;
     private final DataCountsReporter dataCountsReporter;
@@ -71,11 +74,12 @@ public class AutodetectCommunicator implements Closeable {
     private volatile CategorizationAnalyzer categorizationAnalyzer;
     private volatile boolean processKilled;
 
-    AutodetectCommunicator(Job job, AutodetectProcess process, StateStreamer stateStreamer,
+    AutodetectCommunicator(Job job, Environment environment, AutodetectProcess process, StateStreamer stateStreamer,
                            DataCountsReporter dataCountsReporter, AutodetectResultProcessor autodetectResultProcessor,
                            BiConsumer<Exception, Boolean> onFinishHandler, NamedXContentRegistry xContentRegistry,
                            ExecutorService autodetectWorkerExecutor) {
         this.job = job;
+        this.environment = environment;
         this.autodetectProcess = process;
         this.stateStreamer = stateStreamer;
         this.dataCountsReporter = dataCountsReporter;
@@ -91,9 +95,9 @@ public class AutodetectCommunicator implements Closeable {
         autodetectProcess.restoreState(stateStreamer, modelSnapshot);
     }
 
-    private DataToProcessWriter createProcessWriter(DataDescription dataDescription) {
+    private DataToProcessWriter createProcessWriter(Optional<DataDescription> dataDescription) {
         return DataToProcessWriterFactory.create(true, includeTokensField, autodetectProcess,
-                dataDescription, job.getAnalysisConfig(),
+                dataDescription.orElse(job.getDataDescription()), job.getAnalysisConfig(),
                 dataCountsReporter, xContentRegistry);
     }
 
@@ -102,7 +106,7 @@ public class AutodetectCommunicator implements Closeable {
      * can be used
      */
     public void writeHeader() throws IOException {
-        createProcessWriter(job.getDataDescription()).writeHeader();
+        createProcessWriter(Optional.empty()).writeHeader();
     }
 
     /**
@@ -116,7 +120,7 @@ public class AutodetectCommunicator implements Closeable {
             }
 
             CountingInputStream countingStream = new CountingInputStream(inputStream, dataCountsReporter);
-            DataToProcessWriter autodetectWriter = createProcessWriter(params.getDataDescription().orElse(job.getDataDescription()));
+            DataToProcessWriter autodetectWriter = createProcessWriter(params.getDataDescription());
 
             if (includeTokensField && categorizationAnalyzer == null) {
                 createCategorizationAnalyzer(analysisRegistry);
@@ -144,7 +148,7 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         close(false, null);
     }
 

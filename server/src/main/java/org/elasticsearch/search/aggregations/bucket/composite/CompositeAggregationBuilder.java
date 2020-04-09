@@ -72,16 +72,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.sources = new ArrayList<>(clone.sources);
         this.after = clone.after;
         this.size = clone.size;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new CompositeAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new CompositeAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
@@ -145,16 +145,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      */
     public int size() {
         return size;
-    }
-
-    @Override
-    public BucketCardinality bucketCardinality() {
-        /*
-         * Cardinality *does* have buckets so MULTI might be appropriate here.
-         * But the buckets can't be used with the composite agg so we're
-         * going to pretend that it doesn't have buckets.
-         */
-        return BucketCardinality.NONE;
     }
 
     /**
@@ -235,7 +225,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata, size,
+        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData, size,
             configs, afterKey);
     }
 

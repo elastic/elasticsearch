@@ -56,14 +56,14 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         this.path = path;
     }
 
-    protected NestedAggregationBuilder(NestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+    protected NestedAggregationBuilder(NestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.path = clone.path;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new NestedAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new NestedAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
@@ -87,11 +87,6 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.ONE;
-    }
-
-    @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext,
                                             AggregatorFactory parent,
                                             Builder subFactoriesBuilder) throws IOException {
@@ -99,7 +94,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
             return new NestedAggregatorFactory(name, null, null, queryShardContext,
-                parent, subFactoriesBuilder, metadata);
+                parent, subFactoriesBuilder, metaData);
         }
 
         if (childObjectMapper.nested().isNested() == false) {
@@ -108,7 +103,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         try {
             ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(childObjectMapper);
             return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, queryShardContext,
-                parent, subFactoriesBuilder, metadata);
+                parent, subFactoriesBuilder, metaData);
         } finally {
             queryShardContext.nestedScope().previousLevel();
         }

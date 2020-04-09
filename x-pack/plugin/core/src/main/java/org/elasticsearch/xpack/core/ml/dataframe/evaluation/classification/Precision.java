@@ -107,7 +107,7 @@ public class Precision implements EvaluationMetric {
         if (result.get() == null) {  // This is step 2
             KeyedFilter[] keyedFiltersPredicted =
                 topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
+                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
             Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
             return Tuple.tuple(

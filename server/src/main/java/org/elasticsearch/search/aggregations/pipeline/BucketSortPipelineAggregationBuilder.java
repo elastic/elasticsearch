@@ -135,13 +135,12 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metadata);
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+        return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metaData);
     }
 
     @Override
     protected void validate(ValidationContext context) {
-        context.validateHasParent(NAME, name);
         if (sorts.isEmpty() && size == null && from == 0) {
             context.addValidationError("[" + name + "] is configured to perform nothing. Please set either of "
                     + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())

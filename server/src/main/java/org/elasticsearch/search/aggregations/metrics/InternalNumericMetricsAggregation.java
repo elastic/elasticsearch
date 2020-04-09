@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     protected DocValueFormat format = DEFAULT_FORMAT;
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
-        protected SingleValue(String name, Map<String, Object> metadata) {
-            super(name, metadata);
+        protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            super(name, pipelineAggregators, metaData);
         }
 
         /**
@@ -75,8 +76,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     }
 
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
-        protected MultiValue(String name, Map<String, Object> metadata) {
-            super(name, metadata);
+        protected MultiValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            super(name, pipelineAggregators, metaData);
         }
 
         /**
@@ -112,8 +113,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
     }
 
-    private InternalNumericMetricsAggregation(String name, Map<String, Object> metadata) {
-        super(name, metadata);
+    private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, pipelineAggregators, metaData);
     }
 
     /**

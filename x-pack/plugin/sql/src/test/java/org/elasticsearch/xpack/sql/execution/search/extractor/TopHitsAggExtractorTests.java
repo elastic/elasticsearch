@@ -69,7 +69,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = randomTopHitsAggExtractor();
 
         TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 0, null, new SearchHits(null, totalHits, 0.0f), null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 0, null, new SearchHits(null, totalHits, 0.0f), null, null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertNull(extractor.extract(bucket));
     }
@@ -78,7 +78,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.KEYWORD, UTC);
 
         String value = "Str_Value";
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(value, extractor.extract(bucket));
     }
@@ -88,7 +88,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.DATETIME, zoneId);
 
         long value = 123456789L;
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(DateUtils.asDateTime(value, zoneId), extractor.extract(bucket));
     }

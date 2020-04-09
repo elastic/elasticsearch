@@ -88,6 +88,8 @@ public class PCallInvoke extends AExpression {
         Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
 
+        output.statement = true;
+
         CallNode callNode = new CallNode();
 
         callNode.setLeftNode(prefix.cast(prefixOutput));
@@ -99,5 +101,10 @@ public class PCallInvoke extends AExpression {
         output.expressionNode = callNode;
 
         return output;
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
     }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -85,11 +85,11 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         assertThat(SnapshotRetentionTask.getAllPoliciesWithRetentionEnabled(state), equalTo(Collections.emptyMap()));
 
         // Test with empty SLM metadata
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE,
                 new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()))
             .build();
-        state = ClusterState.builder(new ClusterName("cluster")).metadata(metadata).build();
+        state = ClusterState.builder(new ClusterName("cluster")).metaData(metaData).build();
         assertThat(SnapshotRetentionTask.getAllPoliciesWithRetentionEnabled(state), equalTo(Collections.emptyMap()));
 
         // Test with metadata containing only a policy without retention
@@ -250,7 +250,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
             ClusterState state = createState(policy);
             state = ClusterState.builder(state)
-                .metadata(Metadata.builder(state.metadata())
+                .metaData(MetaData.builder(state.metaData())
                     .transientSettings(Settings.builder()
                         .put(LifecycleSettings.SLM_RETENTION_DURATION, "500ms")
                         .build())).build();
@@ -471,12 +471,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 .build())
             .collect(Collectors.toMap(pm -> pm.getPolicy().getId(), pm -> pm));
 
-        Metadata metadata = Metadata.builder()
+        MetaData metaData = MetaData.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE,
                 new SnapshotLifecycleMetadata(policyMetadataMap, mode, new SnapshotLifecycleStats()))
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
-            .metadata(metadata)
+            .metaData(metaData)
             .build();
     }
 

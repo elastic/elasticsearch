@@ -36,6 +36,7 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
@@ -151,7 +152,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             }
         };
         try {
-            workerState.delayPrepareBulkRequest(threadPool, System.nanoTime(), batchSizeForMaxDelay,
+            workerState.delayPrepareBulkRequest(threadPool, timeValueNanos(System.nanoTime()), batchSizeForMaxDelay,
                 new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
@@ -224,7 +225,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         };
         try {
             // Have the task use the thread pool to delay a task that does nothing
-            workerState.delayPrepareBulkRequest(threadPool, 0, 1, new AbstractRunnable() {
+            workerState.delayPrepareBulkRequest(threadPool, timeValueSeconds(0), 1, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                 }

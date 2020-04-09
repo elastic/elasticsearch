@@ -46,10 +46,6 @@ public class EElvis extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
-        }
-
         Output output = new Output();
 
         if (input.expected != null && input.expected.isPrimitive()) {
@@ -109,5 +105,10 @@ public class EElvis extends AExpression {
         output.expressionNode = elvisNode;
 
         return output;
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(lhs, rhs);
     }
 }

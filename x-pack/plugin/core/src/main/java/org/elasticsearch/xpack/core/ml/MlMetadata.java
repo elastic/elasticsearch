@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -43,7 +43,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public class MlMetadata implements Metadata.Custom {
+public class MlMetadata implements MetaData.Custom {
 
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
@@ -114,12 +114,12 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+    public EnumSet<MetaData.XContentContext> context() {
+        return MetaData.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
         return new MlMetadataDiff((MlMetadata) previousState, this);
     }
 
@@ -178,7 +178,7 @@ public class MlMetadata implements Metadata.Custom {
         builder.endArray();
     }
 
-    public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class MlMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, DatafeedConfig>> datafeeds;
@@ -204,7 +204,7 @@ public class MlMetadata implements Metadata.Custom {
          * @return The new ML metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
             return new MlMetadata(newJobs, newDatafeeds, upgradeMode);
@@ -348,7 +348,7 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

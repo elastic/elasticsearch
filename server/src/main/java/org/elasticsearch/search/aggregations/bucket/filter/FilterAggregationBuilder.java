@@ -60,14 +60,14 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     protected FilterAggregationBuilder(FilterAggregationBuilder clone,
-                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        super(clone, factoriesBuilder, metadata);
+                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
         this.filter = clone.filter;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new FilterAggregationBuilder(this, factoriesBuilder, metadata);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new FilterAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
@@ -84,11 +84,6 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.ONE;
-    }
-
-    @Override
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
         if (result != filter) {
@@ -100,7 +95,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new FilterAggregatorFactory(name, filter, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new FilterAggregatorFactory(name, filter, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

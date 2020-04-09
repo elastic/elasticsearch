@@ -1,8 +1,7 @@
 {
   "watcher.activate_watch":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html",
-      "description":"Activates a currently inactive watch."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html"
     },
     "stability":"stable",
     "url":{

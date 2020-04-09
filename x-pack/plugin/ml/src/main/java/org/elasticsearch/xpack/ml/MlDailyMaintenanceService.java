@@ -15,10 +15,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 
 import java.time.Clock;
@@ -124,10 +123,6 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void triggerTasks() {
         try {
-            if (MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode()) {
-                LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
-                return;
-            }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
             executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
                 ActionListener.wrap(
@@ -152,7 +147,7 @@ public class MlDailyMaintenanceService implements Releasable {
      * for displaying a yellow triangle in the UI jobs list changes.)
      */
     private void auditUnassignedMlTasks(ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (tasks != null) {
             mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);
         }

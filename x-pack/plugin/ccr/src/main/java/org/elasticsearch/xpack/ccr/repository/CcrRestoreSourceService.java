@@ -107,9 +107,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
                 sessions.add(sessionUUID);
             }
-            Store.MetadataSnapshot metadata = restore.getMetadata();
+            Store.MetadataSnapshot metaData = restore.getMetaData();
             success = true;
-            return metadata;
+            return metaData;
         } finally {
             if (success == false) {
                 onGoingRestores.remove(sessionUUID);
@@ -198,7 +198,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             this.timeoutTask = timeoutTask;
         }
 
-        private Store.MetadataSnapshot getMetadata() throws IOException {
+        private Store.MetadataSnapshot getMetaData() throws IOException {
             indexShard.store().incRef();
             try {
                 return indexShard.store().getMetadata(commitRef.getIndexCommit());

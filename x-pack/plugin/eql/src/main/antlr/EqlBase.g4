@@ -32,13 +32,13 @@ sequenceParams
 sequence
     : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
       sequenceTerm sequenceTerm+
-      (UNTIL until=sequenceTerm)?
+      (UNTIL sequenceTerm)?
     ;
 
 join
     : JOIN (by=joinKeys)?
       joinTerm joinTerm+
-      (UNTIL until=joinTerm)?
+      (UNTIL joinTerm)?
     ;
 
 pipe

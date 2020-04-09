@@ -27,8 +27,8 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 
@@ -65,19 +65,19 @@ public class Gateway {
         }
 
         final ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
-        Metadata electedGlobalState = null;
+        MetaData electedGlobalState = null;
         int found = 0;
         for (final TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
-            if (nodeState.metadata() == null) {
+            if (nodeState.metaData() == null) {
                 continue;
             }
             found++;
             if (electedGlobalState == null) {
-                electedGlobalState = nodeState.metadata();
-            } else if (nodeState.metadata().version() > electedGlobalState.version()) {
-                electedGlobalState = nodeState.metadata();
+                electedGlobalState = nodeState.metaData();
+            } else if (nodeState.metaData().version() > electedGlobalState.version()) {
+                electedGlobalState = nodeState.metaData();
             }
-            for (final ObjectCursor<IndexMetadata> cursor : nodeState.metadata().indices().values()) {
+            for (final ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
                 indices.addTo(cursor.value.getIndex(), 1);
             }
         }
@@ -86,42 +86,42 @@ public class Gateway {
             return;
         }
         // update the global state, and clean the indices, we elect them in the next phase
-        final Metadata.Builder metadataBuilder = Metadata.builder(electedGlobalState).removeAllIndices();
+        final MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState).removeAllIndices();
 
         assert !indices.containsKey(null);
         final Object[] keys = indices.keys;
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {
                 final Index index = (Index) keys[i];
-                IndexMetadata electedIndexMetadata = null;
-                int indexMetadataCount = 0;
+                IndexMetaData electedIndexMetaData = null;
+                int indexMetaDataCount = 0;
                 for (final TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
-                    if (nodeState.metadata() == null) {
+                    if (nodeState.metaData() == null) {
                         continue;
                     }
-                    final IndexMetadata indexMetadata = nodeState.metadata().index(index);
-                    if (indexMetadata == null) {
+                    final IndexMetaData indexMetaData = nodeState.metaData().index(index);
+                    if (indexMetaData == null) {
                         continue;
                     }
-                    if (electedIndexMetadata == null) {
-                        electedIndexMetadata = indexMetadata;
-                    } else if (indexMetadata.getVersion() > electedIndexMetadata.getVersion()) {
-                        electedIndexMetadata = indexMetadata;
+                    if (electedIndexMetaData == null) {
+                        electedIndexMetaData = indexMetaData;
+                    } else if (indexMetaData.getVersion() > electedIndexMetaData.getVersion()) {
+                        electedIndexMetaData = indexMetaData;
                     }
-                    indexMetadataCount++;
+                    indexMetaDataCount++;
                 }
-                if (electedIndexMetadata != null) {
-                    if (indexMetadataCount < requiredAllocation) {
-                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetadataCount, requiredAllocation);
+                if (electedIndexMetaData != null) {
+                    if (indexMetaDataCount < requiredAllocation) {
+                        logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
                     } // TODO if this logging statement is correct then we are missing an else here
 
-                    metadataBuilder.put(electedIndexMetadata, false);
+                    metaDataBuilder.put(electedIndexMetaData, false);
                 }
             }
         }
         ClusterState recoveredState = Function.<ClusterState>identity()
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
-            .apply(ClusterState.builder(clusterService.getClusterName()).metadata(metadataBuilder).build());
+            .apply(ClusterState.builder(clusterService.getClusterName()).metaData(metaDataBuilder).build());
 
         listener.onSuccess(recoveredState);
     }

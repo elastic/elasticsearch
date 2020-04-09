@@ -24,8 +24,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Action to retrieve one or more component templates
@@ -53,44 +55,53 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
      */
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        @Nullable
-        private String name;
+        private String[] names;
 
         public Request() { }
 
-        public Request(String name) {
-            this.name = name;
+        public Request(String... names) {
+            this.names = names;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            name = in.readOptionalString();
+            names = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(name);
+            out.writeStringArray(names);
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (names == null) {
+                validationException = addValidationError("names is null or empty", validationException);
+            } else {
+                for (String name : names) {
+                    if (name == null || Strings.hasText(name) == false) {
+                        validationException = addValidationError("name is missing", validationException);
+                    }
+                }
+            }
+            return validationException;
         }
 
         /**
-         * Sets the name of the component templates.
+         * Sets the names of the component templates.
          */
-        public Request name(String name) {
-            this.name = name;
+        public Request names(String... names) {
+            this.names = names;
             return this;
         }
 
         /**
-         * The name of the component templates.
+         * The names of the component templates.
          */
-        public String name() {
-            return this.name;
+        public String[] names() {
+            return this.names;
         }
     }
 

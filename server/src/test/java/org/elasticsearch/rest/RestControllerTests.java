@@ -44,7 +44,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -643,36 +642,6 @@ public class RestControllerTests extends ESTestCase {
             .map(XContentType::shortName)
             .toArray(String[]::new));
         return randomFrom("application/vnd.elasticsearch+" + subtype + ";compatible-with=" + version);
-    }
-
-    public void testIncorrectCompatibleHandlersDoNotDispatch() {
-        final byte version = (byte) (Version.CURRENT.major - 1);
-        final String mimeType = randomCompatibleMimeType(version);
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> mimeTypeList = Collections.singletonList(mimeType);
-
-        // request to compatible api with body requires a content-type header.
-        // this one does no have it, making it non compatible
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Accept", mimeTypeList))
-            .build();
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                Assert.fail();
-            }
-
-            @Override
-            public boolean compatibilityRequired() {
-                return true;
-            }
-        });
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.BAD_REQUEST);
-        assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
-        assertTrue(channel.getSendResponseCalled());
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

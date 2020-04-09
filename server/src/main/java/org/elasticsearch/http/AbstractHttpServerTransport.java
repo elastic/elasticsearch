@@ -354,7 +354,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.CompatibleApiHeadersCombinationException e){
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
+                //todo // tempting to just rethrow. removing content type is just making this less obvious
+                throw e;
+//                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             }
             restRequest = innerRestRequest;
         }

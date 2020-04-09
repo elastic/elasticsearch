@@ -157,10 +157,10 @@ public class RestRequest implements ToXContent.Params {
         String contentTypeVersion = XContentType.parseVersion(contentTypeHeader);
 
         boolean isSupportedMediaTypeAccept = XContentType.fromMediaTypeOrFormat(acceptHeader) != null ||
-            acceptVersion == null;
+            acceptHeader == null;
 
         boolean isSupportedMediaTypeContentType = XContentType.fromMediaTypeOrFormat(contentTypeHeader) != null ||
-            contentTypeVersion == null;
+            contentTypeHeader == null;
 
         if (hasContent()) {
             //both headers versioned
@@ -185,10 +185,9 @@ public class RestRequest implements ToXContent.Params {
                 (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
                 return false;
             }
-            // both Accept and Content-Type are not a compatible format, but are supported and the same and not empty
+            // both Accept and Content-Type are not a compatible format, but are supported and not empty
             if (isSupportedMediaTypeContentType && isSupportedMediaTypeAccept &&
-                acceptHeader != null && contentTypeHeader != null &&
-                acceptHeader.equals(contentTypeHeader)) {
+                acceptHeader != null && contentTypeHeader != null) {
                 return false;
             }
         } else {

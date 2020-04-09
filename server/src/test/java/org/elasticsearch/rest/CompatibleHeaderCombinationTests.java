@@ -41,14 +41,6 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
 
-
-    public void testObsoleteVersion(){
-        createRequestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(OBSOLETE_VERSION), bodyPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
-
-        createRequestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(null), bodyNotPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
-    }
     public void testAcceptAndContentTypeCombinations() {
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
             expect(requestCreated(), isCompatible()));
@@ -110,18 +102,39 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
             expect(requestCreated(), not(isCompatible())));
     }
 
-    public void testMediaTypeCombinations(){
+    public void testObsoleteVersion() {
+        createRequestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(OBSOLETE_VERSION), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+
+        createRequestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(null), bodyNotPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+    }
+
+    public void testMediaTypeCombinations() {
         createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
         createRequestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
-//        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/smile"), bodyPresent(),
-//            expect(requestCreated(), not(isCompatible())));
 
-//        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/something+json"), bodyPresent(),
-//            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
-//        createRequestWith(acceptHeader("application/something+json"), contentTypeHeader("application/json"), bodyNotPresent(),
-//            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+        //this is for instance used by SQL
+        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/cbor"), bodyPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        createRequestWith(acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
+            contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=7"), bodyPresent(),
+            expect(requestCreated(), isCompatible()));
+
+        //different versions on different media types
+        createRequestWith(acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
+            contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=8"), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+    }
+
+    public void testMalfunctionedMediaTypes(){
+        createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/something+json"), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+        createRequestWith(acceptHeader("application/something+json"), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
     }
 
     private Matcher<FakeRestRequest.Builder> exceptionDuringCreation(Class<? extends Exception> exceptionClass) {

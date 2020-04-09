@@ -8,7 +8,7 @@ the maximum amount of hits to be returned.
 
 Though `from` and `size` can be set as request parameters, they can also be set
 within the search body. `from` defaults to `0`, and `size` defaults to `10`.
-Both values cannot be negative.
+Neither value can be negative.
 
 [source,console]
 --------------------------------------------------

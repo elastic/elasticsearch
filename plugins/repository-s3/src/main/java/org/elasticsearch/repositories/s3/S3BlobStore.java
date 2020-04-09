@@ -29,7 +29,9 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 class S3BlobStore implements BlobStore {
 
@@ -46,6 +48,8 @@ class S3BlobStore implements BlobStore {
     private final StorageClass storageClass;
 
     private final RepositoryMetadata repositoryMetadata;
+
+    private final S3Stats stats = new S3Stats();
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
@@ -94,6 +98,18 @@ class S3BlobStore implements BlobStore {
         this.service.close();
     }
 
+    public S3Stats modifiableStats() {
+        return stats;
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        final Map<String, Long> results = new HashMap<>();
+        results.put("GET", stats.getCount.get());
+        results.put("LIST", stats.listCount.get());
+        return results;
+    }
+
     public CannedAccessControlList getCannedACL() {
         return cannedACL;
     }
@@ -135,4 +151,5 @@ class S3BlobStore implements BlobStore {
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
     }
+
 }

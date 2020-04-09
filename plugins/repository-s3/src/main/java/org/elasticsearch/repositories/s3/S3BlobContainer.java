@@ -20,6 +20,9 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.Request;
+import com.amazonaws.Response;
+import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
@@ -32,6 +35,7 @@ import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.util.AWSRequestMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -78,10 +82,22 @@ class S3BlobContainer extends AbstractBlobContainer {
     private final S3BlobStore blobStore;
     private final String keyPath;
 
+    private final RequestMetricCollector listMetricCollector;
+
     S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         this.keyPath = path.buildAsString();
+        this.listMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("GET");
+                final Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
+                    .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+                assert requestCount != null;
+                blobStore.modifiableStats().listCount.addAndGet(requestCount.longValue());
+            }
+        };
     }
 
     @Override
@@ -151,6 +167,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
                     listObjectsRequest.setBucketName(blobStore.bucket());
                     listObjectsRequest.setPrefix(keyPath);
+                    listObjectsRequest.setRequestMetricCollector(listMetricCollector);
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
                 final List<String> blobsToDelete = new ArrayList<>();
@@ -307,7 +324,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private ListObjectsRequest listObjectsRequest(String keyPath) {
-        return new ListObjectsRequest().withBucketName(blobStore.bucket()).withPrefix(keyPath).withDelimiter("/");
+        return new ListObjectsRequest().withBucketName(blobStore.bucket()).withPrefix(keyPath).withDelimiter("/")
+            .withRequestMetricCollector(listMetricCollector);
     }
 
     private String buildKey(String blobName) {

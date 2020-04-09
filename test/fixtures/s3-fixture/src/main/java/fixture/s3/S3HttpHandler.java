@@ -49,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CheckedInputStream;
@@ -64,6 +65,9 @@ public class S3HttpHandler implements HttpHandler {
 
     private final String bucket;
     private final String path;
+
+    public final AtomicLong getCalls = new AtomicLong();
+    public final AtomicLong listCalls = new AtomicLong();
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
 
@@ -151,6 +155,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
+                listCalls.incrementAndGet();
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                 if (params.get("list-type") != null) {
@@ -201,6 +206,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("GET /" + path + "/*", request)) {
+                getCalls.incrementAndGet();
                 final BytesReference blob = blobs.get(exchange.getRequestURI().toString());
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,26 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.blobstore;
 
-import java.io.Closeable;
-import java.util.Collections;
-import java.util.Map;
+package org.elasticsearch.repositories.s3;
 
-/**
- * An interface for storing blobs.
- */
-public interface BlobStore extends Closeable {
+import java.util.concurrent.atomic.AtomicLong;
 
-    /**
-     * Get a blob container instance for storing blobs at the given {@link BlobPath}.
-     */
-    BlobContainer blobContainer(BlobPath path);
+public class S3Stats {
 
-    /**
-     * Returns statistics on the count of operations that have been performed on this blob store
-     */
-    default Map<String, Long> stats() {
-        return Collections.emptyMap();
-    }
+    public final AtomicLong listCount = new AtomicLong();
+
+    public final AtomicLong getCount = new AtomicLong();
 }

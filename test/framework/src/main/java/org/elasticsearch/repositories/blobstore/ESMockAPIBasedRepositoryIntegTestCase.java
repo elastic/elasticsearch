@@ -71,7 +71,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static final byte[] BUFFER = new byte[1024];
 
     private static HttpServer httpServer;
-    private Map<String, HttpHandler> handlers;
+    protected Map<String, HttpHandler> handlers;
 
     private static final Logger log = LogManager.getLogger();
 

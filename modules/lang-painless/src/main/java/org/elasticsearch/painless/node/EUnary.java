@@ -67,24 +67,23 @@ public class EUnary extends AExpression {
         Input childInput = new Input();
         Output childOutput;
 
+        ENumeric numeric = (ENumeric)child.getChildIf(ENumeric.class);
+        EDecimal decimal = (EDecimal)child.getChildIf(EDecimal.class);
 
-        if ((operation == Operation.SUB || operation == Operation.ADD)
-                && (child instanceof ENumeric || child instanceof EDecimal)) {
+        if ((operation == Operation.SUB || operation == Operation.ADD) && (numeric != null || decimal != null)) {
             childInput.expected = input.expected;
             childInput.explicit = input.explicit;
             childInput.internal = input.internal;
 
-            if (child instanceof ENumeric) {
+            if (numeric != null) {
                 if (operation == Operation.SUB) {
-                    ENumeric numeric = (ENumeric)child;
                     childOutput = new ENumeric(numeric.location, "-" + numeric.value, numeric.radix)
                             .analyze(classNode, scriptRoot, scope, childInput);
                 } else {
                     childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
                 }
-            } else if (child instanceof EDecimal) {
+            } else if (decimal != null) {
                 if (operation == Operation.SUB) {
-                    EDecimal decimal = (EDecimal)child;
                     childOutput = new EDecimal(decimal.location, "-" + decimal.value)
                             .analyze(classNode, scriptRoot, scope, childInput);
                 } else {

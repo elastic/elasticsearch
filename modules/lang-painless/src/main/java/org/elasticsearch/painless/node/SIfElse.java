@@ -58,7 +58,7 @@ public class SIfElse extends AStatement {
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
 
-        if (condition instanceof EBoolean) {
+        if (condition.getChildIf(EBoolean.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 

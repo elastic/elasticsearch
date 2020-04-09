@@ -59,7 +59,7 @@ public class SWhile extends AStatement {
 
         boolean continuous = false;
 
-        if (condition instanceof EBoolean) {
+        if (condition.getChildIf(EBoolean.class) != null) {
             continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {

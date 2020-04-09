@@ -133,6 +133,17 @@ public abstract class AExpression extends ANode {
     }
 
     /**
+     * Replaces standard instanceof to ignore precedence within the tree.
+     */
+    AExpression getChildIf(Class<? extends AExpression> type) {
+        if (type.isAssignableFrom(getClass())) {
+            return this;
+        }
+
+        return null;
+    }
+
+    /**
      * Checks for errors and collects data for the writing phase.
      */
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {

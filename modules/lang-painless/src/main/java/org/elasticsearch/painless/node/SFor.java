@@ -80,7 +80,7 @@ public class SFor extends AStatement {
             conditionCast = AnalyzerCaster.getLegalCast(condition.location,
                     conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
-            if (condition instanceof EBoolean) {
+            if (condition.getChildIf(EBoolean.class) != null) {
                 continuous = ((EBoolean)condition).constant;
 
                 if (!continuous) {

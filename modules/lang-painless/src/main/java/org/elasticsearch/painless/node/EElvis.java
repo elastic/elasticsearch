@@ -75,20 +75,20 @@ public class EElvis extends AExpression {
 
         output.actual = input.expected;
 
-        if (lhs instanceof ENull) {
+        if (lhs.getChildIf(ENull.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (lhs instanceof EBoolean
-                || lhs instanceof ENumeric
-                || lhs instanceof EDecimal
-                || lhs instanceof EString
-                || lhs instanceof EConstant) {
+        if (lhs.getChildIf(EBoolean.class) != null
+                || lhs.getChildIf(ENumeric.class) != null
+                || lhs.getChildIf(EDecimal.class) != null
+                || lhs.getChildIf(EString.class) != null
+                || lhs.getChildIf(EConstant.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (leftOutput.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (rhs instanceof ENull) {
+        if (rhs.getChildIf(ENull.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 

@@ -704,8 +704,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [int]");
 
         // binary
-        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int + 1"));
-        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("int + 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + int"));
         assertEquals(iae.getMessage(), "value required: instead found unexpected type [int]");
 
@@ -850,8 +850,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
 
         // binary
-        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List + 1"));
-        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("List + 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + List"));
         assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
 
@@ -996,8 +996,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [java.util.List]");
 
         // binary
-        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List + 1"));
-        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("java.util.List + 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + java.util.List"));
         assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
 
@@ -1148,8 +1148,8 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "invalid assignment: cannot write a value to a static type [def]");
 
         // binary
-        //iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def + 1"));
-        //assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("def + 1"));
+        assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("1 + def"));
         assertEquals(iae.getMessage(), "value required: instead found unexpected type [def]");
 

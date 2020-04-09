@@ -159,8 +159,10 @@ public class EAssignment extends AExpression {
 
             cat = operation == Operation.ADD && promote == String.class;
 
-            if (cat) {
-                if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rightOutput.actual == String.class) {
+            if (cat && rightOutput.expressionNode instanceof BinaryMathNode) {
+                BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
+
+                if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
                     ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
                 }
             }

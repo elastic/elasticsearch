@@ -95,7 +95,7 @@ public class EComp extends AExpression {
         }
 
         if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && left instanceof ENull && right instanceof ENull) {
+                && left.getChildIf(ENull.class) != null && right.getChildIf(ENull.class) != null) {
             throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 

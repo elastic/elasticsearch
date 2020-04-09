@@ -76,7 +76,7 @@ public class EBinary extends AExpression {
         }
 
         if (leftOutput.isStaticType) {
-            if (operation == Operation.ADD || operation == Operation.SUB) {
+            if (left instanceof EPrecedence && (operation == Operation.ADD || operation == Operation.SUB)) {
                 output = new EExplicit(left.location,
                         new DResolvedType(left.location, leftOutput.actual, false),
                         new EUnary(right.location, operation, right))
@@ -130,12 +130,20 @@ public class EBinary extends AExpression {
                     leftInput.expected = leftOutput.actual;
                     rightInput.expected = rightOutput.actual;
 
-                    if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && leftOutput.actual == String.class) {
-                        ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
-                    }
+                    if (leftOutput.expressionNode instanceof BinaryMathNode) {
+                        BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
 
-                    if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && rightOutput.actual == String.class) {
-                        ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
+                        if (binaryMathNode.getOperation() == Operation.ADD && leftOutput.actual == String.class) {
+                            ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
+                        }
+                    }
+                    
+                    if (rightOutput.expressionNode instanceof BinaryMathNode) {
+                        BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
+
+                        if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
+                            ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
+                        }
                     }
                 } else if (promote == def.class || shiftDistance == def.class) {
                     leftInput.expected = leftOutput.actual;

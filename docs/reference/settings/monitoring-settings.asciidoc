@@ -28,6 +28,7 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 
 `xpack.monitoring.enabled`::
 Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
+deprecated:[7.8.0,Basic License features are always enabled]
 +
 --
 NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled`

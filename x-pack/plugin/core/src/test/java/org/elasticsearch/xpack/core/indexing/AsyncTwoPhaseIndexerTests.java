@@ -197,7 +197,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         @Override
         protected SearchRequest buildSearchRequest() {
             ++searchRequests;
-
             return new SearchRequest();
         }
 

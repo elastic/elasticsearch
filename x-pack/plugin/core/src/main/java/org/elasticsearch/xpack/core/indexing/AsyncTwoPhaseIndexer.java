@@ -488,10 +488,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     protected void nextSearch() {
         if (maximumRequestsPerSecond > 0 && lastDocCount > 0) {
-            TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos, getTimeNanos());
+            TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos,
+                    getTimeNanos());
 
             if (executionDelay.duration() > 0) {
-                logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond, lastDocCount);
+                logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
+                        lastDocCount);
                 scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(), executionDelay, executorName);
                 return;
             }
@@ -542,10 +544,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private synchronized void reQueueThrottledSearch() {
         if (scheduledNextSearch != null && scheduledNextSearch.cancel()) {
-            TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos, getTimeNanos());
+            TimeValue executionDelay = calculateThrottlingDelay(maximumRequestsPerSecond, lastDocCount, lastSearchStartTimeNanos,
+                    getTimeNanos());
 
             if (executionDelay.duration() > 0) {
-                logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond, lastDocCount);
+                logger.debug("rethrottling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
+                        lastDocCount);
                 scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(), executionDelay, executorName);
                 return;
             } else {

@@ -49,6 +49,10 @@ between("", "", "")                          // returns ""
 
 // null handling
 between(null, "system32\\\\", ".exe")                   // returns null
+between(file.path, null, ".exe")                        // returns null
+between(file.path, "system32\\\\", null)                // returns null
+between(file.path, "system32\\\\", ".exe", null)        // returns null
+between(file.path, "system32\\\\", ".exe", false, null) // returns null
 ----
 
 *Syntax*
@@ -81,9 +85,9 @@ Fields containing <<array,array values>> use the first array item only.
 `<left>`::
 +
 --
-(Required, string)
+(Required, string or `null`)
 Text to the left of the substring to extract. This text should include
-whitespace.
+whitespace. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -99,9 +103,9 @@ field datatypes:
 `<right>`::
 +
 --
-(Required, string)
+(Required, string or `null`)
 Text to the right of the substring to extract. This text should include
-whitespace.
+whitespace. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -115,14 +119,16 @@ field datatypes:
 --
 
 `<greedy_matching>`::
-(Optional, boolean)
+(Optional, boolean or `null`)
 If `true`, match the longest possible substring, similar to `.*` in regular
 expressions. If `false`, match the shortest possible substring, similar to `.*?`
-in regular expressions. Defaults to `false`.
+in regular expressions. If `null`, the function returns `null`. Defaults to
+`false`.
 
 `<case_sensitive>`::
-(Optional, boolean)
-If `true`, matching is case-sensitive. Defaults to `false`.
+(Optional, boolean or `null`)
+If `true`, matching is case-sensitive. Defaults to `false`. If `null`, the
+function returns `null`.
 
 *Returns:* string or `null`
 ====
@@ -176,7 +182,7 @@ endsWith(<source>, <substring>)
 +
 --
 (Required, string or `null`)
-Source string. If `null`, the function returns `null`.
+Source string. If `null`, the function returns `false`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -193,7 +199,7 @@ Fields containing <<array,array values>> use the first array item only.
 +
 --
 (Required, string or `null`)
-Substring to search for. If `null`, the function returns `null`.
+Substring to search for. If `null`, the function returns `false`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -204,7 +210,7 @@ field datatypes:
   <<constant-keyword,`constant_keyword`>> sub-field
 --
 
-*Returns:* boolean or `null`
+*Returns:* boolean
 ====
 
 [discrete]
@@ -226,6 +232,9 @@ length(null)                   // returns null
 
 // process.name = "regsvr32.exe"
 length(process.name)           // returns 12
+
+// null handling
+length(null)                  // returns null
 ----
 
 *Syntax*
@@ -287,10 +296,10 @@ startsWith(process.name, "explorer")    // returns true
 startsWith(process.name, "regsvr32")    // returns false
 
 // null handling
-startsWith("regsvr32.exe", null)        // returns null
-startsWith("", null)                    // returns null 
-startsWith(null, "regsvr32")            // returns null
-startsWith(null, null)                  // returns null
+startsWith("regsvr32.exe", null)        // returns false
+startsWith("", null)                    // returns false 
+startsWith(null, "regsvr32")            // returns false
+startsWith(null, null)                  // returns false
 ----
 
 *Syntax*
@@ -306,7 +315,7 @@ startsWith(<source>, <substring>)
 +
 --
 (Required, string or `null`)
-Source string. If `null`, the function returns `null`.
+Source string. If `null`, the function returns `false`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -323,7 +332,7 @@ Fields containing <<array,array values>> use the first array item only.
 +
 --
 (Required, string or `null`)
-Substring to search for. If `null`, the function returns `null`.
+Substring to search for. If `null`, the function returns `false`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -334,7 +343,7 @@ field datatypes:
   <<constant-keyword,`constant_keyword`>> sub-field
 --
 
-*Returns:* boolean or `null`
+*Returns:* boolean
 ====
 
 [discrete]
@@ -350,11 +359,23 @@ If no end position is provided, the function extracts the remaining string.
 *Example*
 [source,eql]
 ----
-substring("start regsvr32.exe", 6)        // returns "regsvr32.exe"
-substring("start regsvr32.exe", 0, 5)     // returns "start"
-substring("start regsvr32.exe", 6, 14)    // returns "regsvr32"
-substring("start regsvr32.exe", -4)       // returns ".exe"
-substring("start regsvr32.exe", -4, -1)   // returns ".ex"
+// process.command_line = "start regsvr32.exe"
+substring(process.command_line, 6)        // returns "regsvr32.exe"
+substring(process.command_line, 0, 5)     // returns "start"
+substring(process.command_line, 6, 14)    // returns "regsvr32"
+substring(process.command_line, -4)       // returns ".exe"
+substring(process.command_line, -4, -1)   // returns ".ex"
+
+// empty strings
+substring("", 6, 14)                      // returns ""
+substring(process.command_line, 30)       // returns ""
+substring(process.command_line, 14, 6)    // returns ""
+
+// null handling
+substring(null, 0, 5)                     // returns null
+substring(process.command_line, null, 5)  // returns null
+substring(process.command_line, 0, null)  // returns null
+
 ----
 
 *Syntax*
@@ -367,14 +388,14 @@ substring(<source>, <start_pos>[, <end_pos>])
 *Parameters*
 
 `<source>`::
-(Required, string)
-Source string.
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
 
 `<start_pos>`::
 +
 --
-(Required, integer)
-Starting position for extraction.
+(Required, integer or `null`)
+Starting position for extraction. If `null`, the function returns `null`.
 
 If this position is higher than the `<end_pos>` position or the length of the
 `<source>` string, the function returns an empty string.
@@ -383,13 +404,17 @@ Positions are zero-indexed. Negative offsets are supported.
 --
 
 `<end_pos>`::
-(Optional, integer)
-Exclusive end position for extraction. If this position is not provided, the
-function returns the remaining string.
 +
-Positions are zero-indexed. Negative offsets are supported.
+--
+(Optional, integer or `null`)
+Exclusive end position for extraction. If `null`, the function returns `null`.
 
-*Returns:* string
+If this position is not provided, the function returns the remaining string.
+
+Positions are zero-indexed. Negative offsets are supported.
+--
+
+*Returns:* string or `null`
 ====
 
 [discrete]
@@ -419,8 +444,8 @@ wildcard("", "*")                                   // returns true
 wildcard("", "")                                    // returns true
 
 // null handling
-wildcard(null, "*regsvr32*")                        // returns null
-wildcard(process.name, null)                        // returns null
+wildcard(null, "*regsvr32*")                        // returns false
+wildcard(process.name, null)                        // returns false
 ----
 
 *Syntax*
@@ -435,8 +460,8 @@ wildcard(<source>, <wildcard_exp>[, ...])
 `<source>`::
 +
 --
-(Required, string)
-Source string. If `null`, the function returns `null`.
+(Required, string or `null`)
+Source string. If `null`, the function returns `false`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -450,9 +475,9 @@ field datatypes:
 `<wildcard_exp>`::
 +
 --
-(Required{multi-arg}, string)
+(Required{multi-arg}, string or `null`)
 Wildcard expression used to match the source string. If `null`, the function
-returns `null`. Fields are not supported as arguments.
+returns `false`. Fields are not supported as arguments.
 -- 
 
 *Returns:* boolean

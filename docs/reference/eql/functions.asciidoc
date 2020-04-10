@@ -300,18 +300,14 @@ wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
 wildcard(process.name, "*explorer*")                // returns false
 wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
 
-// process.name = [ "explorer.exe", "regsvr32.exe" ]
-wildcard(process.name, "*regsvr32*")                // returns true
-wildcard(process.name, "*regsvr32*", "*scrobj*")    // returns true
-wildcard(process.name, "*scrobj*")                  // returns false
-
 // empty strings
 wildcard("", "*start*")                             // returns false
 wildcard("", "*")                                   // returns true
 wildcard("", "")                                    // returns true
 
 // null handling
-wildcard(null, "*regsvr32*")                        // returns false
+wildcard(null, "*regsvr32*")                        // returns null
+wildcard(process.name, null)                        // returns null
 ----
 
 *Syntax*
@@ -327,7 +323,7 @@ wildcard(<source>, <wildcard_exp>[, ...])
 +
 --
 (Required, string)
-Source string.
+Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -336,16 +332,14 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the last array item only.
 --
 
 `<wildcard_exp>`::
 +
 --
 (Required{multi-arg}, string)
-Wildcard expression used to match the source string. Fields are not supported as
-arguments.
+Wildcard expression used to match the source string.  If `null`, the function
+returns `null`. Fields are not supported as arguments.
 -- 
 
 *Returns:* boolean

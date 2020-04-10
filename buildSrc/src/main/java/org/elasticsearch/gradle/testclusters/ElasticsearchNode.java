@@ -1041,7 +1041,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
         defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
         // increase script compilation limit since tests can rapid-fire script compilations
-        if (getVersion().onOrAfter(Version.fromString("7.8.0"))) {
+        if (getVersion().onOrAfter(Version.fromString("8.0.0"))) {
             defaultConfig.put("script.disable_max_compilations_rate", "true");
         } else {
             defaultConfig.put("script.max_compilations_rate", "2048/1m");

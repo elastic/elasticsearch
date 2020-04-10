@@ -179,8 +179,8 @@ InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0)))
 ;
 
 numberFunctionFoldedComparison
-process where serial_event_id == number("32");
-{"term":{"serial_event_id":{"value":32,
+process where serial_event_id == number("-32.5");
+{"term":{"serial_event_id":{"value":-32.5,
 ;
 
 numberFunctionFoldedHexComparison

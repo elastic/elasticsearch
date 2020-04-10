@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.util.Locale;
 import java.util.Objects;
 
 public class ToNumberFunctionProcessor implements Processor {
@@ -80,7 +81,7 @@ public class ToNumberFunctionProcessor implements Processor {
 
         // otherwise, we should allow for doubles
         try {
-            return NumberFormat.getNumberInstance().parse(source.toString());
+            return NumberFormat.getNumberInstance(Locale.US).parse(source.toString());
         } catch (ParseException e) {
             throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", source, radix);
         }

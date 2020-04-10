@@ -41,6 +41,13 @@ import java.util.function.Predicate;
 
 public interface Transport extends LifecycleComponent {
 
+    /**
+     * Registers a new request handler
+     */
+    default <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+        getRequestHandlers().registerHandler(reg);
+    }
+
     void setMessageListener(TransportMessageListener listener);
 
     default boolean isSecure() {

@@ -844,7 +844,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         handler = interceptor.interceptHandler(action, executor, false, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestReader, taskManager, handler, executor, false, true);
-        transport.getRequestHandlers().registerHandler(reg);
+        transport.registerRequestHandler(reg);
     }
 
     /**
@@ -866,7 +866,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestReader, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
-        transport.getRequestHandlers().registerHandler(reg);
+        transport.registerRequestHandler(reg);
     }
 
     /**

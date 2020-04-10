@@ -47,11 +47,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -132,6 +132,7 @@ import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -139,7 +140,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.oneOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -782,12 +782,29 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
         TransportService redTransportService = internalCluster().getInstance(TransportService.class, redNodeName);
         TransportService blueTransportService = internalCluster().getInstance(TransportService.class, blueNodeName);
-        final CountDownLatch requestBlocked = new CountDownLatch(1);
+        final CountDownLatch requestFailed = new CountDownLatch(1);
 
-        blueMockTransportService.addSendBehavior(redTransportService,
-            new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestBlocked));
-        redMockTransportService.addSendBehavior(blueTransportService,
-            new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestBlocked));
+        if (randomBoolean()) {
+            // Fail on the sending side
+            blueMockTransportService.addSendBehavior(redTransportService,
+                new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestFailed));
+            redMockTransportService.addSendBehavior(blueTransportService,
+                new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestFailed));
+        } else {
+            // Fail on the receiving side.
+            blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
+                logger.info("--> preventing {} response", recoveryActionToBlock);
+                requestFailed.countDown();
+                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
+                handler.messageReceived(request, channel, task);
+            });
+            redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
+                logger.info("--> preventing {} response", recoveryActionToBlock);
+                requestFailed.countDown();
+                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
+                handler.messageReceived(request, channel, task);
+            });
+        }
 
         logger.info("--> starting recovery from blue to red");
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
@@ -796,9 +813,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
         ).get();
 
-        requestBlocked.await();
+        requestFailed.await();
 
-        logger.info("--> stopping to block recovery");
+        logger.info("--> clearing rules to allow recovery to proceed");
         blueMockTransportService.clearAllRules();
         redMockTransportService.clearAllRules();
 

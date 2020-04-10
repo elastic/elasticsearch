@@ -46,6 +46,7 @@ indices and stores the outcome in a destination index.
 If the destination index does not exist, it is created automatically when you
 start the job. See <<start-dfanalytics>>.
 
+[[ml-hyperparam-optimization]]
 If you supply only a subset of the {regression} or {classification} parameters,
 _hyperparameter optimization_ occurs. It determines a value for each of the
 undefined parameters.

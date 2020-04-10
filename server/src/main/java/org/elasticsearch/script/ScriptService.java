@@ -139,7 +139,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     private static final Tuple<Integer, TimeValue> SCRIPT_COMPILATION_RATE_ZERO = new Tuple<>(0, TimeValue.ZERO);
 
     public static final Setting<Boolean> SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING =
-        Setting.boolSetting("script.disable_max_compilations_rate", false);
+        Setting.boolSetting("script.disable_max_compilations_rate", false, Property.NodeScope);
 
     public static final String ALLOW_NONE = "none";
 

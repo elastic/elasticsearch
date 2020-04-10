@@ -7,7 +7,7 @@ analyzers (in a more built in fashion), custom script engines, custom discovery
 and more.
 
 For information about selecting and installing plugins, see
-{plugins}/index.html[{es}} Plugins and Integrations].
+{plugins}/index.html[{es} Plugins and Integrations].
 
 For information about developing your own plugin, see
 {plugins}/plugin-authors.html[Help for plugin authors].

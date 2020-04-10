@@ -23,6 +23,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileStatic
+import nebula.plugin.info.InfoBrokerPlugin
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
@@ -114,13 +115,8 @@ class BuildPlugin implements Plugin<Project> {
         }
         project.pluginManager.apply('java')
         configureConfigurations(project)
-        configureJars(project) // jar config must be added before info broker
-        // these plugins add lots of info to our jars
-        project.pluginManager.apply('nebula.info-broker')
-        project.pluginManager.apply('nebula.info-basic')
-        project.pluginManager.apply('nebula.info-java')
-        project.pluginManager.apply('nebula.info-scm')
-        project.pluginManager.apply('nebula.info-jar')
+        configureJars(project)
+        configureJarManifest(project)
 
         // apply global test task failure listener
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
@@ -483,7 +479,7 @@ class BuildPlugin implements Plugin<Project> {
         }
         // ensure javadoc task is run with 'check'
         project.pluginManager.withPlugin('lifecycle-base') {
-            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
+            project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(project.tasks.withType(Javadoc)) }
         }
         configureJavadocJar(project)
     }
@@ -520,19 +516,15 @@ class BuildPlugin implements Plugin<Project> {
         ext.set('noticeFile', null)
         project.tasks.withType(Jar).configureEach { Jar jarTask ->
             // we put all our distributable files under distributions
-            jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            jarTask.destinationDirectory.set(new File(project.buildDir, 'distributions'))
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 JavaVersion compilerJavaVersion = BuildParams.compilerJavaVersion
                 jarTask.manifest.attributes(
-                        'Change': BuildParams.gitRevision,
-                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
-                        'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': BuildParams.buildDate,
-                        'Build-Java-Version': compilerJavaVersion)
+                        'Build-Java-Version': BuildParams.compilerJavaVersion)
             }
         }
         // add license/notice files
@@ -581,9 +573,22 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void configureTestTasks(Project project) {
-        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+    static void configureJarManifest(Project project) {
+        project.pluginManager.apply('nebula.info-broker')
+        project.pluginManager.apply('nebula.info-basic')
+        project.pluginManager.apply('nebula.info-java')
+        project.pluginManager.apply('nebula.info-jar')
 
+        project.plugins.withId('nebula.info-broker') { InfoBrokerPlugin manifestPlugin ->
+            manifestPlugin.add('Module-Origin') { BuildParams.gitOrigin }
+            manifestPlugin.add('Change') { BuildParams.gitRevision }
+            manifestPlugin.add('X-Compile-Elasticsearch-Version') { VersionProperties.elasticsearch }
+            manifestPlugin.add('X-Compile-Lucene-Version') { VersionProperties.lucene }
+            manifestPlugin.add('X-Compile-Elasticsearch-Snapshot') { VersionProperties.isElasticsearchSnapshot() }
+        }
+    }
+
+    static void configureTestTasks(Project project) {
         // Default test task should run only unit tests
         maybeConfigure(project.tasks, 'test', Test) { Test task ->
             task.include '**/*Tests.class'

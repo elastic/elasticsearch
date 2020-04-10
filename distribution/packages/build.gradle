@@ -351,27 +351,27 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
   }
 }
 
-task buildAarch64Deb(type: Deb) {
+tasks.register('buildAarch64Deb', Deb) {
   configure(commonDebConfig(false, true, 'aarch64'))
 }
 
-task buildDeb(type: Deb) {
+tasks.register('buildDeb', Deb) {
   configure(commonDebConfig(false, true, 'x64'))
 }
 
-task buildAarch64OssDeb(type: Deb) {
+tasks.register('buildAarch64OssDeb', Deb) {
   configure(commonDebConfig(true, true, 'aarch64'))
 }
 
-task buildOssDeb(type: Deb) {
+tasks.register('buildOssDeb', Deb) {
   configure(commonDebConfig(true, true, 'x64'))
 }
 
-task buildNoJdkDeb(type: Deb) {
+tasks.register('buildNoJdkDeb', Deb) {
   configure(commonDebConfig(false, false, 'x64'))
 }
 
-task buildOssNoJdkDeb(type: Deb) {
+tasks.register('buildOssNoJdkDeb', Deb) {
   configure(commonDebConfig(true, false, 'x64'))
 }
 
@@ -404,27 +404,27 @@ Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
   }
 }
 
-task buildAarch64Rpm(type: Rpm) {
+tasks.register('buildAarch64Rpm', Rpm) {
   configure(commonRpmConfig(false, true, 'aarch64'))
 }
 
-task buildRpm(type: Rpm) {
+tasks.register('buildRpm', Rpm) {
   configure(commonRpmConfig(false, true, 'x64'))
 }
 
-task buildAarch64OssRpm(type: Rpm) {
+tasks.register('buildAarch64OssRpm', Rpm) {
   configure(commonRpmConfig(true, true, 'aarch64'))
 }
 
-task buildOssRpm(type: Rpm) {
+tasks.register('buildOssRpm', Rpm) {
   configure(commonRpmConfig(true, true, 'x64'))
 }
 
-task buildNoJdkRpm(type: Rpm) {
+tasks.register('buildNoJdkRpm', Rpm) {
   configure(commonRpmConfig(false, false, 'x64'))
 }
 
-task buildOssNoJdkRpm(type: Rpm) {
+tasks.register('buildOssNoJdkRpm', Rpm) {
   configure(commonRpmConfig(true, false, 'x64'))
 }
 
@@ -440,7 +440,7 @@ subprojects {
   apply plugin: 'distribution'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.getByName(buildTask)
+  ext.buildDist = parent.tasks.named(buildTask)
   artifacts {
     'default' buildDist
   }
@@ -456,7 +456,7 @@ subprojects {
       assert project.name.contains('rpm')
       packageExtractionDir = new File(extractionDir, 'rpm-extracted')
     }
-    task checkExtraction(type: LoggedExec) {
+    tasks.register('checkExtraction', LoggedExec) {
       dependsOn buildDist
       doFirst {
         project.delete(extractionDir)
@@ -468,7 +468,7 @@ subprojects {
     if (project.name.contains('deb')) {
       checkExtraction {
         onlyIf dpkgExists
-        commandLine 'dpkg-deb', '-x', "${-> buildDist.outputs.files.filter(debFilter).singleFile}", packageExtractionDir
+        commandLine 'dpkg-deb', '-x', "${-> buildDist.get()outputs.files.filter(debFilter).singleFile}", packageExtractionDir
       }
     } else {
       assert project.name.contains('rpm')
@@ -487,7 +487,7 @@ subprojects {
           '--relocate',
           "/=${packageExtractionDir}",
           '-i',
-          "${-> buildDist.outputs.files.singleFile}"
+          "${-> buildDist.get().outputs.files.singleFile}"
       }
     }
 
@@ -550,7 +550,7 @@ subprojects {
     }
     check.dependsOn checkNotice
 
-    task checkLicenseMetadata(type: LoggedExec) {
+    tasks.register('checkLicenseMetadata', LoggedExec) {
       dependsOn buildDist, checkExtraction
     }
     check.dependsOn checkLicenseMetadata
@@ -558,7 +558,7 @@ subprojects {
       checkLicenseMetadata { LoggedExec exec ->
         onlyIf dpkgExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.outputs.files.filter(debFilter).singleFile}"
+        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
         exec.standardOutput = output
         doLast {
           String expectedLicense
@@ -594,7 +594,7 @@ subprojects {
       checkLicenseMetadata { LoggedExec exec ->
         onlyIf rpmExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.outputs.files.singleFile}"
+        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
         exec.standardOutput = output
         doLast {
           String license = output.toString('UTF-8')
@@ -605,7 +605,7 @@ subprojects {
             expectedLicense = "Elastic License"
           }
           if (license != expectedLicense) {
-            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.outputs.files.singleFile}] but was [${license}]")
+            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.get().outputs.files.singleFile}] but was [${license}]")
           }
         }
       }

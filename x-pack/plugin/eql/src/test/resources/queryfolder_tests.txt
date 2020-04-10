@@ -113,6 +113,14 @@ InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
 "params":{"v0":"process_name","v1":"foo"}
 ;
 
+indexOfFunction
+process where indexOf(user_name, 'A', 2) > 0
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":0}
+;
+
 substringFunction
 process where substring(file_name, -4) == '.exe'
 ;

@@ -615,6 +615,19 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 See <<indices-create-data-stream>>, <<indices-get-data-stream>>, and
 <<indices-delete-data-stream>>.
 
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
 [role="exclude",id="cat-transform"]
 === cat transform API
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,18 +50,24 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     private static final String ERRORS = "errors";
     private static final String TOOK = "took";
     private static final String INGEST_TOOK = "ingest_took";
+    private static final String ITEMS_OMITTED = "items_omitted";
 
     public static final long NO_INGEST_TOOK = -1L;
 
     private final BulkItemResponse[] responses;
     private final long tookInMillis;
     private final long ingestTookInMillis;
+    @Nullable
+    private final Boolean noItemsOnSuccess;
+
+    BulkResponse() {}
 
     public BulkResponse(StreamInput in) throws IOException {
         super(in);
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
+        noItemsOnSuccess = in.readOptionalBoolean();
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
@@ -68,9 +75,17 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis, long ingestTookInMillis) {
+        this(responses, tookInMillis, ingestTookInMillis, false);
+    }
+    public BulkResponse(BulkItemResponse[] responses, long tookInMillis, Boolean noItemsOnSuccess) {
+        this(responses, tookInMillis, NO_INGEST_TOOK, noItemsOnSuccess);
+    }
+
+    public BulkResponse(BulkItemResponse[] responses, long tookInMillis, long ingestTookInMillis, Boolean noItemsOnSuccess) {
         this.responses = responses;
         this.tookInMillis = tookInMillis;
         this.ingestTookInMillis = ingestTookInMillis;
+        this.noItemsOnSuccess = noItemsOnSuccess;
     }
 
     /**
@@ -138,6 +153,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
+        out.writeOptionalBoolean(noItemsOnSuccess);
     }
 
     @Override
@@ -153,9 +169,14 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             builder.field(INGEST_TOOK, ingestTookInMillis);
         }
         builder.field(ERRORS, hasFailures());
+        boolean noItems = noItemsOnSuccess != null && noItemsOnSuccess == true;
+        boolean noFailuresAnNoItemsRequested = noItems && this.hasFailures() == false;
+        builder.field(ITEMS_OMITTED, noFailuresAnNoItemsRequested);
         builder.startArray(ITEMS);
-        for (BulkItemResponse item : this) {
-            item.toXContent(builder, params);
+        if (noFailuresAnNoItemsRequested == false) {
+            for (BulkItemResponse item : this) {
+                item.toXContent(builder, params);
+            }
         }
         builder.endArray();
         builder.endObject();
@@ -168,6 +189,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
         long took = -1L;
         long ingestTook = NO_INGEST_TOOK;
+        boolean itemsOmitted = false;
         List<BulkItemResponse> items = new ArrayList<>();
 
         String currentFieldName = parser.currentName();
@@ -179,6 +201,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                     took = parser.longValue();
                 } else if (INGEST_TOOK.equals(currentFieldName)) {
                     ingestTook = parser.longValue();
+                } else if (ITEMS_OMITTED.equals(currentFieldName)) {
+                    itemsOmitted = parser.booleanValue();
                 } else if (ERRORS.equals(currentFieldName) == false) {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
@@ -194,6 +218,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                 throwUnknownToken(token, parser.getTokenLocation());
             }
         }
-        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);
+        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook, itemsOmitted);
     }
 }

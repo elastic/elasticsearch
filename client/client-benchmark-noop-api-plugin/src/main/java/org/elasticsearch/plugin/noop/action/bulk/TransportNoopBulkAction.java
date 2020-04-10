@@ -49,6 +49,6 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
         for (int idx = 0; idx < itemCount; idx++) {
             bulkItemResponses[idx] = ITEM_RESPONSE;
         }
-        listener.onResponse(new BulkResponse(bulkItemResponses, 0));
+        listener.onResponse(new BulkResponse(bulkItemResponses, 0, BulkResponse.NO_INGEST_TOOK, request.noItemsOnSuccess()));
     }
 }

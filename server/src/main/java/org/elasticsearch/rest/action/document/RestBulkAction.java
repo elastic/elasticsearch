@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -82,6 +83,10 @@ public class RestBulkAction extends BaseRestHandler {
         Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
+        if (request.hasParam("no_items_on_success")) {
+            Boolean noItemsOnSuccess = request.paramAsBoolean("no_items_on_success", true);
+            bulkRequest.noItemsOnSuccess(noItemsOnSuccess);
+        }
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
             defaultFetchSourceContext, defaultPipeline, defaultRequireAlias, allowExplicitIndex, request.getXContentType());
 

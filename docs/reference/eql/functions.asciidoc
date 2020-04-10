@@ -246,10 +246,11 @@ stringContains(process.command_line, "explorer")  // returns true
 
 // empty strings
 stringContains("", "")                            // returns false
-stringContains("start regsvr32.exe", "")          // returns false
+stringContains(process.command_line, "")          // returns false
 
 // null handling
 stringContains(null, "regsvr32")                  // returns null
+stringContains(process.command_line, null)        // returns null
 ----
 
 *Syntax*

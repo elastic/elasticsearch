@@ -26,16 +26,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -57,12 +60,12 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override
-    protected GetRepositoriesResponse newResponse() {
-        return new GetRepositoriesResponse();
+    protected GetRepositoriesResponse read(StreamInput in) throws IOException {
+        return new GetRepositoriesResponse(in);
     }
 
     @Override
@@ -71,15 +74,15 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state,
+    protected void masterOperation(Task task, final GetRepositoriesRequest request, ClusterState state,
                                    final ActionListener<GetRepositoriesResponse> listener) {
-        MetaData metaData = state.metaData();
-        RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
+        Metadata metadata = state.metadata();
+        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
             if (repositories != null) {
                 listener.onResponse(new GetRepositoriesResponse(repositories));
             } else {
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(Collections.emptyList())));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(Collections.emptyList())));
             }
         } else {
             if (repositories != null) {
@@ -88,23 +91,23 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
                         repositoriesToGet.add(repositoryOrPattern);
                     } else {
-                        for (RepositoryMetaData repository : repositories.repositories()) {
+                        for (RepositoryMetadata repository : repositories.repositories()) {
                             if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
                                 repositoriesToGet.add(repository.name());
                             }
                         }
                     }
                 }
-                List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
+                List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
                 for (String repository : repositoriesToGet) {
-                    RepositoryMetaData repositoryMetaData = repositories.repository(repository);
-                    if (repositoryMetaData == null) {
+                    RepositoryMetadata repositoryMetadata = repositories.repository(repository);
+                    if (repositoryMetadata == null) {
                         listener.onFailure(new RepositoryMissingException(repository));
                         return;
                     }
-                    repositoryListBuilder.add(repositoryMetaData);
+                    repositoryListBuilder.add(repositoryMetadata);
                 }
-                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetaData(repositoryListBuilder)));
+                listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(repositoryListBuilder)));
             } else {
                 listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
             }

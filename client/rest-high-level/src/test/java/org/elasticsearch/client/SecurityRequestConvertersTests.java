@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
@@ -55,10 +56,10 @@ import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeNa
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -68,6 +69,8 @@ import java.util.Map;
 
 import static org.elasticsearch.client.RequestConvertersTests.assertToXContentBody;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SecurityRequestConvertersTests extends ESTestCase {
 
@@ -305,6 +308,18 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertToXContentBody(createTokenRequest, request.getEntity());
     }
 
+    public void testDelegatePkiAuthentication() throws Exception {
+        X509Certificate mockCertificate = mock(X509Certificate.class);
+        when(mockCertificate.getEncoded()).thenReturn(new byte[0]);
+        DelegatePkiAuthenticationRequest delegatePkiAuthenticationRequest = new DelegatePkiAuthenticationRequest(
+                Arrays.asList(mockCertificate));
+        Request request = SecurityRequestConverters.delegatePkiAuthentication(delegatePkiAuthenticationRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/delegate_pki", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(delegatePkiAuthenticationRequest, request.getEntity());
+    }
+
     public void testGetApplicationPrivilege() throws Exception {
         final String application = randomAlphaOfLength(6);
         final String privilege = randomAlphaOfLength(4);
@@ -316,7 +331,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-    public void testGetAllApplicationPrivileges() throws Exception {
+    public void testGetAllPrivilegesForApplication() throws Exception {
         final String application = randomAlphaOfLength(6);
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getApplicationPrivileges(application);
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
@@ -340,7 +355,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-    public void testGetAllPrivileges() throws Exception {
+    public void testGetAllApplicationPrivileges() throws Exception {
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllPrivileges();
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
@@ -353,11 +368,12 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         int noOfApplicationPrivileges = randomIntBetween(2, 4);
         final List<ApplicationPrivilege> privileges = new ArrayList<>();
         for (int count = 0; count < noOfApplicationPrivileges; count++) {
+            final String[] actions = generateRandomStringArray(3, 5, false, false);
             privileges.add(ApplicationPrivilege.builder()
                     .application(randomAlphaOfLength(4))
                     .privilege(randomAlphaOfLengthBetween(3, 5))
-                    .actions(Sets.newHashSet(generateRandomStringArray(3, 5, false, false)))
                     .metadata(Collections.singletonMap("k1", "v1"))
+                    .actions(actions == null ? Collections.emptyList() : List.of(actions))
                     .build());
         }
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
@@ -446,10 +462,11 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Request request = SecurityRequestConverters.getApiKey(getApiKeyRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
-        Map<String, String> mapOfParameters = new HashMap<>();
-        mapOfParameters.put("realm_name", realmName);
-        mapOfParameters.put("username", userName);
-        assertThat(request.getParameters(), equalTo(mapOfParameters));
+        Map<String, String> expectedMapOfParameters = new HashMap<>();
+        expectedMapOfParameters.put("realm_name", realmName);
+        expectedMapOfParameters.put("username", userName);
+        expectedMapOfParameters.put("owner", Boolean.FALSE.toString());
+        assertThat(request.getParameters(), equalTo(expectedMapOfParameters));
     }
 
     public void testInvalidateApiKey() throws IOException {

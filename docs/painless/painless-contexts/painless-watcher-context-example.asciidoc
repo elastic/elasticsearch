@@ -1,4 +1,4 @@
-[source,Painless]
+[source,console]
 ----
 POST _watcher/watch/_execute
 {
@@ -99,10 +99,11 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// TEST[skip: requires setup from other pages]
 
 The following example shows the use of metadata and transforming dates into a readable format.
 
-[source,Painless]
+[source,console]
 ----
 POST _watcher/watch/_execute
 {
@@ -155,3 +156,4 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// TEST[skip: requires setup from other pages]

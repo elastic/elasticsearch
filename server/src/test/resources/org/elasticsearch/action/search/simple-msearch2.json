@@ -1,6 +1,6 @@
 {"index":"test"}
 {"query" : {"match_all" : {}}}
-{"index" : "test", "type" : "type1"}
+{"index" : "test"}
 {"query" : {"match_all" : {}}}
 {}
 {"query" : {"match_all" : {}}}

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -25,6 +25,7 @@ import org.junit.After;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -60,7 +60,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
-        PersistentTasksCustomMetaData persistentTasks = masterClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));
@@ -74,7 +74,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
         // Assert state for tasks still exists and that the upgrade setting is set
-        persistentTasks = masterClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(true));
@@ -88,12 +88,12 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), equalTo(JobState.OPENED));
-        assertThat(jobStats.getAssignmentExplanation(), equalTo(MlTasks.AWAITING_UPGRADE.getExplanation()));
+        assertThat(jobStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
         assertThat(jobStats.getNode(), is(nullValue()));
 
         GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
-        assertThat(datafeedStats.getAssignmentExplanation(), equalTo(MlTasks.AWAITING_UPGRADE.getExplanation()));
+        assertThat(datafeedStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
         assertThat(datafeedStats.getNode(), is(nullValue()));
 
         Job.Builder job = createScheduledJob("job-should-not-open");
@@ -111,7 +111,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
-        persistentTasks = masterClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));
@@ -126,18 +126,16 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), equalTo(JobState.OPENED));
-        assertThat(jobStats.getAssignmentExplanation(), isEmptyString());
-        assertThat(jobStats.getNode(), is(not(nullValue())));
+        assertThat(jobStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
 
         datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
-        assertThat(datafeedStats.getAssignmentExplanation(), isEmptyString());
-        assertThat(datafeedStats.getNode(), is(not(nullValue())));
+        assertThat(datafeedStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
     }
 
     private void startRealtime(String jobId) throws Exception {
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();

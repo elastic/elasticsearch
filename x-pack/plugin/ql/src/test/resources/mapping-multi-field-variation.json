@@ -1,0 +1,51 @@
+{
+    "properties" : {
+        "bool" : { "type" : "boolean" },
+        "int" : { "type" : "integer" },
+        "text" : { "type" : "text" },
+        "keyword" : { "type" : "keyword" },
+        "date" :  { "type" : "date" },
+        "unsupported" : { "type" : "ip_range" },
+        "some" : {
+            "properties" : {
+                "dotted" : {
+                    "properties" : {
+                        "field" : {
+                            "type" : "keyword"
+                        }
+                    }
+                },
+                "string" : {
+                    "type" : "text",
+                    "fields" : {
+                        "normalized" : {
+                            "type" : "keyword",
+                            "normalizer" : "some_normalizer"
+                        },
+                        "typical" : {
+                            "type" : "keyword"
+                        }
+                    }
+                },
+                "ambiguous" : {
+                    "type" : "text",
+                    "fields" : {
+                        "one" : {
+                            "type" : "keyword"
+                        },
+                        "two" : {
+                            "type" : "keyword"
+                        },
+                        "normalized" : {
+                            "type" : "keyword",
+                            "normalizer" : "some_normalizer"
+                        }
+                    }
+                }
+            }
+        },
+        "foo_type" : { "type" : "foo" },
+        "point": {"type" : "geo_point"},
+        "shape": {"type" : "geo_shape"}
+    }
+}

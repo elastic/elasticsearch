@@ -21,7 +21,7 @@ public class ClearCcrRestoreSessionRequest extends ActionRequest implements Remo
     private String sessionUUID;
 
     ClearCcrRestoreSessionRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         sessionUUID = in.readString();
     }
 
@@ -33,11 +33,6 @@ public class ClearCcrRestoreSessionRequest extends ActionRequest implements Remo
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
     @Override

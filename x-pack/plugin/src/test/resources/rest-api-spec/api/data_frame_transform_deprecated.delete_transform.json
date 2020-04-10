@@ -1,0 +1,36 @@
+{
+  "data_frame_transform_deprecated.delete_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html",
+      "description":"Deletes an existing transform."
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_frame/transforms/{transform_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to delete"
+            }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
+        }
+      ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"When `true`, the transform is deleted regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be deleted."
+      }
+    }
+  }
+}

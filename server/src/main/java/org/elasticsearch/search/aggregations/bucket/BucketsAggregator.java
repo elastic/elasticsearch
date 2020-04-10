@@ -27,12 +27,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.function.IntConsumer;
 
@@ -43,8 +44,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
         if (context.aggregations() != null) {
@@ -90,7 +91,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
             docCounts.fill(0, newNumBuckets, 0);
             for (int i = 0; i < oldDocCounts.size(); i++) {
                 int docCount = oldDocCounts.get(i);
-                if (docCount != 0) {
+
+                // Skip any in the map which have been "removed", signified with -1
+                if (docCount != 0 && mergeMap[i] != -1) {
                     docCounts.increment(mergeMap[i], docCount);
                 }
             }
@@ -161,4 +164,21 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
     }
 
+    @Override
+    public Aggregator resolveSortPath(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
+        if (this instanceof SingleBucketAggregator) {
+            return resolveSortPathOnValidAgg(next, path);
+        }
+        return super.resolveSortPath(next, path);
+    }
+
+    @Override
+    public BucketComparator bucketComparator(String key, SortOrder order) {
+        if (key == null || "doc_count".equals(key)) {
+            return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
+        }
+        throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +
+                "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
+                ".doc_count\") or \"key\".");
+    }
 }

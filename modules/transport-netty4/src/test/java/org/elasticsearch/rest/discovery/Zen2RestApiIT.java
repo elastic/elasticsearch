@@ -28,7 +28,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +47,7 @@ import static org.hamcrest.core.Is.is;
 // These tests are here today so they have access to a proper REST client. They cannot be in :server:integTest since the REST client needs a
 // proper transport implementation, and they cannot be REST tests today since they need to restart nodes. When #35599 and friends land we
 // should be able to move these tests to run against a proper cluster instead. TODO do this.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
 
     @Override
@@ -61,8 +61,8 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
 
@@ -159,5 +159,19 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
                 Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
             );
         }
+    }
+
+    public void testRemoveTwoNodesAtOnce() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(2);
+        List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
+        RestClient restClient = getRestClient();
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
+            nodes.get(2) + "," + nodes.get(0)));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getEntity().getContentLength(), is(0L));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(2)));
+        ensureStableCluster(1);
     }
 }

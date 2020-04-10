@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.transforms;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -180,8 +180,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     public void testIsolated() throws Exception {
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
         Request createDoc = new Request("PUT", "/painless/_doc/1");
@@ -261,8 +261,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build(), "\"properties\": { \"domain\": { \"type\": \"keyword\" }," +
                 "\"time\": { \"type\": \"date\" } }");
@@ -315,12 +315,12 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         client().performRequest(createFeedRequest);
         client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start"));
 
-        boolean passed = awaitBusy(() -> {
-            try {
+        try {
+            assertBusy(() -> {
                 client().performRequest(new Request("POST", "/_refresh"));
 
                 Response response = client().performRequest(new Request("GET",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
+                    MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
                 String responseBody = EntityUtils.toString(response.getEntity());
 
                 if (responseBody.contains("\"count\":2")) {
@@ -339,27 +339,19 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
                     if (test.subDomainExpected != null) {
                         assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
-                                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
-                                equalTo(test.subDomainExpected));
+                            + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
+                            equalTo(test.subDomainExpected));
                     }
 
                     assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
-                            + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
-
-                    return true;
+                        + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
                 } else {
                     logger.error(responseBody);
-                    return false;
+                    fail("Response body didn't contain [\"count\":2]");
                 }
-
-            } catch (Exception e) {
-                logger.error(e.getMessage());
-                return false;
-            }
-
-        }, 5, TimeUnit.SECONDS);
-
-        if (!passed) {
+            }, 5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.error(e.getMessage());
             fail("Anomaly records were not found within 5 seconds");
         }
     }

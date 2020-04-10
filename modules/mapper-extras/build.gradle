@@ -18,11 +18,12 @@
  */
 
 esplugin {
-    description 'Adds advanced field mappers'
-    classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
-    extendedPlugins = ['lang-painless']
+  description 'Adds advanced field mappers'
+  classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
 }
 
-dependencies {
-    compileOnly project(':modules:lang-painless')
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get' 
+  }
 }

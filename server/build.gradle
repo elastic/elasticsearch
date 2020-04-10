@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -33,7 +35,7 @@ publishing {
 archivesBaseName = 'elasticsearch'
 
 // we want to keep the JDKs in our IDEs set to JDK 11 until minimum JDK is bumped to 17 so we do not include this source set in our IDEs
-if (!isEclipse && !isIdea) {
+if (!isEclipse) {
   sourceSets {
     java12 {
       java {
@@ -41,11 +43,11 @@ if (!isEclipse && !isIdea) {
       }
     }
   }
-  
+
   configurations {
     java12Compile.extendsFrom(compile)
   }
-  
+
   dependencies {
     java12Compile sourceSets.main.output
   }
@@ -56,8 +58,10 @@ if (!isEclipse && !isIdea) {
   }
 
   forbiddenApisJava12 {
-    if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
-      targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
+    doFirst {
+      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_12) {
+        targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
+      }
     }
   }
 
@@ -72,13 +76,13 @@ if (!isEclipse && !isIdea) {
 
 dependencies {
 
-  compile "org.elasticsearch:elasticsearch-core:${version}"
-  compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
-  compile "org.elasticsearch:elasticsearch-x-content:${version}"
-  compile "org.elasticsearch:elasticsearch-geo:${version}"
-  
-  compileOnly project(':libs:plugin-classloader')
-  testRuntime project(':libs:plugin-classloader')
+  compile project(':libs:elasticsearch-core')
+  compile project(':libs:elasticsearch-secure-sm')
+  compile project(':libs:elasticsearch-x-content')
+  compile project(":libs:elasticsearch-geo")
+
+  compileOnly project(':libs:elasticsearch-plugin-classloader')
+  testRuntimeOnly project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -92,14 +96,13 @@ dependencies {
   compile "org.apache.lucene:lucene-queries:${versions.lucene}"
   compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
-  compile 'com.carrotsearch:hppc:0.7.1'
+  compile project(":libs:elasticsearch-cli")
+  compile 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
   compile "joda-time:joda-time:${versions.joda}"
@@ -116,41 +119,43 @@ dependencies {
   // logging
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
-  // to bridge dependencies that are still on Log4j 1 to Log4j 2
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
 
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
 
-  if (!isEclipse && !isIdea) {
+
+  compile "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  compile "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+
+  if (!isEclipse) {
     java12Compile sourceSets.main.output
   }
 
-  if (isEclipse == false || project.path == ":server-tests") {
-    testCompile("org.elasticsearch.test:framework:${version}") {
-      // tests use the locally compiled version of server
-      exclude group: 'org.elasticsearch', module: 'elasticsearch'
-    }
+  testCompile(project(":test:framework")) {
+    // tests use the locally compiled version of server
+    exclude group: 'org.elasticsearch', module: 'server'
   }
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
-}
 
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":server") {
-      main.java.srcDirs = ['java']
-      main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
-    }
-  }
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+
+// Until this project is always being formatted with spotless, we need to
+// guard against `spotless()` not existing.
+try {
+  spotless {
+    java {
+      // Contains large data tables that do not format well.
+      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
+    }
+  }
+}
+catch (Exception e) {
+  if (e.getMessage().contains("Could not find method spotless") == false) {
+    throw e;
+  }
+}
 
 forbiddenPatterns {
   exclude '**/*.json'
@@ -204,13 +209,14 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
   // from log4j
   'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
   'com.conversantmedia.util.concurrent.SpinPolicy',
+  'com.fasterxml.jackson.databind.SerializationFeature',
   'com.fasterxml.jackson.annotation.JsonInclude$Include',
   'com.fasterxml.jackson.databind.DeserializationContext',
   'com.fasterxml.jackson.databind.DeserializationFeature',
@@ -320,24 +326,24 @@ dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
-            // keep the following org.elasticsearch jars in
-            (it.name == 'jna' ||
-             it.name == 'securesm')
+      // keep the following org.elasticsearch jars in
+      (it.name == 'jna' ||
+        it.name == 'securesm')
   }
 }
 
-if (isEclipse == false || project.path == ":server-tests") {
-  task integTest(type: Test) {
-    description = 'Multi-node tests'
-    mustRunAfter test
 
-    include '**/*IT.class'
-  }
+task integTest(type: Test) {
+  description = 'Multi-node tests'
+  mustRunAfter test
 
-  check.dependsOn integTest
-
-  task internalClusterTest {
-     dependsOn integTest    
-  }
+  include '**/*IT.class'
 }
+
+check.dependsOn integTest
+
+task internalClusterTest {
+  dependsOn integTest
+}
+
 

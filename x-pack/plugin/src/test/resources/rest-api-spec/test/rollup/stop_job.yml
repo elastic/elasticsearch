@@ -26,7 +26,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -85,10 +85,6 @@ setup:
 
 ---
 "Test wait_for_completion default timeout":
-  - skip:
-      version: " - 6.5.99"
-      reason: wait_for_completion option was added in 6.6
-
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -106,10 +102,6 @@ setup:
 
 ---
 "Test wait_for_completion with custom timeout":
-  - skip:
-      version: " - 6.5.99"
-      reason: wait_for_completion option was added in 6.6
-
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

@@ -19,21 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array length field load.
  */
-final class PSubArrayLength extends AStoreable {
+public class PSubArrayLength extends AStoreable {
 
-    private final String type;
-    private final String value;
+    protected final String type;
+    protected final String value;
 
     PSubArrayLength(Location location, String type, String value) {
         super(location);
@@ -43,61 +43,31 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(Locals locals) {
         if ("length".equals(value)) {
-            if (write) {
+            if (input.write) {
                 throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));
             }
 
-            actual = int.class;
+            output.actual = int.class;
         } else {
             throw createError(new IllegalArgumentException("Field [" + value + "] does not exist for type [" + type + "]."));
         }
-    }
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLength();
-    }
+        DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
 
-    @Override
-    int accessElementCount() {
-        throw new IllegalStateException("Illegal tree structure.");
+        dotSubArrayLengthNode.setLocation(location);
+        dotSubArrayLengthNode.setExpressionType(output.actual);
+
+        output.expressionNode = dotSubArrayLengthNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix);
+        return false;
     }
 }

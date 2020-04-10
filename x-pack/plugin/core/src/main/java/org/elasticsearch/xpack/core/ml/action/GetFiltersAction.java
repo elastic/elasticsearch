@@ -5,60 +5,42 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
+import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-
-public class GetFiltersAction extends Action<GetFiltersAction.Response> {
+public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
     public static final GetFiltersAction INSTANCE = new GetFiltersAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/get";
 
     private GetFiltersAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AbstractGetResourcesRequest {
 
         public Request() {
-            // Put our own defaults for backwards compatibility
-            super(null, null, true);
+            setAllowNoResources(true);
         }
 
-        public void setFilterId(String filterId) {
+        public Request(String filterId) {
             setResourceId(filterId);
+            setAllowNoResources(true);
         }
 
-        public String getFilterId() {
-            return getResourceId();
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (getPageParams() != null && getResourceId() != null) {
-                validationException = addValidationError("Params [" + PageParams.FROM.getPreferredName() +
-                        ", " + PageParams.SIZE.getPreferredName() + "] are incompatible with ["
-                        + MlFilter.ID.getPreferredName() + "]", validationException);
-            }
-            return validationException;
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
@@ -80,7 +62,8 @@ public class GetFiltersAction extends Action<GetFiltersAction.Response> {
             super(filters);
         }
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public QueryPage<MlFilter> getFilters() {

@@ -20,7 +20,10 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -30,21 +33,27 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
@@ -54,15 +63,24 @@ import static java.util.Collections.unmodifiableList;
  */
 public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
 
-    private final MetaDataIndexAliasesService indexAliasesService;
+    private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
+
+    private final MetadataIndexAliasesService indexAliasesService;
+    private final RequestValidators<IndicesAliasesRequest> requestValidators;
 
     @Inject
-    public TransportIndicesAliasesAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            IndicesAliasesRequest::new);
+    public TransportIndicesAliasesAction(
+            final TransportService transportService,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final MetadataIndexAliasesService indexAliasesService,
+            final ActionFilters actionFilters,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final RequestValidators<IndicesAliasesRequest> requestValidators) {
+        super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest::new,
+            indexNameExpressionResolver);
         this.indexAliasesService = indexAliasesService;
+        this.requestValidators = Objects.requireNonNull(requestValidators);
     }
 
     @Override
@@ -72,8 +90,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -86,7 +104,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final IndicesAliasesRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
 
         //Expand the indices names
@@ -96,23 +114,28 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
+            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), action.indices());
+            final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+            if (maybeException.isPresent()) {
+                listener.onFailure(maybeException.get());
+                return;
+            }
             Collections.addAll(aliases, action.getOriginalAliases());
-            for (String index : concreteIndices) {
+            for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(),
-                            action.searchRouting(), action.writeIndex()));
+                    for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                        finalActions.add(new AliasAction.Add(index.getName(), alias, action.filter(), action.indexRouting(),
+                            action.searchRouting(), action.writeIndex(), action.isHidden()));
                     }
                     break;
                 case REMOVE:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Remove(index, alias));
+                    for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                        finalActions.add(new AliasAction.Remove(index.getName(), alias));
                     }
                     break;
                 case REMOVE_INDEX:
-                    finalActions.add(new AliasAction.RemoveIndex(index));
+                    finalActions.add(new AliasAction.RemoveIndex(index.getName()));
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
@@ -140,14 +163,14 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         });
     }
 
-    private static String[] concreteAliases(AliasActions action, MetaData metaData, String concreteIndex) {
+    private static String[] concreteAliases(AliasActions action, Metadata metadata, String concreteIndex) {
         if (action.expandAliasesWildcards()) {
             //for DELETE we expand the aliases
             String[] indexAsArray = {concreteIndex};
-            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action, indexAsArray);
+            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
-                for (AliasMetaData aliasMeta: curAliases.value) {
+            for (ObjectCursor<List<AliasMetadata>> curAliases : aliasMetadata.values()) {
+                for (AliasMetadata aliasMeta: curAliases.value) {
                     finalAliases.add(aliasMeta.alias());
                 }
             }

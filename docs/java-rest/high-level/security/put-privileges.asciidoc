@@ -3,7 +3,7 @@
 :request: PutPrivilegesRequest
 :response: PutPrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Privileges API
 

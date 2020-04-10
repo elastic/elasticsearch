@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,7 +40,7 @@ import java.util.stream.Collectors;
 /**
  * Response containing a datafeed preview in JSON format
  */
-public class PreviewDatafeedResponse extends ActionResponse implements ToXContentObject {
+public class PreviewDatafeedResponse implements ToXContentObject {
 
     private BytesReference preview;
 

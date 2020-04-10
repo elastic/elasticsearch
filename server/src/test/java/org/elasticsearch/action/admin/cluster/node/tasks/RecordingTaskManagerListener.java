@@ -64,7 +64,7 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     }
 
     public synchronized List<Tuple<Boolean, TaskInfo>> getEvents() {
-        return Collections.unmodifiableList(new ArrayList<>(events));
+        return List.copyOf(events);
     }
 
     public synchronized List<TaskInfo> getRegistrationEvents() {

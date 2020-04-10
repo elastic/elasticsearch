@@ -32,7 +32,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
     private String[] originalAliases = Strings.EMPTY_ARRAY;
 
     public GetAliasesRequest(String... aliases) {
@@ -112,10 +112,5 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

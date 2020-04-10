@@ -39,8 +39,7 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final PutPrivilegesRequest copy = new PutPrivilegesRequest();
-        copy.readFrom(out.bytes().streamInput());
+        final PutPrivilegesRequest copy = new PutPrivilegesRequest(out.bytes().streamInput());
 
         assertThat(original.getPrivileges(), Matchers.equalTo(copy.getPrivileges()));
         assertThat(original.getRefreshPolicy(), Matchers.equalTo(copy.getRefreshPolicy()));

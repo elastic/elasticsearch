@@ -1,0 +1,49 @@
+{
+  "ml.get_trained_models_stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html",
+      "description":"Retrieves usage information for trained inference models."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/inference/{model_id}/_stats",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained models stats to fetch"
+            }
+          }
+        },
+        {
+          "path":"/_ml/inference/_stats",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
+        "default":true
+      },
+      "from":{
+        "type":"int",
+        "description":"skips a number of trained models",
+        "default":0
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of trained models to get",
+        "default":100
+      }
+    }
+  }
+}

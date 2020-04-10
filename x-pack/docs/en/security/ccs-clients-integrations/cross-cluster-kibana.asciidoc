@@ -1,0 +1,40 @@
+[[cross-cluster-kibana]]
+==== {ccs-cap} and {kib}
+
+When {kib} is used to search across multiple clusters, a two-step authorization
+process determines whether or not the user can access indices on a remote
+cluster:
+
+* First, the local cluster determines if the user is authorized to access remote
+clusters. (The local cluster is the cluster {kib} is connected to.)
+* If they are, the remote cluster then determines if the user has access
+to the specified indices.
+
+To grant {kib} users access to remote clusters, assign them a local role
+with read privileges to indices on the remote clusters. You specify remote
+cluster indices as `<remote_cluster_name>:<index_name>`.
+
+To enable users to actually read the remote indices, you must create a matching
+role on the remote clusters that grants the `read_cross_cluster` privilege
+and access to the appropriate indices.
+
+For example, if {kib} is connected to the cluster where you're actively
+indexing {ls} data (your _local cluster_) and you're periodically
+offloading older time-based indices to an archive cluster
+(your _remote cluster_) and you want to enable {kib} users to search both
+clusters:
+
+. On the local cluster, create a `logstash_reader` role that grants
+`read` and `view_index_metadata` privileges on the local `logstash-*` indices.
++
+NOTE: If you configure the local cluster as another remote in {es}, the
+`logstash_reader` role on your local cluster also needs to grant the
+`read_cross_cluster` privilege.
+
+. Assign your {kib} users a role that grants
+{kibana-ref}/xpack-security-authorization.html[access to {kib}]
+as well as your `logstash_reader` role.
+
+. On the remote cluster, create a `logstash_reader` role that grants the
+`read_cross_cluster` privilege and `read` and `view_index_metadata` privileges
+for the `logstash-*` indices.

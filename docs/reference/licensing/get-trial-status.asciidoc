@@ -32,21 +32,21 @@ https://www.elastic.co/subscriptions.
 
 You must have `monitor` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 [float]
 ==== Examples
 
 The following example checks whether you are eligible to start a trial:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_license/trial_status
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
   "eligible_to_start_trial": true

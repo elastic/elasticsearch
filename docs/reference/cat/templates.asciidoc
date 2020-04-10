@@ -1,13 +1,55 @@
 [[cat-templates]]
-== cat templates
+=== cat templates API
+++++
+<titleabbrev>cat templates</titleabbrev>
+++++
 
-The `templates` command provides information about existing templates.
+Returns information about <<indices-templates,index templates>> in a cluster.
+You can use index templates to apply <<index-modules-settings,index settings>>
+and <<mapping,field mappings>> to new indices at creation.
 
-[source,js]
+
+[[cat-templates-api-request]]
+==== {api-request-title}
+
+`GET /_cat/templates/<template_name>`
+
+`GET /_cat/templates`
+
+
+[[cat-templates-path-params]]
+==== {api-path-parms-title}
+
+`<template_name>`::
+(Optional, string) Comma-separated list of index template names used to limit
+the request. Accepts wildcard expressions.
+
+
+[[cat-templates-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-templates-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 GET /_cat/templates?v&s=name
 --------------------------------------------------
-// CONSOLE
 // TEST[s/templates/templates\/template*/]
 // TEST[s/^/PUT _template\/template0\n{"index_patterns": "te*", "order": 0}\n/]
 // TEST[s/^/PUT _template\/template1\n{"index_patterns": "tea*", "order": 1}\n/]
@@ -19,7 +61,7 @@ GET /_cat/templates?v&s=name
 //    templates.
 // 2. Create some templates to expect in the response.
 
-which looks like
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -28,11 +70,16 @@ template0 [te*]          0
 template1 [tea*]         1
 template2 [teak*]        2     7
 --------------------------------------------------
-// TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ _cat]
+// TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
 
-The output shows that there are three existing templates,
-with template2 having a version value.
+//////////////////////////
 
-The endpoint also supports giving a template name or pattern in the url
-to filter the results, for example `/_cat/templates/template*` or
-`/_cat/templates/template0`.
+[source,console]
+--------------------------------------------------
+DELETE /_template/template0
+DELETE /_template/template1
+DELETE /_template/template2
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -26,7 +27,7 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-integTestCluster {
+testClusters.integTest {
   // Adds a setting in the Elasticsearch keystore before running the integration tests
-  keystoreSetting 'custom.secured', 'password'
+  keystore 'custom.secured', 'password'
 }

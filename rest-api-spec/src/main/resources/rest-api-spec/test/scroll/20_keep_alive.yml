@@ -10,9 +10,6 @@
 
 ---
 "Max keep alive":
-  - skip:
-      version: " - 6.99.99"
-      reason: search.max_keep_alive was added in 7.0.0
 
   - do:
       index:

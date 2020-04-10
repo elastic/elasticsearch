@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -23,18 +22,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetJobsAction extends Action<GetJobsAction.Response> {
+public class GetJobsAction extends ActionType<GetJobsAction.Response> {
 
     public static final GetJobsAction INSTANCE = new GetJobsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/get";
 
     private GetJobsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -56,18 +50,14 @@ public class GetJobsAction extends Action<GetJobsAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
+            allowNoJobs = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
+            out.writeBoolean(allowNoJobs);
         }
 
         public void setAllowNoJobs(boolean allowNoJobs) {
@@ -85,11 +75,6 @@ public class GetJobsAction extends Action<GetJobsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -123,7 +108,9 @@ public class GetJobsAction extends Action<GetJobsAction.Response> {
             super(jobs);
         }
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public QueryPage<Job> getResponse() {
             return getResources();

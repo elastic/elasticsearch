@@ -32,9 +32,14 @@ public class BulkShardRequestTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "ignored", 0);
         BulkShardRequest r = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests", r.toString());
+        assertEquals("requests[" + count + "], index[" + index + "][0]", r.getDescription());
+
         r = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests and a refresh", r.toString());
+        assertEquals("requests[" + count + "], index[" + index + "][0], refresh[IMMEDIATE]", r.getDescription());
+
         r = new BulkShardRequest(shardId, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests blocking until refresh", r.toString());
+        assertEquals("requests[" + count + "], index[" + index + "][0], refresh[WAIT_UNTIL]", r.getDescription());
     }
 }

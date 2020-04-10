@@ -7,28 +7,64 @@
 
 Creates and updates role mappings.
 
-==== Request
+[[security-api-put-role-mapping-request]]
+==== {api-request-title}
 
 `POST /_security/role_mapping/<name>` +
 
 `PUT /_security/role_mapping/<name>`
 
 
-==== Description
+[[security-api-put-role-mapping-prereqs]]
+==== {api-prereq-title}
 
-Role mappings define which roles are assigned to each user. Each mapping has 
-_rules_ that identify users and a list of _roles_ that are
-granted to those users.  
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-put-role-mapping-desc]]
+==== {api-description-title}
+
+Role mappings define which roles are assigned to each user. Each mapping has
+_rules_ that identify users and a list of _roles_ that are granted to those users.
+
+The role mapping APIs are generally the preferred way to manage role mappings
+rather than using <<mapping-roles-file,role mapping files>>.
+The create or update role mappings API cannot update role mappings that are defined
+in role mapping files.
 
 NOTE: This API does not create roles. Rather, it maps users to existing roles.
-Roles can be created by using <<security-api-roles, Role Management APIs>> or
-{stack-ov}/defining-roles.html#roles-management-file[roles files].
+Roles can be created by using the <<security-api-put-role,create or update
+roles API>> or <<roles-management-file,roles files>>.
 
-For more information, see 
-{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+For more information, see <<mapping-roles>>.
 
+[[_role_templates]]
+===== Role templates
 
-==== Path Parameters
+The most common use for role mappings is to create a mapping from a known value
+on the user to a fixed role name. For example, all users in the
+`cn=admin,dc=example,dc=com` LDAP group should be given the `superuser` role in
+{es}. The `roles` field is used for this purpose.
+
+For more complex needs, it is possible to use Mustache templates to dynamically
+determine the names of the roles that should be granted to the user. The
+`role_templates` field is used for this purpose.
+
+NOTE: To use role templates successfully, the relevant scripting feature must be
+enabled. Otherwise, all attempts to create a role mapping with role templates
+fail. See <<allowed-script-types-setting>>.
+
+All of the <<role-mapping-resources,user fields>> that are available in the
+role mapping `rules` are also available in the role templates. Thus it is possible
+to assign a user to a role that reflects their `username`, their `groups`, or the
+name of the `realm` to which they authenticated.
+
+By default a template is evaluated to produce a single string that is the name
+of the role which should be assigned to the user. If the `format` of the template
+is set to `"json"` then the template is expected to produce a JSON string or an
+array of JSON strings for the role names.
+
+[[security-api-put-role-mapping-path-params]]
+==== {api-path-parms-title}
 
 `name`::
  (string) The distinct name that identifies the role mapping. The name is
@@ -36,14 +72,15 @@ For more information, see
   not affect the behavior of the mapping in any way.
 
 
-==== Request Body
+[[security-api-put-role-mapping-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role mapping:
 
-`enabled` (required)::
-(boolean)  Mappings that have `enabled` set to `false` are ignored when role
-mapping is performed.
+`enabled`::
+(Required, boolean) Mappings that have `enabled` set to `false` are ignored when
+role mapping is performed.
 
 `metadata`::
 (object) Additional metadata that helps define which roles are assigned to each
@@ -62,45 +99,17 @@ mapping rules.
 The format of these objects is defined below.
 _Exactly one of `roles` or `role_templates` must be specified_.
 
-`rules` (required)::
-(object) The rules that determine which users should be matched by the mapping.
-A rule is a logical condition that is expressed by using a JSON DSL. See 
-<<role-mapping-resources>>. 
+`rules`::
+(Required, object) The rules that determine which users should be matched by the
+mapping. A rule is a logical condition that is expressed by using a JSON DSL.
+See  <<role-mapping-resources>>.
 
-==== Role Templates
-
-The most common use for role mappings is to create a mapping from a known value
-on the user to a fixed role name.
-For example, all users in the `cn=admin,dc=example,dc=com` LDAP group should be
-given the `superuser` role in {es}.
-The `roles` field is used for this purpose.
-
-For more complex needs it is possible to use Mustache templates to dynamically
-determine the names of the roles that should be granted to the user.
-The `role_templates` field is used for this purpose.
-
-All of the <<role-mapping-resources,user fields>> that are available in the
-role mapping `rules` are also available in the role templates. Thus it is possible
-to assign a user to a role that reflects their `username`, their `groups` or the
-name of the `realm` to which they authenticated.
-
-By default a template is evaluated to produce a single string that is the name
-of the role which should be assigned to the user. If the `format` of the template
-is set to `"json"` then the template is expected to produce a JSON string, or an
-array of JSON strings for the role name(s).
-
-The Examples section below demonstrates the use of templated role names.
-
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
-
-
-==== Examples
+[[security-api-put-role-mapping-example]]
+==== {api-examples-title}
 
 The following example assigns the "user" role to all users:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping1
 {
@@ -114,7 +123,6 @@ POST /_security/role_mapping/mapping1
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> Mappings that have `enabled` set to `false` are ignored when role mapping
     is performed.
 <2> Metadata is optional.
@@ -122,7 +130,7 @@ POST /_security/role_mapping/mapping1
 A successful call returns a JSON structure that shows whether the mapping has
 been created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "role_mapping" : {
@@ -130,12 +138,12 @@ been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> When an existing mapping is updated, `created` is set to false.
 
 The following example assigns the "user" and "admin" roles to specific users:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role_mapping/mapping2
 {
@@ -146,10 +154,9 @@ POST /_security/role_mapping/mapping2
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following example matches users who authenticated against a specific realm:
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping3
 {
@@ -160,12 +167,11 @@ POST /_security/role_mapping/mapping3
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The following example matches any user where either the username is `esadmin`
 or the user is in the `cn=admin,dc=example,dc=com` group:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping4
 {
@@ -187,7 +193,6 @@ POST /_security/role_mapping/mapping4
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The example above is useful when the group names in your identity management
 system (such as Active Directory, or a SAML Identity Provider) do not have a
@@ -208,7 +213,7 @@ roles is inefficient and can have a negative effect on system performance.
 If you only need to map a subset of the groups, then you should do this
 using explicit mappings.
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping5
 {
@@ -224,7 +229,6 @@ POST /_security/role_mapping/mapping5
   "enabled": true
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> The `tojson` mustache function is used to convert the list of
     group names into a valid JSON array.
 <2> Because the template produces a JSON array, the format must be
@@ -232,7 +236,7 @@ POST /_security/role_mapping/mapping5
 
 The following example matches users within a specific LDAP sub-tree:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping6
 {
@@ -243,12 +247,11 @@ POST /_security/role_mapping/mapping6
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The following example matches users within a particular LDAP sub-tree in a
 specific realm:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping7
 {
@@ -262,7 +265,6 @@ POST /_security/role_mapping/mapping7
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The rules can be more complex and include wildcard matching. For example, the
 following mapping matches any user where *all* of these conditions are met:
@@ -273,7 +275,7 @@ following mapping matches any user where *all* of these conditions are met:
 - the user does not have a `terminated_date`
 
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping8
 {
@@ -311,12 +313,11 @@ POST /_security/role_mapping/mapping8
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 A templated role can be used to automatically map every user to their own
 custom role. The role itself can be defined through the
 <<security-api-put-role, Roles API>> or using a
-{stack-ov}/custom-roles-authorization.html#implementing-custom-roles-provider[custom roles provider].
+<<implementing-custom-roles-provider,custom roles provider>>.
 
 In this example every user who authenticates using the "cloud-saml" realm
 will be automatically mapped to two roles - the `"saml_user"` role and a
@@ -324,7 +325,7 @@ role that is their username prefixed with `_user_`.
 As an example, the user `nwong` would be assigned the `saml_user` and
 `_user_nwong` roles.
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping9
 {
@@ -336,8 +337,6 @@ POST /_security/role_mapping/mapping9
   "enabled": true
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> Because it is not possible to specify both `roles` and `role_templates` in
     the same role mapping, we can apply a "fixed name" role by using a template
     that has no substitutions.
-

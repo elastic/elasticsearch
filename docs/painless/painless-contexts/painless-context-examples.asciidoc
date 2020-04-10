@@ -41,14 +41,14 @@ the request URL.
 
 . Create {ref}/mapping.html[mappings] for the sample data:
 +
-[source,js]
+[source,console]
 ----
 PUT /seats
 {
   "mappings": {
     "properties": {
       "theatre":  { "type": "keyword" },
-      "play":     { "type": "text"    },
+      "play":     { "type": "keyword" },
       "actors":   { "type": "text"    },
       "row":      { "type": "integer" },
       "number":   { "type": "integer" },
@@ -62,7 +62,6 @@ PUT /seats
 }
 ----
 +
-// CONSOLE
 
 . Run the <<painless-ingest-processor-context, ingest processor context>>
 example. This sets up a script ingest processor used on each document as the
@@ -72,7 +71,7 @@ seat data is indexed.
 +
 [source,js]
 ----
-curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
+curl -XPOST "localhost:9200/seats/_bulk?pipeline=seats" -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
 ----
 // NOTCONSOLE
 

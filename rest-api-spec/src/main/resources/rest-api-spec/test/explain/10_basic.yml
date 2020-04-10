@@ -32,7 +32,6 @@ setup:
   - is_true: matched
   - match: { explanation.value: 1 }
   - match: { _index: test_1 }
-  - match: { _type: _doc }
   - match: { _id: id_1 }
 
 ---
@@ -49,7 +48,6 @@ setup:
   - is_true: matched
   - match: { explanation.value: 1 }
   - match: { _index: test_1 }
-  - match: { _type: _doc }
   - match: { _id: id_1 }
 
 ---

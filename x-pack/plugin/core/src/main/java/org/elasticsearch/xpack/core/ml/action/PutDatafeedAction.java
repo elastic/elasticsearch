@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -22,24 +22,22 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
+public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
 
     private PutDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        public static Request parseRequest(String datafeedId, XContentParser parser) {
+        public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
+            if (datafeed.getIndicesOptions() == null) {
+                datafeed.setIndicesOptions(indicesOptions);
+            }
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }
@@ -53,6 +51,11 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeed = new DatafeedConfig(in);
+        }
+
         public DatafeedConfig getDatafeed() {
             return datafeed;
         }
@@ -60,12 +63,6 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeed = new DatafeedConfig(in);
         }
 
         @Override
@@ -109,7 +106,9 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
             this.datafeed = datafeed;
         }
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            datafeed = new DatafeedConfig(in);
         }
 
         public DatafeedConfig getResponse() {
@@ -117,22 +116,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
-            datafeed = new DatafeedConfig(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             datafeed.writeTo(out);
         }
 

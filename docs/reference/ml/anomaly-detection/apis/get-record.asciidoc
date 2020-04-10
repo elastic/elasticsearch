@@ -1,0 +1,240 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-record]]
+=== Get records API
+++++
+<titleabbrev>Get records</titleabbrev>
+++++
+
+Retrieves anomaly records for an {anomaly-job}.
+
+[[ml-get-record-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/results/records`
+
+[[ml-get-record-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See <<security-privileges>> and <<built-in-roles>>.
+
+[[ml-get-record-desc]]
+==== {api-description-title}
+
+Records contain the detailed analytical results. They describe the anomalous
+activity that has been identified in the input data based on the detector
+configuration.
+
+There can be many anomaly records depending on the characteristics and size of
+the input data. In practice, there are often too many to be able to manually
+process them. The {ml-features} therefore perform a sophisticated aggregation of
+the anomaly records into buckets.
+
+The number of record results depends on the number of anomalies found in each
+bucket, which relates to the number of time series being modeled and the number
+of detectors.
+
+[[ml-get-record-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+[[ml-get-record-request-body]]
+==== {api-request-body-title}
+
+`desc`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=desc-results]
+
+`end`::
+(Optional, string) Returns records with timestamps earlier than this time.
+
+`exclude_interim`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
+
+`page`.`from`::
+(Optional, integer) Skips the specified number of records.
+`page`.`size`::
+(Optional, integer) Specifies the maximum number of records to obtain.
+
+`record_score`::
+(Optional, double) Returns records with anomaly scores greater or equal than
+this value.
+
+`sort`::
+(Optional, string) Specifies the sort field for the requested records. By
+default, the records are sorted by the `anomaly_score` value.
+
+`start`::
+(Optional, string) Returns records with timestamps after this time.
+
+[[ml-get-record-results]]
+==== {api-response-body-title}
+
+The API returns an array of record objects, which have the following properties:
+
+`actual`::
+(array) The actual value for the bucket.
+
+`bucket_span`::
+(number)
+include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
+
+`by_field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
+
+`by_field_value`::
+(string) The value of `by_field_name`.
+
+`causes`::
+(array) For population analysis, an over field must be specified in the detector.
+This property contains an array of anomaly records that are the causes for the
+anomaly that has been identified for the over field. If no over fields exist,
+this field is not present. This sub-resource contains the most anomalous records
+for the `over_field_name`. For scalability reasons, a maximum of the 10 most
+significant causes of the anomaly are returned. As part of the core analytical modeling, these low-level anomaly records are aggregated for their parent over
+field record. The causes resource contains similar elements to the record
+resource, namely `actual`, `typical`, `geo_results.actual_point`, 
+`geo_results.typical_point`, `*_field_name` and `*_field_value`. Probability and
+scores are not applicable to causes.
+
+`detector_index`::
+(number) A unique identifier for the detector.
+
+`field_name`::
+(string) Certain functions require a field to operate on, for example, `sum()`.
+For those functions, this value is the name of the field to be analyzed.
+
+`function`::
+(string) The function in which the anomaly occurs, as specified in the detector
+configuration. For example, `max`.
+
+`function_description`::
+(string) The description of the function in which the anomaly occurs, as
+specified in the detector configuration.
+
+`geo_results.actual_point`::
+(string) The actual value for the bucket formatted as a `geo_point`. If the
+detector function is `lat_long`, this is a comma delimited string of the
+latitude and longitude.
+
+`geo_results.typical_point`::
+(string) The typical value for the bucket formatted as a `geo_point`. If the
+detector function is `lat_long`, this is a comma delimited string of the
+latitude and longitude.
+
+`influencers`::
+(array) If `influencers` was specified in the detector configuration, this array
+contains influencers that contributed to or were to blame for an anomaly.
+
+`initial_record_score`::
+(number) A normalized score between 0-100, which is based on the probability of
+the anomalousness of this record. This is the initial value that was calculated
+at the time the bucket was processed.
+
+`is_interim`::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
+
+`job_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`over_field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
+
+`over_field_value`::
+(string) The value of `over_field_name`.
+
+`partition_field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+
+`partition_field_value`::
+(string) The value of `partition_field_name`.
+
+`probability`::
+(number) The probability of the individual anomaly occurring, in the range
+0 to 1. For example, 0.0000772031. This value can be held to a high precision
+of over 300 decimal places, so the `record_score` is provided as a
+human-readable and friendly interpretation of this.
+
+`multi_bucket_impact`::
+(number) An indication of how strongly an anomaly is multi bucket or single
+bucket. The value is on a scale of `-5.0` to `+5.0` where `-5.0` means the
+anomaly is purely single bucket and `+5.0` means the anomaly is purely multi
+bucket.
+
+`record_score`::
+(number) A normalized score between 0-100, which is based on the probability of
+the anomalousness of this record. Unlike `initial_record_score`, this value will
+be updated by a re-normalization process as new data is analyzed.
+
+`result_type`::
+(string) Internal. This is always set to `record`.
+
+`timestamp`::
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=timestamp-results]
+
+`typical`::
+(array) The typical value for the bucket, according to analytical modeling.
+
+NOTE: Additional record properties are added, depending on the fields being
+analyzed. For example, if it's analyzing `hostname` as a _by field_, then a field
+`hostname` is added to the result document. This information enables you to
+filter the anomaly results more easily.
+
+
+[[ml-get-record-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/low_request_rate/results/records
+{
+  "sort": "record_score",
+  "desc": true,
+  "start": "1454944100000"
+}
+--------------------------------------------------
+// TEST[skip:Kibana sample data]
+
+[source,js]
+----
+{
+  "count" : 4,
+  "records" : [
+    {
+      "job_id" : "low_request_rate",
+      "result_type" : "record",
+      "probability" : 1.3882308899968812E-4,
+      "multi_bucket_impact" : -5.0,
+      "record_score" : 94.98554565630553,
+      "initial_record_score" : 94.98554565630553,
+      "bucket_span" : 3600,
+      "detector_index" : 0,
+      "is_interim" : false,
+      "timestamp" : 1577793600000,
+      "function" : "low_count",
+      "function_description" : "count",
+      "typical" : [
+        28.254208230188834
+      ],
+      "actual" : [
+        0.0
+      ]
+    },
+  ...
+  ]
+}
+----

@@ -25,17 +25,26 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 
 public class ClusterBlockException extends ElasticsearchException {
     private final Set<ClusterBlock> blocks;
 
-    public ClusterBlockException(Set<ClusterBlock> blocks) {
-        super(buildMessage(blocks));
-        this.blocks = blocks;
+    public ClusterBlockException(Set<ClusterBlock> globalLevelBlocks) {
+        super(buildMessageForGlobalBlocks(globalLevelBlocks));
+        this.blocks = globalLevelBlocks;
+    }
+
+    public ClusterBlockException(Map<String, Set<ClusterBlock>> indexLevelBlocks) {
+        super(buildMessageForIndexBlocks(indexLevelBlocks));
+        this.blocks = indexLevelBlocks.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
     }
 
     public ClusterBlockException(StreamInput in) throws IOException {
@@ -74,10 +83,26 @@ public class ClusterBlockException extends ElasticsearchException {
         return blocks;
     }
 
-    private static String buildMessage(Set<ClusterBlock> blocks) {
-        StringBuilder sb = new StringBuilder("blocked by: ");
-        for (ClusterBlock block : blocks) {
-            sb.append("[").append(block.status()).append("/").append(block.id()).append("/").append(block.description()).append("];");
+    private static String buildMessageForGlobalBlocks(Set<ClusterBlock> globalLevelBlocks) {
+        assert globalLevelBlocks.isEmpty() == false;
+        Function<ClusterBlock, String> blockDescription = block -> block.status() + "/" + block.id() + "/" + block.description();
+        StringBuilder sb = new StringBuilder();
+        if (globalLevelBlocks.isEmpty() == false) {
+            sb.append("blocked by: [");
+            sb.append(globalLevelBlocks.stream().map(blockDescription).collect(Collectors.joining(", ")));
+            sb.append("];");
+        }
+        return sb.toString();
+    }
+
+    private static String buildMessageForIndexBlocks(Map<String, Set<ClusterBlock>> indexLevelBlocks) {
+        assert indexLevelBlocks.isEmpty() == false;
+        Function<ClusterBlock, String> blockDescription = block -> block.status() + "/" + block.id() + "/" + block.description();
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Set<ClusterBlock>> entry : indexLevelBlocks.entrySet()) {
+            sb.append("index [" + entry.getKey() + "] blocked by: [");
+            sb.append(entry.getValue().stream().map(blockDescription).collect(Collectors.joining(", ")));
+            sb.append("];");
         }
         return sb.toString();
     }
@@ -85,13 +110,23 @@ public class ClusterBlockException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         RestStatus status = null;
+        boolean onlyRetryableBlocks = true;
         for (ClusterBlock block : blocks) {
-            if (status == null) {
-                status = block.status();
-            } else if (status.getStatus() < block.status().getStatus()) {
-                status = block.status();
+            boolean isRetryableBlock = block.status() == RestStatus.TOO_MANY_REQUESTS;
+            if (isRetryableBlock == false) {
+                if (status == null) {
+                    status = block.status();
+                } else if (status.getStatus() < block.status().getStatus()) {
+                    status = block.status();
+                }
             }
+            onlyRetryableBlocks = onlyRetryableBlocks && isRetryableBlock;
         }
+        // return retryable status if there are only retryable blocks
+        if (onlyRetryableBlocks) {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
+        // return status which has the maximum code of all status except the retryable blocks'
         return status;
     }
 }

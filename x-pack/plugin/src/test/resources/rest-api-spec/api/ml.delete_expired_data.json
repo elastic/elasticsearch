@@ -1,11 +1,19 @@
 {
-  "ml.delete_expired_data": {
-    "methods": [ "DELETE" ],
-    "url": {
-      "path": "/_ml/_delete_expired_data",
-      "paths": [ "/_ml/_delete_expired_data" ],
-      "parts": {}
+  "ml.delete_expired_data":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html",
+      "description":"Deletes expired and unused machine learning data."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/_delete_expired_data",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    }
   }
 }

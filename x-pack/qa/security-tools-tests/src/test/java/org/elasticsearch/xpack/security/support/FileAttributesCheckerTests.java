@@ -28,6 +28,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         checker.check(terminal);
         assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
+        assertTrue(terminal.getErrorOutput(), terminal.getErrorOutput().isEmpty());
     }
 
     public void testNoPosix() throws Exception {
@@ -38,6 +39,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
             MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
             assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
+            assertTrue(terminal.getErrorOutput(), terminal.getErrorOutput().isEmpty());
         }
     }
 
@@ -51,6 +53,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
             MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
             assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
+            assertTrue(terminal.getErrorOutput(), terminal.getErrorOutput().isEmpty());
         }
     }
 
@@ -71,7 +74,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
 
             MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            String output = terminal.getOutput();
+            String output = terminal.getErrorOutput();
             assertTrue(output, output.contains("permissions of [" + path + "] have changed"));
         }
     }
@@ -89,7 +92,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
 
             MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            String output = terminal.getOutput();
+            String output = terminal.getErrorOutput();
             assertTrue(output, output.contains("Owner of file [" + path + "] used to be"));
         }
     }
@@ -107,7 +110,7 @@ public class FileAttributesCheckerTests extends ESTestCase {
 
             MockTerminal terminal = new MockTerminal();
             checker.check(terminal);
-            String output = terminal.getOutput();
+            String output = terminal.getErrorOutput();
             assertTrue(output, output.contains("Group of file [" + path + "] used to be"));
         }
     }

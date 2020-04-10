@@ -51,11 +51,6 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         out.writeVInt(size);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
     String getSessionUUID() {
         return sessionUUID;
     }

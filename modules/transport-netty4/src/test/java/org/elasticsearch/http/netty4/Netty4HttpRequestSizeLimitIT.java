@@ -33,7 +33,9 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -43,9 +45,9 @@ import static org.hamcrest.Matchers.hasSize;
  * This test checks that in-flight requests are limited on HTTP level and that requests that are excluded from limiting can pass.
  *
  * As the same setting is also used to limit in-flight requests on transport level, we avoid transport messages by forcing
- * a single node "cluster". We also force test infrastructure to use the node client instead of the transport client for the same reason.
+ * a single node "cluster".
  */
-@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1, transportClientRatio = 0)
+@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1)
 public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
 
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
@@ -77,25 +79,23 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
             bulkRequest.append(System.lineSeparator());
         }
 
-        @SuppressWarnings("unchecked")
-        Tuple<String, CharSequence>[] requests = new Tuple[150];
-        for (int i = 0; i < requests.length; i++) {
-            requests[i] = Tuple.tuple("/index/type/_bulk", bulkRequest);
+        List<Tuple<String, CharSequence>> requests = new ArrayList<>();
+        for (int i = 0; i < 150; i++) {
+            requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress
-            ().boundAddresses());
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
-            Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests[0]);
+            Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests.subList(0, 1));
             try {
                 assertThat(singleResponse, hasSize(1));
                 assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
 
                 Collection<FullHttpResponse> multipleResponses = nettyHttpClient.post(transportAddress.address(), requests);
                 try {
-                    assertThat(multipleResponses, hasSize(requests.length));
+                    assertThat(multipleResponses, hasSize(requests.size()));
                     assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.TOO_MANY_REQUESTS);
                 } finally {
                     multipleResponses.forEach(ReferenceCounted::release);
@@ -109,21 +109,19 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
     public void testDoesNotLimitExcludedRequests() throws Exception {
         ensureGreen();
 
-        @SuppressWarnings("unchecked")
-        Tuple<String, CharSequence>[] requestUris = new Tuple[1500];
-        for (int i = 0; i < requestUris.length; i++) {
-            requestUris[i] = Tuple.tuple("/_cluster/settings",
-                "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }");
+        List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
+        for (int i = 0; i < 1500; i++) {
+            requestUris.add(Tuple.tuple("/_cluster/settings",
+                "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress
-            ().boundAddresses());
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
             try {
-                assertThat(responses, hasSize(requestUris.length));
+                assertThat(responses, hasSize(requestUris.size()));
                 assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
             } finally {
                 responses.forEach(ReferenceCounted::release);

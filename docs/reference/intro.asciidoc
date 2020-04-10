@@ -1,0 +1,270 @@
+[[elasticsearch-intro]]
+= Elasticsearch introduction
+[partintro]
+--
+_**You know, for search (and analysis)**_
+
+{es} is the distributed search and analytics engine at the heart of
+the {stack}. {ls} and {beats} facilitate collecting, aggregating, and
+enriching your data and storing it in {es}. {kib} enables you to
+interactively explore, visualize, and share insights into your data and manage
+and monitor the stack. {es} is where the indexing, search, and analysis
+magic happen.
+
+{es} provides real-time search and analytics for all types of data. Whether you
+have structured or unstructured text, numerical data, or geospatial data,
+{es} can efficiently store and index it in a way that supports fast searches.
+You can go far beyond simple data retrieval and aggregate information to discover
+trends and patterns in your data. And as your data and query volume grows, the
+distributed nature of {es} enables your deployment to grow seamlessly right
+along with it.
+
+While not _every_ problem is a search problem, {es} offers speed and flexibility
+to handle data in a wide variety of use cases:
+
+* Add a search box to an app or website
+* Store and analyze logs, metrics, and security event data
+* Use machine learning to automatically model the behavior of your data in real
+  time
+* Automate business workflows using {es} as a storage engine
+* Manage, integrate, and analyze spatial information using {es} as a geographic
+  information system (GIS)
+* Store and process genetic data using {es} as a bioinformatics research tool
+
+We’re continually amazed by the novel ways people use search. But whether
+your use case is similar to one of these, or you're using {es} to tackle a new
+problem, the way you work with your data, documents, and indices in {es} is
+the same.
+--
+
+[[documents-indices]]
+== Data in: documents and indices
+
+{es} is a distributed document store. Instead of storing information as rows of
+columnar data, {es} stores complex data structures that have been serialized
+as JSON documents. When you have multiple {es} nodes in a cluster, stored
+documents are distributed across the cluster and can be accessed immediately
+from any node.
+
+When a document is stored, it is indexed and fully searchable in near
+real-time--within 1 second. {es} uses a data structure called an
+inverted index that supports very fast full-text searches. An inverted index
+lists every unique word that appears in any document and identifies all of the
+documents each word occurs in.
+
+An index can be thought of as an optimized collection of documents and each
+document is a collection of fields, which are the key-value pairs that contain
+your data. By default, {es} indexes all data in every field and each indexed
+field has a dedicated, optimized data structure. For example, text fields are
+stored in inverted indices, and numeric and geo fields are stored in BKD trees.
+The ability to use the per-field data structures to assemble and return search
+results is what makes {es} so fast.
+
+{es} also has the ability to be schema-less, which means that documents can be
+indexed without explicitly specifying how to handle each of the different fields
+that might occur in a document. When dynamic mapping is enabled, {es}
+automatically detects and adds new fields to the index. This default
+behavior makes it easy to index and explore your data--just start
+indexing documents and {es} will detect and map booleans, floating point and
+integer values, dates, and strings to the appropriate {es} datatypes.
+
+Ultimately, however, you know more about your data and how you want to use it
+than {es} can. You can define rules to control dynamic mapping and explicitly
+define mappings to take full control of how fields are stored and indexed.
+
+Defining your own mappings enables you to:
+
+* Distinguish between full-text string fields and exact value string fields
+* Perform language-specific text analysis
+* Optimize fields for partial matching
+* Use custom date formats
+* Use data types such as `geo_point` and `geo_shape` that cannot be automatically
+detected
+
+It’s often useful to index the same field in different ways for different
+purposes. For example, you might want to index a string field as both a text
+field for full-text search and as a keyword field for sorting or aggregating
+your data. Or, you might choose to use more than one language analyzer to
+process the contents of a string field that contains user input.
+
+The analysis chain that is applied to a full-text field during indexing is also
+used at search time. When you query a full-text field, the query text undergoes
+the same analysis before the terms are looked up in the index.
+
+[[search-analyze]]
+== Information out: search and analyze
+
+While you can use {es} as a document store and retrieve documents and their
+metadata, the real power comes from being able to easily access the full suite
+of search capabilities built on the Apache Lucene search engine library.
+
+{es} provides a simple, coherent REST API for managing your cluster and indexing
+and searching your data.  For testing purposes, you can easily submit requests
+directly from the command line or through the Developer Console in {kib}. From
+your applications, you can use the
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
+for your language of choice: Java, JavaScript, Go, .NET, PHP, Perl, Python
+or Ruby.
+
+[float]
+[[search-data]]
+=== Searching your data
+
+The {es} REST APIs support structured queries, full text queries, and complex
+queries that combine the two. Structured queries are
+similar to the types of queries you can construct in SQL. For example, you
+could search the `gender` and `age` fields in your `employee` index and sort the
+matches by the `hire_date` field. Full-text queries find all documents that
+match the query string and return them sorted by _relevance_&mdash;how good a
+match they are for your search terms.
+
+In addition to searching for individual terms, you can perform phrase searches,
+similarity searches, and prefix searches, and get autocomplete suggestions.
+
+Have geospatial or other numerical data that you want to search? {es} indexes
+non-textual data in optimized data structures that support
+high-performance geo and numerical queries.
+
+You can access all of these search capabilities using {es}'s
+comprehensive JSON-style query language (<<query-dsl, Query DSL>>). You can also
+construct <<sql-overview, SQL-style queries>> to search and aggregate data
+natively inside {es}, and JDBC and ODBC drivers enable a broad range of
+third-party applications to interact with {es} via SQL.
+
+[float]
+[[analyze-data]]
+=== Analyzing your data
+
+{es} aggregations enable you to build complex summaries of your data and gain
+insight into key metrics, patterns, and trends. Instead of just finding the
+proverbial “needle in a haystack”, aggregations enable you to answer questions
+like:
+
+* How many needles are in the haystack?
+* What is the average length of the needles?
+* What is the median length of the needles, broken down by manufacturer?
+* How many needles were added to the haystack in each of the last six months?
+
+You can also use aggregations to answer more subtle questions, such as:
+
+* What are your most popular needle manufacturers?
+* Are there any unusual or anomalous clumps of needles?
+
+Because aggregations leverage the same data-structures used for search, they are
+also very fast. This enables you to analyze and visualize your data in real time.
+Your reports and dashboards update as your data changes so you can take action
+based on the latest information.
+
+What’s more, aggregations operate alongside search requests. You can search
+documents, filter results, and perform analytics at the same time, on the same
+data, in a single request. And because aggregations are calculated in the
+context of a particular search, you’re not just displaying a count of all
+size 70 needles, you’re displaying a count of the size 70 needles
+that match your users' search criteria--for example, all size 70 _non-stick
+embroidery_ needles.
+
+[float]
+[[more-features]]
+==== But wait, there’s more
+
+Want to automate the analysis of your time-series data? You can use
+{ml-docs}/ml-overview.html[machine learning] features to create accurate
+baselines of normal behavior in your data and identify anomalous patterns. With
+machine learning, you can detect:
+
+* Anomalies related to temporal deviations in values, counts, or frequencies
+* Statistical rarity
+* Unusual behaviors for a member of a population
+
+And the best part? You can do this without having to specify algorithms, models,
+or other data science-related configurations.
+
+[[scalability]]
+== Scalability and resilience: clusters, nodes, and shards
+++++
+<titleabbrev>Scalability and resilience</titleabbrev>
+++++
+
+{es} is built to be always available and to scale with your needs. It does this
+by being distributed by nature. You can add servers (nodes) to a cluster to
+increase capacity and {es} automatically distributes your data and query load
+across all of the available nodes. No need to overhaul your application, {es}
+knows how to balance multi-node clusters to provide scale and high availability.
+The more nodes, the merrier.
+
+How does this work? Under the covers, an {es} index is really just a logical
+grouping of one or more physical shards, where each shard is actually a
+self-contained index. By distributing the documents in an index across multiple
+shards, and distributing those shards across multiple nodes, {es} can ensure
+redundancy, which both protects against hardware failures and increases
+query capacity as nodes are added to a cluster. As the cluster grows (or shrinks),
+{es} automatically migrates shards to rebalance the cluster.
+
+There are two types of shards: primaries and replicas. Each document in an index
+belongs to one primary shard. A replica shard is a copy of a primary shard.
+Replicas provide redundant copies of your data to protect against hardware
+failure and increase capacity to serve read requests
+like searching or retrieving a document.
+
+The number of primary shards in an index is fixed at the time that an index is
+created, but the number of replica shards can be changed at any time, without
+interrupting indexing or query operations.
+
+[float]
+[[it-depends]]
+=== It depends...
+
+There are a number of performance considerations and trade offs with respect
+to shard size and the number of primary shards configured for an index. The more
+shards, the more overhead there is simply in maintaining those indices. The
+larger the shard size, the longer it takes to move shards around when {es}
+needs to rebalance a cluster.
+
+Querying lots of small shards makes the processing per shard faster, but more
+queries means more overhead, so querying a smaller
+number of larger shards might be faster. In short...it depends.
+
+As a starting point:
+
+* Aim to keep the average shard size between a few GB and a few tens of GB. For
+  use cases with time-based data, it is common to see shards in the 20GB to 40GB
+  range.
+
+* Avoid the gazillion shards problem. The number of shards a node can hold is
+  proportional to the available heap space. As a general rule, the number of
+  shards per GB of heap space should be less than 20.
+
+The best way to determine the optimal configuration for your use case is
+through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
+testing with your own data and queries].
+
+[float]
+[[disaster-ccr]]
+=== In case of disaster
+
+For performance reasons, the nodes within a cluster need to be on the same
+network. Balancing shards in a cluster across nodes in different data centers
+simply takes too long. But high-availability architectures demand that you avoid
+putting all of your eggs in one basket. In the event of a major outage in one
+location, servers in another location need to be able to take over. Seamlessly.
+The answer? {ccr-cap} (CCR).
+
+CCR provides a way to automatically synchronize indices from your primary cluster
+to a secondary remote cluster that can serve as a hot backup. If the primary
+cluster fails, the secondary cluster can take over. You can also use CCR to
+create secondary clusters to serve read requests in geo-proximity to your users.
+
+{ccr-cap} is active-passive. The index on the primary cluster is
+the active leader index and handles all write requests. Indices replicated to
+secondary clusters are read-only followers.
+
+[float]
+[[admin]]
+=== Care and feeding
+
+As with any enterprise system, you need tools to secure, manage, and
+monitor your {es} clusters. Security, monitoring, and administrative features
+that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
+as a control center for managing a cluster. Features like <<rollup-overview,
+data rollups>> and <<index-lifecycle-management, index lifecycle management>>
+help you intelligently manage your data over time.

@@ -23,7 +23,7 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
     public void testValidate_jobVersionCannonBeBefore61() {
         Job.Builder jobBuilder = createTestJob("forecast-it-test-job-version");
 
-        jobBuilder.setJobVersion(Version.V_6_0_1);
+        jobBuilder.setJobVersion(Version.fromString("6.0.1"));
         ForecastJobAction.Request request = new ForecastJobAction.Request();
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> TransportForecastJobAction.validate(jobBuilder.build(), request));

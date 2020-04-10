@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
 import java.util.Map;
@@ -30,8 +29,8 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
 
     @Override
     protected InternalGeoHashGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
+                                                        Map<String, Object> metadata) {
+        return new InternalGeoHashGrid(name, size, buckets, metadata);
     }
 
     @Override
@@ -46,7 +45,7 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
 
     @Override
     protected long longEncode(double lng, double lat, int precision) {
-        return GeoHashUtils.longEncode(lng, lat, precision);
+        return Geohash.longEncode(lng, lat, precision);
     }
 
     @Override

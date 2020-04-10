@@ -20,10 +20,15 @@
 esplugin {
   description 'Mustache scripting integration for Elasticsearch'
   classname 'org.elasticsearch.script.mustache.MustachePlugin'
-  hasClientJar = true // For the template apis and query
 }
 
 dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.3"
+  compile "com.github.spullara.mustache.java:compiler:0.9.6"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
+      'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
+  }
+}

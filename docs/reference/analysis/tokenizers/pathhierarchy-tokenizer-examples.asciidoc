@@ -1,0 +1,183 @@
+[[analysis-pathhierarchy-tokenizer-examples]]
+=== Path Hierarchy Tokenizer Examples
+
+A common use-case for the `path_hierarchy` tokenizer is filtering results by 
+file paths. If indexing a file path along with the data, the use of the 
+`path_hierarchy` tokenizer to analyze the path allows filtering the results 
+by different parts of the file path string.
+
+
+This example configures an index to have two custom analyzers and applies
+those analyzers to multifields of the `file_path` text field that will 
+store filenames. One of the two analyzers uses reverse tokenization.
+Some sample documents are then indexed to represent some file paths
+for photos inside photo folders of two different users.
+
+
+[source,console]
+--------------------------------------------------
+PUT file-path-test
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "custom_path_tree": {
+          "tokenizer": "custom_hierarchy"
+        },
+        "custom_path_tree_reversed": {
+          "tokenizer": "custom_hierarchy_reversed"
+        }
+      },
+      "tokenizer": {
+        "custom_hierarchy": {
+          "type": "path_hierarchy",
+          "delimiter": "/"
+        },
+        "custom_hierarchy_reversed": {
+          "type": "path_hierarchy",
+          "delimiter": "/",
+          "reverse": "true"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "file_path": {
+        "type": "text",
+        "fields": {
+          "tree": {
+            "type": "text",
+            "analyzer": "custom_path_tree"
+          },
+          "tree_reversed": {
+            "type": "text",
+            "analyzer": "custom_path_tree_reversed"
+          }
+        }
+      }
+    }
+  }
+}
+
+POST file-path-test/_doc/1
+{
+  "file_path": "/User/alice/photos/2017/05/16/my_photo1.jpg"
+}
+
+POST file-path-test/_doc/2
+{
+  "file_path": "/User/alice/photos/2017/05/16/my_photo2.jpg"
+}
+
+POST file-path-test/_doc/3
+{
+  "file_path": "/User/alice/photos/2017/05/16/my_photo3.jpg"
+}
+
+POST file-path-test/_doc/4
+{
+  "file_path": "/User/alice/photos/2017/05/15/my_photo1.jpg"
+}
+
+POST file-path-test/_doc/5
+{
+  "file_path": "/User/bob/photos/2017/05/16/my_photo1.jpg"
+}
+--------------------------------------------------
+// TESTSETUP
+
+
+A search for a particular file path string against the text field matches all 
+the example documents, with Bob's documents ranking highest due to `bob` also 
+being one of the terms created by the standard analyzer boosting relevance for
+Bob's documents.
+
+[source,console]
+--------------------------------------------------
+GET file-path-test/_search
+{
+  "query": {
+    "match": {
+      "file_path": "/User/bob/photos/2017/05"
+    }
+  }
+}
+--------------------------------------------------
+
+It's simple to match or filter documents with file paths that exist within a
+particular directory using the `file_path.tree` field.
+
+[source,console]
+--------------------------------------------------
+GET file-path-test/_search
+{
+  "query": {
+    "term": {
+      "file_path.tree": "/User/alice/photos/2017/05/16"
+    }
+  }
+}
+--------------------------------------------------
+
+With the reverse parameter for this tokenizer, it's also possible to match
+from the other end of the file path, such as individual file names or a deep
+level subdirectory. The following example shows a search for all files named
+`my_photo1.jpg` within any directory via the `file_path.tree_reversed` field 
+configured to use the reverse parameter in the mapping.
+
+
+[source,console]
+--------------------------------------------------
+GET file-path-test/_search
+{
+  "query": {
+    "term": {
+      "file_path.tree_reversed": {
+        "value": "my_photo1.jpg"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Viewing the tokens generated with both forward and reverse is instructive
+in showing the tokens created for the same file path value.
+
+
+[source,console]
+--------------------------------------------------
+POST file-path-test/_analyze
+{
+  "analyzer": "custom_path_tree",
+  "text": "/User/alice/photos/2017/05/16/my_photo1.jpg"
+}
+
+POST file-path-test/_analyze
+{
+  "analyzer": "custom_path_tree_reversed",
+  "text": "/User/alice/photos/2017/05/16/my_photo1.jpg"
+}
+--------------------------------------------------
+
+
+It's also useful to be able to filter with file paths when combined with other
+types of searches, such as this example looking for any files paths with `16` 
+that also must be in Alice's photo directory.
+
+[source,console]
+--------------------------------------------------
+GET file-path-test/_search
+{
+  "query": {
+    "bool" : {
+      "must" : {
+        "match" : { "file_path" : "16" }
+      },
+      "filter": {
+        "term" : { "file_path.tree" : "/User/alice" }
+      }
+    }
+  }
+}
+--------------------------------------------------

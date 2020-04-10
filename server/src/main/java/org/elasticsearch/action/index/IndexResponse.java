@@ -21,6 +21,7 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -37,15 +38,16 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class IndexResponse extends DocWriteResponse {
 
-    public IndexResponse() {
+    public IndexResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        this(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
+    public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
+        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
-    private IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
     }
 
     private static Result assertCreatedOrUpdated(Result result) {
@@ -63,7 +65,6 @@ public class IndexResponse extends DocWriteResponse {
         StringBuilder builder = new StringBuilder();
         builder.append("IndexResponse[");
         builder.append("index=").append(getIndex());
-        builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
@@ -98,7 +99,7 @@ public class IndexResponse extends DocWriteResponse {
     public static class Builder extends DocWriteResponse.Builder {
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version, result);
+            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

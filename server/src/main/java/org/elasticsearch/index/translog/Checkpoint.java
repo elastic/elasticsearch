@@ -20,6 +20,9 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -33,6 +36,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
@@ -47,41 +51,19 @@ final class Checkpoint {
     final long minTranslogGeneration;
     final long trimmedAboveSeqNo;
 
-    private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
-    private static final int VERSION_6_0_0 = 2; // introduction of global checkpoints
-    private static final int CURRENT_VERSION = 3; // introduction of trimmed above seq#
+    private static final int CURRENT_VERSION = 3;
 
     private static final String CHECKPOINT_CODEC = "ckp";
-
-    // size of 6.4.0 checkpoint
 
     static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
-        + Long.BYTES // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES // global checkpoint, introduced in 6.0.0
-        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
-        + Long.BYTES // maximum reachable (trimmed) sequence number, introduced in 6.4.0
-        + CodecUtil.footerLength();
-
-    // size of 6.0.0 checkpoint
-    static final int V2_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
-        + Integer.BYTES  // ops
-        + Long.BYTES // offset
-        + Long.BYTES // generation
-        + Long.BYTES // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES // global checkpoint, introduced in 6.0.0
-        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
-        + CodecUtil.footerLength();
-
-    // size of 5.0.0 checkpoint
-    static final int V1_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
-        + Integer.BYTES  // ops
-        + Long.BYTES // offset
-        + Long.BYTES // generation
+        + Long.BYTES // minimum sequence number
+        + Long.BYTES // maximum sequence number
+        + Long.BYTES // global checkpoint
+        + Long.BYTES // minimum translog generation in the translog
+        + Long.BYTES // maximum reachable (trimmed) sequence number
         + CodecUtil.footerLength();
 
     /**
@@ -124,6 +106,17 @@ final class Checkpoint {
         out.writeLong(trimmedAboveSeqNo);
     }
 
+    /**
+     * Returns the maximum sequence number of operations in this checkpoint after applying {@link #trimmedAboveSeqNo}.
+     */
+    long maxEffectiveSeqNo() {
+        if (trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            return maxSeqNo;
+        } else {
+            return Math.min(trimmedAboveSeqNo, maxSeqNo);
+        }
+    }
+
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
                                               long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -132,7 +125,7 @@ final class Checkpoint {
         return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
-    static Checkpoint readCheckpointV6_4_0(final DataInput in) throws IOException {
+    static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
         final long offset = in.readLong();
         final int numOps = in.readInt();
         final long generation = in.readLong();
@@ -141,31 +134,6 @@ final class Checkpoint {
         final long globalCheckpoint = in.readLong();
         final long minTranslogGeneration = in.readLong();
         final long trimmedAboveSeqNo = in.readLong();
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
-    }
-
-    static Checkpoint readCheckpointV6_0_0(final DataInput in) throws IOException {
-        final long offset = in.readLong();
-        final int numOps = in.readInt();
-        final long generation = in.readLong();
-        final long minSeqNo = in.readLong();
-        final long maxSeqNo = in.readLong();
-        final long globalCheckpoint = in.readLong();
-        final long minTranslogGeneration = in.readLong();
-        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
-    }
-
-    // reads a checksummed checkpoint introduced in ES 5.0.0
-    static Checkpoint readCheckpointV5_0_0(final DataInput in) throws IOException {
-        final long offset = in.readLong();
-        final int numOps = in.readInt();
-        final long generation = in.readLong();
-        final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        final long minTranslogGeneration = -1;
-        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
@@ -188,18 +156,12 @@ final class Checkpoint {
             try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, CURRENT_VERSION);
-                if (fileVersion == INITIAL_VERSION) {
-                    assert indexInput.length() == V1_FILE_SIZE : indexInput.length();
-                    return Checkpoint.readCheckpointV5_0_0(indexInput);
-                } else if (fileVersion == VERSION_6_0_0) {
-                    assert indexInput.length() == V2_FILE_SIZE : indexInput.length();
-                    return Checkpoint.readCheckpointV6_0_0(indexInput);
-                } else {
-                    assert fileVersion == CURRENT_VERSION : fileVersion;
-                    assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
-                    return Checkpoint.readCheckpointV6_4_0(indexInput);
-                }
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, CURRENT_VERSION, CURRENT_VERSION);
+                assert fileVersion == CURRENT_VERSION : fileVersion;
+                assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
+                return Checkpoint.readCheckpointV3(indexInput);
+            } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
+                throw new TranslogCorruptedException(path.toString(), e);
             }
         }
     }

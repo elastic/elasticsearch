@@ -21,28 +21,27 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
-    public RestPutStoredScriptAction(Settings settings, RestController controller) {
-        super(settings);
-
-        controller.registerHandler(POST, "/_scripts/{id}", this);
-        controller.registerHandler(PUT, "/_scripts/{id}", this);
-        controller.registerHandler(POST, "/_scripts/{id}/{context}", this);
-        controller.registerHandler(PUT, "/_scripts/{id}/{context}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_scripts/{id}"),
+            new Route(PUT, "/_scripts/{id}"),
+            new Route(POST, "/_scripts/{id}/{context}"),
+            new Route(PUT, "/_scripts/{id}/{context}"));
     }
 
     @Override

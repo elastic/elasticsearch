@@ -37,6 +37,19 @@ Dynamic templates are specified as an array of named objects:
 <2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
 
+If a provided mapping contains an invalid mapping snippet then that results in
+a validation error. Validation always occurs when applying the dynamic template
+at index time or in most cases when updating the dynamic template.
+
+Whether updating the dynamic template fails when supplying an invalid mapping snippet depends on the following:
+* If no `match_mapping_type` has been specified then if the template is valid with one predefined mapping type then
+  the mapping snippet is considered valid. However if at index time a field that matches with the template is indexed
+  as a different type then an validation error will occur at index time instead. For example configuring a dynamic
+  template with no `match_mapping_type` is considered valid as string type, but at index time a field that matches with
+  the dynamic template is indexed as a long, then at index time a validation error may still occur.
+* If the `{{name}}` placeholder is used in the mapping snippet then the validation is skipped when updating
+  the dynamic template. This is because the field name is unknown at that time. The validation will then occur
+  when applying the template at index time.
 
 Templates are processed in order -- the first matching template wins. When
 putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,
@@ -67,7 +80,7 @@ For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
 could use the following template:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -105,7 +118,7 @@ PUT my_index/_doc/1
   "my_string": "Some string" <2>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `my_integer` field is mapped as an `integer`.
 <2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
 
@@ -121,7 +134,7 @@ The following example matches all `string` fields whose name starts with
 fields:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -147,7 +160,7 @@ PUT my_index/_doc/1
   "long_text": "foo" <2>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `long_num` field is mapped as a `long`.
 <2> The `long_text` field uses the default `string` mapping.
 
@@ -175,7 +188,7 @@ final name, e.g. `some_object.*.some_field`.
 This example copies the values of any fields in the `name` object to the
 top-level `full_name` field, except for the `middle` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -198,13 +211,34 @@ PUT my_index
 PUT my_index/_doc/1
 {
   "name": {
-    "first":  "Alice",
-    "middle": "Mary",
-    "last":   "White"
+    "first":  "John",
+    "middle": "Winston",
+    "last":   "Lennon"
   }
 }
 --------------------------------------------------
-// CONSOLE
+
+Note that the `path_match` and `path_unmatch` parameters match on object paths
+in addition to leaf fields. As an example, indexing the following document will
+result in an error because the `path_match` setting also matches the object
+field `name.title`, which can't be mapped as text:
+
+[source,console]
+--------------------------------------------------
+PUT my_index/_doc/2
+{
+  "name": {
+    "first":  "Paul",
+    "last":   "McCartney",
+    "title": {
+      "value": "Sir",
+      "category": "order of chivalry"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+// TEST[catch:bad_request]
 
 [[template-variables]]
 ==== `{name}` and `{dynamic_type}`
@@ -214,7 +248,7 @@ with the field name and detected dynamic type.  The following example sets all
 string fields to use an <<analyzer,`analyzer`>> with the same name as the
 field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -249,7 +283,7 @@ PUT my_index/_doc/1
   "count":   5 <2>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
 <2> The `count` field is mapped as a `long` field with `doc_values` disabled.
 
@@ -266,7 +300,7 @@ interested in full text search, you can make Elasticsearch map your fields
 only as `keyword`s. Note that this means that in order to search those fields,
 you will have to search on the exact same value that was indexed.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -284,8 +318,8 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
+[[text-only-mappings-strings]]
 ===== `text`-only mappings for strings
 
 On the contrary to the previous example, if the only thing that you care about
@@ -294,7 +328,7 @@ aggregations, sorting or exact search on your string fields, you could tell
 Elasticsearch to map it only as a text field (which was the default behaviour
 before 5.0):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -312,7 +346,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Disabled norms
 
@@ -320,7 +353,7 @@ Norms are index-time scoring factors. If you do not care about scoring, which
 would be the case for instance if you never sort documents by score, you could
 disable the storage of these scoring factors in the index and save some space.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -345,7 +378,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The sub `keyword` field appears in this template to be consistent with the
 default rules of dynamic mappings. Of course if you do not need them because
@@ -359,7 +391,7 @@ numeric fields that you will often aggregate on but never filter on. In such a
 case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -387,7 +419,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Like the default dynamic mapping rules, doubles are mapped as floats, which
     are usually accurate enough, yet require half the disk space.
-

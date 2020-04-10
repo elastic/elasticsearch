@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -24,12 +24,7 @@ public abstract class BaseDateTimeProcessor implements Processor {
     }
 
     BaseDateTimeProcessor(StreamInput in) throws IOException {
-        zoneId = ZoneId.of(in.readString());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(zoneId.getId());
+        zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     ZoneId zoneId() {

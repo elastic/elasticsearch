@@ -20,10 +20,12 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
@@ -59,11 +61,10 @@ public class ThreadPoolTests extends ESTestCase {
             long currentTime = System.currentTimeMillis();
             long gotTime = threadPool.absoluteTimeInMillis();
             long delta = Math.abs(gotTime - currentTime);
-            assertTrue("thread pool cached absolute time " + gotTime + " is too far from real current time " + currentTime,
-                delta < 10000); // the delta can be large, we just care it is the same order of magnitude
+            // the delta can be large, we just care it is the same order of magnitude
+            assertTrue("thread pool cached absolute time " + gotTime + " is too far from real current time " + currentTime, delta < 10000);
         } finally {
-            threadPool.shutdown();
-            threadPool.close();
+            terminate(threadPool);
         }
     }
 
@@ -102,5 +103,36 @@ public class ThreadPoolTests extends ESTestCase {
             () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
             equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
         terminate(threadPool);
+    }
+
+    public void testInheritContextOnSchedule() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch executed = new CountDownLatch(1);
+
+        TestThreadPool threadPool = new TestThreadPool("test");
+        try {
+            threadPool.getThreadContext().putHeader("foo", "bar");
+            final Integer one = Integer.valueOf(1);
+            threadPool.getThreadContext().putTransient("foo", one);
+            threadPool.schedule(() -> {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    fail();
+                }
+                assertEquals(threadPool.getThreadContext().getHeader("foo"), "bar");
+                assertSame(threadPool.getThreadContext().getTransient("foo"), one);
+                assertNull(threadPool.getThreadContext().getHeader("bar"));
+                assertNull(threadPool.getThreadContext().getTransient("bar"));
+                executed.countDown();
+            }, TimeValue.timeValueMillis(randomInt(100)), randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+            threadPool.getThreadContext().putTransient("bar", "boom");
+            threadPool.getThreadContext().putHeader("bar", "boom");
+            latch.countDown();
+            executed.await();
+        } finally {
+            latch.countDown();
+            terminate(threadPool);
+        }
     }
 }

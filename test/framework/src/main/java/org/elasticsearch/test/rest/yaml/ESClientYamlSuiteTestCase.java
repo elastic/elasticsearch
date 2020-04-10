@@ -20,7 +20,9 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
@@ -48,6 +50,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,7 +62,10 @@ import java.util.Set;
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
  * clients against against an elasticsearch cluster.
+ *
+ * The suite timeout is extended to account for projects with a large number of tests.
  */
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**
@@ -280,9 +286,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (validateSpec) {
             StringBuilder errorMessage = new StringBuilder();
             for (ClientYamlSuiteRestApi restApi : restSpec.getApis()) {
-                if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
-                    if (!restApi.getMethods().contains("POST")) {
-                        errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support POST");
+                if (restApi.isBodySupported()) {
+                    for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
+                        List<String> methodsList = Arrays.asList(path.getMethods());
+                        if (methodsList.contains("GET") && restApi.isBodySupported()) {
+                            if (!methodsList.contains("POST")) {
+                                errorMessage.append("\n- ").append(restApi.getName())
+                                    .append(" supports GET with a body but doesn't support POST");
+                            }
+                        }
                     }
                 }
             }
@@ -417,5 +429,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
+    }
+
+    protected final boolean preserveDataStreamsUponCompletion() {
+        // TODO: enable automatic deleting of data streams
+        // For now don't automatically try to remove all data streams after each yaml test.
+        // The client runners need to be adjust to remove data streams after each test too,
+        // otherwise rest yaml tests using data streams succeed in Elasticsearch, but may fail when clients run
+        // the yaml test suite. In the mean time we should delete data streams manually after each test.
+        return true;
     }
 }

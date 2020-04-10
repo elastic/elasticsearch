@@ -12,10 +12,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.Objects;
 
 public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
@@ -64,8 +64,8 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     public void testId() {
         String influencerFieldValue = "wopr";
         Influencer influencer = new Influencer("job-foo", "host", influencerFieldValue, new Date(1000), 300L);
-        int valueHash = Objects.hashCode(influencerFieldValue);
-        assertEquals("job-foo_influencer_1000_300_host_" + valueHash + "_" + influencerFieldValue.length(), influencer.getId());
+        String valuePart = MachineLearningField.valuesToId(influencerFieldValue);
+        assertEquals("job-foo_influencer_1000_300_host_" + valuePart, influencer.getId());
     }
 
     public void testLenientParser() throws IOException {

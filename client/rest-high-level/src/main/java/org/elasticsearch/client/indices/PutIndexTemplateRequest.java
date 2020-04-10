@@ -20,18 +20,16 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -50,13 +48,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContent {
+public class PutIndexTemplateRequest extends TimedRequest implements ToXContentFragment {
 
     private String name;
 
@@ -77,19 +74,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private Integer version;
 
     /**
-     * Constructs a new put index template request with the provided name.
+     * Constructs a new put index template request with the provided name and patterns.
      */
-    public PutIndexTemplateRequest(String name) {
+    public PutIndexTemplateRequest(String name, List<String> indexPatterns) {
         this.name(name);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (indexPatterns == null || indexPatterns.size() == 0) {
-            validationException = addValidationError("index patterns are missing", validationException);
-        }
-        return validationException;
+        this.patterns(indexPatterns);
     }
 
     /**
@@ -111,6 +100,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     public PutIndexTemplateRequest patterns(List<String> indexPatterns) {
+        if (indexPatterns == null || indexPatterns.size() == 0) {
+            throw new IllegalArgumentException("index patterns are missing");
+        }
         this.indexPatterns = indexPatterns;
         return this;
     }
@@ -191,7 +183,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public Settings settings() {
         return this.settings;
     }
-    
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -201,7 +193,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
         internalMapping(XContentHelper.convertToMap(new BytesArray(source), true, xContentType).v2());
         return this;
-    }    
+    }
 
     /**
      * The cause for this index template creation.
@@ -221,11 +213,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
-        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source), 
+        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source),
                 true, source.contentType()).v2());
-        return this;        
-    }    
-    
+        return this;
+    }
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -235,8 +227,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public PutIndexTemplateRequest mapping(BytesReference source, XContentType xContentType) {
         internalMapping(XContentHelper.convertToMap(source, true, xContentType).v2());
         return this;
-    } 
-    
+    }
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -244,7 +236,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(Map<String, Object> source) {
         return internalMapping(source);
-    }      
+    }
 
     private PutIndexTemplateRequest internalMapping(Map<String, Object> source) {
         try {
@@ -257,12 +249,12 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 return this;
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to convert source to json", e);
-            }            
+            }
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
-    }   
-    
+    }
+
     public BytesReference mappings() {
         return this.mappings;
     }
@@ -286,18 +278,14 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (name.equals("template")) {
-                if(entry.getValue() instanceof String) {
-                    patterns(Collections.singletonList((String) entry.getValue()));
-                }
-            } else if (name.equals("index_patterns")) {
+            if (name.equals("index_patterns")) {
                 if(entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
                     patterns(elements);
                 } else {
-                    throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
+                    throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
                 }
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
@@ -349,8 +337,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
-    }    
-    
+    }
+
 
     public Set<Alias> aliases() {
         return this.aliases;
@@ -412,14 +400,21 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return this;
     }
 
-    @Override
-    public String[] indices() {
-        return indexPatterns.toArray(new String[indexPatterns.size()]);
+    /**
+     * @deprecated Use {@link #setMasterTimeout(TimeValue)} instead
+     */
+    @Deprecated
+    public final PutIndexTemplateRequest masterNodeTimeout(TimeValue timeout) {
+        setMasterTimeout(timeout);
+        return this;
     }
 
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictExpand();
+    /**
+     * @deprecated Use {@link #setMasterTimeout(TimeValue)} instead
+     */
+    @Deprecated
+    public final PutIndexTemplateRequest masterNodeTimeout(String timeout) {
+        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
 
     @Override
@@ -441,7 +436,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 builder.copyCurrentStructure(parser);
             }
         }
-        
+
         builder.startObject("aliases");
         for (Alias alias : aliases) {
             alias.toXContent(builder, params);

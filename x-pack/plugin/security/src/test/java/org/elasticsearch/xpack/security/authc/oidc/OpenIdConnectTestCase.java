@@ -12,12 +12,14 @@ import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 
 import java.io.IOException;
@@ -36,12 +38,12 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
     protected static final String REALM_NAME = "oidc-realm";
 
     protected static Settings.Builder getBasicRealmSettings() {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(OpenIdConnectRealmSettings.TYPE, REALM_NAME);
         return Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.org/login")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.org/token")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT), "https://op.example.org/logout")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.org/jwks.json")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.elastic.co/cb")
@@ -51,7 +53,16 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.GROUPS_CLAIM.getClaim()), "groups")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.MAIL_CLAIM.getClaim()), "mail")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim()), "name");
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim()), "name")
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .setSecureSettings(getSecureSettings());
+    }
+
+    protected static MockSecureSettings getSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_SECRET),
+            randomAlphaOfLengthBetween(12, 18));
+        return secureSettings;
     }
 
     protected JWT generateIdToken(String subject, String audience, String issuer) throws Exception {
@@ -79,11 +90,14 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
     }
 
     protected RealmConfig buildConfig(Settings realmSettings, ThreadContext threadContext) {
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put(realmSettings).build();
+            .put(realmSettings)
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
+        return new RealmConfig(realmIdentifier, settings, env, threadContext);
     }
 
     public static void writeJwkSetToFile(Path file) throws IOException {

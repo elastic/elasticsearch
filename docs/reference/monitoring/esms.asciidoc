@@ -1,0 +1,392 @@
+[role="xpack"]
+[[esms]]
+== {esms}
+
+The {esms} ({esms-init}) is a monitoring cluster on {ecloud}. Elastic provides
+and maintains {esms-init} for self-managed commercial customers. If you send
+your monitoring data to {esms-init}, it can also be used by Elastic support to
+provide better and faster incident resolution.
+
+NOTE: You must obtain your {esms-init} cluster URLs and credentials from the
+Elastic support team.
+
+[discrete]
+[[esms-elasticsearch]]
+=== Collecting monitoring data about {es}
+
+There are two methods for collecting and sending data about the health of your
+production cluster to {esms-init}:
+
+* {metricbeat}
+* collectors and exporters
+
+To use {metricbeat}:
+
+. Enable the collection of monitoring data on your cluster.
++
+--
+include::configuring-metricbeat.asciidoc[tag=enable-collection]
+
+For more information about these settings, see
+<<monitoring-settings>>.
+--
+
+. Disable the default collection of {es} monitoring metrics.
++
+--
+include::configuring-metricbeat.asciidoc[tag=disable-default-collection]
+--
+
+. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each
+node.
+
+. Enable the {es} {xpack} module in {metricbeat} on each node. +
++
+--
+include::configuring-metricbeat.asciidoc[tag=enable-es-module]
+--
+
+. Configure the {es} {xpack} module in {metricbeat} on each node. +
++
+--
+include::configuring-metricbeat.asciidoc[tag=configure-es-module]
+
+include::configuring-metricbeat.asciidoc[tag=remote-monitoring-user]
+--
+
+. Optional: Disable the system module in {metricbeat}. +
++
+--
+include::configuring-metricbeat.asciidoc[tag=disable-system-module]
+--
+
+. Identify where to send the {es} monitoring data and supply the necessary
+security information.
++
+--
+// tag::metricbeat-config[]
+Add the following settings in the {metricbeat} configuration file
+(`metricbeat.yml`):
+
+[source,yaml]
+----------------------------------
+output.elasticsearch:
+  hosts: ["MONITORING_ELASTICSEARCH_URL"] <1>
+  username: cloud_monitoring_agent <2>
+  password: MONITORING_AGENT_PASSWORD <3>
+----------------------------------
+<1> Replace `MONITORING_ELASTICSEARCH_URL` with the appropriate URL for {esms-init},
+which was provided by the Elastic support team.
+<2> The Elastic support team creates this user in {esms-init} and grants it the
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
+<3> Replace `MONITORING_AGENT_PASSWORD` with the value provided to you by the
+Elastic support team.
+// end::metricbeat-config[]
+--
+
+. {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}].
+
+. Verify that your monitoring data exists in {esms-init}.
++
+--
+Open {kib} in your web browser. Use the {kib} URL and the administrator user ID
+that was provided to you by the Elastic support team.
+{kibana-ref}/elasticsearch-metrics.html[View the {es} metrics] on the
+*Stack Monitoring* page.
+
+If you do not see your metrics yet, see
+<<monitoring-troubleshooting,Troubleshooting {monitor-features}>>.
+--
+
+[discrete]
+[[esms-kibana]]
+=== Collecting monitoring data about {kib}
+
+There are two methods for sending monitoring data about {kib} to {esms-init}.
+You can send it directly to {esms-init} by using {metricbeat} or you can route
+it through exporters on the production cluster.
+
+To use {metricbeat}:
+
+. Disable the default collection of {kib} monitoring metrics. +
++
+--
+//include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=disable-kibana-collection]
+Add the following setting in the {kib} configuration file (`kibana.yml`): 
+
+[source,yaml]
+----------------------------------
+xpack.monitoring.kibana.collection.enabled: false
+----------------------------------
+
+Leave the `xpack.monitoring.enabled` set to its default value (`true`). 
+
+For more information, see 
+{kibana-ref}/monitoring-settings-kb.html[Monitoring settings in {kib}].
+--
+
+. {kibana-ref}/start-stop.html[Start {kib}].
+
+. Ensure that the `xpack.monitoring.collection.enabled` setting is `true` on 
+each node in the production cluster.
+
+. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on the 
+same server as {kib}.
+
+. Enable the {kib} {xpack} module in {metricbeat}. +
++
+--
+// include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=enable-kibana-module]
+For example, to enable the default configuration in the `modules.d` directory, 
+run the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules enable kibana-xpack
+----------------------------------------------------------------------
+
+For more information, see 
+{metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
+{metricbeat-ref}/metricbeat-module-kibana.html[{kib} module].
+--
+
+. Configure the {kib} {xpack} module in {metricbeat}. +
++
+--
+// include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=configure-kibana-module]
+The `modules.d/kibana-xpack.yml` file contains the following settings:
+
+[source,yaml]
+----------------------------------
+- module: kibana
+  metricsets:
+    - stats
+  period: 10s
+  hosts: ["localhost:5601"]
+  #basepath: ""
+  #username: "user"
+  #password: "secret"
+  xpack.enabled: true
+----------------------------------
+
+By default, the module collects {kib} monitoring metrics from `localhost:5601`.
+If that host and port number are not correct, you must update the `hosts`
+setting. If you configured {kib} to use encrypted communications, you must
+access it via HTTPS. For example, use a `hosts` setting like
+`https://localhost:5601`.
+
+// include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=remote-monitoring-user]
+If the Elastic {security-features} are enabled, you must also provide a user 
+ID and password so that {metricbeat} can collect metrics successfully: 
+
+.. Create a user on the production cluster that has the 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
+Alternatively, use the `remote_monitoring_user` 
+<<built-in-users,built-in user>>.
+
+.. Add the `username` and `password` settings to the {kib} module configuration 
+file.
+--
+
+. Optional: Disable the system module in {metricbeat}. +
++
+--
+// include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=disable-system-module]
+By default, the {metricbeat-ref}/metricbeat-module-system.html[system module] is
+enabled. The information it collects, however, is not shown on the *Monitoring*
+page in {kib}. Unless you want to use that information for other purposes, run
+the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules disable system
+----------------------------------------------------------------------
+--
+
+. Identify where to send the {kib} monitoring data and supply the necessary
+security information.
++
+--
+include::esms.asciidoc[tag=metricbeat-config]
+--
+
+. {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}]. 
+
+. Verify that your monitoring data exists in {esms-init}.
++
+--
+Open {kib} in your web browser. Use the {kib} URL and the administrator user ID
+that was provided to you by the Elastic support team.
+{kibana-ref}/kibana-page.html[View the {kib} metrics] on the *Stack Monitoring* page.
+
+If you do not see your metrics yet, see
+<<monitoring-troubleshooting,Troubleshooting {monitor-features}>>.
+--
+
+[discrete]
+[[esms-beats]]
+=== Collecting monitoring data about Beats
+
+:beatname_lc:       packetbeat
+:beatname_uc:       {packetbeat}
+
+There are two methods for sending monitoring data about Beats to {esms-init}.
+You can send it directly to {esms-init} by using {metricbeat} or you can route
+it through exporters on the production cluster.
+
+For example, to use {metricbeat} to monitor {beatname_uc}:
+
+. Enable the HTTP endpoint to allow external collection of monitoring data:
++
+--
+// include::{beats-repo-dir}/monitoring/monitoring-metricbeat.asciidoc[tag=enable-http-endpoint]
+Add the following setting in the {beatname_uc} configuration file
+(+{beatname_lc}.yml+):
+
+[source,yaml]
+----------------------------------
+http.enabled: true
+----------------------------------
+
+By default, metrics are exposed on port 5066. If you need to monitor multiple
+{beats} shippers running on the same server, set `http.port` to expose metrics
+for each shipper on a different port number:
+
+[source,yaml]
+----------------------------------
+http.port: 5067
+----------------------------------
+--
+
+. Disable the default collection of {beatname_uc} monitoring metrics. +
++
+--
+// include::{beats-repo-dir}/monitoring/monitoring-metricbeat.asciidoc[tag=disable-beat-collection]
+Add the following setting in the {beatname_uc} configuration file
+(+{beatname_lc}.yml+): 
+
+[source,yaml]
+----------------------------------
+monitoring.enabled: false
+----------------------------------
+--
+
+. Start {beatname_uc}.
+
+. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on the 
+same server as {beatname_uc}. If you already have {metricbeat} installed on the
+server, skip this step.
+
+. Enable the `beat-xpack` module in {metricbeat}.
++
+--
+// include::{beats-repo-dir}/monitoring/monitoring-metricbeat.asciidoc[tag=enable-beat-module]
+For example, to enable the default configuration in the `modules.d` directory, 
+run the following command, using the correct command syntax for your OS:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules enable beat-xpack
+----------------------------------------------------------------------
+
+For more information, see 
+{metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
+{metricbeat-ref}/metricbeat-module-beat.html[beat module]. 
+--
+
+. Configure the `beat-xpack` module in {metricbeat}. +
++
+--
+// include::{beats-repo-dir}/monitoring/monitoring-metricbeat.asciidoc[tag=configure-beat-module]
+The `modules.d/beat-xpack.yml` file contains the following settings:
+
+[source,yaml]
+----------------------------------
+- module: beat
+  metricsets:
+    - stats
+    - state
+  period: 10s
+  hosts: ["http://localhost:5066"]
+  #username: "user"
+  #password: "secret"
+  xpack.enabled: true
+----------------------------------
+ 
+Set the `hosts`, `username`, and `password` settings as required by your
+environment. For other module settings, it's recommended that you accept the
+defaults.
+
+By default, the module collects {beatname_uc} monitoring data from
+`localhost:5066`. If you exposed the metrics on a different host or port when
+you enabled the HTTP endpoint, update the `hosts` setting.
+
+To monitor multiple {beats} agents or APM Server instances, specify a list of
+hosts, for example:
+
+[source,yaml]
+----------------------------------
+hosts: ["http://localhost:5066","http://localhost:5067","http://localhost:5068"]
+----------------------------------
+
+If you configured {beatname_uc} to use encrypted communications, you must access
+it via HTTPS. For example, use a `hosts` setting like `https://localhost:5066`.
+
+// include::{beats-repo-dir}/monitoring/monitoring-metricbeat.asciidoc[tag=remote-monitoring-user]
+If the Elastic {security-features} are enabled, you must also provide a user 
+ID and password so that {metricbeat} can collect metrics successfully: 
+
+.. Create a user on the production cluster that has the 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
+Alternatively, if it's available in your environment, use the
+`remote_monitoring_user` <<built-in-users,built-in user>>.
+
+.. Add the `username` and `password` settings to the beat module configuration 
+file.
+--
+
+. Optional: Disable the system module in the {metricbeat}.
++
+--
+// include::{beats-repo-dir}/monitoring/monitoring-metricbeat.asciidoc[tag=disable-system-module]
+By default, the {metricbeat-ref}/metricbeat-module-system.html[system module] is
+enabled. The information it collects, however, is not shown on the
+*Stack Monitoring* page in {kib}. Unless you want to use that information for
+other purposes, run the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules disable system
+----------------------------------------------------------------------
+--
+
+. Identify where to send the monitoring data and supply the necessary security
+information.
++
+--
+include::esms.asciidoc[tag=metricbeat-config]
+--
+
+. {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}]. 
+
+. Verify that your monitoring data exists in {esms-init}.
++
+--
+Open {kib} in your web browser. Use the {kib} URL and the administrator user ID
+that was provided to you by the Elastic support team. View the 
+{kibana-ref}/beats-page.html[{beats} metrics] on the *Stack Monitoring* page.
+
+If you do not see your metrics yet, see
+<<monitoring-troubleshooting,Troubleshooting {monitor-features}>>.
+--
+
+For more information about monitoring Beats, see:
+
+* {auditbeat-ref}/monitoring.html[{auditbeat}]
+* {filebeat-ref}/monitoring.html[{filebeat}]
+* {functionbeat-ref}/monitoring.html[{functionbeat}] 
+* {heartbeat-ref}/monitoring.html[{heartbeat}]
+* {journalbeat-ref}/monitoring.html[{journalbeat}]
+* {metricbeat-ref}/monitoring.html[{metricbeat}]
+* {packetbeat-ref}/monitoring.html[{packetbeat}]
+* {winlogbeat-ref}/monitoring.html[{winlogbeat}] 

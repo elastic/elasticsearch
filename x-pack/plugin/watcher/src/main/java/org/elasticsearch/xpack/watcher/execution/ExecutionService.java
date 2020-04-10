@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import com.google.common.collect.Iterables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -15,14 +14,15 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -30,21 +30,29 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
+import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -66,13 +74,14 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class ExecutionService {
 
@@ -127,23 +136,31 @@ public class ExecutionService {
      * Pausing means, that no new watch executions will be done unless this pausing is explicitly unset.
      * This is important when watcher is stopped, so that scheduled watches do not accidentally get executed.
      * This should not be used when we need to reload watcher based on some cluster state changes, then just calling
-     * {@link #clearExecutionsAndQueue()} is the way to go
+     * {@link #clearExecutionsAndQueue(Runnable)} is the way to go
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      *
      * @return the number of tasks that have been removed
      */
-    public int pause() {
+    public int pause(Runnable stoppedListener) {
+        assert stoppedListener != null;
         paused.set(true);
-        return clearExecutionsAndQueue();
+        return clearExecutionsAndQueue(stoppedListener);
     }
 
     /**
      * Empty the currently queued tasks and wait for current executions to finish.
      *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
+     *
      * @return the number of tasks that have been removed
      */
-    public int clearExecutionsAndQueue() {
+    public int clearExecutionsAndQueue(Runnable stoppedListener) {
+        assert stoppedListener != null;
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
-        this.clearExecutions();
+        this.clearExecutions(stoppedListener);
         return cancelledTaskCount;
     }
 
@@ -270,8 +287,10 @@ public class ExecutionService {
         ctx.setNodeId(clusterService.localNode().getId());
         WatchRecord record = null;
         final String watchId = ctx.id().watchId();
+        //pull this to a local reference since the class reference can be swapped, and need to ensure same object is used for put/remove
+        final CurrentExecutions currentExecutions = this.currentExecutions.get();
         try {
-            boolean executionAlreadyExists = currentExecutions.get().put(watchId, new WatchExecution(ctx, Thread.currentThread()));
+            boolean executionAlreadyExists = currentExecutions.put(watchId, new WatchExecution(ctx, Thread.currentThread()));
             if (executionAlreadyExists) {
                 logger.trace("not executing watch [{}] because it is already queued", watchId);
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
@@ -326,7 +345,7 @@ public class ExecutionService {
 
                 triggeredWatchStore.delete(ctx.id());
             }
-            currentExecutions.get().remove(watchId);
+            currentExecutions.remove(watchId);
             logger.debug("finished [{}]/[{}]", watchId, ctx.id());
         }
         return record;
@@ -342,10 +361,9 @@ public class ExecutionService {
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
         // we do not want to update the status.state field, as it might have been deactivated in-between
-        Map<String, String> parameters = MapBuilder.<String, String>newMapBuilder()
-            .put(Watch.INCLUDE_STATUS_KEY, "true")
-            .put(WatchStatus.INCLUDE_STATE, "false")
-            .immutableMap();
+        Map<String, String> parameters = Map.of(
+            Watch.INCLUDE_STATUS_KEY, "true",
+            WatchStatus.INCLUDE_STATE, "false");
         ToXContent.MapParams params = new ToXContent.MapParams(parameters);
         XContentBuilder source = JsonXContent.contentBuilder().
             startObject()
@@ -356,7 +374,7 @@ public class ExecutionService {
         updateRequest.doc(source);
         updateRequest.setIfSeqNo(watch.getSourceSeqNo());
         updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
             // do not rethrow this exception, otherwise the watch history will contain an exception
@@ -399,22 +417,75 @@ public class ExecutionService {
         try {
             executor.execute(new WatchExecutionTask(ctx, () -> execute(ctx)));
         } catch (EsRejectedExecutionException e) {
-            String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
-            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.THREADPOOL_REJECTION, message);
-            try {
-                if (ctx.overrideRecordOnConflict()) {
-                    historyStore.forcePut(record);
-                } else {
-                    historyStore.put(record);
+            //Using the generic pool here since this can happen from a write thread and we don't want to block a write
+            //thread to kick off these additional write/delete requests.
+            //Intentionally not using the HistoryStore or TriggerWatchStore to avoid re-using the same synchronous
+            //BulkProcessor which can cause a deadlock see #41390
+            genericExecutor.execute(new WatchExecutionTask(ctx, () -> {
+                String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
+                logger.warn(message);
+                WatchRecord record = ctx.abortBeforeExecution(ExecutionState.THREADPOOL_REJECTION, message);
+                try {
+                    forcePutHistory(record);
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage(
+                            "Error storing watch history record for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()), exc);
                 }
-            } catch (Exception exc) {
-                logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
-                        triggeredWatch.id()), exc);
-            }
-
-            triggeredWatchStore.delete(triggeredWatch.id());
+                try {
+                    deleteTrigger(triggeredWatch.id());
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage(
+                            "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()), exc);
+                }
+            }));
         }
+    }
+
+    /**
+     * Stores the specified watchRecord.
+     * Any existing watchRecord will be overwritten.
+     */
+    private void forcePutHistory(WatchRecord watchRecord) {
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        try {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder();
+                 ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+                watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
+                IndexRequest request = new IndexRequest(index)
+                    .id(watchRecord.id().value())
+                    .source(builder)
+                    .opType(IndexRequest.OpType.CREATE);
+                client.index(request).get(30, TimeUnit.SECONDS);
+                logger.debug("indexed watch history record [{}]", watchRecord.id().value());
+            } catch (VersionConflictEngineException vcee) {
+                watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
+                    "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+                     ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+                    IndexRequest request = new IndexRequest(index)
+                        .id(watchRecord.id().value())
+                        .source(xContentBuilder.value(watchRecord));
+                    client.index(request).get(30, TimeUnit.SECONDS);
+                }
+                logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
+            final WatchRecord wr = watchRecord;
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
+        }
+    }
+
+    private void deleteTrigger(Wid watcherId) {
+        DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME);
+        request.id(watcherId.value());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+            client.delete(request).actionGet(30, TimeUnit.SECONDS);
+        }
+        logger.trace("successfully deleted triggered watch with id [{}]", watcherId);
     }
 
     WatchRecord executeInner(WatchExecutionContext ctx) {
@@ -500,7 +571,7 @@ public class ExecutionService {
      * @return The GetResponse of calling the get API of this watch
      */
     private GetResponse getWatch(String id) {
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);
@@ -524,11 +595,15 @@ public class ExecutionService {
     /**
      * This clears out the current executions and sets new empty current executions
      * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      */
-    private void clearExecutions() {
+    private void clearExecutions(Runnable stoppedListener) {
+        assert stoppedListener != null;
         final CurrentExecutions currentExecutionsBeforeSetting = currentExecutions.getAndSet(new CurrentExecutions());
         // clear old executions in background, no need to wait
-        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout));
+        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout, stoppedListener));
     }
 
     // the watch execution task takes another runnable as parameter

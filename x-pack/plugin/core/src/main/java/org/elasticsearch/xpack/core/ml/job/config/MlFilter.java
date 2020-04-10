@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,20 +75,14 @@ public class MlFilter implements ToXContentObject, Writeable {
 
     public MlFilter(StreamInput in) throws IOException {
         id = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            description = in.readOptionalString();
-        } else {
-            description = null;
-        }
+        description = in.readOptionalString();
         items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalString(description);
-        }
+        out.writeOptionalString(description);
         out.writeStringArray(items.toArray(new String[items.size()]));
     }
 
@@ -101,7 +94,7 @@ public class MlFilter implements ToXContentObject, Writeable {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(ITEMS.getPreferredName(), items);
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TYPE.getPreferredName(), FILTER_TYPE);
         }
         builder.endObject();

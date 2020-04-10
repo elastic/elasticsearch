@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 stringAscii
 SELECT ASCII(first_name) s FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
@@ -250,6 +252,9 @@ SELECT LOCATE('a',"first_name",7) pos, INSERT("first_name",LOCATE('a',"first_nam
 
 selectLocateAndInsertWithLocateWithConditionAndTwoParameters
 SELECT LOCATE('a',"first_name") pos, INSERT("first_name",LOCATE('a',"first_name"),1,'AAA') inserted FROM "test_emp" WHERE LOCATE('a',"first_name") > 0 ORDER BY "first_name" LIMIT 10;
+
+selectLocateWithConditional
+SELECT LOCATE(CASE WHEN FALSE THEN NULL ELSE 'x' END, "first_name") > 0 AS x, COUNT(*) AS c FROM "test_emp" GROUP BY x ORDER BY c ASC;
 
 selectLeft
 SELECT LEFT("first_name",2) f FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;

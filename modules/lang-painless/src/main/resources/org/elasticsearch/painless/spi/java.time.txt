@@ -26,11 +26,11 @@
 
 class java.time.Clock {
   Clock fixed(Instant,ZoneId)
-  ZoneId getZone()
-  Instant instant()
-  long millis()
-  Clock offset(Clock,Duration)
-  Clock tick(Clock,Duration)
+  ZoneId getZone() @nondeterministic
+  Instant instant() @nondeterministic
+  long millis() @nondeterministic
+  Clock offset(Clock,Duration) @nondeterministic
+  Clock tick(Clock,Duration) @nondeterministic
 }
 
 class java.time.Duration {

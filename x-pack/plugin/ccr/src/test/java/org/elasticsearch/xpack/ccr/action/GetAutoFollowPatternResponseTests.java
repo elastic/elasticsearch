@@ -33,7 +33,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTe
                 "remote",
                 Collections.singletonList(randomAlphaOfLength(4)),
                 randomAlphaOfLength(4),
-                randomIntBetween(0, Integer.MAX_VALUE),
+                true, randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),

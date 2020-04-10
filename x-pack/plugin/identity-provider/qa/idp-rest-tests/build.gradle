@@ -1,0 +1,48 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('identity-provider'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.idp.enabled', 'true'
+  setting 'xpack.idp.entity_id', 'https://idp.test.es.elasticsearch.org/'
+  setting 'xpack.idp.sso_endpoint.redirect', 'http://idp.test.es.elasticsearch.org/test/saml/redirect'
+  setting 'xpack.idp.signing.certificate', 'idp-sign.crt'
+  setting 'xpack.idp.signing.key', 'idp-sign.key'
+  setting 'xpack.idp.privileges.application', 'elastic-cloud'
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.saml.cloud-saml.order', '2'
+  setting 'xpack.security.authc.realms.saml.cloud-saml.idp.entity_id', 'https://idp.test.es.elasticsearch.org/'
+  setting 'xpack.security.authc.realms.saml.cloud-saml.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.cloud-saml.sp.entity_id', 'ec:123456:abcdefg'
+  // This is a dummy one, we simulate the browser and a web app in our tests
+  setting 'xpack.security.authc.realms.saml.cloud-saml.sp.acs', 'https://sp1.test.es.elasticsearch.org/saml/acs'
+  setting 'xpack.security.authc.realms.saml.cloud-saml.attributes.principal', 'https://idp.test.es.elasticsearch.org/attribute/principal'
+  setting 'xpack.security.authc.realms.saml.cloud-saml.attributes.name', 'https://idp.test.es.elasticsearch.org/attribute/name'
+  setting 'logger.org.elasticsearch.xpack.security.authc.saml', 'TRACE'
+  setting 'logger.org.elasticsearch.xpack.idp', 'TRACE'
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  extraConfigFile 'idp-sign.crt', file('src/test/resources/idp-sign.crt')
+  extraConfigFile 'idp-sign.key', file('src/test/resources/idp-sign.key')
+  extraConfigFile 'wildcard_services.json', file('src/test/resources/wildcard_services.json')
+  // The SAML SP is preconfigured with the metadata of the IDP
+  extraConfigFile 'idp-metadata.xml', file('src/test/resources/idp-metadata.xml')
+
+  user username: "admin_user", password: "admin-password"
+  user username: "idp_admin", password: "idp-password", role: "idp_admin"
+  user username: "idp_user", password: "idp-password", role: "idp_user"
+}

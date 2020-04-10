@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // CSV spec used by the docs
 //
@@ -93,11 +95,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
-library        |BASE TABLE 
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -106,9 +108,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -117,10 +119,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -130,9 +132,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -141,20 +143,20 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
 
 showTablesLikeEscape
-schema::name:s|type:s
+schema::name:s|type:s|kind:s
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
-     name      |     type      
----------------+---------------
+     name      |     type      |     kind      
+---------------+---------------+---------------
 
 // end::showTablesLikeEscape
 ;
@@ -164,13 +166,32 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;
+
+
+//
+// include FROZEN
+//
+showTablesIncludeFrozen
+// tag::showTablesIncludeFrozen
+SHOW TABLES INCLUDE FROZEN;
+
+     name      | type     |     kind      
+---------------+----------+---------------
+archive        |TABLE     |FROZEN INDEX
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
+
+// end::showTablesIncludeFrozen
+;
+
 
 ///////////////////////////////
 //
@@ -182,7 +203,7 @@ showFunctions
 // tag::showFunctions
 SHOW FUNCTIONS;
 
-      name       |     type      
+      name       |     type
 -----------------+---------------
 AVG              |AGGREGATE      
 COUNT            |AGGREGATE
@@ -202,9 +223,11 @@ STDDEV_POP       |AGGREGATE
 SUM_OF_SQUARES   |AGGREGATE      
 VAR_POP          |AGGREGATE      
 HISTOGRAM        |GROUPING
+CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
 GREATEST         |CONDITIONAL
 IFNULL           |CONDITIONAL
+IIF              |CONDITIONAL
 ISNULL           |CONDITIONAL
 LEAST            |CONDITIONAL
 NULLIF           |CONDITIONAL
@@ -214,19 +237,29 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATEADD          |SCALAR
+DATEDIFF         |SCALAR
+DATEPART         |SCALAR
+DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
+DATETRUNC        |SCALAR
+DATE_ADD         |SCALAR
+DATE_DIFF        |SCALAR
+DATE_PART        |SCALAR
+DATE_TRUNC       |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
-DAYOFMONTH       |SCALAR         
-DAYOFWEEK        |SCALAR         
-DAYOFYEAR        |SCALAR         
-DAY_NAME         |SCALAR         
-DAY_OF_MONTH     |SCALAR         
-DAY_OF_WEEK      |SCALAR         
-DAY_OF_YEAR      |SCALAR         
-DOM              |SCALAR         
+DAYOFMONTH       |SCALAR
+DAYOFWEEK        |SCALAR
+DAYOFYEAR        |SCALAR
+DAY_NAME         |SCALAR
+DAY_OF_MONTH     |SCALAR
+DAY_OF_WEEK      |SCALAR
+DAY_OF_YEAR      |SCALAR
+DOM              |SCALAR
 DOW              |SCALAR         
-DOY              |SCALAR         
-HOUR             |SCALAR         
+DOY              |SCALAR
+HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
 ISODAYOFWEEK     |SCALAR
@@ -248,8 +281,12 @@ NOW              |SCALAR
 QUARTER          |SCALAR         
 SECOND           |SCALAR         
 SECOND_OF_MINUTE |SCALAR
+TIMESTAMPADD     |SCALAR
+TIMESTAMPDIFF    |SCALAR
+TIMESTAMP_ADD    |SCALAR
+TIMESTAMP_DIFF   |SCALAR
 TODAY            |SCALAR
-WEEK             |SCALAR         
+WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
 ABS              |SCALAR         
@@ -283,8 +320,9 @@ SIN              |SCALAR
 SINH             |SCALAR         
 SQRT             |SCALAR         
 TAN              |SCALAR         
-TRUNCATE         |SCALAR         
-ASCII            |SCALAR         
+TRUNC            |SCALAR
+TRUNCATE         |SCALAR
+ASCII            |SCALAR
 BIT_LENGTH       |SCALAR         
 CHAR             |SCALAR         
 CHARACTER_LENGTH |SCALAR         
@@ -304,13 +342,21 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 SUBSTRING        |SCALAR         
-UCASE            |SCALAR         
+UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
 DATABASE         |SCALAR
 USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
+ST_Z             |SCALAR
 SCORE            |SCORE
-
 // end::showFunctions
 ;
 
@@ -461,6 +507,17 @@ SELECT * FROM "emp" LIMIT 1;
 // end::fromTableQuoted
 ;
 
+fromTableIncludeFrozen
+// tag::fromTableIncludeFrozen
+SELECT * FROM FROZEN archive LIMIT 1;
+
+     author      |        name        |  page_count   |    release_date    
+-----------------+--------------------+---------------+--------------------
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
+
+// end::fromTableIncludeFrozen
+;
+
 fromTableQuoted
 // tag::fromTablePatternQuoted
 SELECT emp_no FROM "e*p" LIMIT 1;
@@ -603,8 +660,8 @@ M              |57
 ;
 
 groupByAndAggExpression
-// tag::groupByAndAggExpression
 schema::g:s|salary:i
+// tag::groupByAndAggExpression
 SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
@@ -765,23 +822,23 @@ schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
 
 
-         h          |       c       
---------------------+---------------
-null                |10
-1951-04-11T00:00:00Z|1
-1952-04-05T00:00:00Z|10
-1953-03-31T00:00:00Z|10
-1954-03-26T00:00:00Z|7
-1955-03-21T00:00:00Z|4
-1956-03-15T00:00:00Z|4
-1957-03-10T00:00:00Z|6
-1958-03-05T00:00:00Z|6
-1959-02-28T00:00:00Z|9
-1960-02-23T00:00:00Z|7
-1961-02-17T00:00:00Z|8
-1962-02-12T00:00:00Z|6
-1963-02-07T00:00:00Z|7
-1964-02-02T00:00:00Z|5    
+           h            |       c       
+------------------------+---------------
+null                    |10             
+1952-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1954-01-01T00:00:00.000Z|8              
+1955-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1957-01-01T00:00:00.000Z|4              
+1958-01-01T00:00:00.000Z|7              
+1959-01-01T00:00:00.000Z|9              
+1960-01-01T00:00:00.000Z|8              
+1961-01-01T00:00:00.000Z|8              
+1962-01-01T00:00:00.000Z|6              
+1963-01-01T00:00:00.000Z|7              
+1964-01-01T00:00:00.000Z|4              
+1965-01-01T00:00:00.000Z|1              
 
 // end::histogramDateTime
 ;
@@ -821,9 +878,9 @@ dtIntervalPlusInterval
 // tag::dtIntervalPlusInterval
 SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
 
-    result     
+    result
 ---------------
-+1 00:53:00.0                       
++1 00:53:00
 
 // end::dtIntervalPlusInterval
 ;
@@ -854,9 +911,9 @@ dtIntervalMinusInterval
 // tag::dtIntervalMinusInterval
 SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 
-    result     
+    result
 ---------------
-+0 22:00:00.0  
++0 22:00:00
 // end::dtIntervalMinusInterval
 ;
 
@@ -884,7 +941,7 @@ SELECT -2 * INTERVAL '3' YEARS AS result;
 
 ///////////////////////////////
 //
-// Order by
+// Order By
 //
 ///////////////////////////////
 
@@ -961,12 +1018,13 @@ Frank Herbert  |God Emperor of Dune|7.0029488
 
 optionalParamsForMatch
 // tag::optionalParamsForMatch
-SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=or;cutoff_frequency=0.2');
+SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=OR;fuzziness=AUTO:1,5;minimum_should_match=1')
+ORDER BY SCORE() DESC LIMIT 2;
 
      author      |                name                |    SCORE()
 -----------------+------------------------------------+---------------
-Peter F. Hamilton|Pandora's Star                      |3.0997515
 Douglas Adams    |The Hitchhiker's Guide to the Galaxy|3.1756816
+Peter F. Hamilton|Pandora's Star                      |3.0997515
 
 // end::optionalParamsForMatch
 ;
@@ -1977,7 +2035,7 @@ SELECT TRUNCATE(-345.153, -1) AS trimmed;
 
 mathTruncateWithPositiveParameter
 // tag::mathTruncateWithPositiveParameter
-SELECT TRUNCATE(-345.153, 1) AS trimmed;
+SELECT TRUNC(-345.153, 1) AS trimmed;
 
     trimmed
 ---------------
@@ -1987,9 +2045,80 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 
 ///////////////////////////////
 //
-// Null handling
+// Conditional
 //
 ///////////////////////////////
+
+case
+schema::case:s
+// tag::case
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 <= 3 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+search
+// end::case
+;
+
+caseReturnNull
+schema::case:s
+// tag::caseReturnNull
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+null
+// end::caseReturnNull
+;
+
+caseWithElse
+schema::case:s
+// tag::caseWithElse
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithElse
+;
+
+caseWithOperand
+schema::case:s
+// tag::caseWithOperand
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 5 THEN 'elasticsearch'
+       END AS "case";
+
+    case
+---------------
+elasticsearch
+// end::caseWithOperand
+;
+
+caseWithOperandAndElse
+schema::case:s
+// tag::caseWithOperandAndElse
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 3 THEN 'elasticsearch'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithOperandAndElse
+;
 
 coalesceReturnNonNull
 // tag::coalesceReturnNonNull
@@ -2020,6 +2149,29 @@ SELECT IFNULL('elastic', null) AS "ifnull";
 ---------------
 elastic
 // end::ifNullReturnFirst
+;
+
+
+iifWithDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithDefaultValue
+SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IIF(1 > 2, 'TRUE', 'FALSE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |FALSE
+// end::iifWithDefaultValue
+;
+
+iifWithoutDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithoutDefaultValue
+SELECT IIF(1 < 2, 'TRUE') AS result1, IIF(1 > 2 , 'TRUE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |null
+// end::iifWithoutDefaultValue
 ;
 
 
@@ -2275,6 +2427,336 @@ SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 ---------------
 19
 // end::dayOfMonth
+;
+
+dateAddDateTimeYears
+// tag::dateAddDateTimeYears
+SELECT DATE_ADD('years', 10, '2019-09-04T11:22:33.000Z'::datetime) AS "+10 years";
+
+      +10 years
+------------------------
+2029-09-04T11:22:33.000Z
+// end::dateAddDateTimeYears
+;
+
+dateAddDateTimeWeeks
+// tag::dateAddDateTimeWeeks
+SELECT DATE_ADD('week', 10, '2019-09-04T11:22:33.000Z'::datetime) AS "+10 weeks";
+
+      +10 weeks
+------------------------
+2019-11-13T11:22:33.000Z
+// end::dateAddDateTimeWeeks
+;
+
+dateAddDateTimeSeconds
+// tag::dateAddDateTimeSeconds
+SELECT DATE_ADD('seconds', -1234, '2019-09-04T11:22:33.000Z'::datetime) AS "-1234 seconds";
+
+      -1234 seconds
+------------------------
+2019-09-04T11:01:59.000Z
+// end::dateAddDateTimeSeconds
+;
+
+dateAddDateQuarters
+// tag::dateAddDateQuarters
+SELECT DATE_ADD('qq', -417, '2019-09-04'::date) AS "-417 quarters";
+
+      -417 quarters
+------------------------
+1915-06-04T00:00:00.000Z
+// end::dateAddDateQuarters
+;
+
+dateAddDateMinutes
+// tag::dateAddDateMinutes
+SELECT DATE_ADD('minutes', 9235, '2019-09-04'::date) AS "+9235 minutes";
+
+      +9235 minutes
+------------------------
+2019-09-10T09:55:00.000Z
+// end::dateAddDateMinutes
+;
+
+dateDiffDateTimeYears
+// tag::dateDiffDateTimeYears
+SELECT DATE_DIFF('years', '2019-09-04T11:22:33.000Z'::datetime, '2032-09-04T22:33:11.000Z'::datetime) AS "diffInYears";
+
+      diffInYears
+------------------------
+13
+// end::dateDiffDateTimeYears
+;
+
+dateDiffDateTimeWeeks
+// tag::dateDiffDateTimeWeeks
+SELECT DATE_DIFF('week', '2019-09-04T11:22:33.000Z'::datetime, '2016-12-08T22:33:11.000Z'::datetime) AS "diffInWeeks";
+
+      diffInWeeks
+------------------------
+-143
+// end::dateDiffDateTimeWeeks
+;
+
+dateDiffDateTimeHours
+// tag::dateDiffDateTimeHours
+SELECT DATEDIFF('hours', '2019-11-10T12:10:00.000Z'::datetime, '2019-11-10T23:59:59.999Z'::datetime) AS "diffInHours";
+
+      diffInHours
+------------------------
+11
+// end::dateDiffDateTimeHours
+;
+
+
+dateDiffDateTimeMinutes
+// tag::dateDiffDateTimeMinutes
+SELECT DATEDIFF('minute', '2019-11-10T12:10:00.000Z'::datetime, '2019-11-10T12:15:59.999Z'::datetime) AS "diffInMinutes";
+
+      diffInMinutes
+------------------------
+5
+// end::dateDiffDateTimeMinutes
+;
+
+dateDiffDateTimeSeconds
+// tag::dateDiffDateTimeSeconds
+SELECT DATE_DIFF('seconds', '2019-09-04T11:22:33.123Z'::datetime, '2019-07-12T22:33:11.321Z'::datetime) AS "diffInSeconds";
+
+      diffInSeconds
+------------------------
+-4625362
+// end::dateDiffDateTimeSeconds
+;
+
+dateDiffDateQuarters
+// tag::dateDiffDateQuarters
+SELECT DATE_DIFF('qq', '2019-09-04'::date, '2025-04-25'::date) AS "diffInQuarters";
+
+      diffInQuarters
+------------------------
+23
+// end::dateDiffDateQuarters
+;
+
+dateDiffDateMinutes
+// tag::dateDiffDateMinutes
+SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::datetime) AS "diffInMinutes";
+
+      diffInMinutes
+------------------------
+-2128407
+// end::dateDiffDateMinutes
+;
+
+dateTimeFormatDate
+// tag::dateTimeFormatDate
+SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateTimeFormatDate
+;
+
+dateTimeFormatDateTime
+// tag::dateTimeFormatDateTime
+SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.SS') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::dateTimeFormatDateTime
+;
+
+dateTimeFormatTime
+// tag::dateTimeFormatTime
+SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::dateTimeFormatTime
+;
+
+// Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
+dateTimeParse1-Ignore
+schema::datetime:ts
+// tag::dateTimeParse1
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T10:20:30.123Z
+// end::dateTimeParse1
+;
+
+dateTimeParse2
+schema::datetime:ts
+// tag::dateTimeParse2
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T08:20:30.000Z
+// end::dateTimeParse2
+;
+
+datePartDateTimeYears
+// tag::datePartDateTimeYears
+SELECT DATE_PART('year', '2019-09-22T11:22:33.123Z'::datetime) AS "years";
+
+   years
+----------
+2019
+// end::datePartDateTimeYears
+;
+
+datePartDateTimeWeek
+// tag::datePartDateTimeWeek
+SELECT DATE_PART('week', '2019-09-22T11:22:33.123Z'::datetime) AS week;
+
+   week
+----------
+39
+// end::datePartDateTimeWeek
+;
+
+datePartDateTimeMinutes
+// tag::datePartDateTimeMinutes
+SELECT DATE_PART('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
+
+   mins
+-----------
+22
+// end::datePartDateTimeMinutes
+;
+
+datePartDateTimeTzOffsetPlus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
+// tag::datePartDateTimeTzOffsetPlus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123+05:15'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+315
+// end::datePartDateTimeTzOffsetPlus
+;
+
+datePartDateTimeTzOffsetMinus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
+// tag::datePartDateTimeTzOffsetMinus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123-03:49'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+-229
+// end::datePartDateTimeTzOffsetMinus
+;
+
+datePartDateQuarter
+// tag::datePartDateQuarter
+SELECT DATE_PART('quarters', CAST('2019-09-24' AS DATE)) AS quarter;
+
+   quarter
+-------------
+3
+// end::datePartDateQuarter
+;
+
+datePartDateMonth
+// tag::datePartDateMonth
+SELECT DATE_PART('month', CAST('2019-09-24' AS DATE)) AS month;
+
+   month
+-------------
+9
+// end::datePartDateMonth
+;
+
+truncateDateTimeMillennium
+// tag::truncateDateTimeMillennium
+SELECT DATE_TRUNC('millennium', '2019-09-04T11:22:33.123Z'::datetime) AS millennium;
+
+      millennium
+------------------------
+2000-01-01T00:00:00.000Z
+// end::truncateDateTimeMillennium
+;
+
+truncateDateTimeWeek
+// tag::truncateDateTimeWeek
+SELECT DATETRUNC('week', '2019-08-24T11:22:33.123Z'::datetime) AS week;
+
+      week
+------------------------
+2019-08-19T00:00:00.000Z
+// end::truncateDateTimeWeek
+;
+
+truncateDateTimeMinutes
+// tag::truncateDateTimeMinutes
+SELECT DATE_TRUNC('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
+
+      mins
+------------------------
+2019-09-04T11:22:00.000Z
+// end::truncateDateTimeMinutes
+;
+
+truncateDateDecades
+schema::decades:ts
+// tag::truncateDateDecades
+SELECT DATE_TRUNC('decade', CAST('2019-09-04' AS DATE)) AS decades;
+
+      decades
+------------------------
+2010-01-01T00:00:00.000Z
+// end::truncateDateDecades
+;
+
+truncateDateQuarter
+schema::quarter:ts
+// tag::truncateDateQuarter
+SELECT DATETRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
+
+      quarter
+------------------------
+2019-07-01T00:00:00.000Z
+// end::truncateDateQuarter
+;
+
+truncateIntervalCenturies
+// tag::truncateIntervalCenturies
+SELECT DATE_TRUNC('centuries', INTERVAL '199-5' YEAR TO MONTH) AS centuries;
+
+      centuries
+------------------
+ +100-0
+// end::truncateIntervalCenturies
+;
+
+truncateIntervalHour
+// tag::truncateIntervalHour
+SELECT DATE_TRUNC('hours', INTERVAL '17 22:13:12' DAY TO SECONDS) AS hour;
+
+      hour
+------------------
++17 22:00:00
+// end::truncateIntervalHour
+;
+
+truncateIntervalDay
+// tag::truncateIntervalDay
+SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
+
+      day
+------------------
++19 00:00:00
+// end::truncateIntervalDay
 ;
 
 constantDayOfWeek

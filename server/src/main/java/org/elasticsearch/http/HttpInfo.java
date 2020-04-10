@@ -19,11 +19,9 @@
 
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -33,32 +31,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.Booleans.parseBoolean;
-
 public class HttpInfo implements Writeable, ToXContentFragment {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(HttpInfo.class));
-
-    /** Whether to add hostname to publish host field when serializing. */
-    private static final boolean CNAME_IN_PUBLISH_HOST =
-        parseBoolean(System.getProperty("es.http.cname_in_publish_address"), true);
 
     private final BoundTransportAddress address;
     private final long maxContentLength;
-    private final boolean cnameInPublishHost;
 
     public HttpInfo(StreamInput in) throws IOException {
-        this(BoundTransportAddress.readBoundTransportAddress(in), in.readLong(), CNAME_IN_PUBLISH_HOST);
+        this(new BoundTransportAddress(in), in.readLong());
     }
 
     public HttpInfo(BoundTransportAddress address, long maxContentLength) {
-        this(address, maxContentLength, CNAME_IN_PUBLISH_HOST);
-    }
-
-    HttpInfo(BoundTransportAddress address, long maxContentLength, boolean cnameInPublishHost) {
         this.address = address;
         this.maxContentLength = maxContentLength;
-        this.cnameInPublishHost = cnameInPublishHost;
     }
 
     @Override
@@ -83,15 +67,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
-            if (cnameInPublishHost) {
-                publishAddressString = hostString + '/' + publishAddress.toString();
-            } else {
-                deprecationLogger.deprecated(
-                    "[http.publish_host] was printed as [ip:port] instead of [hostname/ip:port]. "
-                        + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
-                        + "Use -Des.http.cname_in_publish_address=true to enforce non-deprecated formatting."
-                );
-            }
+            publishAddressString = hostString + '/' + publishAddress.toString();
         }
         builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
         builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength());

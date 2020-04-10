@@ -59,17 +59,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    /**
      * The search type to execute, defaults to {@link org.elasticsearch.action.search.SearchType#DEFAULT}.
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {
@@ -224,7 +213,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         sourceBuilder().version(version);
         return this;
     }
-    
+
     /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
@@ -378,7 +367,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     * Indicates if the total hit count for the query should be tracked. Requests will count total hit count accurately
+     * up to 10,000 by default, see {@link #setTrackTotalHitsUpTo(int)} to change this value or set to true/false to always/never
+     * count accurately.
      */
     public SearchRequestBuilder setTrackTotalHits(boolean trackTotalHits) {
         sourceBuilder().trackTotalHits(trackTotalHits);
@@ -386,7 +377,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     * Indicates the total hit count that should be tracked accurately or null if the value is unset. Defaults to 10,000.
      */
     public SearchRequestBuilder setTrackTotalHitsUpTo(int trackTotalHitsUpTo) {
         sourceBuilder().trackTotalHitsUpTo(trackTotalHitsUpTo);
@@ -567,8 +558,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
         this.request.setPreFilterShardSize(preFilterShardSize);

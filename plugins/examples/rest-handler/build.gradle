@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -16,6 +18,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -31,16 +34,16 @@ test.enabled = false
 
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
-  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-  executable = new File(project.runtimeJavaHome, 'bin/java')
+  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
+  executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }
 
-integTestCluster {
+integTest {
   dependsOn exampleFixture
-}
-integTestRunner {
-  nonInputProperties.systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
+  runner {
+    nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
+  }
 }
 
 testingConventions.naming {

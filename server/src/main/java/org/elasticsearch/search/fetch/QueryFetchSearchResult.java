@@ -23,23 +23,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.fetch.FetchSearchResult.readFetchSearchResult;
-import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
-
 public final class QueryFetchSearchResult extends SearchPhaseResult {
 
-    private QuerySearchResult queryResult;
-    private FetchSearchResult fetchResult;
-
-    public QueryFetchSearchResult() {
-    }
+    private final QuerySearchResult queryResult;
+    private final FetchSearchResult fetchResult;
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        queryResult = new QuerySearchResult(in);
+        fetchResult = new FetchSearchResult(in);
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -48,8 +45,8 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
-    public long getRequestId() {
-        return queryResult.getRequestId();
+    public SearchContextId getContextId() {
+        return queryResult.getContextId();
     }
 
     @Override
@@ -81,22 +78,8 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         return fetchResult;
     }
 
-    public static QueryFetchSearchResult readQueryFetchSearchResult(StreamInput in) throws IOException {
-        QueryFetchSearchResult result = new QueryFetchSearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        queryResult = readQuerySearchResult(in);
-        fetchResult = readFetchSearchResult(in);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }

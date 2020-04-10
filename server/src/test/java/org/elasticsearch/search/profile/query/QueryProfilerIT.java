@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -53,7 +54,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
      * constructs 20-100 random queries and tries to profile them
      */
-    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8658")
     public void testProfileQuery() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -61,7 +61,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -110,13 +110,16 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * to make sure the profiling doesn't interfere with the hits being returned
      */
     public void testProfileMatchesRegular() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0).build());
         ensureGreen();
 
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
+                    "id", String.valueOf(i),
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -134,14 +137,14 @@ public class QueryProfilerIT extends ESIntegTestCase {
         SearchRequestBuilder vanilla = client().prepareSearch("test")
             .setQuery(q)
             .setProfile(false)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
         SearchRequestBuilder profile = client().prepareSearch("test")
             .setQuery(q)
             .setProfile(true)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
@@ -200,7 +203,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -247,7 +250,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -314,7 +317,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -364,7 +367,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -411,7 +414,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -458,7 +461,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -505,7 +508,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -551,7 +554,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i) + " " + English.intToEnglish(i+1),
                     "field2", i
             );
@@ -568,7 +571,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
                 .setIndices("test")
-                .setTypes("type1")
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .get();
@@ -609,7 +611,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
                     "field1", English.intToEnglish(i),
                     "field2", i
             );

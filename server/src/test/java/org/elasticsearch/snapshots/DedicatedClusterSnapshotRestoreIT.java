@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -40,8 +41,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -61,12 +63,14 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -76,7 +80,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.TestCustomMetaData;
+import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -94,13 +98,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,38 +120,37 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
-    public static class TestCustomMetaDataPlugin extends Plugin {
+    public static class TestCustomMetadataPlugin extends Plugin {
 
         private final List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>();
         private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
-        public TestCustomMetaDataPlugin() {
+        public TestCustomMetadataPlugin() {
             registerBuiltinWritables();
         }
 
-        private <T extends MetaData.Custom> void registerMetaDataCustom(String name, Writeable.Reader<T> reader,
+        private <T extends Metadata.Custom> void registerMetadataCustom(String name, Writeable.Reader<T> reader,
                                                                         Writeable.Reader<NamedDiff> diffReader,
                                                                         CheckedFunction<XContentParser, T, IOException> parser) {
-            namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, name, reader));
+            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
             namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
-            namedXContents.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(name), parser));
+            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
         }
 
         private void registerBuiltinWritables() {
-            registerMetaDataCustom(SnapshottableMetadata.TYPE, SnapshottableMetadata::readFrom,
+            registerMetadataCustom(SnapshottableMetadata.TYPE, SnapshottableMetadata::readFrom,
                 SnapshottableMetadata::readDiffFrom, SnapshottableMetadata::fromXContent);
-            registerMetaDataCustom(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata::readFrom,
+            registerMetadataCustom(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata::readFrom,
                 NonSnapshottableMetadata::readDiffFrom, NonSnapshottableMetadata::fromXContent);
-            registerMetaDataCustom(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata::readFrom,
+            registerMetadataCustom(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata::readFrom,
                 SnapshottableGatewayMetadata::readDiffFrom, SnapshottableGatewayMetadata::fromXContent);
-            registerMetaDataCustom(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata::readFrom,
+            registerMetadataCustom(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata::readFrom,
                 NonSnapshottableGatewayMetadata::readDiffFrom, NonSnapshottableGatewayMetadata::fromXContent);
-            registerMetaDataCustom(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata::readFrom,
+            registerMetadataCustom(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata::readFrom,
                 NonSnapshottableGatewayMetadata::readDiffFrom, SnapshotableGatewayNoApiMetadata::fromXContent);
         }
 
@@ -160,7 +167,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class, BrokenSettingPlugin.class);
+        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class);
     }
 
     public static class BrokenSettingPlugin extends Plugin {
@@ -200,7 +207,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         Consumer<String> assertSettingValue = value -> {
             assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                            .getMetaData().persistentSettings().get(BrokenSettingPlugin.BROKEN_SETTING.getKey()),
+                            .getMetadata().persistentSettings().get(BrokenSettingPlugin.BROKEN_SETTING.getKey()),
                     equalTo(value));
         };
 
@@ -219,8 +226,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
-                .getSnapshots().get(0).state(),
-            equalTo(SnapshotState.SUCCESS));
+                .getSnapshots("test-repo").get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> change the test persistent setting and break it");
         setSettingValue.accept("new value 2");
@@ -249,14 +255,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> add custom persistent metadata");
         updateClusterState(currentState -> {
             ClusterState.Builder builder = ClusterState.builder(currentState);
-            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
+            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
             metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
             metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
             metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
             metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
             metadataBuilder.putCustom(SnapshotableGatewayNoApiMetadata.TYPE,
                 new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi"));
-            builder.metaData(metadataBuilder);
+            builder.metadata(metadataBuilder);
             return builder.build();
         });
 
@@ -272,13 +278,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
-                .getSnapshots().get(0).state(),
+                .getSnapshots("test-repo").get(0).state(),
             equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> change custom persistent metadata");
         updateClusterState(currentState -> {
             ClusterState.Builder builder = ClusterState.builder(currentState);
-            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
+            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
             if (randomBoolean()) {
                 metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("after_snapshot_s"));
             } else {
@@ -292,7 +298,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             }
             metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("after_snapshot_ns_gw"));
             metadataBuilder.removeCustom(SnapshotableGatewayNoApiMetadata.TYPE);
-            builder.metaData(metadataBuilder);
+            builder.metadata(metadataBuilder);
             return builder.build();
         });
 
@@ -309,18 +315,18 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setWaitForCompletion(true).execute().actionGet();
 
         logger.info("--> make sure old repository wasn't restored");
-        assertThrows(client.admin().cluster().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
+        assertRequestBuilderThrows(client.admin().cluster().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
         assertThat(client.admin().cluster().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
 
         logger.info("--> check that custom persistent metadata was restored");
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         logger.info("Cluster state: {}", clusterState);
-        MetaData metaData = clusterState.getMetaData();
-        assertThat(((SnapshottableMetadata) metaData.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
-        assertThat(((NonSnapshottableMetadata) metaData.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
-        assertThat(((SnapshottableGatewayMetadata) metaData.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
+        Metadata metadata = clusterState.getMetadata();
+        assertThat(((SnapshottableMetadata) metadata.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
+        assertThat(((NonSnapshottableMetadata) metadata.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
+        assertThat(((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
             equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata) metaData.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
+        assertThat(((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
             equalTo("after_snapshot_ns_gw"));
 
         logger.info("--> restart all nodes");
@@ -330,18 +336,18 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> check that gateway-persistent custom metadata survived full cluster restart");
         clusterState = client().admin().cluster().prepareState().get().getState();
         logger.info("Cluster state: {}", clusterState);
-        metaData = clusterState.getMetaData();
-        assertThat(metaData.custom(SnapshottableMetadata.TYPE), nullValue());
-        assertThat(metaData.custom(NonSnapshottableMetadata.TYPE), nullValue());
-        assertThat(((SnapshottableGatewayMetadata) metaData.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
+        metadata = clusterState.getMetadata();
+        assertThat(metadata.custom(SnapshottableMetadata.TYPE), nullValue());
+        assertThat(metadata.custom(NonSnapshottableMetadata.TYPE), nullValue());
+        assertThat(((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
             equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata) metaData.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
+        assertThat(((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
             equalTo("after_snapshot_ns_gw"));
         // Shouldn't be returned as part of API response
-        assertThat(metaData.custom(SnapshotableGatewayNoApiMetadata.TYPE), nullValue());
+        assertThat(metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE), nullValue());
         // But should still be in state
-        metaData = internalCluster().getInstance(ClusterService.class).state().metaData();
-        assertThat(((SnapshotableGatewayNoApiMetadata) metaData.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
+        metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
+        assertThat(((SnapshotableGatewayNoApiMetadata) metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
             equalTo("before_snapshot_s_gw_noapi"));
     }
 
@@ -381,7 +387,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -420,7 +426,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39852")
     public void testSnapshotWithStuckNode() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = new ArrayList<>();
@@ -434,7 +439,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -484,18 +489,22 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         logger.info("--> making sure that snapshot no longer exists");
-        assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(),
-            SnapshotMissingException.class);
-        // Subtract four files that will remain in the repository:
-        //   (1) index-1
-        //   (2) index-0 (because we keep the previous version) and
-        //   (3) index-latest
-        //   (4) incompatible-snapshots
-        assertFileCount(repo, 4);
+        expectThrows(SnapshotMissingException.class,
+            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
+                .execute().actionGet().getSnapshots("test-repo"));
+
+        logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
+        client().admin().cluster().prepareCleanupRepository("test-repo").get();
+
+        // Expect two files to remain in the repository:
+        //   (1) index-(N+1)
+        //   (2) index-latest
+        assertFileCount(repo, 2);
         logger.info("--> done");
     }
 
     public void testRestoreIndexWithMissingShards() throws Exception {
+        disableRepoConsistencyCheck("This test leaves behind a purposely broken repository");
         logger.info("--> start 2 nodes");
         internalCluster().startNode();
         internalCluster().startNode();
@@ -508,7 +517,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data into test-idx-some");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-some", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-some", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client().prepareSearch("test-idx-some").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -529,8 +538,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                                                                           .put("number_of_replicas", 0)));
         logger.info("--> indexing some data into test-idx-all");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-all", "doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-closed", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-all", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-closed", Integer.toString(i), "foo", "bar" + i);
         }
         refresh("test-idx-closed", "test-idx-all"); // don't refresh test-idx-some it will take 30 sec until it times out...
         assertThat(client().prepareSearch("test-idx-all").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -541,7 +550,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(prepareCreate("test-idx-none", 1, Settings.builder().put("number_of_shards", 6)
                 .put("index.routing.allocation.include.tag", "nowhere")
                 .put("number_of_replicas", 0)).setWaitForActiveShards(ActiveShardCount.NONE).get());
-        assertTrue(client().admin().indices().prepareExists("test-idx-none").get().isExists());
+        assertTrue(indexExists("test-idx-none"));
 
         logger.info("--> creating repository");
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
@@ -584,8 +593,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertBusy(() -> {
                 GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots("test-repo")
                     .setSnapshots("test-snap-2").get();
-                assertThat(response.getSnapshots().size(), equalTo(1));
-                SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
+                assertThat(response.getSnapshots("test-repo").size(), equalTo(1));
+                SnapshotInfo snapshotInfo = response.getSnapshots("test-repo").get(0);
                 assertTrue(snapshotInfo.state().completed());
                 assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
             }, 1, TimeUnit.MINUTES);
@@ -600,14 +609,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(16));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(10));
             assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet()
-                    .getSnapshots().get(0).state(),
+                    .getSnapshots("test-repo").get(0).state(),
                 equalTo(SnapshotState.PARTIAL));
         }
 
         assertAcked(client().admin().indices().prepareClose("test-idx-all"));
 
         logger.info("--> restore incomplete snapshot - should fail");
-        assertThrows(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)
+        assertFutureThrows(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false)
                 .setWaitForCompletion(true).execute(),
             SnapshotRestoreException.class);
 
@@ -677,7 +686,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> indexing some data into test-idx");
         for (int i = 0; i < 100; i++) {
-            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client().prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
@@ -723,6 +732,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testRegistrationFailure() {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
@@ -742,6 +752,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
         Settings nodeSettings = Settings.EMPTY;
         logger.info("--> start two nodes");
         internalCluster().startNodes(2, nodeSettings);
@@ -754,8 +765,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ).get();
 
         NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
-        RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(nodeSettings, mock(RestController.class),
-                internalCluster().getInstance(SettingsFilter.class));
+        RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(internalCluster().getInstance(SettingsFilter.class));
         RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", "test-repo");
         final CountDownLatch getRepoLatch = new CountDownLatch(1);
@@ -777,8 +787,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             throw getRepoError.get();
         }
 
-        RestClusterStateAction clusterStateAction = new RestClusterStateAction(nodeSettings, mock(RestController.class),
-                internalCluster().getInstance(SettingsFilter.class));
+        RestClusterStateAction clusterStateAction = new RestClusterStateAction(internalCluster().getInstance(SettingsFilter.class));
         RestRequest clusterStateRequest = new FakeRestRequest();
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
         final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();
@@ -822,7 +831,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -841,7 +850,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
                 .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().completed());
         }, 1, TimeUnit.MINUTES);
 
@@ -849,7 +858,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap").get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
@@ -877,7 +886,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -901,7 +910,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
                 .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().completed());
         }, 1, TimeUnit.MINUTES);
 
@@ -909,7 +918,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap").get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
         assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
         assertNotEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertThat(snapshotInfo.failedShards(), greaterThan(0));
@@ -918,7 +927,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25281")
     public void testMasterShutdownDuringFailedSnapshot() throws Exception {
         logger.info("-->  starting two master nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);
@@ -939,8 +947,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -967,8 +974,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().completed());
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             SnapshotsInProgress snapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
@@ -978,7 +985,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("-->  verify that snapshot failed");
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
             .prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
         assertEquals(SnapshotState.FAILED, snapshotInfo.state());
     }
 
@@ -1010,8 +1017,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> indexing some data");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomIntBetween(10, 100)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(sourceIdx, "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -1093,7 +1099,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client.prepareIndex(indexName, "type").setSource("test", "init").execute().actionGet();
+            client.prepareIndex(indexName).setSource("test", "init").execute().actionGet();
         }
 
         logger.info("--> register a repository");
@@ -1123,11 +1129,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         SnapshotStats stats = snapshots.get(0).getStats();
 
-        assertThat(stats.getTotalFileCount(), is(snapshot0FileCount));
-        assertThat(stats.getTotalSize(), is(snapshot0FileSize));
+        assertThat(stats.getTotalFileCount(), greaterThanOrEqualTo(snapshot0FileCount));
+        assertThat(stats.getTotalSize(), greaterThanOrEqualTo(snapshot0FileSize));
 
-        assertThat(stats.getIncrementalFileCount(), equalTo(snapshot0FileCount));
-        assertThat(stats.getIncrementalSize(), equalTo(snapshot0FileSize));
+        assertThat(stats.getIncrementalFileCount(), equalTo(stats.getTotalFileCount()));
+        assertThat(stats.getIncrementalSize(), equalTo(stats.getTotalSize()));
 
         assertThat(stats.getIncrementalFileCount(), equalTo(stats.getProcessedFileCount()));
         assertThat(stats.getIncrementalSize(), equalTo(stats.getProcessedSize()));
@@ -1135,7 +1141,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         // add few docs - less than initially
         docs = between(1, 5);
         for (int i = 0; i < docs; i++) {
-            client.prepareIndex(indexName, "type").setSource("test", "test" + i).execute().actionGet();
+            client.prepareIndex(indexName).setSource("test", "test" + i).execute().actionGet();
         }
 
         // create another snapshot
@@ -1166,8 +1172,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ArrayList<Path> snapshotFilesDiff = new ArrayList<>(snapshot1Files);
         snapshotFilesDiff.removeAll(snapshot0Files);
 
-        assertThat(anotherStats.getIncrementalFileCount(), equalTo(snapshotFilesDiff.size()));
-        assertThat(anotherStats.getIncrementalSize(), equalTo(calculateTotalFilesSize(snapshotFilesDiff)));
+        assertThat(anotherStats.getIncrementalFileCount(), greaterThanOrEqualTo(snapshotFilesDiff.size()));
+        assertThat(anotherStats.getIncrementalSize(), greaterThanOrEqualTo(calculateTotalFilesSize(snapshotFilesDiff)));
 
         assertThat(anotherStats.getIncrementalFileCount(), equalTo(anotherStats.getProcessedFileCount()));
         assertThat(anotherStats.getIncrementalSize(), equalTo(anotherStats.getProcessedSize()));
@@ -1175,8 +1181,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(stats.getTotalSize(), lessThan(anotherStats.getTotalSize()));
         assertThat(stats.getTotalFileCount(), lessThan(anotherStats.getTotalFileCount()));
 
-        assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
-        assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
+        assertThat(anotherStats.getTotalFileCount(), greaterThanOrEqualTo(snapshot1FileCount));
+        assertThat(anotherStats.getTotalSize(), greaterThanOrEqualTo(snapshot1FileSize));
     }
 
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
@@ -1196,8 +1202,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numdocs = randomIntBetween(50, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "type1",
-                Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
@@ -1210,16 +1215,143 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+
+        logger.info("-->  wait for shard snapshots to show as failed");
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get().getSnapshots()
+                .get(0).getShardsStats().getFailedShards(), greaterThanOrEqualTo(1)), 60L, TimeUnit.SECONDS);
+
         unblockNode("test-repo", dataNode);
         disruption.stopDisrupting();
         // check that snapshot completes
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
         }, 60L, TimeUnit.SECONDS);
+    }
+
+    public void testDataNodeRestartAfterShardSnapshotFailure() throws Exception {
+        logger.info("-->  starting a master node and two data nodes");
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        assertAcked(prepareCreate("test-idx", 0, Settings.builder()
+            .put("number_of_shards", 2).put("number_of_replicas", 0)));
+        ensureGreen();
+        logger.info("-->  indexing some data");
+        final int numdocs = randomIntBetween(50, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+        blockAllDataNodes("test-repo");
+        logger.info("-->  snapshot");
+        client(internalCluster().getMasterName()).admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+        logger.info("-->  restarting first data node, which should cause the primary shard on it to be failed");
+        internalCluster().restartNode(dataNodes.get(0), InternalTestCluster.EMPTY_CALLBACK);
+
+        logger.info("-->  wait for shard snapshot of first primary to show as failed");
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get().getSnapshots()
+                .get(0).getShardsStats().getFailedShards(), is(1)), 60L, TimeUnit.SECONDS);
+
+        logger.info("-->  restarting second data node, which should cause the primary shard on it to be failed");
+        internalCluster().restartNode(dataNodes.get(1), InternalTestCluster.EMPTY_CALLBACK);
+
+        // check that snapshot completes with both failed shards being accounted for in the snapshot result
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
+            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
+            assertThat(snapshotInfo.totalShards(), is(2));
+            assertThat(snapshotInfo.shardFailures(), hasSize(2));
+        }, 60L, TimeUnit.SECONDS);
+    }
+
+    public void testRetentionLeasesClearedOnRestore() throws Exception {
+        final String repoName = "test-repo-retention-leases";
+        assertAcked(client().admin().cluster().preparePutRepository(repoName)
+            .setType("fs")
+            .setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())));
+
+        final String indexName = "index-retention-leases";
+        final int shardCount = randomIntBetween(1, 5);
+        assertAcked(client().admin().indices().prepareCreate(indexName)
+            .setSettings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .get());
+        final ShardId shardId = new ShardId(resolveIndex(indexName), randomIntBetween(0, shardCount - 1));
+
+        final int snapshotDocCount = iterations(10, 1000);
+        logger.debug("--> indexing {} docs into {}", snapshotDocCount, indexName);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[snapshotDocCount];
+        for (int i = 0; i < snapshotDocCount; i++) {
+            indexRequestBuilders[i] = client().prepareIndex(indexName).setSource("field", "value");
+        }
+        indexRandom(true, indexRequestBuilders);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), snapshotDocCount);
+
+        final String leaseId = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        logger.debug("--> adding retention lease with id {} to {}", leaseId, shardId);
+        client().execute(RetentionLeaseActions.Add.INSTANCE, new RetentionLeaseActions.AddRequest(
+            shardId, leaseId, RETAIN_ALL, "test")).actionGet();
+
+        final ShardStats shardStats = Arrays.stream(client().admin().indices().prepareStats(indexName).get().getShards())
+            .filter(s -> s.getShardRouting().shardId().equals(shardId)).findFirst().get();
+        final RetentionLeases retentionLeases = shardStats.getRetentionLeaseStats().retentionLeases();
+        assertTrue(shardStats + ": " + retentionLeases, retentionLeases.contains(leaseId));
+
+        final String snapshotName = "snapshot-retention-leases";
+        logger.debug("-->  create snapshot {}:{}", repoName, snapshotName);
+        CreateSnapshotResponse createResponse = client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true).setIndices(indexName).get();
+        assertThat(createResponse.getSnapshotInfo().successfulShards(), equalTo(shardCount));
+        assertThat(createResponse.getSnapshotInfo().failedShards(), equalTo(0));
+
+        if (randomBoolean()) {
+            final int extraDocCount = iterations(10, 1000);
+            logger.debug("--> indexing {} extra docs into {}", extraDocCount, indexName);
+            indexRequestBuilders = new IndexRequestBuilder[extraDocCount];
+            for (int i = 0; i < extraDocCount; i++) {
+                indexRequestBuilders[i] = client().prepareIndex(indexName).setSource("field", "value");
+            }
+            indexRandom(true, indexRequestBuilders);
+        }
+
+        // Wait for green so the close does not fail in the edge case of coinciding with a shard recovery that hasn't fully synced yet
+        ensureGreen();
+        logger.debug("-->  close index {}", indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+
+        logger.debug("--> restore index {} from snapshot", indexName);
+        RestoreSnapshotResponse restoreResponse = client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true).get();
+        assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(shardCount));
+        assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        ensureGreen();
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), snapshotDocCount);
+
+        final RetentionLeases restoredRetentionLeases = Arrays.stream(client().admin().indices().prepareStats(indexName).get()
+            .getShards()).filter(s -> s.getShardRouting().shardId().equals(shardId)).findFirst().get()
+            .getRetentionLeaseStats().retentionLeases();
+        assertFalse(restoredRetentionLeases.toString() + " has no " + leaseId, restoredRetentionLeases.contains(leaseId));
     }
 
     private long calculateTotalFilesSize(List<Path> files) {
@@ -1231,7 +1363,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             }
         }).sum();
     }
-
 
     private List<Path> scanSnapshotFolder(Path repoPath) throws IOException {
         List<Path> files = new ArrayList<>();
@@ -1248,7 +1379,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         return files;
     }
 
-    public static class SnapshottableMetadata extends TestCustomMetaData {
+    public static class SnapshottableMetadata extends TestCustomMetadata {
         public static final String TYPE = "test_snapshottable";
 
         public SnapshottableMetadata(String data) {
@@ -1269,7 +1400,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return readFrom(SnapshottableMetadata::new, in);
         }
 
-        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
             return readDiffFrom(TYPE, in);
         }
 
@@ -1279,12 +1410,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_AND_SNAPSHOT;
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.API_AND_SNAPSHOT;
         }
     }
 
-    public static class NonSnapshottableMetadata extends TestCustomMetaData {
+    public static class NonSnapshottableMetadata extends TestCustomMetadata {
         public static final String TYPE = "test_non_snapshottable";
 
         public NonSnapshottableMetadata(String data) {
@@ -1305,7 +1436,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return readFrom(NonSnapshottableMetadata::new, in);
         }
 
-        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
             return readDiffFrom(TYPE, in);
         }
 
@@ -1314,12 +1445,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_ONLY;
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.API_ONLY;
         }
     }
 
-    public static class SnapshottableGatewayMetadata extends TestCustomMetaData {
+    public static class SnapshottableGatewayMetadata extends TestCustomMetadata {
         public static final String TYPE = "test_snapshottable_gateway";
 
         public SnapshottableGatewayMetadata(String data) {
@@ -1340,7 +1471,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return readFrom(SnapshottableGatewayMetadata::new, in);
         }
 
-        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
             return readDiffFrom(TYPE, in);
         }
 
@@ -1349,12 +1480,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.SNAPSHOT, Metadata.XContentContext.GATEWAY);
         }
     }
 
-    public static class NonSnapshottableGatewayMetadata extends TestCustomMetaData {
+    public static class NonSnapshottableGatewayMetadata extends TestCustomMetadata {
         public static final String TYPE = "test_non_snapshottable_gateway";
 
         public NonSnapshottableGatewayMetadata(String data) {
@@ -1375,7 +1506,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return readFrom(NonSnapshottableGatewayMetadata::new, in);
         }
 
-        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
             return readDiffFrom(TYPE, in);
         }
 
@@ -1384,13 +1515,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_AND_GATEWAY;
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.API_AND_GATEWAY;
         }
 
     }
 
-    public static class SnapshotableGatewayNoApiMetadata extends TestCustomMetaData {
+    public static class SnapshotableGatewayNoApiMetadata extends TestCustomMetadata {
         public static final String TYPE = "test_snapshottable_gateway_no_api";
 
         public SnapshotableGatewayNoApiMetadata(String data) {
@@ -1416,8 +1547,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
         }
     }
 

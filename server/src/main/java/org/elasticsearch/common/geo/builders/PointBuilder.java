@@ -28,7 +28,7 @@ import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
-public class PointBuilder extends ShapeBuilder<Point, org.elasticsearch.geo.geometry.Point, PointBuilder> {
+public class PointBuilder extends ShapeBuilder<Point, org.elasticsearch.geometry.Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
 
     /**
@@ -88,8 +88,8 @@ public class PointBuilder extends ShapeBuilder<Point, org.elasticsearch.geo.geom
     }
 
     @Override
-    public org.elasticsearch.geo.geometry.Point buildGeometry() {
-        return new org.elasticsearch.geo.geometry.Point(coordinates.get(0).y, coordinates.get(0).x);
+    public org.elasticsearch.geometry.Point buildGeometry() {
+        return new org.elasticsearch.geometry.Point(coordinates.get(0).x, coordinates.get(0).y);
     }
 
     @Override

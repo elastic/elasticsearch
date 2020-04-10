@@ -39,11 +39,13 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
 
     private final UserDictionary userDictionary;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
+    private final boolean discardPunctuation;
 
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, settings);
+        super(indexSettings, settings, name);
         decompoundMode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
+        discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
     }
 
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
@@ -51,7 +53,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             throw new IllegalArgumentException("It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" +
                 " with [" + USER_DICT_RULES_OPTION + "]");
         }
-        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION);
+        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, true);
         StringBuilder sb = new StringBuilder();
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
@@ -77,7 +79,8 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create() {
-        return new KoreanTokenizer(KoreanTokenizer.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, userDictionary, decompoundMode, false);
+        return new KoreanTokenizer(KoreanTokenizer.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, userDictionary, decompoundMode, false,
+            discardPunctuation);
     }
 
 }

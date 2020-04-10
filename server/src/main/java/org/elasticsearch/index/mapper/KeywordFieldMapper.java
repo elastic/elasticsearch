@@ -43,6 +43,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -202,6 +204,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
+        @Override
         public KeywordFieldType clone() {
             return new KeywordFieldType(this);
         }
@@ -235,13 +238,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public NamedAnalyzer normalizer() {
+        private NamedAnalyzer normalizer() {
             return normalizer;
         }
 
         public void setNormalizer(NamedAnalyzer normalizer) {
             checkIfFrozen();
             this.normalizer = normalizer;
+            setIndexAnalyzer(normalizer);
         }
 
         public boolean splitQueriesOnWhitespace() {
@@ -268,6 +272,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -313,8 +322,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
-    // pkg-private for testing
-    int ignoreAbove() {
+    public int ignoreAbove() {
         return ignoreAbove;
     }
 

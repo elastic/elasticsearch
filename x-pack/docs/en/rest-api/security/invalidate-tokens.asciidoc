@@ -7,11 +7,13 @@
 
 Invalidates one or more access tokens or refresh tokens.
 
-==== Request
+[[security-api-invalidate-token-request]]
+==== {api-request-title}
 
 `DELETE /_security/oauth2/token`
 
-==== Description
+[[security-api-invalidate-token-desc]]
+==== {api-description-title}
 
 The access tokens returned by the <<security-api-get-token,get token API>> have a
 finite period of time for which they are valid and after that time period, they 
@@ -25,51 +27,58 @@ only valid for 24 hours. They can also be used exactly once.
 If you want to invalidate one or more access or refresh tokens immediately, use
 this invalidate token API.
 
-
-==== Request Body
+[[security-api-invalidate-token-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a DELETE request and
 pertain to invalidating tokens:
 
-`token` (optional)::
-(string) An access token. This parameter cannot be used any of `refresh_token`,
-`realm_name` or `username` are used.
+`token`::
+(Optional, string) An access token. This parameter cannot be used any of
+`refresh_token`, `realm_name` or `username` are used.
 
-`refresh_token` (optional)::
-(string) A refresh token. This parameter cannot be used any of `refresh_token`,
-`realm_name` or `username` are used.
+`refresh_token`::
+(Optional, string) A refresh token. This parameter cannot be used any of
+`refresh_token`, `realm_name` or `username` are used.
 
-`realm_name` (optional)::
-(string) The name of an authentication realm. This parameter cannot be used with
-either `refresh_token` or `token`.
+`realm_name`::
+(Optional, string) The name of an authentication realm. This parameter cannot be
+used with either `refresh_token` or `token`.
 
-`username` (optional)::
-(string) The username of a user. This parameter cannot be used with either
-`refresh_token` or `token`
+`username`::
+(Optional, string) The username of a user. This parameter cannot be used with
+either `refresh_token` or `token`
 
 NOTE: While all parameters are optional, at least one of them is required. More
 specifically, either one of `token` or `refresh_token` parameters is required.
 If none of these two are specified, then `realm_name` and/or `username` need to
 be specified.
 
-==== Examples
+
+[[security-api-invalidate-token-response-body]]
+==== {api-response-body-title}
+
+A successful call returns a JSON structure that contains the number of tokens
+that were invalidated, the number of tokens that had already been invalidated,
+and potentially a list of errors encountered while invalidating specific tokens.
+
+[[security-api-invalidate-token-example]]
+==== {api-examples-title}
 
 For example, if you create a token using the `client_credentials` grant type as
 follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
   "grant_type" : "client_credentials"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The get token API returns the following information about the access token:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
@@ -77,27 +86,25 @@ The get token API returns the following information about the access token:
   "expires_in" : 1200
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
 This access token can now be immediately invalidated, as shown in the following
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TEST[continued]
 
 If you used the `password` grant type to obtain a token for a user, the response
 might also contain a refresh token. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
@@ -106,12 +113,10 @@ POST /_security/oauth2/token
   "password" : "x-pack-test-password"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The get token API returns the following information:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
@@ -120,54 +125,48 @@ The get token API returns the following information:
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
 The refresh token can now also be immediately invalidated as shown 
 in the following example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "refresh_token" : "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 // TEST[continued]
 
 The following example invalidates all access tokens and refresh tokens for the
 `saml1` realm immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The following example invalidates all access tokens and refresh tokens for the
 user `myuser` in all realms immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
   "username" : "myuser"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 Finally, the following example invalidates all access tokens and refresh tokens
 for the user `myuser` in the `saml1` realm immediately:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
@@ -175,12 +174,6 @@ DELETE /_security/oauth2/token
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
-
-A successful call returns a JSON structure that contains the number of tokens
-that were invalidated, the number of tokens that had already been invalidated,
-and potentially a list of errors encountered while invalidating specific tokens.
 
 [source,js]
 --------------------------------------------------

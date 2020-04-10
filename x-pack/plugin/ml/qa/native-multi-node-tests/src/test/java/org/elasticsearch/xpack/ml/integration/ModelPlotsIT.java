@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -41,7 +40,7 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void setUpData() {
         client().admin().indices().prepareCreate(DATA_INDEX)
-                .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis", "user", "type=keyword")
+                .setMapping("time", "type=date,format=epoch_millis", "user", "type=keyword")
                 .get();
 
         List<String> users = Arrays.asList("user_1", "user_2", "user_3");

@@ -42,14 +42,14 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testHighlightingOnCustomString() throws Exception {
-        prepareCreate("test-idx").addMapping("type",
-            XContentFactory.jsonBuilder().startObject().startObject("type")
+        prepareCreate("test-idx").setMapping(
+            XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("field").field("type", FakeStringFieldMapper.CONTENT_TYPE).endObject()
                 .endObject()
                 .endObject().endObject()).execute().get();
 
-        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+        index("test-idx", "1", XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "Every day is exactly the same")
             .endObject());
@@ -89,8 +89,8 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        prepareCreate("test-idx").addMapping("type",
-                XContentFactory.jsonBuilder().startObject().startObject("type")
+        prepareCreate("test-idx").setMapping(
+                XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
@@ -98,7 +98,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .endObject()
             .endObject().endObject()).execute().get();
 
-        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+        index("test-idx", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", "1234")
                 .endObject());
@@ -133,30 +133,24 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        prepareCreate("test-idx").addMapping("_doc",
+        prepareCreate("test-idx").setMapping(
                 XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("f")
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
                         .startObject("g")
-                            .field("type", "text")
+                            .field("type", "keyword")
                             .field("store", true)
-                            .startObject("fields")
-                                .startObject("raw")
-                                    .field("type", "keyword")
-                                    .field("store", true)
-                                .endObject()
-                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()).execute().get();
 
-        index("test-idx", "_doc", "1", "f", "This is my text");
+        indexDoc("test-idx", "1", "f", "This is my text");
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")
-                .setQuery(QueryBuilders.termQuery("f.g.raw", "FOO BAR"))
+                .setQuery(QueryBuilders.termQuery("f.g", "FOO BAR"))
                 .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));

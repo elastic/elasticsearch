@@ -1,9 +1,5 @@
 ---
 setup:
-  - skip:
-      version: "all"
-      reason: "AwaitsFix: https://github.com/elastic/elasticsearch/issues/40331"
-
   - do:
       indices.create:
           index: test
@@ -20,7 +16,7 @@ setup:
 "Segment Stats":
 
   - skip:
-      version: " - 7.0.99"
+      version: " - 7.1.99"
       reason: forbid_closed_indices is not supported in ealier version
 
   - do:
@@ -47,6 +43,7 @@ setup:
   - do:
       indices.close:
         index: test
+        wait_for_active_shards: all
 
   - do:
       indices.stats:

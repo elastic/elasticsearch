@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support.master.info;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -30,7 +30,7 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
         extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
 
 
-    protected ClusterInfoRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
+    protected ClusterInfoRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 
@@ -43,18 +43,6 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
     @SuppressWarnings("unchecked")
     public Builder addIndices(String... indices) {
         request.indices(ArrayUtils.concat(request.indices(), indices));
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder setTypes(String... types) {
-        request.types(types);
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
         return (Builder) this;
     }
 

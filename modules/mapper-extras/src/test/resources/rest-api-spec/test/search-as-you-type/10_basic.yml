@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.0.99"
-      reason: "added in 7.1.0"
+      version: " - 7.1.99"
+      reason: "added in 7.2.0"
 
   - do:
       indices.create:
@@ -19,7 +19,6 @@ setup:
   - do:
       index:
         index: test
-        type: _doc
         id: 1
         body:
           a_field: "quick brown fox jump lazy dog"
@@ -28,7 +27,6 @@ setup:
   - do:
       index:
         index: test
-        type: _doc
         id: 2
         body:
           a_field: "xylophone xylophone xylophone"
@@ -41,7 +39,6 @@ setup:
   - do:
       get:
         index: test
-        type: _doc
         id: 1
 
   - is_true: found

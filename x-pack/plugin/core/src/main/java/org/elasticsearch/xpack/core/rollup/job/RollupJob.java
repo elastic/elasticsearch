@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,7 +26,7 @@ import java.util.Objects;
  * It holds the config (RollupJobConfig) and a map of authentication headers.  Only RollupJobConfig
  * is ever serialized to the user, so the headers should never leak
  */
-public class RollupJob extends AbstractDiffable<RollupJob> implements XPackPlugin.XPackPersistentTaskParams {
+public class RollupJob extends AbstractDiffable<RollupJob> implements PersistentTaskParams {
 
     public static final String NAME = "xpack/rollup/job";
 
@@ -114,6 +114,6 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements XPackPlugi
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_3_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 }

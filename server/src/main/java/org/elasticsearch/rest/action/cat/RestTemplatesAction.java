@@ -20,27 +20,28 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestTemplatesAction extends AbstractCatAction {
-    public RestTemplatesAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/templates", this);
-        controller.registerHandler(GET, "/_cat/templates/{name}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/templates"),
+            new Route(GET, "/_cat/templates/{name}"));
     }
 
     @Override
@@ -57,7 +58,7 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear().metaData(true);
+        clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
@@ -83,9 +84,9 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
         Table table = getTableWithHeader(request);
-        MetaData metadata = clusterStateResponse.getState().metaData();
-        for (ObjectObjectCursor<String, IndexTemplateMetaData> entry : metadata.templates()) {
-            IndexTemplateMetaData indexData = entry.value;
+        Metadata metadata = clusterStateResponse.getState().metadata();
+        for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : metadata.templates()) {
+            IndexTemplateMetadata indexData = entry.value;
             if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());

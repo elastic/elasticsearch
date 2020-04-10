@@ -26,7 +26,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -54,7 +54,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -75,9 +75,10 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
   - do:
       rollup.delete_job:
@@ -107,7 +108,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -128,9 +129,10 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
   - do:
       rollup.delete_job:
@@ -160,7 +162,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -181,9 +183,10 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
   - do:
       rollup.start_job:

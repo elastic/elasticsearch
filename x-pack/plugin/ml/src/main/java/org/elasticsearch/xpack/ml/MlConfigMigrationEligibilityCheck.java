@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -22,8 +21,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
  * are eligible to be migrated from the cluster state into the config index
  */
 public class MlConfigMigrationEligibilityCheck {
-
-    private static final Version MIN_NODE_VERSION = Version.V_6_6_0;
 
     public static final Setting<Boolean> ENABLE_CONFIG_MIGRATION = Setting.boolSetting(
         "xpack.ml.enable_config_migration", true, Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -43,7 +40,6 @@ public class MlConfigMigrationEligibilityCheck {
     /**
      * Can migration start? Returns:
      *     False if config migration is disabled via the setting {@link #ENABLE_CONFIG_MIGRATION}
-     *     False if the min node version of the cluster is before {@link #MIN_NODE_VERSION}
      *     False if the .ml-config index shards are not active
      *     True otherwise
      * @param clusterState The cluster state
@@ -53,17 +49,11 @@ public class MlConfigMigrationEligibilityCheck {
         if (isConfigMigrationEnabled == false) {
             return false;
         }
-
-        Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(MIN_NODE_VERSION)) {
-            return false;
-        }
-
         return mlConfigIndexIsAllocated(clusterState);
     }
 
     static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
-        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (clusterState.metadata().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
             return false;
         }
 
@@ -100,9 +90,9 @@ public class MlConfigMigrationEligibilityCheck {
             return false;
         }
 
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
-                MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
+                MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
     }
 
     /**
@@ -127,8 +117,8 @@ public class MlConfigMigrationEligibilityCheck {
             return false;
         }
 
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
-                || MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
+                || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
     }
 }

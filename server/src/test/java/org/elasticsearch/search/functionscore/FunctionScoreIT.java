@@ -89,7 +89,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
     public void testScriptScoresNested() throws IOException {
         createIndex(INDEX);
-        index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
+        index(INDEX, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
         Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
@@ -113,7 +113,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
     public void testScriptScoresWithAgg() throws IOException {
         createIndex(INDEX);
-        index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
+        index(INDEX, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
@@ -134,7 +134,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
     public void testMinScoreFunctionScoreBasic() throws IOException {
         float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
         float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
-        index(INDEX, TYPE, jsonBuilder().startObject()
+        index(INDEX, jsonBuilder().startObject()
             .field("num", 2)
             .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
             .endObject());
@@ -170,7 +170,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         int scoreOffset = randomIntBetween(0, 2 * numDocs);
         int minScore = randomIntBetween(0, 2 * numDocs);
         for (int i = 0; i < numDocs; i++) {
-            docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
+            docs.add(client().prepareIndex(INDEX).setId(Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", Collections.emptyMap());
@@ -208,7 +208,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
     /** make sure min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253 */
     public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test"));
-        index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
+        index("test", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 
         SearchResponse termQuery = client().search(

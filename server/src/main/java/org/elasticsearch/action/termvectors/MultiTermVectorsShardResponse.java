@@ -30,14 +30,35 @@ import java.util.List;
 
 public class MultiTermVectorsShardResponse extends ActionResponse {
 
-    IntArrayList locations;
-    List<TermVectorsResponse> responses;
-    List<MultiTermVectorsResponse.Failure> failures;
+    final IntArrayList locations;
+    final List<TermVectorsResponse> responses;
+    final List<MultiTermVectorsResponse.Failure> failures;
 
     MultiTermVectorsShardResponse() {
         locations = new IntArrayList();
         responses = new ArrayList<>();
         failures = new ArrayList<>();
+    }
+
+    MultiTermVectorsShardResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        locations = new IntArrayList(size);
+        responses = new ArrayList<>(size);
+        failures = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            locations.add(in.readVInt());
+            if (in.readBoolean()) {
+                responses.add(new TermVectorsResponse(in));
+            } else {
+                responses.add(null);
+            }
+            if (in.readBoolean()) {
+                failures.add(new MultiTermVectorsResponse.Failure(in));
+            } else {
+                failures.add(null);
+            }
+        }
     }
 
     public void add(int location, TermVectorsResponse response) {
@@ -53,32 +74,7 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        locations = new IntArrayList(size);
-        responses = new ArrayList<>(size);
-        failures = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            locations.add(in.readVInt());
-            if (in.readBoolean()) {
-                TermVectorsResponse response = new TermVectorsResponse();
-                response.readFrom(in);
-                responses.add(response);
-            } else {
-                responses.add(null);
-            }
-            if (in.readBoolean()) {
-                failures.add(MultiTermVectorsResponse.Failure.readFailure(in));
-            } else {
-                failures.add(null);
-            }
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(locations.size());
         for (int i = 0; i < locations.size(); i++) {
             out.writeVInt(locations.get(i));

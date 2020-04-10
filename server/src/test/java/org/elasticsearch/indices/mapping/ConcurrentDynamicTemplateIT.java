@@ -22,7 +22,6 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -37,15 +36,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.emptyIterable;
 
 public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
-    private final String mappingType = "test-mapping";
 
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = "{ \"" + mappingType + "\": {" +
+        final String mapping = "{" +
                 "\"dynamic_templates\": ["
                 + "{ \"" + fieldName + "\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"text\"," + "\"store\": true,"
-                + "\"analyzer\": \"whitespace\" } } } ] } }";
+                + "\"analyzer\": \"whitespace\" } } } ] }";
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
@@ -53,7 +51,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
         for (int i = 0; i < iters; i++) {
             cluster().wipeIndices("test");
             assertAcked(prepareCreate("test")
-                    .addMapping(mappingType, mapping, XContentType.JSON));
+                    .setMapping(mapping));
             int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<>();
@@ -61,7 +59,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test", mappingType, Integer.toString(currentID++)).setSource(source).execute(
+                client().prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(
                     new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {

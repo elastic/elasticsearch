@@ -29,16 +29,14 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -52,14 +50,14 @@ class S3Service implements Closeable {
     /**
      * Client settings calculated from static configuration and settings in the keystore.
      */
-    private volatile Map<String, S3ClientSettings> staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-        .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default")).immutableMap();
+    private volatile Map<String, S3ClientSettings> staticClientSettings =
+            Map.of("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default"));
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
-     * in the {@link RepositoryMetaData}.
+     * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<S3ClientSettings, Map<RepositoryMetaData, S3ClientSettings>> derivedClientSettings = emptyMap();
+    private volatile Map<S3ClientSettings, Map<RepositoryMetadata, S3ClientSettings>> derivedClientSettings = emptyMap();
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -71,7 +69,7 @@ class S3Service implements Closeable {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClients();
-        this.staticClientSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        this.staticClientSettings = Maps.ofEntries(clientsSettings.entrySet());
         derivedClientSettings = emptyMap();
         assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
         // clients are built lazily by {@link client}
@@ -81,8 +79,8 @@ class S3Service implements Closeable {
      * Attempts to retrieve a client by its repository metadata and settings from the cache.
      * If the client does not exist it will be created.
      */
-    public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
-        final S3ClientSettings clientSettings = settings(repositoryMetaData);
+    public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
+        final S3ClientSettings clientSettings = settings(repositoryMetadata);
         {
             final AmazonS3Reference clientReference = clientsCache.get(clientSettings);
             if (clientReference != null && clientReference.tryIncRef()) {
@@ -96,38 +94,40 @@ class S3Service implements Closeable {
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
             clientReference.incRef();
-            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
+            clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
     }
 
     /**
-     * Either fetches {@link S3ClientSettings} for a given {@link RepositoryMetaData} from cached settings or creates them
+     * Either fetches {@link S3ClientSettings} for a given {@link RepositoryMetadata} from cached settings or creates them
      * by overriding static client settings from {@link #staticClientSettings} with settings found in the repository metadata.
-     * @param repositoryMetaData Repository Metadata
+     * @param repositoryMetadata Repository Metadata
      * @return S3ClientSettings
      */
-    private S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
-        final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetaData.settings());
+    S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
+        final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
             {
-                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(repositoryMetaData);
+                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(repositoryMetadata);
                 if (existing != null) {
                     return existing;
                 }
             }
             synchronized (this) {
-                final Map<RepositoryMetaData, S3ClientSettings> derivedSettings =
+                final Map<RepositoryMetadata, S3ClientSettings> derivedSettings =
                     derivedClientSettings.getOrDefault(staticSettings, emptyMap());
-                final S3ClientSettings existing = derivedSettings.get(repositoryMetaData);
+                final S3ClientSettings existing = derivedSettings.get(repositoryMetadata);
                 if (existing != null) {
                     return existing;
                 }
-                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
-                derivedClientSettings = MapBuilder.newMapBuilder(derivedClientSettings).put(
-                    staticSettings, MapBuilder.newMapBuilder(derivedSettings).put(repositoryMetaData, newSettings).immutableMap()
-                ).immutableMap();
+                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetadata);
+                derivedClientSettings =
+                        Maps.copyMayWithAddedOrReplacedEntry(
+                                derivedClientSettings,
+                                staticSettings,
+                                Maps.copyMapWithAddedEntry(derivedSettings, repositoryMetadata, newSettings));
                 return newSettings;
             }
         }
@@ -141,8 +141,14 @@ class S3Service implements Closeable {
         builder.withCredentials(buildCredentials(logger, clientSettings));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
-        final String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
-        logger.debug("using endpoint [{}]", endpoint);
+        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
+            // TODO: Remove this once fixed in the AWS SDK
+            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+        }
+        final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
+        logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
 
         // If the endpoint configuration isn't set on the builder then the default behaviour is to try
         // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
@@ -152,10 +158,14 @@ class S3Service implements Closeable {
         //
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
-        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null))
-            .enablePathStyleAccess();
-
-        return builder.build();
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
+        if (clientSettings.pathStyleAccess) {
+            builder.enablePathStyleAccess();
+        }
+        if (clientSettings.disableChunkedEncoding) {
+            builder.disableChunkedEncoding();
+        }
+        return SocketAccess.doPrivileged(builder::build);
     }
 
     // pkg private for tests
@@ -172,6 +182,10 @@ class S3Service implements Closeable {
             clientConfiguration.setProxyPort(clientSettings.proxyPort);
             clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
+        }
+
+        if (Strings.hasLength(clientSettings.signerOverride)) {
+            clientConfiguration.setSignerOverride(clientSettings.signerOverride);
         }
 
         clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
@@ -225,8 +239,7 @@ class S3Service implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         releaseCachedClients();
     }
-
 }

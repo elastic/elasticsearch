@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -46,10 +46,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -59,8 +58,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.license.LicensesMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -106,8 +105,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -155,11 +152,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null, true), 0, "leader", mockPlugins,
             Function.identity());
-        leaderCluster.beforeTest(random(), 0.0D);
+        leaderCluster.beforeTest(random());
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
-            assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+            assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
         });
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
@@ -168,11 +165,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
-        followerCluster.beforeTest(random(), 0.0D);
+        followerCluster.beforeTest(random());
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
-            assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+            assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
         });
     }
 
@@ -213,13 +210,12 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {
         Settings.Builder builder = Settings.builder();
-        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
-        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m");
+        builder.put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "2048/1m");
         // wait short time for other active shards before actually deleting, default 30s not needed in tests
         builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
@@ -229,7 +225,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Let cluster state api return quickly in order to speed up auto follow tests:
         builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
@@ -258,16 +253,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         Stream.of(LocalStateCcr.class, CommonAnalysisPlugin.class),
                         CcrIntegTestCase.this.nodePlugins().stream())
                         .collect(Collectors.toList());
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return super.transportClientSettings();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
             }
         };
     }
@@ -358,14 +343,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected final Index resolveLeaderIndex(String index) {
         GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
-        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     protected final Index resolveFollowerIndex(String index) {
         GetIndexResponse getIndexResponse = followerClient().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
-        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
@@ -403,7 +388,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 statsResponse.getFollowStats().getStatsResponses(), empty());
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            final PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertThat(tasks.tasks(), empty());
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -415,8 +400,20 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     numNodeTasks++;
                 }
             }
-            assertThat(numNodeTasks, equalTo(0));
+            assertThat(listTasksResponse.getTasks().toString(), numNodeTasks, equalTo(0));
         }, 30, TimeUnit.SECONDS);
+    }
+
+
+    @Before
+    public void setupSourceEnabledOrDisabled() {
+        sourceEnabled = randomBoolean();
+    }
+
+    protected boolean sourceEnabled;
+
+    protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas) throws IOException {
+        return getIndexSettings(numberOfShards, numberOfReplicas, Collections.emptyMap());
     }
 
     protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
@@ -449,6 +446,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                             builder.endObject();
                         }
                         builder.endObject();
+                        if (sourceEnabled == false) {
+                            builder.startObject("_source");
+                            builder.field("enabled", false);
+                            builder.endObject();
+                        }
                     }
                     builder.endObject();
                 }
@@ -490,13 +492,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected void assertIndexFullyReplicatedToFollower(String leaderIndex, String followerIndex) throws Exception {
         logger.info("--> asserting <<docId,seqNo>> between {} and {}", leaderIndex, followerIndex);
         assertBusy(() -> {
-            Map<Integer, List<DocIdSeqNoAndTerm>> docsOnFollower = getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex);
-            Map<Integer, List<DocIdSeqNoAndTerm>> docsOnLeader = getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex);
-            Map<Integer, Set<DocIdSeqNoAndTerm>> mismatchedDocs = new HashMap<>();
-            for (Map.Entry<Integer, List<DocIdSeqNoAndTerm>> fe : docsOnFollower.entrySet()) {
-                Set<DocIdSeqNoAndTerm> d1 = Sets.difference(
+            Map<Integer, List<DocIdSeqNoAndSource>> docsOnFollower = getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex);
+            Map<Integer, List<DocIdSeqNoAndSource>> docsOnLeader = getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex);
+            Map<Integer, Set<DocIdSeqNoAndSource>> mismatchedDocs = new HashMap<>();
+            for (Map.Entry<Integer, List<DocIdSeqNoAndSource>> fe : docsOnFollower.entrySet()) {
+                Set<DocIdSeqNoAndSource> d1 = Sets.difference(
                     Sets.newHashSet(fe.getValue()), Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())));
-                Set<DocIdSeqNoAndTerm> d2 = Sets.difference(
+                Set<DocIdSeqNoAndSource> d2 = Sets.difference(
                     Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())), Sets.newHashSet(fe.getValue()));
                 if (d1.isEmpty() == false || d2.isEmpty() == false) {
                     mismatchedDocs.put(fe.getKey(), Sets.union(d1, d2));
@@ -525,11 +527,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }, 120, TimeUnit.SECONDS);
     }
 
-    private Map<Integer, List<DocIdSeqNoAndTerm>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
+    private Map<Integer, List<DocIdSeqNoAndSource>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
         final ClusterState state = cluster.client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
         Randomness.shuffle(shardRoutings);
-        final Map<Integer, List<DocIdSeqNoAndTerm>> docs = new HashMap<>();
+        final Map<Integer, List<DocIdSeqNoAndSource>> docs = new HashMap<>();
         for (ShardRouting shardRouting : shardRoutings) {
             if (shardRouting == null || shardRouting.assignedToNode() == false) {
                 continue;
@@ -537,14 +539,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
                 .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
             try {
-                final List<DocIdSeqNoAndTerm> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
+                final List<DocIdSeqNoAndSource> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
                 logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());
                 docs.put(shardRouting.shardId().id(), docsOnShard.stream()
                     // normalize primary term as the follower use its own term
-                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))
+                    .map(d -> new DocIdSeqNoAndSource(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
                     .collect(Collectors.toList()));
             } catch (AlreadyClosedException e) {
-                // Ignore this exception and try getting List<DocIdSeqNoAndTerm> from other IndexShard instance.
+                // Ignore this exception and try getting List<DocIdSeqNoAndSource> from other IndexShard instance.
             }
         }
         return docs;
@@ -620,62 +622,48 @@ public abstract class CcrIntegTestCase extends ESTestCase {
      * @param numDocs number of documents to wait for
      * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. Will be first checked for documents indexed.
      *                This saves on unneeded searches.
-     * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws InterruptedException {
+    public void waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws Exception {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
-        return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
-    }
+        final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
 
-    /**
-     * Waits until at least a give number of document is visible for searchers
-     *
-     * @param numDocs         number of documents to wait for
-     * @param maxWaitTime     if not progress have been made during this time, fail the test
-     * @param maxWaitTimeUnit the unit in which maxWaitTime is specified
-     * @param indexer         Will be first checked for documents indexed.
-     *                        This saves on unneeded searches.
-     * @return the actual number of docs seen.
-     */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final BackgroundIndexer indexer)
-        throws InterruptedException {
-        final AtomicLong lastKnownCount = new AtomicLong(-1);
-        long lastStartCount = -1;
-        BooleanSupplier testDocs = () -> {
-            lastKnownCount.set(indexer.totalIndexedDocs());
-            if (lastKnownCount.get() >= numDocs) {
-                try {
-                    long count = indexer.getClient().prepareSearch()
-                        .setTrackTotalHits(true)
-                        .setSize(0)
-                        .setQuery(QueryBuilders.matchAllQuery())
-                        .get()
-                        .getHits().getTotalHits().value;
+        assertBusy(
+            () -> {
+                long lastKnownCount = indexer.totalIndexedDocs();
 
-                    if (count == lastKnownCount.get()) {
-                        // no progress - try to refresh for the next time
-                        indexer.getClient().admin().indices().prepareRefresh().get();
+                if (lastKnownCount >= numDocs) {
+                    try {
+                        long count = indexer.getClient().prepareSearch()
+                            .setTrackTotalHits(true)
+                            .setSize(0)
+                            .setQuery(QueryBuilders.matchAllQuery())
+                            .get()
+                            .getHits().getTotalHits().value;
+
+                        if (count == lastKnownCount) {
+                            // no progress - try to refresh for the next time
+                            indexer.getClient().admin().indices().prepareRefresh().get();
+                        }
+                        lastKnownCount = count;
+                    } catch (Exception e) { // count now acts like search and barfs if all shards failed...
+                        logger.debug("failed to executed count", e);
+                        throw e;
                     }
-                    lastKnownCount.set(count);
-                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
-                    logger.debug("failed to executed count", e);
-                    return false;
                 }
-                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
-            } else {
-                logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
-            }
-            return lastKnownCount.get() >= numDocs;
-        };
 
-        while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
-            if (lastStartCount == lastKnownCount.get()) {
-                // we didn't make any progress
-                fail("failed to reach " + numDocs + "docs");
-            }
-            lastStartCount = lastKnownCount.get();
-        }
-        return lastKnownCount.get();
+                if (logger.isDebugEnabled()) {
+                    if (lastKnownCount < numDocs) {
+                        logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount, numDocs);
+                    } else {
+                        logger.debug("[{}] docs visible for search (needed [{}])", lastKnownCount, numDocs);
+                    }
+                }
+
+                assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
+            },
+            maxWaitTimeMs,
+            TimeUnit.MILLISECONDS
+        );
     }
 
     protected ActionListener<RestoreService.RestoreCompletionResponse> waitForRestore(
@@ -741,9 +729,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 AutoFollowMetadata empty =
                     new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metaData(MetaData.builder(currentState.getMetaData())
+                newState.metadata(Metadata.builder(currentState.getMetadata())
                     .putCustom(AutoFollowMetadata.TYPE, empty)
-                    .removeCustom(PersistentTasksCustomMetaData.TYPE)
+                    .removeCustom(PersistentTasksCustomMetadata.TYPE)
                     .build());
                 return newState.build();
             }

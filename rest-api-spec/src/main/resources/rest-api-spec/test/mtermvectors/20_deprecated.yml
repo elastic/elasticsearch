@@ -40,7 +40,6 @@
                "docs":
                    -
                        "_index" : "testidx"
-                       "_type" : "_doc"
                        "_id" : "testing_document"
                        "version" : 1
                        "_version_type" : "external"

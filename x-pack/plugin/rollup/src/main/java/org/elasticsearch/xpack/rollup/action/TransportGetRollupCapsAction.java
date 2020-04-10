@@ -9,16 +9,15 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -28,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
@@ -37,26 +35,25 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, actionFilters,
-            (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new);
+        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new);
         this.clusterService = clusterService;
     }
 
     @Override
     protected void doExecute(Task task, GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
-        Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
+        Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetadata().indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetaData> indices) {
+    static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
-        for (ObjectObjectCursor<String, IndexMetaData> entry : indices) {
+        for (ObjectObjectCursor<String, IndexMetadata> entry : indices) {
 
             // Does this index have rollup metadata?
             TransportGetRollupCapsAction.findRollupIndexCaps(entry.key, entry.value).ifPresent(cap -> {
 
                 List<RollupJobCaps> jobCaps;
-                if (indexPattern.equals(MetaData.ALL)) {
+                if (indexPattern.equals(Metadata.ALL)) {
                     // This index has rollup metadata, and since we want _all, just process all of them
                     jobCaps = cap.getJobCaps();
                 } else {
@@ -65,7 +62,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
                 }
 
                 jobCaps.forEach(jobCap -> {
-                    String pattern = indexPattern.equals(MetaData.ALL)
+                    String pattern = indexPattern.equals(Metadata.ALL)
                         ? jobCap.getIndexPattern() : indexPattern;
 
                     // Do we already have an entry for this index pattern?
@@ -86,12 +83,12 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
                 e -> new RollableIndexCaps(e.getKey(), e.getValue())));
     }
 
-    static Optional<RollupIndexCaps> findRollupIndexCaps(String indexName, IndexMetaData indexMetaData) {
-        if (indexMetaData == null) {
+    static Optional<RollupIndexCaps> findRollupIndexCaps(String indexName, IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
             return Optional.empty();
         }
 
-        MappingMetaData rollupMapping = indexMetaData.getMappings().get(RollupField.TYPE_NAME);
+        MappingMetadata rollupMapping = indexMetadata.mapping();
         if (rollupMapping == null) {
             return Optional.empty();
         }

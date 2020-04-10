@@ -7,7 +7,7 @@
   <property name="charset" value="UTF-8" />
 
   <module name="SuppressionFilter">
-    <property name="file" value="${suppressions}" />
+    <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
   <!-- Checks Java files and forbids empty Javadoc comments -->
@@ -18,17 +18,15 @@
     <property name="message" value="Empty javadoc comments are forbidden"/>
   </module>
 
-  <!-- 
+  <!--
     We include snippets that are wrapped in `// tag` and `// end` into the
     docs, stripping the leading spaces. If the context is wider than 76
     characters then it'll need to scroll. This fails the build if it sees
     such snippets.
   -->
-  <module name="RegexpMultiline">
+  <module name="org.elasticsearch.gradle.checkstyle.SnippetLengthCheck">
     <property name="id" value="SnippetLength"/>
-    <property name="format" value="^( *)\/\/\s*tag(.+)\s*\n(.*\n)*\1.{77,}\n(.*\n)*\1\/\/\s*end\2\s*$"/>
-    <property name="fileExtensions" value="java"/>
-    <property name="message" value="Code snippets longer than 76 characters get cut off when rendered in the docs"/>
+    <property name="max" value="76"/>
   </module>
 
   <module name="TreeWalker">
@@ -103,5 +101,31 @@
       <property name="ignoreComments" value="true" />
     </module>
     <!-- end Orwellian suppression of Serializable -->
+
+    <!-- Forbid equality comparisons with `true` -->
+    <module name="DescendantToken">
+      <property name="tokens" value="EQUAL"/>
+      <property name="limitedTokens" value="LITERAL_TRUE"/>
+      <property name="maximumNumber" value="0"/>
+      <property name="maximumDepth" value="1"/>
+      <message key="descendant.token.max" value="Do not check for equality with 'true', since it is implied"/>
+    </module>
+
+    <!-- Forbid using '!' for logical negations in favour of checking
+         against 'false' explicitly. -->
+    <!-- This is disabled for now because there are many, many violations,
+         hence the rule is reporting at the "warning" severity. -->
+
+    <!--
+    <module name="DescendantToken">
+      <property name="severity" value="warning"/>
+      <property name="tokens" value="EXPR"/>
+      <property name="limitedTokens" value="LNOT"/>
+      <property name="maximumNumber" value="0"/>
+      <property name="maximumDepth" value="1"/>
+      <message key="descendant.token.max" value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
+    </module>
+    -->
+
   </module>
 </module>

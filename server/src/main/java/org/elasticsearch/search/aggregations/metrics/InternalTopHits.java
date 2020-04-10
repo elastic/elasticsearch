@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,8 +48,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     private SearchHits searchHits;
 
     public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
@@ -99,7 +98,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;
@@ -160,7 +159,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
         return new InternalTopHits(name, this.from, this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), pipelineAggregators(), getMetaData());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), getMetadata());
     }
 
     @Override
@@ -180,7 +179,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     // Equals and hashcode implemented for testing round trips
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalTopHits other = (InternalTopHits) obj;
         if (from != other.from) return false;
         if (size != other.size) return false;
@@ -207,9 +210,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    protected int doHashCode() {
-        int hashCode = from;
-        hashCode = 31 * hashCode + size;
+    public int hashCode() {
+        int hashCode = super.hashCode();
+        hashCode = 31 * hashCode + Integer.hashCode(from);
+        hashCode = 31 * hashCode + Integer.hashCode(size);
         hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value);
         hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation.hashCode();
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {

@@ -83,13 +83,8 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                 final String dn = entry.getDN();
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                 final SimpleBindRequest bind = new SimpleBindRequest(dn, passwordBytes);
-                LdapUtils.maybeForkThenBindAndRevert(connectionPool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
-                    @Override
-                    protected void doRun() throws Exception {
-                        listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
-                                entry.getAttributes()));
-                    }
-                });
+                LdapUtils.maybeForkThenBindAndRevert(connectionPool, bind, threadPool, ActionRunnable.supply(listener, () ->
+                    new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout, entry.getAttributes())));
             }
         }, listener::onFailure));
     }
@@ -129,7 +124,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                                         @Override
                                         protected void doRun() throws Exception {
                                             listener.onResponse(new LdapSession(logger, config, connection, dn, groupResolver,
-                                                    metaDataResolver, timeout, entry.getAttributes()));
+                                                    metadataResolver, timeout, entry.getAttributes()));
                                         }
 
                                         @Override
@@ -176,7 +171,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                 listener.onResponse(null);
             } else {
                 final String dn = entry.getDN();
-                LdapSession session = new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
+                LdapSession session = new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout,
                         entry.getAttributes());
                 listener.onResponse(session);
             }
@@ -195,7 +190,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                             IOUtils.close(connection);
                             listener.onResponse(null);
                         } else {
-                            listener.onResponse(new LdapSession(logger, config, connection, entry.getDN(), groupResolver, metaDataResolver,
+                            listener.onResponse(new LdapSession(logger, config, connection, entry.getDN(), groupResolver, metadataResolver,
                                     timeout, entry.getAttributes()));
                         }
                     }, e -> {
@@ -226,7 +221,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
         searchForEntry(ldapInterface, userSearchBaseDn, scope.scope(),
                 filter, Math.toIntExact(timeout.seconds()), ignoreReferralErrors, listener,
-                attributesToSearchFor(groupResolver.attributes(), metaDataResolver.attributeNames()));
+                attributesToSearchFor(groupResolver.attributes(), metadataResolver.attributeNames()));
     }
 
     private static GroupsResolver groupResolver(RealmConfig realmConfig) {

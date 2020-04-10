@@ -1,0 +1,53 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-filter]]
+=== Delete filter API
+++++
+<titleabbrev>Delete filter</titleabbrev>
+++++
+
+Deletes a filter.
+
+[[ml-delete-filter-request]]
+==== {api-request-title}
+
+`DELETE _ml/filters/<filter_id>`
+
+[[ml-delete-filter-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-delete-filter-desc]]
+==== {api-description-title}
+
+This API deletes a {ml-docs}/ml-rules.html[filter]. 
+If a {ml} job references the filter, you cannot delete the filter. You must 
+update or delete the job before you can delete the filter.
+
+[[ml-delete-filter-path-parms]]
+==== {api-path-parms-title}
+
+`<filter_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
+
+[[ml-delete-filter-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/filters/safe_domains
+--------------------------------------------------
+// TEST[skip:setup:ml_filter_safe_domains]
+
+When the filter is deleted, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

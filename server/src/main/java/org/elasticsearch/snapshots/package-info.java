@@ -20,7 +20,7 @@
 /**
  * <p>This package exposes the Elasticsearch Snapshot functionality.</p>
  *
- * <h1>Preliminaries</h1>
+ * <h2>Preliminaries</h2>
  *
  * <p>There are two communication channels between all nodes and master in the snapshot functionality:</p>
  * <ul>
@@ -32,7 +32,7 @@
  * snapshot's entry in the cluster state accordingly.</li>
  * </ul>
  *
- * <h1>Snapshot Creation</h1>
+ * <h2>Snapshot Creation</h2>
  * <p>Snapshots are created by the following sequence of events:</p>
  * <ol>
  * <li>An invocation of {@link org.elasticsearch.snapshots.SnapshotsService#createSnapshot} enqueues a cluster state update to create
@@ -68,7 +68,7 @@
  * </li>
  * </ol>
  *
- * <h1>Deleting a Snapshot</h1>
+ * <h2>Deleting a Snapshot</h2>
  *
  * <p>Deleting a snapshot can take the form of either simply deleting it from the repository or (if it has not completed yet) aborting it
  * and subsequently deleting it from the repository.</p>

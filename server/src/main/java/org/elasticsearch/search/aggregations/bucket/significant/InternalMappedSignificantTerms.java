@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -35,7 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class InternalMappedSignificantTerms<
-            A extends InternalMappedSignificantTerms<A, B>, 
+            A extends InternalMappedSignificantTerms<A, B>,
             B extends InternalSignificantTerms.Bucket<B>>
         extends InternalSignificantTerms<A, B> {
 
@@ -46,10 +45,10 @@ public abstract class InternalMappedSignificantTerms<
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, long subsetSize, long supersetSize,
+    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount,
+            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<B> buckets) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metaData);
+        super(name, requiredSize, minDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
         this.subsetSize = subsetSize;
@@ -109,10 +108,13 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
-        return super.doEquals(obj)
-                && Objects.equals(format, that.format)
+        return Objects.equals(format, that.format)
                 && subsetSize == that.subsetSize
                 && supersetSize == that.supersetSize
                 && Objects.equals(significanceHeuristic, that.significanceHeuristic)
@@ -121,8 +123,8 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
     }
 
     @Override

@@ -1,5 +1,8 @@
 [[date]]
 === Date datatype
+++++
+<titleabbrev>Date</titleabbrev>
+++++
 
 JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
 
@@ -28,7 +31,7 @@ or milliseconds-since-the-epoch.
 
 For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -55,7 +58,7 @@ GET my_index/_search
   "sort": { "date": "asc"} <5>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `date` field uses the default `format`.
 <2> This document uses a plain date.
 <3> This document includes a time.
@@ -70,7 +73,7 @@ Each format will be tried in turn until a matching format is found.  The first
 format will be used to convert the _milliseconds-since-the-epoch_ value back
 into a string.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -84,7 +87,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[date-params]]
 ==== Parameters for `date` fields
@@ -92,11 +94,6 @@ PUT my_index
 The following parameters are accepted by `date` fields:
 
 [horizontal]
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<doc-values,`doc_values`>>::
 
@@ -135,3 +132,7 @@ The following parameters are accepted by `date` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

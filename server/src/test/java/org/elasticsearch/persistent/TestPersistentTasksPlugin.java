@@ -22,10 +22,10 @@ package org.elasticsearch.persistent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -51,8 +52,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -62,7 +63,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -75,7 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -94,7 +94,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 
@@ -218,10 +219,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             return minVersion;
         }
 
-        @Override
-        public Optional<String> getRequiredFeature() {
-            return feature;
-        }
     }
 
     public static class State implements PersistentTaskState {
@@ -335,10 +332,15 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 AtomicInteger phase = new AtomicInteger();
                 while (true) {
                     // wait for something to happen
-                    assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                                    testTask.getOperation() != null ||
-                                    clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
-                            30, TimeUnit.SECONDS)); // This can take a while during large cluster restart
+                    try {
+                        assertBusy(() -> assertTrue(testTask.isCancelled() ||
+                                testTask.getOperation() != null ||
+                                clusterService.lifecycleState() != Lifecycle.State.STARTED),   // speedup finishing on closed nodes
+                            45, TimeUnit.SECONDS); // This can take a while during large cluster restart
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }
@@ -396,23 +398,13 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends Action<TestTasksResponse> {
+    public static class TestTaskAction extends ActionType<TestTasksResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/persistent/task_test";
 
         private TestTaskAction() {
-            super(NAME);
-        }
-
-        @Override
-        public TestTasksResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
-        public Writeable.Reader<TestTasksResponse> getResponseReader() {
-            return TestTasksResponse::new;
+            super(NAME, TestTasksResponse::new);
         }
     }
 
@@ -500,7 +492,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                                  List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
         public TestTasksResponse(StreamInput in) throws IOException {

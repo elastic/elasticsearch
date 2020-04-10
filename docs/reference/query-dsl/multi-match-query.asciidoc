@@ -1,10 +1,13 @@
 [[query-dsl-multi-match-query]]
-=== Multi Match Query
+=== Multi-match query
+++++
+<titleabbrev>Multi-match</titleabbrev>
+++++
 
 The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
 to allow multi-field queries:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -16,16 +19,17 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The query string.
 <2> The fields to be queried.
 
 [float]
+[[field-boost]]
 ==== `fields` and per-field boosting
 
 Fields can be specified with wildcards, eg:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -37,12 +41,12 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Query the `title`, `first_name` and `last_name` fields.
 
 Individual fields can be boosted with the caret (`^`) notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -54,7 +58,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `subject` field is three times as important as the `message` field.
 
@@ -106,7 +109,7 @@ The `best_fields` type generates a <<query-dsl-match-query,`match` query>> for
 each field and wraps them in a <<query-dsl-dis-max-query,`dis_max`>> query, to
 find the single best matching field.  For instance, this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -120,11 +123,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -139,7 +141,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Normally the `best_fields` type uses the score of the *single* best matching
 field, but if `tie_breaker` is specified, then it calculates the score as
@@ -150,8 +151,8 @@ follows:
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
- `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
-  as explained in <<query-dsl-match-query, match query>>.
+`auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
+as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
 [[operator-min]]
@@ -165,7 +166,7 @@ which is probably not what you want.
 
 Take this query for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -179,7 +180,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> All terms must be present.
 
@@ -208,7 +208,7 @@ to push the most similar results to the top of the list.
 
 This query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -221,11 +221,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -240,15 +239,12 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
-and `cutoff_frequency`, as explained in <<query-dsl-match-query,match query>>, but
-*see <<operator-min>>*.
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, and `zero_terms_query`.
 
 [[type-phrase]]
 ==== `phrase` and `phrase_prefix`
@@ -258,7 +254,8 @@ but they use a `match_phrase` or `match_phrase_prefix` query instead of a
 `match` query.
 
 This query:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -271,11 +268,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -289,11 +285,10 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-Also, accepts `analyzer`, `boost`, `lenient`, `slop` and `zero_terms_query`  as explained
-in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
-`max_expansions`.
+Also, accepts `analyzer`, `boost`, `lenient` and `zero_terms_query` as explained
+in <<query-dsl-match-query>>, as well as `slop` which is explained in <<query-dsl-match-query-phrase>>.
+Type `phrase_prefix` additionally accepts `max_expansions`.
 
 [IMPORTANT]
 [[phrase-fuzziness]]
@@ -342,7 +337,7 @@ big field.
 
 A query like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -356,7 +351,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 is executed as:
 
@@ -388,9 +382,9 @@ explanation:
     +blended("smith", fields: [first_name, last_name])
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`lenient`, `zero_terms_query` and `cutoff_frequency`, as explained in
-<<query-dsl-match-query, match query>>.
+`lenient` and `zero_terms_query`.
 
+[[cross-field-analysis]]
 ===== `cross_field` and analysis
 
 The `cross_field` type can only work in term-centric mode on fields that have
@@ -402,7 +396,7 @@ For instance, if we have a `first` and `last` field which have
 the same analyzer, plus a `first.edge` and `last.edge` which
 both use an `edge_ngram` analyzer, this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -418,7 +412,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
@@ -441,7 +434,7 @@ You can easily rewrite this query yourself as two separate `cross_fields`
 queries combined with a `bool` query, and apply the `minimum_should_match`
 parameter to just one of them:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -468,7 +461,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE 
 
 <1> Either `will` or `smith` must be present in either of the `first`
     or `last` fields
@@ -476,7 +468,7 @@ GET /_search
 You can force all fields into the same group by specifying the `analyzer`
 parameter in the query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -490,7 +482,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Use the `standard` analyzer for all fields.
 
@@ -499,6 +490,7 @@ which will be executed as:
     blended("will",  fields: [first, first.edge, last.edge, last])
     blended("smith", fields: [first, first.edge, last.edge, last])
 
+[[tie-breaker]]
 ===== `tie_breaker`
 
 By default, each per-term `blended` query will use the best score returned by
@@ -528,7 +520,7 @@ The `bool_prefix` type's scoring behaves like <<type-most-fields>>, but using a
 <<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>> instead of a
 `match` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -541,7 +533,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `analyzer`, `boost`, `operator`, `minimum_should_match`, `lenient`,
 `zero_terms_query`, and `auto_generate_synonyms_phrase_query` parameters as
@@ -551,5 +542,4 @@ explained in <<query-dsl-match-query, match query>> are supported. The
 construct term queries, but do not have an effect on the prefix query
 constructed from the final term.
 
-The `slop` and `cutoff_frequency` parameters are not supported by this query
-type.
+The `slop` parameter is not supported by this query type.

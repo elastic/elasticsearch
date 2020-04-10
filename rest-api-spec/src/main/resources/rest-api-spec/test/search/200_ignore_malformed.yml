@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      version: " - 6.3.99"
-      reason: _ignored was added in 6.4.0
 
   - do:
       indices.create:

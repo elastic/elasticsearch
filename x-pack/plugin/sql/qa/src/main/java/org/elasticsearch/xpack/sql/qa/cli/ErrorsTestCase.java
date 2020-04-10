@@ -37,15 +37,30 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     @Override
-    public void testSelectFromIndexWithoutTypes() throws Exception {
+    public void testSelectColumnFromMissingIndex() throws Exception {
+        assertFoundOneProblem(command("SELECT abc FROM test"));
+        assertEquals("line 1:17: Unknown index [test]" + END, readLine());
+    }
+
+    @Override
+    public void testSelectFromEmptyIndex() throws Exception {
         // Create an index without any types
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
         client().performRequest(request);
 
         assertFoundOneProblem(command("SELECT * FROM test"));
-        //assertEquals("line 1:15: [test] doesn't have any types so it is incompatible with sql" + END, readLine());
-        assertEquals("line 1:15: Unknown index [test]" + END, readLine());
+        assertEquals("line 1:8: Cannot determine columns for [*]" + END, readLine());
+    }
+
+    @Override
+    public void testSelectColumnFromEmptyIndex() throws Exception {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
+        
+        assertFoundOneProblem(command("SELECT abc FROM test"));
+        assertEquals("line 1:8: Unknown column [abc]" + END, readLine());
     }
 
     @Override
@@ -97,8 +112,15 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         assertEquals("line 1:12: [SCORE()] cannot be an argument to a function" + END, readLine());
     }
 
-    public static void assertFoundOneProblem(String commandResult) {
-        assertEquals(START + "Bad request [[3;33;22mFound 1 problem(s)", commandResult);
+    @Override
+    public void testHardLimitForSortOnAggregate() throws Exception {
+        index("test", body -> body.field("a", 1).field("b", 2));
+        String commandResult = command("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000");
+        assertEquals(START + "Bad request [[3;33;22mThe maximum LIMIT for aggregate sorting is [10000], received [12000]" + END,
+            commandResult);
     }
 
+    public static void assertFoundOneProblem(String commandResult) {
+        assertEquals(START + "Bad request [[3;33;22mFound 1 problem", commandResult);
+    }
 }

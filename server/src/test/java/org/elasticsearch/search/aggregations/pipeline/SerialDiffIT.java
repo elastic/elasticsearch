@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -57,7 +56,7 @@ public class SerialDiffIT extends ESIntegTestCase {
     static int numBuckets;
     static int lag;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceAggregationBuilder<? extends ValuesSource, ? extends ValuesSourceAggregationBuilder<?, ?>> metric;
+    static ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -77,8 +76,8 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceAggregationBuilder<? extends ValuesSource,
-        ? extends ValuesSourceAggregationBuilder<?, ?>> randomMetric(String name, String field) {
+    private ValuesSourceAggregationBuilder<
+        ? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {
@@ -151,7 +150,7 @@ public class SerialDiffIT extends ESIntegTestCase {
 
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
-                builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder().startObject()
+                builders.add(client().prepareIndex("idx").setSource(jsonBuilder().startObject()
                         .field(INTERVAL_FIELD, mockBucket.key)
                         .field(VALUE_FIELD, value).endObject()));
             }
@@ -228,7 +227,7 @@ public class SerialDiffIT extends ESIntegTestCase {
 
     public void testBasicDiff() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
@@ -275,7 +274,7 @@ public class SerialDiffIT extends ESIntegTestCase {
     public void testInvalidLagSize() {
         try {
             client()
-                .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))

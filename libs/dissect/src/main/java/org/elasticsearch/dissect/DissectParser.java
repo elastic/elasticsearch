@@ -182,7 +182,7 @@ public final class DissectParser {
          * all of the bytes then progress the main cursor. Repeat till the end of the input string. Since the string being searching for
          * (the delimiter) is generally small and rare the naive approach is efficient.
          *
-         * In this case the the string that is walked is the input string, and the string being searched for is the current delimiter.
+         * In this case the string that is walked is the input string, and the string being searched for is the current delimiter.
          * For example for a dissect pattern of {@code %{a},%{b}:%{c}} the delimiters (comma then colon) are searched for in the
          * input string. At class construction the list of keys+delimiters are found (dissectPairs), which allows the use of that ordered
          * list to know which delimiter to use for the search. The delimiters is progressed once the current delimiter is matched.

@@ -34,14 +34,13 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateTokenResponse serialized = new InvalidateTokenResponse();
-                serialized.readFrom(input);
+                InvalidateTokenResponse serialized = new InvalidateTokenResponse(input);
                 assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
                 assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
-                assertThat(serialized.getResult().getErrors().get(0).toString(), containsString("this is an error message"));
-                assertThat(serialized.getResult().getErrors().get(1).toString(), containsString("this is an error message2"));
+                assertThat(serialized.getResult().getErrors().get(0).getCause().getMessage(), containsString("this is an error message"));
+                assertThat(serialized.getResult().getErrors().get(1).getCause().getMessage(), containsString("this is an error message2"));
             }
         }
 
@@ -51,8 +50,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateTokenResponse serialized = new InvalidateTokenResponse();
-                serialized.readFrom(input);
+                InvalidateTokenResponse serialized = new InvalidateTokenResponse(input);
                 assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));

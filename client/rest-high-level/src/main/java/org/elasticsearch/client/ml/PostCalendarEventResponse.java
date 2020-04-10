@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -33,7 +32,7 @@ import java.util.Objects;
 /**
  * Response to adding ScheduledEvent(s) to a Machine Learning calendar
  */
-public class PostCalendarEventResponse extends ActionResponse implements ToXContentObject {
+public class PostCalendarEventResponse implements ToXContentObject {
 
     private final List<ScheduledEvent> scheduledEvents;
     public static final ParseField EVENTS = new ParseField("events");

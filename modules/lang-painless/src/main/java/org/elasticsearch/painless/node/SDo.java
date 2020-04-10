@@ -19,25 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DoWhileLoopNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a do-while loop.
  */
-public final class SDo extends AStatement {
+public class SDo extends AStatement {
 
-    private final SBlock block;
-    private AExpression condition;
-
-    private boolean continuous = false;
+    protected final SBlock block;
+    protected final AExpression condition;
 
     public SDo(Location location, SBlock block, AExpression condition) {
         super(location);
@@ -47,86 +44,53 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        locals = Locals.newLocalScope(locals);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+        scope = scope.newLocalScope();
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        block.beginLoop = true;
-        block.inLoop = true;
+        Input blockInput = new Input();
+        blockInput.beginLoop = true;
+        blockInput.inLoop = true;
+        Output blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
 
-        block.analyze(locals);
-
-        if (block.loopEscape && !block.anyContinue) {
+        if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+        condition.cast(conditionInput, conditionOutput);
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        boolean continuous = false;
+
+        if (condition instanceof EBoolean) {
+            continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));
             }
 
-            if (!block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
 
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
-    }
+        DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
+        doWhileLoopNode.setConditionNode(condition.cast(conditionOutput));
+        doWhileLoopNode.setBlockNode((BlockNode)blockOutput.statementNode);
+        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setContinuous(continuous);
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+        output.statementNode = doWhileLoopNode;
 
-        Label start = new Label();
-        Label begin = new Label();
-        Label end = new Label();
-
-        writer.mark(start);
-
-        block.continu = begin;
-        block.brake = end;
-        block.write(writer, globals);
-
-        writer.mark(begin);
-
-        if (!continuous) {
-            condition.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (loopCounter != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-        }
-
-        writer.goTo(start);
-        writer.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, block);
+        return output;
     }
 }

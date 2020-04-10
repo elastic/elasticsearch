@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.ESSloppyMath;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -38,7 +39,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  *   bits 29..57 -- X tile index (0..2^zoom)
  *   bits  0..28 -- Y tile index (0..2^zoom)
  */
-final class GeoTileUtils {
+public final class GeoTileUtils {
 
     private GeoTileUtils() {}
 
@@ -50,7 +51,7 @@ final class GeoTileUtils {
      * Another consideration is that index optimizes lat/lng storage, loosing some precision.
      * E.g. hash lng=140.74779717298918D lat=45.61884022447444D == "18/233561/93659", but shown as "18/233561/93658"
      */
-    static final int MAX_ZOOM = 29;
+    public static final int MAX_ZOOM = 29;
 
     /**
      * Bit position of the zoom value within hash - zoom is stored in the most significant 6 bits of a long number.
@@ -80,7 +81,7 @@ final class GeoTileUtils {
     /**
      * Assert the precision value is within the allowed range, and return it if ok, or throw.
      */
-    static int checkPrecisionRange(int precision) {
+    public static int checkPrecisionRange(int precision) {
         if (precision < 0 || precision > MAX_ZOOM) {
             throw new IllegalArgumentException("Invalid geotile_grid precision of " +
                 precision + ". Must be between 0 and " + MAX_ZOOM + ".");
@@ -93,7 +94,7 @@ final class GeoTileUtils {
      * The resulting hash contains interleaved tile X and Y coordinates.
      * The precision itself is also encoded as a few high bits.
      */
-    static long longEncode(double longitude, double latitude, int precision) {
+    public static long longEncode(double longitude, double latitude, int precision) {
         // Mathematics for this code was adapted from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Java
 
         // Number of tiles for the current zoom level along the X and Y axis
@@ -119,10 +120,18 @@ final class GeoTileUtils {
             yTile = tiles - 1;
         }
 
-        // Zoom value is placed in front of all the bits used for the geotile
-        // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
-        // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
-        return ((long) precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;
+        return longEncode((long) precision, xTile, yTile);
+    }
+
+    /**
+     * Encode a geotile hash style string to a long.
+     *
+     * @param hashAsString String in format "zoom/x/y"
+     * @return long encoded value of the given string hash
+     */
+    public static long longEncode(String hashAsString) {
+        int[] parsed = parseHash(hashAsString);
+        return longEncode((long)parsed[0], (long)parsed[1], (long)parsed[2]);
     }
 
     /**
@@ -135,10 +144,34 @@ final class GeoTileUtils {
         return new int[]{zoom, xTile, yTile};
     }
 
+    private static long longEncode(long precision, long xTile, long yTile) {
+        // Zoom value is placed in front of all the bits used for the geotile
+        // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
+        // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
+        return (precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;
+    }
+
+    /**
+     * Parse geotile String hash format in "zoom/x/y" into an array of integers
+     */
+    private static int[] parseHash(String hashAsString) {
+        final String[] parts = hashAsString.split("/", 4);
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
+                hashAsString + ". Must be three integers in a form \"zoom/x/y\".");
+        }
+        try {
+            return new int[]{Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])};
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
+                hashAsString + ". Must be three integers in a form \"zoom/x/y\".", e);
+        }
+    }
+
     /**
      * Encode to a geotile string from the geotile based long format
      */
-    static String stringEncode(long hash) {
+    public static String stringEncode(long hash) {
         int[] res = parseHash(hash);
         validateZXY(res[0], res[1], res[2]);
         return "" + res[0] + "/" + res[1] + "/" + res[2];
@@ -156,18 +189,8 @@ final class GeoTileUtils {
      * Decode a string bucket key in "zoom/x/y" format to a GeoPoint (center of the tile)
      */
     static GeoPoint keyToGeoPoint(String hashAsString) {
-        final String[] parts = hashAsString.split("/", 4);
-        if (parts.length != 3) {
-            throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
-                hashAsString + ". Must be three integers in a form \"zoom/x/y\".");
-        }
-
-        try {
-            return zxyToGeoPoint(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
-                hashAsString + ". Must be three integers in a form \"zoom/x/y\".", e);
-        }
+        int[] hashAsInts = parseHash(hashAsString);
+        return zxyToGeoPoint(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
     }
 
     /**
@@ -188,7 +211,7 @@ final class GeoTileUtils {
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
         final int tiles = validateZXY(zoom, xTile, yTile);
         final double n = Math.PI - (2.0 * Math.PI * (yTile + 0.5)) / tiles;
-        final double lat = Math.toDegrees(Math.atan(Math.sinh(n)));
+        final double lat = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
         final double lon = ((xTile + 0.5) / tiles * 360.0) - 180;
         return new GeoPoint(lat, lon);
     }

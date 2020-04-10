@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -161,6 +162,19 @@ public class XContentHelper {
         return convertToJson(bytes, reformatJson, false, xContentType);
     }
 
+    /**
+     * Accepts a JSON string, parses it and prints it without pretty-printing it. This is useful
+     * where a piece of JSON is formatted for legibility, but needs to be stripped of unnecessary
+     * whitespace e.g. for comparison in a test.
+     *
+     * @param json the JSON to format
+     * @return reformatted JSON
+     * @throws IOException if the reformatting fails, e.g. because the JSON is not well-formed
+     */
+    public static String stripWhitespace(String json) throws IOException {
+        return convertToJson(new BytesArray(json), true, XContentType.JSON);
+    }
+
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
@@ -236,10 +250,9 @@ public class XContentHelper {
                 if (content.get(defaultEntry.getKey()) instanceof Map && defaultEntry.getValue() instanceof Map) {
                     mergeDefaults((Map<String, Object>) content.get(defaultEntry.getKey()), (Map<String, Object>) defaultEntry.getValue());
                 } else if (content.get(defaultEntry.getKey()) instanceof List && defaultEntry.getValue() instanceof List) {
-                    List defaultList = (List) defaultEntry.getValue();
-                    List contentList = (List) content.get(defaultEntry.getKey());
+                    List<Object> defaultList = (List<Object>) defaultEntry.getValue();
+                    List<Object> contentList = (List<Object>) content.get(defaultEntry.getKey());
 
-                    List mergedList = new ArrayList();
                     if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
                         // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
                         Map<String, Map<String, Object>> processed = new LinkedHashMap<>();
@@ -258,26 +271,26 @@ public class XContentHelper {
                                 processed.put(entry.getKey(), map);
                             }
                         }
-                        for (Map<String, Object> map : processed.values()) {
-                            mergedList.add(map);
-                        }
+
+                        content.put(defaultEntry.getKey(), new ArrayList<>(processed.values()));
                     } else {
                         // if both are lists, simply combine them, first the defaults, then the content
                         // just make sure not to add the same value twice
-                        mergedList.addAll(defaultList);
+                        List<Object> mergedList = new ArrayList<>(defaultList);
+
                         for (Object o : contentList) {
                             if (!mergedList.contains(o)) {
                                 mergedList.add(o);
                             }
                         }
+                        content.put(defaultEntry.getKey(), mergedList);
                     }
-                    content.put(defaultEntry.getKey(), mergedList);
                 }
             }
         }
     }
 
-    private static boolean allListValuesAreMapsOfOne(List list) {
+    private static boolean allListValuesAreMapsOfOne(List<Object> list) {
         for (Object o : list) {
             if (!(o instanceof Map)) {
                 return false;
@@ -369,5 +382,24 @@ public class XContentHelper {
     public static XContentType xContentType(BytesReference bytes) {
         BytesRef br = bytes.toBytesRef();
         return XContentFactory.xContentType(br.bytes, br.offset, br.length);
+    }
+
+    /**
+     * Returns the contents of an object as an unparsed BytesReference
+     *
+     * This is useful for things like mappings where we're copying bytes around but don't
+     * actually need to parse their contents, and so avoids building large maps of maps
+     * unnecessarily
+     */
+    public static BytesReference childBytes(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new XContentParseException(parser.getTokenLocation(),
+                    "Expected [START_OBJECT] but got [" + parser.currentToken() + "]");
+            }
+        }
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+        return BytesReference.bytes(builder);
     }
 }

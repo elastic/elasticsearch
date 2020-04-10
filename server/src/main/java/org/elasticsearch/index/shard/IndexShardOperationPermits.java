@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.collect.Tuple;
@@ -249,9 +250,24 @@ final class IndexShardOperationPermits implements Closeable {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     final ActionListener<Releasable> wrappedListener;
                     if (executorOnDelay != null) {
-                        wrappedListener =
-                            new PermitAwareThreadedActionListener(threadPool, executorOnDelay,
-                                        new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution);
+                        wrappedListener = ActionListener.delegateFailure(new ContextPreservingActionListener<>(contextSupplier, onAcquired),
+                            (l, r) -> threadPool.executor(executorOnDelay).execute(new ActionRunnable<>(l) {
+                                @Override
+                                public boolean isForceExecution() {
+                                    return forceExecution;
+                                }
+
+                                @Override
+                                protected void doRun() {
+                                    listener.onResponse(r);
+                                }
+
+                                @Override
+                                public void onRejection(Exception e) {
+                                    IOUtils.closeWhileHandlingException(r);
+                                    super.onRejection(e);
+                                }
+                            }));
                     } else {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
                     }
@@ -293,19 +309,14 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Obtain the active operation count, or zero if all permits are held (even if there are outstanding operations in flight).
+     * Obtain the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} if all permits are held.
      *
-     * @return the active operation count, or zero when all permits are held
+     * @return the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} when all permits are held.
      */
     int getActiveOperationsCount() {
         int availablePermits = semaphore.availablePermits();
         if (availablePermits == 0) {
-            /*
-             * This occurs when either doBlockOperations is holding all the permits or there are outstanding operations in flight and the
-             * remainder of the permits are held by doBlockOperations. We do not distinguish between these two cases and simply say that
-             * the active operations count is zero.
-             */
-            return 0;
+            return IndexShard.OPERATIONS_BLOCKED; // This occurs when blockOperations() has acquired all the permits.
         } else {
             return TOTAL_PERMITS - availablePermits;
         }
@@ -342,57 +353,4 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
     }
-
-    /**
-     * A permit-aware action listener wrapper that spawns onResponse listener invocations off on a configurable thread-pool.
-     * Being permit-aware, it also releases the permit when hitting thread-pool rejections and falls back to the
-     * invoker's thread to communicate failures.
-     */
-    private static class PermitAwareThreadedActionListener implements ActionListener<Releasable> {
-
-        private final ThreadPool threadPool;
-        private final String executor;
-        private final ActionListener<Releasable> listener;
-        private final boolean forceExecution;
-
-        private PermitAwareThreadedActionListener(ThreadPool threadPool, String executor, ActionListener<Releasable> listener,
-                                                  boolean forceExecution) {
-            this.threadPool = threadPool;
-            this.executor = executor;
-            this.listener = listener;
-            this.forceExecution = forceExecution;
-        }
-
-        @Override
-        public void onResponse(final Releasable releasable) {
-            threadPool.executor(executor).execute(new AbstractRunnable() {
-                @Override
-                public boolean isForceExecution() {
-                    return forceExecution;
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    listener.onResponse(releasable);
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    IOUtils.closeWhileHandlingException(releasable);
-                    super.onRejection(e);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e); // will possibly execute on the caller thread
-                }
-            });
-        }
-
-        @Override
-        public void onFailure(final Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
 }

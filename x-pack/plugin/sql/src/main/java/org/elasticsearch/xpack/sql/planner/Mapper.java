@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
-import org.elasticsearch.xpack.sql.plan.logical.Limit;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
@@ -22,15 +26,13 @@ import org.elasticsearch.xpack.sql.plan.physical.CommandExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
 import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -88,10 +90,19 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new AggregateExec(p.source(), map(a.child()), a.groupings(), a.aggregates());
             }
 
+            if (p instanceof Pivot) {
+                Pivot pv = (Pivot) p;
+                return new PivotExec(pv.source(), map(pv.child()), pv);
+            }
+
             if (p instanceof EsRelation) {
                 EsRelation c = (EsRelation) p;
                 List<Attribute> output = c.output();
-                return new EsQueryExec(p.source(), c.index().name(), output, new QueryContainer());
+                QueryContainer container = new QueryContainer();
+                if (c.frozen()) {
+                    container = container.withFrozen();
+                }
+                return new EsQueryExec(p.source(), c.index().name(), output, container);
             }
 
             if (p instanceof Limit) {

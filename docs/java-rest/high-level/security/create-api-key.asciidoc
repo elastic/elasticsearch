@@ -3,7 +3,7 @@
 :request: CreateApiKeyRequest
 :response: CreateApiKeyResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Create API Key API
 
@@ -12,8 +12,8 @@ API Key can be created using this API.
 [id="{upid}-{api}-request"]
 ==== Create API Key Request
 
-A +{request}+ contains name for the API key,
-list of role descriptors to define permissions and
+A +{request}+ contains an optional name for the API key,
+an optional list of role descriptors to define permissions and
 optional expiration for the generated API key.
 If expiration is not provided then by default the API
 keys do not expire.

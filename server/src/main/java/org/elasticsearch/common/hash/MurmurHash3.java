@@ -21,6 +21,8 @@ package org.elasticsearch.common.hash;
 
 import org.elasticsearch.common.util.ByteUtils;
 
+import java.util.Objects;
+
 
 /**
  * MurmurHash3 hashing functions.
@@ -36,6 +38,24 @@ public enum MurmurHash3 {
         public long h1;
         /** higher 64 bits part **/
         public long h2;
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            Hash128 that = (Hash128) other;
+            return Objects.equals(this.h1, that.h1)
+                && Objects.equals(this.h2, that.h2);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(h1, h2);
+        }
     }
 
     private static long C1 = 0x87c37b91114253d5L;
@@ -158,6 +178,24 @@ public enum MurmurHash3 {
         hash.h1 = h1;
         hash.h2 = h2;
         return hash;
+    }
+
+    /**
+     * A 64-bit variant which accepts a long to hash, and returns the 64bit long hash.
+     * This is useful if the input is already in long (or smaller) format and you don't
+     * need the full 128b width and flexibility of
+     * {@link MurmurHash3#hash128(byte[], int, int, long, Hash128)}
+     *
+     * Given the limited nature of this variant, it should be faster than the 128b version
+     * when you only need 128b (many fewer instructions)
+     */
+    public static long murmur64(long h) {
+        h ^= h >>> 33;
+        h *= 0xff51afd7ed558ccdL;
+        h ^= h >>> 33;
+        h *= 0xc4ceb9fe1a85ec53L;
+        h ^= h >>> 33;
+        return h;
     }
 
 }

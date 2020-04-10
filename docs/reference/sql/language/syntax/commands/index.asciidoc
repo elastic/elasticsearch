@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-commands]]
-== SQL Commands
+=== SQL Commands
 
 This section contains the list of SQL commands supported by {es-sql} along with their syntax:
 

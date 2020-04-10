@@ -20,15 +20,14 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -70,7 +69,7 @@ public class IndicesModuleTests extends ESTestCase {
             return null;
         }
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             return null;
         }
     }
@@ -86,31 +85,15 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
+    private static final String[] EXPECTED_METADATA_FIELDS = new String[]{ IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
             RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
-
-    private static String[] EXPECTED_METADATA_FIELDS_6x = new String[]{AllFieldMapper.NAME, IgnoredFieldMapper.NAME,
-        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-        VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
-
+            NestedPathFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0.minimumCompatibilityVersion());
-            assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
-            assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
-                module.getMapperRegistry().getMetadataMapperParsers(version);
-            assertEquals(EXPECTED_METADATA_FIELDS_6x.length, metadataMapperParsers.size());
-            int i = 0;
-            for (String field : metadataMapperParsers.keySet()) {
-                assertEquals(EXPECTED_METADATA_FIELDS_6x[i++], field);
-            }
-        }
-        {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+            Version version = VersionUtils.randomVersionBetween(random(),
+                Version.V_8_0_0, Version.CURRENT);
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
@@ -121,21 +104,23 @@ public class IndicesModuleTests extends ESTestCase {
                 assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
             }
         }
+        {
+            Version version = VersionUtils.randomVersionBetween(random(),
+                Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+            assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers(version).size());
+        }
     }
 
     public void testBuiltinWithPlugins() {
         IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList());
         IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0.minimumCompatibilityVersion());
         assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
-        assertThat(registry.getMetadataMapperParsers(version).size(),
-                greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(version).size()));
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers(version);
+        assertThat(registry.getMetadataMapperParsers(Version.CURRENT).size(),
+                greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(Version.CURRENT).size()));
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
+            module.getMapperRegistry().getMetadataMapperParsers(Version.CURRENT);
         Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
-        if (version.before(Version.V_7_0_0)) {
-            assertEquals(AllFieldMapper.NAME, iterator.next());
-        }
         assertEquals(IgnoredFieldMapper.NAME, iterator.next());
         String last = null;
         while(iterator.hasNext()) {
@@ -144,10 +129,10 @@ public class IndicesModuleTests extends ESTestCase {
         assertEquals(FieldNamesFieldMapper.NAME, last);
     }
 
-    public void testGetBuiltInMetaDataFields() {
-        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+    public void testGetBuiltInMetadataFields() {
+        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         int i = 0;
-        for (String field : builtInMetaDataFields) {
+        for (String field : builtInMetadataFields) {
             assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
         }
     }

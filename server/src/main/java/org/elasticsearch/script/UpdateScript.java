@@ -20,24 +20,12 @@
 
 package org.elasticsearch.script;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
  * An update script.
  */
 public abstract class UpdateScript {
-
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-                "_type",
-                "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
 
     public static final String[] PARAMETERS = { };
 
@@ -52,7 +40,7 @@ public abstract class UpdateScript {
 
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
         this.params = params;
-        this.ctx = new DeprecationMap(ctx, DEPRECATIONS, "update-script");
+        this.ctx = ctx;
     }
 
     /** Return the parameters for this script. */

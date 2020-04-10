@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -138,7 +138,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 stats = groupsStats.get(group);
                 if (stats == null) {
                     stats = new StatsHolder();
-                    groupsStats = MapBuilder.newMapBuilder(groupsStats).put(group, stats).immutableMap();
+                    groupsStats = Maps.copyMapWithAddedEntry(groupsStats, group, stats);
                 }
             }
         }

@@ -23,35 +23,20 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.NettyRuntime;
-import io.netty.util.internal.logging.InternalLogger;
-import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Netty4Utils {
-
-    static {
-        InternalLoggerFactory.setDefaultFactory(new InternalLoggerFactory() {
-
-            @Override
-            public InternalLogger newInstance(final String name) {
-                return new Netty4InternalESLogger(name);
-            }
-
-        });
-    }
-
-    public static void setup() {
-
-    }
 
     private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
 
@@ -96,28 +81,24 @@ public class Netty4Utils {
         if (reference.length() == 0) {
             return Unpooled.EMPTY_BUFFER;
         }
-        if (reference instanceof ByteBufBytesReference) {
-            return ((ByteBufBytesReference) reference).toByteBuf();
-        } else {
-            final BytesRefIterator iterator = reference.iterator();
-            // usually we have one, two, or three components from the header, the message, and a buffer
-            final List<ByteBuf> buffers = new ArrayList<>(3);
-            try {
-                BytesRef slice;
-                while ((slice = iterator.next()) != null) {
-                    buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
-                }
-
-                if (buffers.size() == 1) {
-                    return buffers.get(0);
-                } else {
-                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                    composite.addComponents(true, buffers);
-                    return composite;
-                }
-            } catch (IOException ex) {
-                throw new AssertionError("no IO happens here", ex);
+        final BytesRefIterator iterator = reference.iterator();
+        // usually we have one, two, or three components from the header, the message, and a buffer
+        final List<ByteBuf> buffers = new ArrayList<>(3);
+        try {
+            BytesRef slice;
+            while ((slice = iterator.next()) != null) {
+                buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
             }
+
+            if (buffers.size() == 1) {
+                return buffers.get(0);
+            } else {
+                CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                composite.addComponents(true, buffers);
+                return composite;
+            }
+        } catch (IOException ex) {
+            throw new AssertionError("no IO happens here", ex);
         }
     }
 
@@ -125,14 +106,12 @@ public class Netty4Utils {
      * Wraps the given ChannelBuffer with a BytesReference
      */
     public static BytesReference toBytesReference(final ByteBuf buffer) {
-        return toBytesReference(buffer, buffer.readableBytes());
+        final int readableBytes = buffer.readableBytes();
+        if (readableBytes == 0) {
+            return BytesArray.EMPTY;
+        } else {
+            final ByteBuffer[] byteBuffers = buffer.nioBuffers();
+            return BytesReference.fromByteBuffers(byteBuffers);
+        }
     }
-
-    /**
-     * Wraps the given ChannelBuffer with a BytesReference of a given size
-     */
-    static BytesReference toBytesReference(final ByteBuf buffer, final int size) {
-        return new ByteBufBytesReference(buffer, size);
-    }
-
 }

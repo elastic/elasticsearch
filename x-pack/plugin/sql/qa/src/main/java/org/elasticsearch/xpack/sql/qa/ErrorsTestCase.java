@@ -13,7 +13,9 @@ package org.elasticsearch.xpack.sql.qa;
 public interface ErrorsTestCase {
     void testSelectInvalidSql() throws Exception;
     void testSelectFromMissingIndex() throws Exception;
-    void testSelectFromIndexWithoutTypes() throws Exception;
+    void testSelectColumnFromMissingIndex() throws Exception;
+    void testSelectFromEmptyIndex() throws Exception;
+    void testSelectColumnFromEmptyIndex() throws Exception;
     void testSelectMissingField() throws Exception;
     void testSelectMissingFunction() throws Exception;
     void testSelectProjectScoreInAggContext() throws Exception;
@@ -21,4 +23,5 @@ public interface ErrorsTestCase {
     void testSelectGroupByScore() throws Exception;
     void testSelectScoreSubField() throws Exception;
     void testSelectScoreInScalar() throws Exception;
+    void testHardLimitForSortOnAggregate() throws Exception;
 }

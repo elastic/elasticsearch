@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -25,8 +24,8 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.is;
 
-// no client nodes, no transport clients, as they all get rejected on network connections
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+// no client nodes as they all get rejected on network connections
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     private static int randomClientPort;
 
@@ -61,11 +60,6 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testThatIpFilteringIsNotAppliedForDefaultTransport() throws Exception {
-        Client client = internalCluster().transportClient();
-        assertGreenClusterState(client);
-    }
-
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {
         try (Socket socket = new Socket()){
             trySocketConnection(socket, getProfileAddress("client"));
@@ -76,7 +70,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     @SuppressForbidden(reason = "Allow opening socket for test")
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
         logger.info("connecting to {}", address);
-        SocketAccess.doPrivileged(() -> socket.connect(address, 500));
+        SocketAccess.doPrivileged(() -> socket.connect(address, 5000));
 
         assertThat(socket.isConnected(), is(true));
         try (OutputStream os = socket.getOutputStream()) {

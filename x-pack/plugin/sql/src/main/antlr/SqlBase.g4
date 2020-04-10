@@ -50,9 +50,9 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (tableLike=likePattern | tableIdent=tableIdentifier)?                                   #showTables
-    | SHOW COLUMNS (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)                       #showColumns
-    | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
+    | SHOW TABLES (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)?                 #showTables
+    | SHOW COLUMNS (INCLUDE FROZEN)? (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)     #showColumns
+    | (DESCRIBE | DESC) (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)            #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     | SYS TABLES (CATALOG clusterLike=likePattern)?
@@ -90,7 +90,7 @@ orderBy
     ;
 
 querySpecification
-    : SELECT setQuantifier? selectItem (',' selectItem)*
+    : SELECT setQuantifier? selectItems
       fromClause?
       (WHERE where=booleanExpression)?
       (GROUP BY groupBy)?
@@ -98,7 +98,7 @@ querySpecification
     ;
 
 fromClause
-    : FROM relation (',' relation)*
+    : FROM relation (',' relation)* pivotClause?
     ;
 
 groupBy
@@ -121,6 +121,10 @@ namedQuery
 setQuantifier
     : DISTINCT
     | ALL
+    ;
+
+selectItems                                       
+    : selectItem (',' selectItem)*
     ;
 
 selectItem
@@ -149,11 +153,23 @@ joinCriteria
     ;
 
 relationPrimary
-    : tableIdentifier (AS? qualifiedName)?                            #tableName
+    : FROZEN? tableIdentifier (AS? qualifiedName)?                    #tableName
     | '(' queryNoWith ')' (AS? qualifiedName)?                        #aliasedQuery
     | '(' relation ')' (AS? qualifiedName)?                           #aliasedRelation
     ;
 
+pivotClause
+    : PIVOT '(' aggs=pivotArgs FOR column=qualifiedName IN '(' vals=pivotArgs ')' ')'
+    ;
+
+pivotArgs
+    : namedValueExpression (',' namedValueExpression)* 
+    ;
+    
+namedValueExpression
+    : valueExpression  (AS? identifier)?
+    ;
+    
 expression
     : booleanExpression
     ;
@@ -201,7 +217,7 @@ pattern
     
 patternEscape
     : ESCAPE escape=string
-    | ESCAPE_ESC escape=string '}'
+    | ESCAPE_ESC escape=string ESC_END
     ;
 
 valueExpression
@@ -213,22 +229,23 @@ valueExpression
     ;
 
 primaryExpression
-    : castExpression                                                                 #cast
-    | primaryExpression CAST_OP dataType                                             #castOperatorExpression
-    | extractExpression                                                              #extract
-    | builtinDateTimeFunction                                                        #currentDateTimeFunction
-    | constant                                                                       #constantDefault
-    | (qualifiedName DOT)? ASTERISK                                                  #star
-    | functionExpression                                                             #function
-    | '(' query ')'                                                                  #subqueryExpression
-    | qualifiedName                                                                  #dereference
-    | '(' expression ')'                                                             #parenthesizedExpression
+    : castExpression                                                                           #cast
+    | primaryExpression CAST_OP dataType                                                       #castOperatorExpression
+    | extractExpression                                                                        #extract
+    | builtinDateTimeFunction                                                                  #currentDateTimeFunction
+    | constant                                                                                 #constantDefault
+    | (qualifiedName DOT)? ASTERISK                                                            #star
+    | functionExpression                                                                       #function
+    | '(' query ')'                                                                            #subqueryExpression
+    | qualifiedName                                                                            #dereference
+    | '(' expression ')'                                                                       #parenthesizedExpression
+    | CASE (operand=booleanExpression)? whenClause+ (ELSE elseClause=booleanExpression)? END   #case
     ;
 
 builtinDateTimeFunction
-    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
-    | name=CURRENT_DATE ('(' ')')?
-    | name=CURRENT_TIME ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_TIMESTAMP
+    | name=CURRENT_DATE
+    | name=CURRENT_TIME
     ;
 
 castExpression
@@ -257,7 +274,7 @@ extractTemplate
 
 functionExpression
     : functionTemplate
-    | FUNCTION_ESC functionTemplate '}'
+    | FUNCTION_ESC functionTemplate ESC_END
     ;
     
 functionTemplate
@@ -337,10 +354,15 @@ string
     | STRING
     ;
 
+whenClause
+    : WHEN condition=expression THEN result=expression
+    ;
+
 // http://developer.mimer.se/validator/sql-reserved-words.tml
+// https://developer.mimer.com/wp-content/uploads/standard-sql-reserved-words-summary.pdf
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS
+    | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS
@@ -350,7 +372,7 @@ nonReserved
     | LAST | LIMIT 
     | MAPPED | MINUTE | MONTH
     | OPTIMIZED 
-    | PARSED | PHYSICAL | PLAN 
+    | PARSED | PHYSICAL | PIVOT | PLAN 
     | QUERY 
     | RLIKE
     | SCHEMAS | SECOND | SHOW | SYS
@@ -368,6 +390,7 @@ AS: 'AS';
 ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
+CASE: 'CASE';
 CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
@@ -382,6 +405,8 @@ DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
 DISTINCT: 'DISTINCT';
+ELSE: 'ELSE';
+END: 'END';
 ESCAPE: 'ESCAPE';
 EXECUTABLE: 'EXECUTABLE';
 EXISTS: 'EXISTS';
@@ -389,8 +414,10 @@ EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
 FIRST: 'FIRST';
+FOR: 'FOR';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
+FROZEN: 'FROZEN';
 FULL: 'FULL';
 FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
@@ -399,6 +426,7 @@ HAVING: 'HAVING';
 HOUR: 'HOUR';
 HOURS: 'HOURS';
 IN: 'IN';
+INCLUDE: 'INCLUDE';
 INNER: 'INNER';
 INTERVAL: 'INTERVAL';
 IS: 'IS';
@@ -424,6 +452,7 @@ ORDER: 'ORDER';
 OUTER: 'OUTER';
 PARSED: 'PARSED';
 PHYSICAL: 'PHYSICAL';
+PIVOT: 'PIVOT';
 PLAN: 'PLAN';
 RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
@@ -437,27 +466,30 @@ SYS: 'SYS';
 TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
+THEN: 'THEN';
 TRUE: 'TRUE';
 TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
+WHEN: 'WHEN';
 WHERE: 'WHERE';
 WITH: 'WITH';
 YEAR: 'YEAR';
 YEARS: 'YEARS';
 
 // Escaped Sequence
-ESCAPE_ESC: '{ESCAPE';
-FUNCTION_ESC: '{FN';
-LIMIT_ESC:'{LIMIT';
-DATE_ESC: '{D';
-TIME_ESC: '{T';
-TIMESTAMP_ESC: '{TS';
+ESCAPE_ESC: ESC_START 'ESCAPE';
+FUNCTION_ESC: ESC_START 'FN';
+LIMIT_ESC: ESC_START 'LIMIT';
+DATE_ESC: ESC_START 'D';
+TIME_ESC: ESC_START 'T';
+TIMESTAMP_ESC: ESC_START 'TS';
 // mapped to string literal
-GUID_ESC: '{GUID';
+GUID_ESC: ESC_START 'GUID';
 
+ESC_START: '{' (WS)*;
 ESC_END: '}';
 
 // Operators

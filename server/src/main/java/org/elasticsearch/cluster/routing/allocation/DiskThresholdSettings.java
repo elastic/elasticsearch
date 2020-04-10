@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -27,8 +29,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -54,9 +56,6 @@ public class DiskThresholdSettings {
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
             new FloodStageValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -67,11 +66,19 @@ public class DiskThresholdSettings {
     private volatile Double freeDiskThresholdHigh;
     private volatile ByteSizeValue freeBytesThresholdLow;
     private volatile ByteSizeValue freeBytesThresholdHigh;
-    private volatile boolean includeRelocations;
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
+
+    static {
+        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
+        final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
+        final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
+        if (property != null) {
+            throw new IllegalArgumentException("system property [" + AUTO_RELEASE_INDEX_ENABLED_KEY + "] may not be set");
+        }
+    }
 
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
@@ -80,13 +87,11 @@ public class DiskThresholdSettings {
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         setFloodStage(floodStage);
-        this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
     }
@@ -95,21 +100,22 @@ public class DiskThresholdSettings {
 
         @Override
         public void validate(String value) {
+
         }
 
         @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String highWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
-            final String floodStageRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
             doValidate(value, highWatermarkRaw, floodStageRaw);
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(
                     CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING)
-                    .iterator();
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            return settings.iterator();
         }
 
     }
@@ -117,22 +123,23 @@ public class DiskThresholdSettings {
     static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
 
         @Override
-        public void validate(String value) {
+        public void validate(final String value) {
+
         }
 
         @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final String floodStageRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
             doValidate(lowWatermarkRaw, value, floodStageRaw);
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(
                     CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING)
-                    .iterator();
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            return settings.iterator();
         }
 
     }
@@ -140,23 +147,25 @@ public class DiskThresholdSettings {
     static final class FloodStageValidator implements Setting.Validator<String> {
 
         @Override
-        public void validate(String value) {
+        public void validate(final String value) {
+
         }
 
         @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final String highWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
             doValidate(lowWatermarkRaw, highWatermarkRaw, value);
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(
                     CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING)
-                    .iterator();
+                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+            return settings.iterator();
         }
+
     }
 
     private static void doValidate(String low, String high, String flood) {
@@ -211,10 +220,6 @@ public class DiskThresholdSettings {
             throw new IllegalArgumentException(
                     "high disk watermark [" + high + "] less than flood stage disk watermark [" + flood + "]");
         }
-    }
-
-    private void setIncludeRelocations(boolean includeRelocations) {
-        this.includeRelocations = includeRelocations;
     }
 
     private void setRerouteInterval(TimeValue rerouteInterval) {
@@ -286,16 +291,30 @@ public class DiskThresholdSettings {
         return freeBytesThresholdFloodStage;
     }
 
-    public boolean includeRelocations() {
-        return includeRelocations;
-    }
-
     public boolean isEnabled() {
         return enabled;
     }
 
     public TimeValue getRerouteInterval() {
         return rerouteInterval;
+    }
+
+    String describeLowThreshold() {
+        return freeBytesThresholdLow.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdLow, "%")
+            : freeBytesThresholdLow.toString();
+    }
+
+    String describeHighThreshold() {
+        return freeBytesThresholdHigh.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdHigh, "%")
+            : freeBytesThresholdHigh.toString();
+    }
+
+    String describeFloodStageThreshold() {
+        return freeBytesThresholdFloodStage.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdFloodStage, "%")
+            : freeBytesThresholdFloodStage.toString();
     }
 
     /**

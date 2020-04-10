@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -55,9 +55,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
@@ -89,9 +89,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int maxConcurrentShardRequests = 0;
 
-    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
-
-    private String[] types = Strings.EMPTY_ARRAY;
+    private Integer preFilterShardSize;
 
     private boolean ccsMinimizeRoundtrips = true;
 
@@ -134,9 +132,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Creates a new search request by providing the search request to copy all fields from, the indices to search against, the alias of
-     * the cluster where it will be executed, as well as the start time in milliseconds from the epoch time and whether the reduction
-     * should be final or not. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
+     * Creates a new sub-search request starting from the original search request that is provided.
+     * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
+     * Such requests will not be finally reduced, so that their results can be merged together in one response at completion.
+     * Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
      * performing reduction on each cluster in order to minimize network round-trips between the coordinating node and the remote clusters.
      *
      * @param originalSearchRequest the original search request
@@ -145,8 +144,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest crossClusterSearch(SearchRequest originalSearchRequest, String[] indices,
-                                            String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
+    static SearchRequest subSearchRequest(SearchRequest originalSearchRequest, String[] indices,
+                                          String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
         Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
@@ -171,7 +170,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.scroll = searchRequest.scroll;
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
-        this.types = searchRequest.types;
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
@@ -191,12 +189,23 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
+            }
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        preFilterShardSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            preFilterShardSize = in.readOptionalVInt();
+        } else {
+            preFilterShardSize = in.readVInt();
+        }
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -218,12 +227,19 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        out.writeVInt(preFilterShardSize);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeOptionalVInt(preFilterShardSize);
+        } else {
+            out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
+        }
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
@@ -261,6 +277,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
+        if (source != null) {
+            if (source.aggregations() != null) {
+                validationException = source.aggregations().validate(validationException);
+            }
+        }
         return validationException;
     }
 
@@ -284,12 +305,19 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #crossClusterSearch(SearchRequest, String[], String, long, boolean)}, this method returns
+     * request. When created through {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
-     *
      */
     long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
+    }
+
+    /**
+     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest} and
+     * -1 otherwise.
+     */
+    long getAbsoluteStartMillis() {
+        return absoluteStartMillis;
     }
 
     /**
@@ -332,35 +360,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String[] types() {
-        return types;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public SearchRequest types(String... types) {
-        Objects.requireNonNull(types, "types must not be null");
-        for (String type : types) {
-            Objects.requireNonNull(type, "type must not be null");
-        }
-        this.types = types;
-        return this;
     }
 
     /**
@@ -545,8 +544,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
     public void setPreFilterShardSize(int preFilterShardSize) {
         if (preFilterShardSize < 1) {
@@ -557,11 +563,20 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
-     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
+     * This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
-    public int getPreFilterShardSize() {
+    @Nullable
+    public Integer getPreFilterShardSize() {
         return preFilterShardSize;
     }
 
@@ -572,8 +587,21 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         return source != null && source.isSuggestOnly();
     }
 
+    public int resolveTrackTotalHitsUpTo() {
+        return resolveTrackTotalHitsUpTo(scroll, source);
+    }
+
+    public static int resolveTrackTotalHitsUpTo(Scroll scroll, SearchSourceBuilder source) {
+        if (scroll != null) {
+            // no matter what the value of track_total_hits is
+            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        }
+        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo() == null ?
+            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+    }
+
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // generating description in a lazy way since source can be quite big
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override
@@ -582,12 +610,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 sb.append("indices[");
                 Strings.arrayToDelimitedString(indices, ",", sb);
                 sb.append("], ");
-                sb.append("types[");
-                Strings.arrayToDelimitedString(types, ",", sb);
-                sb.append("], ");
                 sb.append("search_type[").append(searchType).append("], ");
+                if (scroll != null) {
+                    sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+                }
                 if (source != null) {
-
                     sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
                 } else {
                     sb.append("source[]");
@@ -595,11 +622,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 return sb.toString();
             }
         };
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -618,7 +640,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(source, that.source) &&
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
-                Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
@@ -632,7 +653,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
+                scroll, indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
                 allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
     }
 
@@ -642,7 +663,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 "searchType=" + searchType +
                 ", indices=" + Arrays.toString(indices) +
                 ", indicesOptions=" + indicesOptions +
-                ", types=" + Arrays.toString(types) +
                 ", routing='" + routing + '\'' +
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +

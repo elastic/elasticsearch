@@ -30,7 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -106,7 +106,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldMapper extends FieldMapper {
 
-        private static final Settings SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        private static final Settings SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
             super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, MultiFields.empty(), CopyTo.empty());
@@ -147,12 +147,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             defaultSearchQuote);
 
         assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field1", "index");
-        assertAnalyzes(documentFieldMappers.searchAnalyzer(), "field1", "search");
-        assertAnalyzes(documentFieldMappers.searchQuoteAnalyzer(), "field1", "search_quote");
 
         assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field2", "default_index");
-        assertAnalyzes(documentFieldMappers.searchAnalyzer(), "field2", "default_search");
-        assertAnalyzes(documentFieldMappers.searchQuoteAnalyzer(), "field2", "default_search_quote");
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

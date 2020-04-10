@@ -18,54 +18,92 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.PropertyNormalization;
+import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 
 import java.io.File;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 
 public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
-    void setDistribution(Distribution distribution);
+    void setVersions(List<String> version);
+
+    void setTestDistribution(TestDistribution distribution);
 
     void plugin(URI plugin);
 
     void plugin(File plugin);
 
+    void plugin(Provider<URI> plugin);
+
+    void plugin(RegularFileProperty plugin);
+
     void module(File module);
+
+    void module(Provider<RegularFile> module);
 
     void keystore(String key, String value);
 
     void keystore(String key, Supplier<CharSequence> valueSupplier);
 
+    void keystore(String key, File value);
+
+    void keystore(String key, File value, PropertyNormalization normalization);
+
+    void keystore(String key, FileSupplier valueSupplier);
+
+    void cliSetup(String binTool, CharSequence... args);
+
     void setting(String key, String value);
 
+    void setting(String key, String value, PropertyNormalization normalization);
+
     void setting(String key, Supplier<CharSequence> valueSupplier);
+
+    void setting(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
 
     void systemProperty(String key, String value);
 
     void systemProperty(String key, Supplier<CharSequence> valueSupplier);
 
+    void systemProperty(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
+
     void environment(String key, String value);
 
     void environment(String key, Supplier<CharSequence> valueSupplier);
 
-    void freeze();
+    void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
 
-    void setJavaHome(File javaHome);
+    void jvmArgs(String... values);
+
+    void freeze();
 
     void start();
 
+    void restart();
+
     void extraConfigFile(String destination, File from);
+
+    void extraConfigFile(String destination, File from, PropertyNormalization normalization);
+
+    void extraJarFile(File from);
+
+    void user(Map<String, String> userSpec);
 
     String getHttpSocketURI();
 
@@ -77,10 +115,13 @@ public interface TestClusterConfiguration {
 
     void stop(boolean tailLogs);
 
+    void setNameCustomization(Function<String, String> nameSupplier);
+
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
         long startedAtMillis,
-        long nodeUpTimeout, TimeUnit nodeUpTimeoutUnit,
+        long nodeUpTimeout,
+        TimeUnit nodeUpTimeoutUnit,
         TestClusterConfiguration context
     ) {
         Logger logger = Logging.getLogger(TestClusterConfiguration.class);
@@ -88,60 +129,54 @@ public interface TestClusterConfiguration {
             long thisConditionStartedAt = System.currentTimeMillis();
             boolean conditionMet = false;
             Throwable lastException = null;
-            while (
-                System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
-            ) {
+            while (System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)) {
                 if (context.isProcessAlive() == false) {
-                    throw new TestClustersException(
-                        "process was found dead while waiting for " + description + ", " + this
-                    );
+                    throw new TestClustersException("process was found dead while waiting for " + description + ", " + this);
                 }
 
                 try {
-                    if(predicate.test(context)) {
+                    if (predicate.test(context)) {
                         conditionMet = true;
                         break;
                     }
                 } catch (TestClustersException e) {
-                    throw new TestClustersException(e);
+                    throw e;
                 } catch (Exception e) {
-                    if (lastException == null) {
-                        lastException = e;
-                    } else {
-                        lastException = e;
-                    }
-                }
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                    lastException = e;
                 }
             }
             if (conditionMet == false) {
-                String message = "`" + context + "` failed to wait for " + description + " after " +
-                    nodeUpTimeout + " " + nodeUpTimeoutUnit;
+                String message = String.format(
+                    Locale.ROOT,
+                    "`%s` failed to wait for %s after %d %s",
+                    context,
+                    description,
+                    nodeUpTimeout,
+                    nodeUpTimeoutUnit
+                );
                 if (lastException == null) {
                     throw new TestClustersException(message);
                 } else {
-                    throw new TestClustersException(message, lastException);
+                    String extraCause = "";
+                    Throwable cause = lastException;
+                    int ident = 2;
+                    while (cause != null) {
+                        if (cause.getMessage() != null && cause.getMessage().isEmpty() == false) {
+                            extraCause += "\n" + " ".repeat(ident) + cause.getMessage();
+                            ident += 2;
+                        }
+                        cause = cause.getCause();
+                    }
+                    throw new TestClustersException(message + extraCause, lastException);
                 }
             }
-            logger.info(
-                "{}: {} took {} seconds",
-                this,  description,
-                (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0
-            );
+            logger.info("{}: {} took {} seconds", this, description, (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0);
         });
     }
 
     default String safeName(String name) {
-        return name
-            .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9]+", "-");
+        return name.replaceAll("^[^a-zA-Z0-9]+", "").replaceAll("[^a-zA-Z0-9\\.]+", "-");
     }
-
-
 
     boolean isProcessAlive();
 }

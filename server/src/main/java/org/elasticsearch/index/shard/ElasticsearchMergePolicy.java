@@ -46,7 +46,7 @@ import java.util.Map;
  */
 public final class ElasticsearchMergePolicy extends FilterMergePolicy {
 
-    private static Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
+    private static final Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
 
     // True if the next merge request should do segment upgrades:
     private volatile boolean upgradeInProgress;
@@ -59,6 +59,11 @@ public final class ElasticsearchMergePolicy extends FilterMergePolicy {
     /** @param delegate the merge policy to wrap */
     public ElasticsearchMergePolicy(MergePolicy delegate) {
         super(delegate);
+    }
+
+    /** return the wrapped merge policy */
+    public MergePolicy getDelegate() {
+        return in;
     }
 
     private boolean shouldUpgrade(SegmentCommitInfo info) {

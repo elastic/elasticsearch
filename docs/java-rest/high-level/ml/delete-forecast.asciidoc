@@ -3,6 +3,7 @@
 :request: DeleteForecastRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Forecast API
 

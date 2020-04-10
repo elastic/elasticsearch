@@ -3,7 +3,7 @@
 :request: ExplainLifecycleRequest
 :response: ExplainLifecycleResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Explain Lifecycle API
 

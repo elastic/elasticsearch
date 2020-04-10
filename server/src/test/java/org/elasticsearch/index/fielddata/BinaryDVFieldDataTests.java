@@ -63,16 +63,16 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        ParsedDocument d = mapper.parse(new SourceToParse("test", "test", "1", BytesReference.bytes(doc), XContentType.JSON));
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         BytesRef bytes1 = randomBytes();
         doc = XContentFactory.jsonBuilder().startObject().field("field", bytes1.bytes, bytes1.offset, bytes1.length).endObject();
-        d = mapper.parse(new SourceToParse("test", "test", "2", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "2", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         doc = XContentFactory.jsonBuilder().startObject().endObject();
-        d = mapper.parse(new SourceToParse("test", "test", "3", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "3", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         // test remove duplicate value
@@ -88,7 +88,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        d = mapper.parse(new SourceToParse("test", "test", "4", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("test", "4", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         IndexFieldData<?> indexFieldData = getForField("field");
@@ -100,7 +100,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         bytesList2.sort(null);
 
         // Test SortedBinaryDocValues's decoding:
-        AtomicFieldData fieldData = indexFieldData.load(reader);
+        LeafFieldData fieldData = indexFieldData.load(reader);
         SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
         assertTrue(bytesValues.advanceExact(0));

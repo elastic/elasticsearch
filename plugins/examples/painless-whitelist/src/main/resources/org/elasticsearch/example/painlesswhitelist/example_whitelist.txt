@@ -33,6 +33,9 @@ class org.elasticsearch.example.painlesswhitelist.ExampleWhitelistedClass {
   # getter and setter for private member
   int getPrivateMemberAccessor()
   void setPrivateMemberAccessor(int)
+
+  # annotation
+  void annotate() @example_annotation[category="1",message="example annotation"]
 }
 
 class java.lang.String {

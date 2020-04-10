@@ -20,25 +20,29 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
@@ -47,7 +51,9 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         // adds a dummy user to the native realm to force .security index creation
-        securityClient().preparePutUser("dummy_user", "password".toCharArray(), Hasher.BCRYPT, "missing_role").get();
+        new TestRestHighLevelClient().security().putUser(
+            PutUserRequest.withPassword(new User("dummy_user", List.of("missing_role")), "password".toCharArray(), true,
+                RefreshPolicy.IMMEDIATE), SECURITY_REQUEST_OPTIONS);
         assertSecurityIndexActive();
     }
 
@@ -110,14 +116,14 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testSingleRole() throws Exception {
-        IndexResponse indexResponse = index("test", "type", jsonBuilder()
+        IndexResponse indexResponse = index("test", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
-        indexResponse = index("test1", "type", jsonBuilder()
+        indexResponse = index("test1", jsonBuilder()
                 .startObject()
                 .field("name", "value1")
                 .endObject());
@@ -125,7 +131,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         refresh();
 
-        Client client = internalCluster().transportClient();
+        Client client = client();
 
         // no specifying an index, should replace indices with the permitted ones (test & test1)
         SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).get();
@@ -168,19 +174,19 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     public void testMonitorRestrictedWildcards() throws Exception {
 
-        IndexResponse indexResponse = index("foo", "type", jsonBuilder()
+        IndexResponse indexResponse = index("foo", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("foobar", "type", jsonBuilder()
+        indexResponse = index("foobar", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("foobarfoo", "type", jsonBuilder()
+        indexResponse = index("foobarfoo", jsonBuilder()
                 .startObject()
                 .field("name", "value")
                 .endObject());
@@ -221,7 +227,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
         assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
-        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)  
+        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("user_monitor", USERS_PASSWD));
         RequestOptions options = optionsBuilder.build();
@@ -232,13 +238,13 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testMultipleRoles() throws Exception {
-        IndexResponse indexResponse = index("a", "type", jsonBuilder()
+        IndexResponse indexResponse = index("a", jsonBuilder()
                 .startObject()
                 .field("name", "value_a")
                 .endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = index("b", "type", jsonBuilder()
+        indexResponse = index("b", jsonBuilder()
                 .startObject()
                 .field("name", "value_b")
                 .endObject());
@@ -246,7 +252,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         refresh();
 
-        Client client = internalCluster().transportClient();
+        Client client = client();
 
         SearchResponse response = client
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))

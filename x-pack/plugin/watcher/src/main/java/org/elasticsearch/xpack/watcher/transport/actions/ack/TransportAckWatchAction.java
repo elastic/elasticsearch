@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 
@@ -54,10 +55,10 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     @Inject
     public TransportAckWatchAction(TransportService transportService, ActionFilters actionFilters,
-                                   Clock clock, XPackLicenseState licenseState, WatchParser parser,
+                                   ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser,
                                    Client client, ClusterService clusterService) {
         super(AckWatchAction.NAME, transportService, actionFilters, licenseState, AckWatchRequest::new);
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
         this.clusterService = clusterService;

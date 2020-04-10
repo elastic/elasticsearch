@@ -46,7 +46,9 @@ A `serial_diff` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[serial-diff-params]]
 .`serial_diff` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
@@ -58,7 +60,7 @@ A `serial_diff` aggregation looks like this in isolation:
 
 `serial_diff` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -67,7 +69,7 @@ POST /_search
       "my_date_histo": {                  <1>
          "date_histogram": {
             "field": "timestamp",
-            "interval": "day"
+            "calendar_interval": "day"
          },
          "aggs": {
             "the_sum": {
@@ -86,7 +88,6 @@ POST /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
 <2> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)

@@ -33,17 +33,14 @@ import java.util.Objects;
 
 public class TermVectorsResponse {
     private final String index;
-    private final String type;
     private final String id;
     private final long docVersion;
     private final boolean found;
     private final long tookInMillis;
     private final List<TermVector> termVectorList;
 
-    public TermVectorsResponse(
-            String index, String type, String id, long version, boolean found, long tookInMillis, List<TermVector> termVectorList) {
+    public TermVectorsResponse(String index, String id, long version, boolean found, long tookInMillis, List<TermVector> termVectorList) {
         this.index = index;
-        this.type = type;
         this.id = id;
         this.docVersion = version;
         this.found = found;
@@ -51,20 +48,19 @@ public class TermVectorsResponse {
         this.termVectorList = termVectorList;
     }
 
-    private static ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>("term_vectors", true,
+    private static final ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>("term_vectors", true,
         args -> {
-            // as the response comes from server, we are sure that args[6] will be a list of TermVector
-            @SuppressWarnings("unchecked") List<TermVector> termVectorList = (List<TermVector>) args[6];
+            // as the response comes from server, we are sure that args[5] will be a list of TermVector
+            @SuppressWarnings("unchecked") List<TermVector> termVectorList = (List<TermVector>) args[5];
             if (termVectorList != null) {
                 Collections.sort(termVectorList, Comparator.comparing(TermVector::getFieldName));
             }
             return new TermVectorsResponse(
                 (String) args[0],
                 (String) args[1],
-                (String) args[2],
-                (long) args[3],
-                (boolean) args[4],
-                (long) args[5],
+                (long) args[2],
+                (boolean) args[3],
+                (long) args[4],
                 termVectorList
             );
         }
@@ -72,7 +68,6 @@ public class TermVectorsResponse {
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("_index"));
-        PARSER.declareString(constructorArg(), new ParseField("_type"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("_id"));
         PARSER.declareLong(constructorArg(), new ParseField("_version"));
         PARSER.declareBoolean(constructorArg(), new ParseField("found"));
@@ -90,16 +85,6 @@ public class TermVectorsResponse {
      */
     public String getIndex() {
         return index;
-    }
-
-    /**
-     * Returns the type for the response
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String getType() {
-        return type;
     }
 
     /**
@@ -145,23 +130,22 @@ public class TermVectorsResponse {
         if (!(obj instanceof TermVectorsResponse)) return false;
         TermVectorsResponse other = (TermVectorsResponse) obj;
         return index.equals(other.index)
-            && type.equals(other.type)
             && Objects.equals(id, other.id)
             && docVersion == other.docVersion
             && found == other.found
-            && tookInMillis == tookInMillis
+            && tookInMillis == other.tookInMillis
             && Objects.equals(termVectorList, other.termVectorList);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, docVersion, found, tookInMillis, termVectorList);
+        return Objects.hash(index, id, docVersion, found, tookInMillis, termVectorList);
     }
 
 
     public static final class TermVector {
 
-        private static ConstructingObjectParser<TermVector, String> PARSER = new ConstructingObjectParser<>("term_vector", true,
+        private static final ConstructingObjectParser<TermVector, String> PARSER = new ConstructingObjectParser<>("term_vector", true,
             (args, ctxFieldName)  -> {
                 // as the response comes from server, we are sure that args[1] will be a list of Term
                 @SuppressWarnings("unchecked") List<Term> terms = (List<Term>) args[1];
@@ -234,7 +218,7 @@ public class TermVectorsResponse {
         // Class containing a general field statistics for the field
         public static final class FieldStatistics {
 
-            private static ConstructingObjectParser<FieldStatistics, Void> PARSER = new ConstructingObjectParser<>(
+            private static final ConstructingObjectParser<FieldStatistics, Void> PARSER = new ConstructingObjectParser<>(
                 "field_statistics", true,
                 args  -> {
                     return new FieldStatistics((long) args[0], (int) args[1], (long) args[2]);
@@ -298,7 +282,7 @@ public class TermVectorsResponse {
 
 
         public static final class Term {
-            private static ConstructingObjectParser<Term, String> PARSER = new ConstructingObjectParser<>("token", true,
+            private static final ConstructingObjectParser<Term, String> PARSER = new ConstructingObjectParser<>("token", true,
                 (args, ctxTerm)  -> {
                     // as the response comes from server, we are sure that args[4] will be a list of Token
                     @SuppressWarnings("unchecked") List<Token> tokens = (List<Token>) args[4];
@@ -409,7 +393,7 @@ public class TermVectorsResponse {
 
         public static final class Token {
 
-            private static ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>("token", true,
+            private static final ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>("token", true,
                 args  -> {
                     return new Token((Integer) args[0], (Integer) args[1], (Integer) args[2], (String) args[3]);
                 });

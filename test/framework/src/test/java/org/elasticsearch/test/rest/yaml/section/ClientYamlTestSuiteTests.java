@@ -148,7 +148,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
                 equalTo("for newer versions the index name is always returned"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(),
-                equalTo(Version.V_6_0_0));
+                equalTo(Version.fromString("6.0.0")));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
@@ -410,6 +410,19 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "[\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test " +
             "at line [" + lineNumber + "]"));
     }
+
+    public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setAllowedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [allowed_warnings] " +
+            "section without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
+            "support the [allowed_warnings] section can skip the test at line [" + lineNumber + "]"));
+    }
+
 
     public void testAddingDoWithHeaderWithoutSkipHeaders() {
         int lineNumber = between(1, 10000);

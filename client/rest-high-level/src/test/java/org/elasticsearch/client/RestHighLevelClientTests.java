@@ -33,6 +33,7 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -45,22 +46,53 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
-import org.elasticsearch.client.indexlifecycle.AllocateAction;
-import org.elasticsearch.client.indexlifecycle.DeleteAction;
-import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
-import org.elasticsearch.client.indexlifecycle.FreezeAction;
-import org.elasticsearch.client.indexlifecycle.LifecycleAction;
-import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
-import org.elasticsearch.client.indexlifecycle.RolloverAction;
-import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
-import org.elasticsearch.client.indexlifecycle.ShrinkAction;
-import org.elasticsearch.client.indexlifecycle.UnfollowAction;
+import org.elasticsearch.client.ilm.AllocateAction;
+import org.elasticsearch.client.ilm.DeleteAction;
+import org.elasticsearch.client.ilm.ForceMergeAction;
+import org.elasticsearch.client.ilm.FreezeAction;
+import org.elasticsearch.client.ilm.LifecycleAction;
+import org.elasticsearch.client.ilm.ReadOnlyAction;
+import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.SetPriorityAction;
+import org.elasticsearch.client.ilm.ShrinkAction;
+import org.elasticsearch.client.ilm.UnfollowAction;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
+import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.client.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.client.ml.dataframe.stats.regression.RegressionStats;
+import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
+import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
+import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
+import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
+import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
@@ -71,6 +103,7 @@ import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
 import org.elasticsearch.index.rankeval.MeanReciprocalRank;
 import org.elasticsearch.index.rankeval.MetricDetail;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
+import org.elasticsearch.index.rankeval.RecallAtK;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
@@ -85,10 +118,12 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -102,11 +137,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.GZIPOutputStream;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -129,7 +167,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         // core
         "ping", "info",
         // security
-        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges",
+        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges", "security.get_builtin_privileges",
         // license
         "license.get_trial_status", "license.get_basic_status"
 
@@ -176,7 +214,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildFlavor", "buildType", "buildHash",
             "buildDate", true, "luceneVersion", "minimumWireCompatibilityVersion", "minimumIndexCompatibilityVersion"),
             "clusterName", "clusterUuid", "You Know, for Search");
-        mockResponse((builder, params) -> {
+        mockResponse((ToXContentFragment) (builder, params) -> {
             // taken from the server side MainResponse
             builder.field("name", testInfo.getNodeName());
             builder.field("cluster_name", testInfo.getClusterName());
@@ -286,6 +324,59 @@ public class RestHighLevelClientTests extends ESTestCase {
             HttpEntity cborEntity = createBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
             assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
         }
+    }
+
+    public void testParseCompressedEntity() throws IOException {
+        CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertTrue(parser.nextToken().isValue());
+            String value = parser.text();
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            return value;
+        };
+
+        HttpEntity jsonEntity = createGzipEncodedEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
+        assertEquals("value", restHighLevelClient.parseEntity(jsonEntity, entityParser));
+        HttpEntity yamlEntity = createGzipEncodedEntity("---\nfield: value\n", ContentType.create("application/yaml"));
+        assertEquals("value", restHighLevelClient.parseEntity(yamlEntity, entityParser));
+        HttpEntity smileEntity = createGzipEncodedEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
+        assertEquals("value", restHighLevelClient.parseEntity(smileEntity, entityParser));
+        HttpEntity cborEntity = createGzipEncodedEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
+        assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
+    }
+
+    private HttpEntity createGzipEncodedEntity(String content, ContentType contentType) throws IOException {
+        byte[] gzipEncodedContent = compressContentWithGzip(content.getBytes(StandardCharsets.UTF_8));
+        NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+        httpEntity.setContentEncoding("gzip");
+
+        return httpEntity;
+    }
+
+    private HttpEntity createGzipEncodedEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
+        try (XContentBuilder builder = xContentBuilder) {
+            builder.startObject();
+            builder.field("field", "value");
+            builder.endObject();
+
+            BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
+            byte[] gzipEncodedContent = compressContentWithGzip(bytesRef.bytes);
+            NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+            httpEntity.setContentEncoding("gzip");
+
+            return httpEntity;
+        }
+    }
+
+    private static byte[] compressContentWithGzip(byte[] content) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(content.length);
+        GZIPOutputStream gzip = new GZIPOutputStream(bos);
+        gzip.write(content);
+        gzip.close();
+        bos.close();
+
+        return bos.toByteArray();
     }
 
     private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
@@ -647,6 +738,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
         int expectedInternalAggregations = InternalAggregationTestCase.getDefaultNamedXContents().size();
         int expectedSuggestions = 3;
+
+        // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -662,7 +758,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(20, namedXContents.size());
+        assertEquals(64, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -672,17 +768,19 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 4, categories.size());
+        assertEquals("Had: " + categories, 14, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
-        assertEquals(Integer.valueOf(4), categories.get(EvaluationMetric.class));
+        assertEquals(Integer.valueOf(5), categories.get(EvaluationMetric.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
+        assertTrue(names.contains(RecallAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(4), categories.get(MetricDetail.class));
+        assertEquals(Integer.valueOf(5), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
+        assertTrue(names.contains(RecallAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
@@ -696,20 +794,73 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
         assertTrue(names.contains(SetPriorityAction.NAME));
+        assertEquals(Integer.valueOf(3), categories.get(DataFrameAnalysis.class));
+        assertTrue(names.contains(OutlierDetection.NAME.getPreferredName()));
+        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Regression.NAME.getPreferredName()));
+        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Classification.NAME.getPreferredName()));
+        assertTrue(names.contains(OutlierDetectionStats.NAME.getPreferredName()));
+        assertTrue(names.contains(RegressionStats.NAME.getPreferredName()));
+        assertTrue(names.contains(ClassificationStats.NAME.getPreferredName()));
+        assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
+        assertTrue(names.contains(TimeSyncConfig.NAME));
+        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
+        assertThat(names, hasItems(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME));
+        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertThat(names,
+            hasItems(
+                registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, PrecisionMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, RecallMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrixMetric.NAME),
+                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
+                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
+        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+        assertThat(names,
+            hasItems(
+                registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, PrecisionMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, RecallMetric.NAME),
+                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrixMetric.NAME),
+                registeredMetricName(Classification.NAME, AccuracyMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME),
+                registeredMetricName(
+                    Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
+                registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
+        assertEquals(Integer.valueOf(4), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
+        assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME));
+        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
+        assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
+        assertEquals(Integer.valueOf(3),
+            categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
+        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
+        assertEquals(Integer.valueOf(2),
+            categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
+        assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
-            "cluster.remote_info",
             "create",
-            "get_source",
-            "indices.delete_alias",
+            "get_script_context",
+            "get_script_languages",
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
             "render_search_template",
-            "scripts_painless_execute"
+            "scripts_painless_execute",
+            "indices.create_data_stream",
+            "indices.get_data_streams",
+            "indices.delete_data_stream",
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -729,7 +880,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.hot_threads",
             "nodes.usage",
             "nodes.reload_secure_settings",
-            "scripts_painless_context",
             "search_shards",
         };
         List<String> booleanReturnMethods = Arrays.asList(
@@ -762,12 +912,13 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Collectors.mapping(Tuple::v2, Collectors.toSet())));
 
         // TODO remove in 8.0 - we will undeprecate indices.get_template because the current getIndexTemplate
-        // impl will replace the existing getTemplate method. 
+        // impl will replace the existing getTemplate method.
         // The above general-purpose code ignores all deprecated methods which in this case leaves `getTemplate`
-        // looking like it doesn't have a valid implementatation when it does. 
+        // looking like it doesn't have a valid implementatation when it does.
         apiUnsupported.remove("indices.get_template");
-        
-        
+
+        // Synced flush is deprecated
+        apiUnsupported.remove("indices.flush_synced");
 
         for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();
@@ -801,8 +952,12 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("security.") == false &&
                                 apiName.startsWith("index_lifecycle.") == false &&
                                 apiName.startsWith("ccr.") == false &&
-                                apiName.startsWith("data_frame") == false &&
+                                apiName.startsWith("enrich.") == false &&
+                                apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
+                                apiName.endsWith("reload_analyzers") == false &&
+                                apiName.startsWith("async_search") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
                                 apiName.equals("indices.get_index_template") == false) {
@@ -830,7 +985,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertThat("the return type for method [" + method + "] is incorrect",
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
-            // It's acceptable for 404s to be represented as empty Optionals 
+            // It's acceptable for 404s to be represented as empty Optionals
             if (!method.getReturnType().isAssignableFrom(Optional.class)) {
                 assertThat("the return type for method [" + method + "] is incorrect",
                     method.getReturnType().getSimpleName(), endsWith("Response"));
@@ -863,7 +1018,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     private static void assertAsyncMethod(Map<String, Set<Method>> methods, Method method, String apiName) {
         assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                 methods.containsKey(apiName.substring(0, apiName.length() - 6)));
-        assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
+        assertThat("async method [" + method + "] should return Cancellable", method.getReturnType(), equalTo(Cancellable.class));
         assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
         if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName.replaceAll("_async$", ""))) {
             assertEquals(2, method.getParameterTypes().length);

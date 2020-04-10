@@ -21,17 +21,16 @@ package org.elasticsearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Function;
 
@@ -57,42 +56,41 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     private final GoogleCloudStorageService storageService;
-    private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
 
-    GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
-                                        NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService, ThreadPool threadPool) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
+    GoogleCloudStorageRepository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final GoogleCloudStorageService storageService,
+        final ClusterService clusterService) {
+        super(metadata, namedXContentRegistry, clusterService, buildBasePath(metadata));
         this.storageService = storageService;
 
+        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
+        this.bucket = getSetting(BUCKET, metadata);
+        this.clientName = CLIENT_NAME.get(metadata.settings());
+        logger.debug(
+            "using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
+    }
+
+    private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for (String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
-            this.basePath = path;
+            return path;
         } else {
-            this.basePath = BlobPath.cleanPath();
+            return BlobPath.cleanPath();
         }
-
-        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
-        this.bucket = getSetting(BUCKET, metadata);
-        this.clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, isCompress());
     }
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
         return new GoogleCloudStorageBlobStore(bucket, clientName, storageService);
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 
     @Override
@@ -103,7 +101,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     /**
      * Get a given setting from the repository settings, throwing a {@link RepositoryException} if the setting does not exist or is empty.
      */
-    static <T> T getSetting(Setting<T> setting, RepositoryMetaData metadata) {
+    static <T> T getSetting(Setting<T> setting, RepositoryMetadata metadata) {
         T value = setting.get(metadata.settings());
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");

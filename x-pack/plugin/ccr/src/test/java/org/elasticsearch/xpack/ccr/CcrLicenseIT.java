@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -165,14 +165,14 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     AutoFollowPattern autoFollowPattern = new AutoFollowPattern("test_alias", Collections.singletonList("logs-*"),
-                        null, null, null, null, null, null, null, null, null, null, null);
+                        null, true, null, null, null, null, null, null, null, null, null, null);
                     AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                         Collections.singletonMap("test_alias", autoFollowPattern),
                         Collections.emptyMap(),
                         Collections.emptyMap());
 
                     ClusterState.Builder newState = ClusterState.builder(currentState);
-                    newState.metaData(MetaData.builder(currentState.getMetaData())
+                    newState.metadata(Metadata.builder(currentState.getMetadata())
                         .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
                         .build());
                     return newState.build();

@@ -28,9 +28,4 @@ abstract class AbstractRecycler<T> implements Recycler<T> {
         this.c = c;
     }
 
-    @Override
-    public void close() {
-        // no-op by default
-    }
-
 }

@@ -36,15 +36,19 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -67,7 +71,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
             String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, false, emptyList()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, emptyList()).getNamedXContents());
     }
 
     public void testGetAggregatorFactories_returnsUnmodifiableList() {
@@ -148,7 +152,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .startObject("by_date")
                         .startObject("date_histogram")
                             .field("field", "timestamp")
-                            .field("interval", "month")
+                            .field("calendar_interval", "month")
                         .endObject()
                         .startObject("aggs")
                             // the aggregation name is missing
@@ -172,7 +176,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .startObject("by_date")
                         .startObject("date_histogram")
                             .field("field", "timestamp")
-                            .field("interval", "month")
+                            .field("calendar_interval", "month")
                         .endObject()
                         .startObject("aggs")
                             .startObject("tag_count")
@@ -226,6 +230,16 @@ public class AggregatorFactoriesTests extends ESTestCase {
         AggregatorFactories.Builder secondRewritten = rewritten
                 .rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
         assertSame(rewritten, secondRewritten);
+    }
+
+    public void testBuildPipelineTreeResolvesPipelineOrder() {
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+        builder.addPipelineAggregator(PipelineAggregatorBuilders.avgBucket("bar", "foo"));
+        builder.addPipelineAggregator(PipelineAggregatorBuilders.avgBucket("foo", "real"));
+        builder.addAggregator(AggregationBuilders.avg("real").field("target"));
+        PipelineTree tree = builder.buildPipelineTree();
+        assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()),
+                equalTo(List.of("foo", "bar")));
     }
 
     @Override

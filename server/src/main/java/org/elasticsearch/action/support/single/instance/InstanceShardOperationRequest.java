@@ -48,6 +48,18 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     protected InstanceShardOperationRequest() {
     }
 
+    protected InstanceShardOperationRequest(StreamInput in) throws IOException {
+        super(in);
+        index = in.readString();
+        if (in.readBoolean()) {
+            shardId = new ShardId(in);
+        } else {
+            shardId = null;
+        }
+        timeout = in.readTimeValue();
+        concreteIndex = in.readOptionalString();
+    }
+
     public InstanceShardOperationRequest(String index) {
         this.index = index;
     }
@@ -110,23 +122,10 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        index = in.readString();
-        if (in.readBoolean()) {
-            shardId = ShardId.readShardId(in);
-        } else {
-            shardId = null;
-        }
-        timeout = in.readTimeValue();
-        concreteIndex = in.readOptionalString();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        out.writeOptionalStreamable(shardId);
+        out.writeOptionalWriteable(shardId);
         out.writeTimeValue(timeout);
         out.writeOptionalString(concreteIndex);
     }

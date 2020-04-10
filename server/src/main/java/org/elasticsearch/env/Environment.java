@@ -20,7 +20,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -35,10 +34,12 @@ import java.net.URL;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * The environment of where things exists.
@@ -58,7 +59,7 @@ public class Environment {
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
-    public static final Setting<String> PIDFILE_SETTING = Setting.simpleString("pidfile", Property.NodeScope);
+    public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
@@ -96,13 +97,13 @@ public class Environment {
     Environment(final Settings settings, final Path configPath, final Path tmpPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
-            homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
+            homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
         if (configPath != null) {
-            configFile = configPath.normalize();
+            configFile = configPath.toAbsolutePath().normalize();
         } else {
             configFile = homeFile.resolve("config");
         }
@@ -113,25 +114,16 @@ public class Environment {
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            if (dataPaths.isEmpty() == false) {
-                dataFiles = new Path[dataPaths.size()];
-                for (int i = 0; i < dataPaths.size(); i++) {
-                    dataFiles[i] = PathUtils.get(dataPaths.get(i));
-                }
-            } else {
-                dataFiles = new Path[]{homeFile.resolve("data")};
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
         } else {
-            if (dataPaths.isEmpty()) {
-                dataFiles = EMPTY_PATH_ARRAY;
-            } else {
-                final String paths = String.join(",", dataPaths);
-                throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
-            }
+            dataFiles = new Path[]{homeFile.resolve("data")};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
-            sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).normalize();
+            sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
             sharedDataFile = null;
         }
@@ -141,19 +133,19 @@ public class Environment {
         } else {
             repoFiles = new Path[repoPaths.size()];
             for (int i = 0; i < repoPaths.size(); i++) {
-                repoFiles[i] = PathUtils.get(repoPaths.get(i));
+                repoFiles[i] = PathUtils.get(repoPaths.get(i)).toAbsolutePath().normalize();
             }
         }
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
         if (PATH_LOGS_SETTING.exists(settings)) {
-            logsFile = PathUtils.get(PATH_LOGS_SETTING.get(settings)).normalize();
+            logsFile = PathUtils.get(PATH_LOGS_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
             logsFile = homeFile.resolve("logs");
         }
 
-        if (PIDFILE_SETTING.exists(settings)) {
-            pidFile = PathUtils.get(PIDFILE_SETTING.get(settings)).normalize();
+        if (NODE_PIDFILE_SETTING.exists(settings)) {
+            pidFile = PathUtils.get(NODE_PIDFILE_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
             pidFile = null;
         }
@@ -162,12 +154,25 @@ public class Environment {
         libFile = homeFile.resolve("lib");
         modulesFile = homeFile.resolve("modules");
 
-        Settings.Builder finalSettings = Settings.builder().put(settings);
-        finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
+        final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.putList(PATH_DATA_SETTING.getKey(), dataPaths);
+            finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
         }
+        finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
+        if (PATH_REPO_SETTING.exists(settings)) {
+            finalSettings.putList(
+                Environment.PATH_REPO_SETTING.getKey(),
+                Arrays.stream(repoFiles).map(Path::toString).collect(Collectors.toList()));
+        }
+        if (PATH_SHARED_DATA_SETTING.exists(settings)) {
+            assert sharedDataFile != null;
+            finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
+        }
+        if (NODE_PIDFILE_SETTING.exists(settings)) {
+            assert pidFile != null;
+            finalSettings.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile.toString());
+        }
         this.settings = finalSettings.build();
     }
 

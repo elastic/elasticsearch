@@ -1,12 +1,15 @@
 [[analysis-synonym-graph-tokenfilter]]
-=== Synonym Graph Token Filter
+=== Synonym graph token filter
+++++
+<titleabbrev>Synonym graph</titleabbrev>
+++++
 
 The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
 
 In order to properly handle multi-word synonyms this token filter
-creates a "graph token stream" during processing.  For more information
-on this topic and its various complexities, please read the
+creates a <<token-graphs,graph token stream>> during processing.  For more
+information on this topic and its various complexities, please read the
 http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's TokenStreams are actually graphs] blog post.
 
 ["NOTE",id="synonym-graph-index-note"]
@@ -19,7 +22,7 @@ standard <<analysis-synonym-tokenfilter,synonym token filter>>.
 Synonyms are configured using a configuration file.
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -43,7 +46,6 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
@@ -55,7 +57,7 @@ Additional settings are:
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -84,15 +86,16 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
-being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
+being added was `foo, baz => bar` nothing would get added to the synonym list. This is because the target word for the
 mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
 set to `false` no mapping would get added as when `expand=false` the target mapping is the first word. However, if
 `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the
 stop word.
 
 [float]
+[[synonym-graph-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
@@ -114,7 +117,7 @@ include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
 You can also define synonyms for the filter directly in the
 configuration file (note use of `synonyms` instead of `synonyms_path`):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -135,7 +138,6 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
@@ -146,7 +148,7 @@ However, it is recommended to define large synonyms set in a file using
 Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
 declared using `format`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -169,7 +171,6 @@ PUT /test_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
@@ -186,6 +187,10 @@ multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
 token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
+
+If you need to build analyzers that include both multi-token filters and synonym
+filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter,
+with the multi-token filters in one branch and the synonym filter in the other.
 
 WARNING: The synonym rules should not contain words that are removed by
 a filter that appears after in the chain (a `stop` filter for instance).

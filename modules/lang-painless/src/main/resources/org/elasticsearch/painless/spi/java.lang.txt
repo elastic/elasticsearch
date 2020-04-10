@@ -636,7 +636,7 @@ class java.lang.Math {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -729,7 +729,7 @@ class java.lang.StrictMath {
   double nextDown(double)
   double nextUp(double)
   double pow(double,double)
-  double random()
+  double random() @nondeterministic
   double rint(double)
   long round(double)
   double scalb(double,int)
@@ -758,6 +758,8 @@ class java.lang.String {
   String copyValueOf(char[],int,int)
   String org.elasticsearch.painless.api.Augmentation decodeBase64()
   String org.elasticsearch.painless.api.Augmentation encodeBase64()
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String)
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int)
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
   String format(Locale,String,def[])
@@ -842,8 +844,8 @@ class java.lang.StringBuilder {
 
 class java.lang.System {
   void arraycopy(Object,int,Object,int,int)
-  long currentTimeMillis()
-  long nanoTime()
+  long currentTimeMillis() @nondeterministic
+  long nanoTime() @nondeterministic
 }
 
 # Thread: skipped

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -60,13 +61,8 @@ public class Authentication implements ToXContentObject {
             this.lookedUpBy = null;
         }
         this.version = in.getVersion();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            type = AuthenticationType.values()[in.readVInt()];
-            metadata = in.readMap();
-        } else {
-            type = AuthenticationType.REALM;
-            metadata = Collections.emptyMap();
-        }
+        type = AuthenticationType.values()[in.readVInt()];
+        metadata = in.readMap();
     }
 
     public User getUser() {
@@ -81,6 +77,14 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy;
     }
 
+    /**
+     * Get the realm where the effective user comes from.
+     * The effective user is the es-security-runas-user if present or the authenticated user.
+     */
+    public RealmRef getSourceRealm() {
+        return lookedUpBy == null ? authenticatedBy : lookedUpBy;
+    }
+
     public Version getVersion() {
         return version;
     }
@@ -93,59 +97,12 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
-    public static Authentication readFromContext(ThreadContext ctx) throws IOException, IllegalArgumentException {
-        Authentication authentication = ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-        if (authentication != null) {
-            assert ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null;
-            return authentication;
-        }
-
-        String authenticationHeader = ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY);
-        if (authenticationHeader == null) {
-            return null;
-        }
-        return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
-    }
-
-    public static Authentication getAuthentication(ThreadContext context) {
-        return context.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-    }
-
-    static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
-        assert ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) == null;
-
-        Authentication authentication = decode(header);
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        return authentication;
-    }
-
-    public static Authentication decode(String header) throws IOException {
-        byte[] bytes = Base64.getDecoder().decode(header);
-        StreamInput input = StreamInput.wrap(bytes);
-        Version version = Version.readVersion(input);
-        input.setVersion(version);
-        return new Authentication(input);
-    }
-
     /**
      * Writes the authentication to the context. There must not be an existing authentication in the context and if there is an
      * {@link IllegalStateException} will be thrown
      */
     public void writeToContext(ThreadContext ctx) throws IOException, IllegalArgumentException {
-        ensureContextDoesNotContainAuthentication(ctx);
-        String header = encode();
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, this);
-        ctx.putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
-    }
-
-    void ensureContextDoesNotContainAuthentication(ThreadContext ctx) {
-        if (ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            if (ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null) {
-                throw new IllegalStateException("authentication present as a transient but not a header");
-            }
-            throw new IllegalStateException("authentication is already present in the context");
-        }
+        new AuthenticationContextSerializer().writeToContext(this, ctx);
     }
 
     public String encode() throws IOException {
@@ -165,10 +122,8 @@ public class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeVInt(type.ordinal());
-            out.writeMap(metadata);
-        }
+        out.writeVInt(type.ordinal());
+        out.writeMap(metadata);
     }
 
     @Override
@@ -192,6 +147,14 @@ public class Authentication implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    /**
+     * Generates XContent without the start/end object.
+     */
+    public void toXContentFragment(XContentBuilder builder) throws IOException {
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
@@ -211,7 +174,19 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
-        return builder.endObject();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("Authentication[")
+            .append(user)
+            .append(",type=").append(type)
+            .append(",by=").append(authenticatedBy);
+        if (lookedUpBy != null) {
+            builder.append(",lookup=").append(lookedUpBy);
+        }
+        builder.append("]");
+        return builder.toString();
     }
 
     public static class RealmRef {
@@ -268,6 +243,11 @@ public class Authentication implements ToXContentObject {
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
         }
     }
 

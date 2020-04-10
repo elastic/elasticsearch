@@ -107,6 +107,11 @@ public class TopHitsIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap("5", script -> "5");
         }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            return Collections.singletonMap("Math.random()", script -> TopHitsIT.randomDouble());
+        }
     }
 
     public static String randomExecutionHint() {
@@ -117,11 +122,11 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword"));
-        assertAcked(prepareCreate("field-collapsing").addMapping("type", "group", "type=keyword"));
+        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword"));
+        assertAcked(prepareCreate("field-collapsing").setMapping("group", "type=keyword"));
         createIndex("empty");
-        assertAcked(prepareCreate("articles").addMapping("article",
-            jsonBuilder().startObject().startObject("article").startObject("properties")
+        assertAcked(prepareCreate("articles").setMapping(
+            jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject(TERMS_AGGS_FIELD)
                     .field("type", "keyword")
                 .endObject()
@@ -155,7 +160,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
-            builders.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource(jsonBuilder()
                     .startObject()
                     .field(TERMS_AGGS_FIELD, "val" + (i / 10))
                     .field(SORT_FIELD, i + 1)
@@ -164,49 +169,49 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()));
         }
 
-        builders.add(client().prepareIndex("field-collapsing", "type", "1").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("1").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "a")
                 .field("text", "term x y z b")
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "2").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("2").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "a")
                 .field("text", "term x y z n rare")
                 .field("value", 1)
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "3").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("3").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "x y z term")
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "4").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("4").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "x y term")
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "5").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("5").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "x term")
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "6").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("6").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "b")
                 .field("text", "term rare")
                 .field("value", 3)
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "7").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("7").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "c")
                 .field("text", "x y z term")
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "8").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("8").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "c")
                 .field("text", "x y term b")
                 .endObject()));
-        builders.add(client().prepareIndex("field-collapsing", "type", "9").setSource(jsonBuilder()
+        builders.add(client().prepareIndex("field-collapsing").setId("9").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "c")
                 .field("text", "rare x term")
@@ -225,12 +230,12 @@ public class TopHitsIT extends ESIntegTestCase {
             builder.endArray().endObject();
 
             builders.add(
-                    client().prepareIndex("articles", "article").setSource(builder)
+                    client().prepareIndex("articles").setSource(builder)
             );
         }
 
         builders.add(
-                client().prepareIndex("articles", "article", "1")
+                client().prepareIndex("articles").setId("1")
                         .setSource(jsonBuilder().startObject().field("title", "title 1").field("body", "some text").startArray("comments")
                                 .startObject()
                                     .field("user", "a").field("date", 1L).field("message", "some comment")
@@ -251,7 +256,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .endArray().endObject())
         );
         builders.add(
-                client().prepareIndex("articles", "article", "2")
+                client().prepareIndex("articles").setId("2")
                         .setSource(jsonBuilder().startObject().field("title", "title 2").field("body", "some different text")
                             .startArray("comments")
                                 .startObject()
@@ -1081,26 +1086,25 @@ public class TopHitsIT extends ESIntegTestCase {
             for (SearchHit hit : hits) {
                 assertThat(hit.getSourceAsMap(), nullValue());
                 assertThat(hit.getId(), nullValue());
-                assertThat(hit.getType(), equalTo("type"));
             }
         }
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
+    public void testScriptCaching() throws Exception {
         try {
-            assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(
                     Settings.builder()
                         .put("requests.cache.enable", true)
                         .put("number_of_shards", 1)
                         .put("number_of_replicas", 1))
                 .get());
-            indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+            indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
 
             // Make sure we are starting with a clear cache
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1108,10 +1112,10 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-            // Test that a request using a script field does not get cached
+            // Test that a request using a nondeterministic script field does not get cached
             SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").scriptField("bar",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))).get();
             assertSearchResponse(r);
 
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1119,7 +1123,32 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-            // Test that a request using a script sort does not get cached
+            // Test that a request using a nondeterministic script sort does not get cached
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(topHits("foo").sort(
+                    SortBuilders.scriptSort(
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()),
+                                   ScriptSortType.STRING)))
+                .get();
+            assertSearchResponse(r);
+
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+            // Test that a request using a deterministic script field does not get cached
+            r = client().prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(topHits("foo").scriptField("bar",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
+            assertSearchResponse(r);
+
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
+
+            // Test that a request using a deterministic script sort does not get cached
             r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").sort(
                     SortBuilders.scriptSort(
@@ -1130,17 +1159,16 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+                .getMissCount(), equalTo(2L));
 
-            // To make sure that the cache is working test that a request not using
-            // a script is cached
+            // Ensure that non-scripted requests are cached as normal
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
             assertSearchResponse(r);
 
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
             assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(3L));
         } finally {
             assertAcked(client().admin().indices().prepareDelete("cache_test_idx")); // delete this - if we use tests.iters it would fail
         }

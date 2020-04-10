@@ -12,8 +12,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryR
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 class CcrRepositoryManager extends AbstractLifecycleComponent {
@@ -69,20 +68,19 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         }
 
         void init() {
-            Set<String> clusterAliases = buildRemoteClustersDynamicConfig(settings).keySet();
+            Set<String> clusterAliases = getEnabledRemoteClusters(settings);
             for (String clusterAlias : clusterAliases) {
                 putRepository(CcrRepository.NAME_PREFIX + clusterAlias);
             }
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
-                                           TimeValue pingSchedule) {
+        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
             String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
-            if (addresses.isEmpty()) {
-                deleteRepository(repositoryName);
-            } else {
+            if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
                 putRepository(repositoryName);
+            } else {
+                deleteRepository(repositoryName);
             }
         }
     }

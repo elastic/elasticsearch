@@ -23,15 +23,15 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,11 +57,11 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
         docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
 
         logger.info("--> register a repository");
@@ -132,13 +132,14 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
     public void testRestoreSnapshotWithBlocks() {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
-        assertFalse(client().admin().indices().prepareExists(INDEX_NAME, OTHER_INDEX_NAME).get().isExists());
+        assertFalse(indexExists(INDEX_NAME));
+        assertFalse(indexExists(OTHER_INDEX_NAME));
 
         logger.info("-->  restoring a snapshot is blocked when the cluster is read only");
         try {
             setClusterReadOnly(true);
             assertBlocked(client().admin().cluster().prepareRestoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME),
-                MetaData.CLUSTER_READ_ONLY_BLOCK);
+                Metadata.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }
@@ -148,8 +149,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute().actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertTrue(client().admin().indices().prepareExists(INDEX_NAME).get().isExists());
-        assertTrue(client().admin().indices().prepareExists(OTHER_INDEX_NAME).get().isExists());
+        assertTrue(indexExists(INDEX_NAME));
+        assertTrue(indexExists(OTHER_INDEX_NAME));
     }
 
     public void testGetSnapshotWithBlocks() {
@@ -157,8 +158,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots(REPOSITORY_NAME).execute().actionGet();
-            assertThat(response.getSnapshots(), hasSize(1));
-            assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
+            assertThat(response.getSnapshots(REPOSITORY_NAME), hasSize(1));
+            assertThat(response.getSnapshots(REPOSITORY_NAME).get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
         } finally {
             setClusterReadOnly(false);
         }

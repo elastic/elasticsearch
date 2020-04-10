@@ -847,11 +847,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             }
         } else if (fieldsAndWeights.size() > 0) {
             final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
-            queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+            if (QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet())) {
+                queryParser = new QueryStringQueryParser(context, resolvedFields, lenient == null ? true : lenient);
+            } else {
+                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+            }
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
+            if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
                 final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context,

@@ -101,6 +101,12 @@ public class EmbeddedCli implements Closeable {
             args.add("false");
         }
         args.add("-debug");
+        
+        if (randomBoolean()) {
+            args.add("-binary");
+            args.add(Boolean.toString(randomBoolean()));
+        }
+        
         exec = new Thread(() -> {
             try {
                 /*

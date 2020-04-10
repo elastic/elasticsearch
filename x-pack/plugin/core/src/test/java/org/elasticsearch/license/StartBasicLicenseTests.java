@@ -16,7 +16,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -46,11 +45,6 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
-    }
-
     public void testStartBasicLicense() throws Exception {
         LicensingClient licensingClient = new LicensingClient(client());
         License license = TestUtils.generateSignedLicense("trial",  License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
@@ -60,12 +54,6 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
             GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
             assertEquals("trial", getLicenseResponse.license().type());
         });
-
-        // Testing that you can start a basic license when you have no license
-        if (randomBoolean()) {
-            licensingClient.prepareDeleteLicense().get();
-            assertNull(licensingClient.prepareGetLicense().get().license());
-        }
 
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("GET", "/_license/basic_status"));

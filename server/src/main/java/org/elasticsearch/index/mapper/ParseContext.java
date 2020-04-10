@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 
@@ -119,24 +118,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
                 }
             }
             return f.toArray(new IndexableField[f.size()]);
-        }
-
-        /**
-         * Returns an array of values of the field specified as the method parameter.
-         * This method returns an empty array when there are no
-         * matching fields.  It never returns null.
-         * If you want the actual numeric field instances back, use {@link #getFields}.
-         * @param name the name of the field
-         * @return a <code>String[]</code> of field values
-         */
-        public final String[] getValues(String name) {
-            List<String> result = new ArrayList<>();
-            for (IndexableField field : fields) {
-                if (field.name().equals(name) && field.stringValue() != null) {
-                    result.add(field.stringValue());
-                }
-            }
-            return result.toArray(new String[result.size()]);
         }
 
         public IndexableField getField(String name) {
@@ -458,18 +439,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         void postParse() {
             if (documents.size() > 1) {
                 docsReversed = true;
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
-                    /**
-                     * For indices created on or after {@link Version#V_6_5_0} we preserve the order
-                     * of the children while ensuring that parents appear after them.
-                     */
-                    List<Document> newDocs = reorderParent(documents);
-                    documents.clear();
-                    documents.addAll(newDocs);
-                } else {
-                    // reverse the order of docs for nested docs support, parent should be last
-                    Collections.reverse(documents);
-                }
+                // We preserve the order of the children while ensuring that parents appear after them.
+                List<Document> newDocs = reorderParent(documents);
+                documents.clear();
+                documents.addAll(newDocs);
             }
         }
 

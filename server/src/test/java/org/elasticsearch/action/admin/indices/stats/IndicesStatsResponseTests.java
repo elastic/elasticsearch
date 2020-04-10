@@ -46,7 +46,7 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class IndicesStatsResponseTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final IndicesStatsResponse response = new IndicesStatsResponse();
+        final IndicesStatsResponse response = new IndicesStatsResponse(null, 0, 0, 0, null);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

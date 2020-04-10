@@ -1,5 +1,8 @@
 [[number]]
 === Numeric datatypes
+++++
+<titleabbrev>Numeric</titleabbrev>
+++++
 
 The following numeric types are supported:
 
@@ -15,7 +18,7 @@ The following numeric types are supported:
 
 Below is an example of configuring a mapping with numeric fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -35,7 +38,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: The `double`, `float` and `half_float` types consider that `-0.0` and
 `+0.0` are different values. As a consequence, doing a `term` query on
@@ -78,6 +80,31 @@ to help make a decision.
 |`half_float`|+2^-24^+ |+65504+ |+11+ / +3.31+
 |=======================================================================
 
+[TIP]
+.Mapping numeric identifiers
+====
+// tag::map-ids-as-keyword[]
+Not all numeric data should be mapped as a <<number,numeric>> field datatype.
+{es} optimizes numeric fields, such as `integer` or `long`, for
+<<query-dsl-range-query,`range`>> queries. However, <<keyword,`keyword`>> fields
+are better for <<query-dsl-term-query,`term`>> and other
+<<term-level-queries,term-level>> queries.
+
+Identifiers, such as an ISBN or a product ID, are rarely used in `range`
+queries. However, they are often retrieved using term-level queries.
+
+Consider mapping a numeric identifier as a `keyword` if:
+
+* You don't plan to search for the identifier data using
+  <<query-dsl-range-query,`range`>> queries.
+* Fast retrieval is important. `term` query searches on `keyword` fields are
+  often faster than `term` searches on numeric fields.
+
+If you're unsure which to use, you can use a <<multi-fields,multi-field>> to map
+the data as both a `keyword` _and_ a numeric datatype.
+// end::map-ids-as-keyword[]
+====
+
 [[number-params]]
 ==== Parameters for numeric fields
 
@@ -89,11 +116,6 @@ The following parameters are accepted by numeric types:
 
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<doc-values,`doc_values`>>::
 
@@ -121,6 +143,10 @@ The following parameters are accepted by numeric types:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

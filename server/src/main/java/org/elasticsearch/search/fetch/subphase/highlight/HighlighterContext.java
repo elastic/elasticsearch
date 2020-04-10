@@ -20,28 +20,35 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
 
 public class HighlighterContext {
 
     public final String fieldName;
     public final SearchContextHighlight.Field field;
     public final MappedFieldType fieldType;
-    public final SearchContext context;
+    public final SearchShardTarget shardTarget;
+    public final QueryShardContext context;
+    public final SearchContextHighlight highlight;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
 
     public HighlighterContext(String fieldName,
                               SearchContextHighlight.Field field,
                               MappedFieldType fieldType,
-                              SearchContext context,
+                              SearchShardTarget shardTarget,
+                              QueryShardContext context,
+                              SearchContextHighlight highlight,
                               FetchSubPhase.HitContext hitContext,
                               Query query) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
+        this.shardTarget = shardTarget;
         this.context = context;
+        this.highlight = highlight;
         this.hitContext = hitContext;
         this.query = query;
     }

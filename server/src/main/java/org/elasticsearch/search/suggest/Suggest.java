@@ -82,6 +82,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
+    @SuppressWarnings("unchecked")
     public Suggest(StreamInput in) throws IOException {
         int suggestionCount = in.readVInt();
         suggestions = new ArrayList<>(suggestionCount);
@@ -103,6 +104,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return suggestions.size();
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Suggestion<? extends Entry<? extends Option>>> T getSuggestion(String name) {
         if (suggestions.isEmpty() || name == null) {
             return null;
@@ -163,6 +165,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return new Suggest(suggestions);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
         for (Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
@@ -187,6 +190,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * @return only suggestions of type <code>suggestionType</code> contained in this {@link Suggest} instance
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public <T extends Suggestion> List<T> filter(Class<T> suggestionType) {
          return suggestions.stream()
             .filter(suggestion -> suggestion.getClass() == suggestionType)
@@ -214,6 +218,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
+    @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
         public static final int TYPE = 0;
@@ -283,6 +288,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          * Merges the result of another suggestion into this suggestion.
          * For internal usage.
          */
+        @SuppressWarnings("unchecked")
         public Suggestion<T> reduce(List<Suggestion<T>> toReduce) {
             if (toReduce.size() == 1) {
                 return toReduce.get(0);
@@ -359,6 +365,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         }
 
         @Override
+        @SuppressWarnings("rawtypes")
         public boolean equals(Object other) {
             if (this == other) {
                 return true;

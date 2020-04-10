@@ -1,9 +1,6 @@
 # Sanity integration test to make sure the custom context and whitelist work for moving_fn pipeline agg
 #
 setup:
-  - skip:
-        version: " - 6.3.99"
-        reason:  "moving_fn added in 6.4.0"
   - do:
       indices.create:
         index: test
@@ -66,7 +63,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -98,7 +95,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -130,7 +127,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -162,7 +159,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -189,7 +186,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -216,7 +213,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -243,7 +240,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -270,7 +267,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -296,7 +293,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:

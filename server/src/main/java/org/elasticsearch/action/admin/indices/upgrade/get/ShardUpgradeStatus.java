@@ -36,7 +36,12 @@ public class ShardUpgradeStatus extends BroadcastShardResponse {
 
     private long toUpgradeBytesAncient;
 
-    ShardUpgradeStatus() {
+    public ShardUpgradeStatus(StreamInput in) throws IOException {
+        super(in);
+        shardRouting = new ShardRouting(in);
+        totalBytes = in.readLong();
+        toUpgradeBytes = in.readLong();
+        toUpgradeBytesAncient = in.readLong();
     }
 
     ShardUpgradeStatus(ShardRouting shardRouting, long totalBytes, long toUpgradeBytes, long upgradeBytesAncient) {
@@ -62,21 +67,6 @@ public class ShardUpgradeStatus extends BroadcastShardResponse {
 
     public long getToUpgradeBytesAncient() {
         return toUpgradeBytesAncient;
-    }
-
-    public static ShardUpgradeStatus readShardUpgradeStatus(StreamInput in) throws IOException {
-        ShardUpgradeStatus shard = new ShardUpgradeStatus();
-        shard.readFrom(in);
-        return shard;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardRouting = new ShardRouting(in);
-        totalBytes = in.readLong();
-        toUpgradeBytes = in.readLong();
-        toUpgradeBytesAncient = in.readLong();
     }
 
     @Override

@@ -39,7 +39,7 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * Provides a factory that combines the caller's arguments with injector-supplied values to
  * construct objects.
- * <h3>Defining a factory</h3>
+ * <h2>Defining a factory</h2>
  * Create an interface whose methods return the constructed type, or any of its supertypes. The
  * method's parameters are the arguments required to build the constructed type.
  * <pre>public interface PaymentFactory {

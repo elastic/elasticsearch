@@ -21,18 +21,20 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest,
                                                                     NodesStatsResponse,
@@ -55,40 +57,47 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     }
 
     @Override
-    protected NodeStatsRequest newNodeRequest(String nodeId, NodesStatsRequest request) {
-        return new NodeStatsRequest(nodeId, request);
+    protected NodeStatsRequest newNodeRequest(NodesStatsRequest request) {
+        return new NodeStatsRequest(request);
     }
 
     @Override
-    protected NodeStats newNodeResponse() {
-        return new NodeStats();
+    protected NodeStats newNodeResponse(StreamInput in) throws IOException {
+        return new NodeStats(in);
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
         NodesStatsRequest request = nodeStatsRequest.request;
-        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
-                request.ingest(), request.adaptiveSelection());
+        Set<String> metrics = request.requestedMetrics();
+        return nodeService.stats(
+            request.indices(),
+            NodesStatsRequest.Metric.OS.containedIn(metrics),
+            NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
+            NodesStatsRequest.Metric.JVM.containedIn(metrics),
+            NodesStatsRequest.Metric.THREAD_POOL.containedIn(metrics),
+            NodesStatsRequest.Metric.FS.containedIn(metrics),
+            NodesStatsRequest.Metric.TRANSPORT.containedIn(metrics),
+            NodesStatsRequest.Metric.HTTP.containedIn(metrics),
+            NodesStatsRequest.Metric.BREAKER.containedIn(metrics),
+            NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
+            NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),
+            NodesStatsRequest.Metric.INGEST.containedIn(metrics),
+            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
+            NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics));
     }
 
-    public static class NodeStatsRequest extends BaseNodeRequest {
+    public static class NodeStatsRequest extends TransportRequest {
 
         NodesStatsRequest request;
 
-        public NodeStatsRequest() {
+        public NodeStatsRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesStatsRequest(in);
         }
 
-        NodeStatsRequest(String nodeId, NodesStatsRequest request) {
-            super(nodeId);
+        NodeStatsRequest(NodesStatsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesStatsRequest();
-            request.readFrom(in);
         }
 
         @Override

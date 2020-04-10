@@ -1,5 +1,8 @@
 [[geo-point]]
 === Geo-point datatype
+++++
+<titleabbrev>Geo-point</titleabbrev>
+++++
 
 Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 
@@ -11,9 +14,9 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.
 
-There are four ways that a geo-point may be specified, as demonstrated below:
+There are five ways that a geo-point may be specified, as demonstrated below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -53,10 +56,16 @@ PUT my_index/_doc/4
   "location": [ -71.34, 41.12 ] <4>
 }
 
+PUT my_index/_doc/5
+{
+  "text": "Geo-point as a WKT POINT primitive",
+  "location" : "POINT (-71.34 41.12)" <5>
+}
+
 GET my_index/_search
 {
   "query": {
-    "geo_bounding_box": { <5>
+    "geo_bounding_box": { <6>
       "location": {
         "top_left": {
           "lat": 42,
@@ -71,12 +80,14 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Geo-point expressed as an object, with `lat` and `lon` keys.
 <2> Geo-point expressed as a string with the format: `"lat,lon"`.
 <3> Geo-point expressed as a geohash.
 <4> Geo-point expressed as an array with the format: [ `lon`, `lat`]
-<5> A geo-bounding box query which finds all geo-points that fall inside the box.
+<5> Geo-point expressed as a http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+POINT with the format: `"POINT(lon lat)"`
+<6> A geo-bounding box query which finds all geo-points that fall inside the box.
 
 [IMPORTANT]
 .Geo-points expressed as an array or string

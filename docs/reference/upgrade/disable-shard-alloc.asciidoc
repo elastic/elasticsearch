@@ -7,7 +7,7 @@ restarted, this I/O is unnecessary. You can avoid racing the clock by
 <<shards-allocation, disabling allocation>> of replicas before shutting down
 the node:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -16,5 +16,4 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]

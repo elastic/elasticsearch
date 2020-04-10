@@ -19,10 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
-public class OpenIndexResponseTests extends AbstractStreamableXContentTestCase<OpenIndexResponse> {
+public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenIndexResponse> {
 
     @Override
     protected OpenIndexResponse doParseInstance(XContentParser parser){
@@ -37,8 +38,8 @@ public class OpenIndexResponseTests extends AbstractStreamableXContentTestCase<O
     }
 
     @Override
-    protected OpenIndexResponse createBlankInstance() {
-        return new OpenIndexResponse();
+    protected Writeable.Reader<OpenIndexResponse> instanceReader() {
+        return OpenIndexResponse::new;
     }
 
     @Override

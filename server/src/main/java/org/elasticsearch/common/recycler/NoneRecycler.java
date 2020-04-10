@@ -31,11 +31,6 @@ public class NoneRecycler<T> extends AbstractRecycler<T> {
         return new NV<>(c.newInstance());
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
-
     public static class NV<T> implements Recycler.V<T> {
 
         T value;

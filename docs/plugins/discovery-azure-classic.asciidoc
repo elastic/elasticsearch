@@ -355,11 +355,10 @@ sudo dpkg -i elasticsearch-{version}.deb
 
 Check that Elasticsearch is running:
 
-[source,js]
+[source,console]
 ----
 GET /
 ----
-// CONSOLE
 
 This command should give you a JSON result:
 

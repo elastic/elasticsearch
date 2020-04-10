@@ -18,29 +18,30 @@
  */
 package org.elasticsearch.client.license;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
 
 public class GetTrialStatusResponseTests extends
-    AbstractHlrcStreamableXContentTestCase<org.elasticsearch.license.GetTrialStatusResponse, GetTrialStatusResponse> {
+    AbstractResponseTestCase<org.elasticsearch.license.GetTrialStatusResponse, GetTrialStatusResponse> {
 
     @Override
-    public GetTrialStatusResponse doHlrcParseInstance(XContentParser parser) {
+    protected org.elasticsearch.license.GetTrialStatusResponse createServerTestInstance(XContentType xContentType) {
+        return new org.elasticsearch.license.GetTrialStatusResponse(randomBoolean());
+    }
+
+    @Override
+    protected GetTrialStatusResponse doParseToClientInstance(XContentParser parser) throws IOException {
         return GetTrialStatusResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.license.GetTrialStatusResponse convertHlrcToInternal(GetTrialStatusResponse instance) {
-        return new org.elasticsearch.license.GetTrialStatusResponse(instance.isEligibleToStartTrial());
-    }
-
-    @Override
-    protected org.elasticsearch.license.GetTrialStatusResponse createBlankInstance() {
-        return new org.elasticsearch.license.GetTrialStatusResponse(false);
-    }
-
-    @Override
-    protected org.elasticsearch.license.GetTrialStatusResponse createTestInstance() {
-        return new org.elasticsearch.license.GetTrialStatusResponse(randomBoolean());
+    protected void assertInstances(org.elasticsearch.license.GetTrialStatusResponse serverTestInstance,
+                                   GetTrialStatusResponse clientInstance) {
+        org.elasticsearch.license.GetTrialStatusResponse serverInstance =
+            new org.elasticsearch.license.GetTrialStatusResponse(clientInstance.isEligibleToStartTrial());
+        assertEquals(serverInstance, serverTestInstance);
     }
 }

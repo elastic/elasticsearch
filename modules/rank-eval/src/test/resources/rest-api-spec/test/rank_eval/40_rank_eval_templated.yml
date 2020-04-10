@@ -48,11 +48,6 @@ setup:
 
 ---
 "Basic rank-eval request with template":
-
-  - skip:
-      version: " - 6.1.99"
-      reason: the ranking evaluation feature is available since 6.2
-
   - do:
       rank_eval:
         body: {

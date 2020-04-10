@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -68,7 +69,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
                 .add("first", simpleInput("url", "/" + index  + "/_search"))
                 .add("second", httpInputBuilder);
 
-        watcherClient().preparePutWatch("_name")
+        new PutWatchRequestBuilder(client(), "_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, SECONDS)))
                         .input(chainedInputBuilder)

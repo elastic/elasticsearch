@@ -10,11 +10,12 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -138,27 +139,40 @@ public final class IndicesPermission {
         final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
         for (String forIndexPattern : checkForIndexPatterns) {
-            final Automaton checkIndexAutomaton = IndicesPermission.Group.buildIndexMatcherAutomaton(allowRestrictedIndices,
-                    forIndexPattern);
-            Automaton allowedIndexPrivilegesAutomaton = null;
-            for (Group group : groups) {
-                final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
-                        g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
-                if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
-                    if (allowedIndexPrivilegesAutomaton != null) {
-                        allowedIndexPrivilegesAutomaton = Automatons
-                                .unionAndMinimize(Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton()));
-                    } else {
-                        allowedIndexPrivilegesAutomaton = group.privilege().getAutomaton();
+            Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
+            if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
+                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, RestrictedIndicesNames.NAMES_AUTOMATON);
+            }
+            if (false == Operations.isEmpty(checkIndexAutomaton)) {
+                Automaton allowedIndexPrivilegesAutomaton = null;
+                for (Group group : groups) {
+                    final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
+                            g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
+                    if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
+                        if (allowedIndexPrivilegesAutomaton != null) {
+                            allowedIndexPrivilegesAutomaton = Automatons
+                                    .unionAndMinimize(Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton()));
+                        } else {
+                            allowedIndexPrivilegesAutomaton = group.privilege().getAutomaton();
+                        }
                     }
                 }
-            }
-            for (String privilege : checkForPrivileges) {
-                IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
-                if (allowedIndexPrivilegesAutomaton != null
-                        && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
-                    resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
-                } else {
+                for (String privilege : checkForPrivileges) {
+                    IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
+                    if (allowedIndexPrivilegesAutomaton != null
+                            && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                    } else {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                    }
+                }
+            } else {
+                // the index pattern produced the empty automaton, presumably because the requested pattern expands exclusively inside the
+                // restricted indices namespace - a namespace of indices that are normally hidden when granting/checking privileges - and
+                // the pattern was not marked as `allowRestrictedIndices`. We try to anticipate this by considering _explicit_ restricted
+                // indices even if `allowRestrictedIndices` is false.
+                // TODO The `false` result is a _safe_ default but this is actually an error. Make it an error.
+                for (String privilege : checkForPrivileges) {
                     resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
                 }
             }
@@ -180,7 +194,7 @@ public final class IndicesPermission {
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
     public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
-                                                                          Map<String, AliasOrIndex> allAliasesAndIndices,
+                                                                          Map<String, IndexAbstraction> allAliasesAndIndices,
                                                                           FieldPermissionsCache fieldPermissionsCache) {
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
@@ -191,10 +205,10 @@ public final class IndicesPermission {
         for (String indexOrAlias : requestedIndicesOrAliases) {
             boolean granted = false;
             Set<String> concreteIndices = new HashSet<>();
-            AliasOrIndex aliasOrIndex = allAliasesAndIndices.get(indexOrAlias);
-            if (aliasOrIndex != null) {
-                for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
-                    concreteIndices.add(indexMetaData.getIndex().getName());
+            IndexAbstraction indexAbstraction = allAliasesAndIndices.get(indexOrAlias);
+            if (indexAbstraction != null) {
+                for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
+                    concreteIndices.add(indexMetadata.getIndex().getName());
                 }
             }
 
@@ -255,6 +269,13 @@ public final class IndicesPermission {
         return unmodifiableMap(indexPermissions);
     }
 
+    private boolean isConcreteRestrictedIndex(String indexPattern) {
+        if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
+            return false;
+        }
+        return RestrictedIndicesNames.isRestricted(indexPattern);
+    }
+
     public static class Group {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -264,7 +285,7 @@ public final class IndicesPermission {
         private final Set<BytesReference> query;
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
-        // to be covered by the the "indices"
+        // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
 
         public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query,
@@ -303,7 +324,7 @@ public final class IndicesPermission {
         private boolean check(String action, String index) {
             assert index != null;
             return check(action) && indexNameMatcher.test(index)
-                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
+                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.isRestricted(index)));
         }
 
         boolean hasQuery() {
@@ -338,13 +359,13 @@ public final class IndicesPermission {
             final Predicate<String> predicate;
             if (restrictedIndices.isEmpty()) {
                 predicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index));
+                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
             } else if (ordinaryIndices.isEmpty()) {
                 predicate = indexMatcher(restrictedIndices);
             } else {
                 predicate = indexMatcher(restrictedIndices)
                     .or(indexMatcher(ordinaryIndices)
-                         .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
+                         .and(index -> false == RestrictedIndicesNames.isRestricted(index)));
             }
             return predicate;
         }

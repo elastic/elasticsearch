@@ -33,6 +33,5 @@
         realtime: false
 
   - match: { _index: "testidx" }
-  - match: { _type: "_doc" }
   - match: { _id: "1" }
   - is_false: found

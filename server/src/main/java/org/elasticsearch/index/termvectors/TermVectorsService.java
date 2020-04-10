@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,8 +82,7 @@ public class TermVectorsService  {
 
     static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request, LongSupplier nanoTimeSupplier) {
         final long startTime = nanoTimeSupplier.getAsLong();
-        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(),
-            request.type(), request.id());
+        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.id());
         final Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
 
         Fields termVectorsByField = null;
@@ -94,11 +94,10 @@ public class TermVectorsService  {
             handleFieldWildcards(indexShard, request);
         }
 
-        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(),
-            request.id(), uidTerm)
+        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
-            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
+            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
@@ -196,7 +195,7 @@ public class TermVectorsService  {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
-            MappedFieldType fieldType = indexShard.mapperService().fullName(field);
+            MappedFieldType fieldType = indexShard.mapperService().fieldType(field);
             if (!isValidField(fieldType)) {
                 continue;
             }
@@ -215,8 +214,7 @@ public class TermVectorsService  {
         /* generate term vectors from fetched document fields */
         String[] getFields = validFields.toArray(new String[validFields.size() + 1]);
         getFields[getFields.length - 1] = SourceFieldMapper.NAME;
-        GetResult getResult = indexShard.getService().get(
-                get, request.id(), request.type(), getFields, null);
+        GetResult getResult = indexShard.getService().get(get, request.id(), getFields, null);
         Fields generatedTermVectors = generateTermVectors(indexShard, getResult.sourceAsMap(), getResult.getFields().values(),
             request.offsets(), request.perFieldAnalyzer(), validFields);
 
@@ -234,13 +232,8 @@ public class TermVectorsService  {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
         } else {
-            MappedFieldType fieldType = mapperService.fullName(field);
-            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-                KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) fieldType;
-                analyzer = keywordFieldType.normalizer() == null ? keywordFieldType.indexAnalyzer() : keywordFieldType.normalizer();
-            } else {
-                analyzer = fieldType.indexAnalyzer();
-            }
+            MappedFieldType fieldType = mapperService.fieldType(field);
+            analyzer = fieldType.indexAnalyzer();
         }
         if (analyzer == null) {
             analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();
@@ -301,7 +294,7 @@ public class TermVectorsService  {
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc(),
+        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.doc(),
             request.xContentType(), request.routing());
 
         // select the right fields and generate term vectors
@@ -309,7 +302,7 @@ public class TermVectorsService  {
         Set<String> seenFields = new HashSet<>();
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().fullName(field.name());
+            MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
             if (!isValidField(fieldType)) {
                 continue;
             }
@@ -322,7 +315,7 @@ public class TermVectorsService  {
             else {
                 seenFields.add(field.name());
             }
-            String[] values = doc.getValues(field.name());
+            String[] values = getValues(doc.getFields(field.name()));
             documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(indexShard,
@@ -330,12 +323,31 @@ public class TermVectorsService  {
                 request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
-    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc,
+    /**
+     * Returns an array of values of the field specified as the method parameter.
+     * This method returns an empty array when there are no
+     * matching fields.  It never returns null.
+     * @param fields The <code>IndexableField</code> to get the values from
+     * @return a <code>String[]</code> of field values
+     */
+    public static String[] getValues(IndexableField[] fields) {
+        List<String> result = new ArrayList<>();
+        for (IndexableField field : fields) {
+            if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                result.add(field.binaryValue().utf8ToString());
+            } else if (field.fieldType() instanceof StringFieldType) {
+                result.add(field.stringValue());
+            }
+        }
+        return result.toArray(new String[0]);
+    }
+
+    private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,
                                                 XContentType xContentType, String routing) {
         MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
+        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
-            new SourceToParse(index, type, "_id_for_tv_api", doc, xContentType, routing));
+                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

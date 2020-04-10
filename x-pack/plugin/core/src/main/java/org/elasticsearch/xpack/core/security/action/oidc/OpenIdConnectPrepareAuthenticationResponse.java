@@ -36,7 +36,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
     }
 
     public OpenIdConnectPrepareAuthenticationResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         authenticationRequestUrl = in.readString();
         state = in.readString();
         nonce = in.readString();
@@ -55,13 +55,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(authenticationRequestUrl);
         out.writeString(state);
         out.writeString(nonce);

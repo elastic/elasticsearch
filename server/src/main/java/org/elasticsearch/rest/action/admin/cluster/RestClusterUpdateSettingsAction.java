@@ -25,22 +25,24 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
 
-    public RestClusterUpdateSettingsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(PUT, "/_cluster/settings"));
     }
 
     @Override

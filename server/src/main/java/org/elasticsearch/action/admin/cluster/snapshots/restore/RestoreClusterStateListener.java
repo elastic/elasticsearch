@@ -58,7 +58,7 @@ public class RestoreClusterStateListener implements ClusterStateListener {
             // on the current master and as such it might miss some intermediary cluster states due to batching.
             // Clean up listener in that case and acknowledge completion of restore operation to client.
             clusterService.removeListener(this);
-            listener.onResponse(new RestoreSnapshotResponse(null));
+            listener.onResponse(new RestoreSnapshotResponse((RestoreInfo) null));
         } else if (newEntry == null) {
             clusterService.removeListener(this);
             ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();

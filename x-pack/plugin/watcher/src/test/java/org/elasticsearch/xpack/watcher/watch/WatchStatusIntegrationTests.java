@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
@@ -33,8 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     public void testThatStatusGetsUpdated() {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_name")
+        new PutWatchRequestBuilder(client(), "_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, SECONDS)))
                         .input(simpleInput())
@@ -43,7 +43,7 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
                 .get();
         timeWarp().trigger("_name");
 
-        GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch().setId("_name").get();
+        GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client(), "_name").get();
         assertThat(getWatchResponse.isFound(), is(true));
         assertThat(getWatchResponse.getSource(), notNullValue());
         assertThat(getWatchResponse.getStatus().lastChecked(), is(notNullValue()));

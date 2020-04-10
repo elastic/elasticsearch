@@ -38,7 +38,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         items = new BulkItemRequest[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             if (in.readBoolean()) {
-                items[i] = BulkItemRequest.readBulkItem(in);
+                items[i] = new BulkItemRequest(in);
             }
         }
     }
@@ -85,11 +85,6 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public String toString() {
         // This is included in error messages so we'll try to make it somewhat user friendly.
         StringBuilder b = new StringBuilder("BulkShardRequest [");
@@ -115,7 +110,17 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     @Override
     public String getDescription() {
-        return "requests[" + items.length + "], index[" + index + "]";
+        final StringBuilder stringBuilder = new StringBuilder().append("requests[").append(items.length).append("], index").append(shardId);
+        final RefreshPolicy refreshPolicy = getRefreshPolicy();
+        if (refreshPolicy == RefreshPolicy.IMMEDIATE || refreshPolicy == RefreshPolicy.WAIT_UNTIL) {
+            stringBuilder.append(", refresh[").append(refreshPolicy).append(']');
+        }
+        return stringBuilder.toString();
+    }
+
+    @Override
+    protected BulkShardRequest routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        return super.routedBasedOnClusterVersion(routedBasedOnClusterVersion);
     }
 
     @Override

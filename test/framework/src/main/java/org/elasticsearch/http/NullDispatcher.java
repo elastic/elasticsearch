@@ -31,7 +31,7 @@ public class NullDispatcher implements HttpServerTransport.Dispatcher {
     }
 
     @Override
-    public void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause) {
+    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
 
     }
 

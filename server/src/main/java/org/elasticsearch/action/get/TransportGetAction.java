@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
@@ -69,10 +70,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
+        request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
+            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }
 
@@ -102,14 +103,14 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.storedFields(),
+        GetResult result = indexShard.getService().get(request.id(), request.storedFields(),
                 request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 
     @Override
-    protected GetResponse newResponse() {
-        return new GetResponse();
+    protected Writeable.Reader<GetResponse> getResponseReader() {
+        return GetResponse::new;
     }
 
     @Override

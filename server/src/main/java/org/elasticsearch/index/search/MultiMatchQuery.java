@@ -59,6 +59,12 @@ public class MultiMatchQuery extends MatchQuery {
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
                        Object value, String minimumShouldMatch) throws IOException {
+        boolean hasMappedField = fieldNames.keySet().stream()
+            .anyMatch(k -> context.fieldMapper(k) != null);
+        if (hasMappedField == false) {
+            // all query fields are unmapped
+            return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+        }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries;
         switch (type) {
@@ -91,7 +97,7 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     private List<Query> buildFieldQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                                          Object value, String minimumShouldMatch) throws IOException{
+                                          Object value, String minimumShouldMatch) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
             if (context.fieldMapper(fieldName) == null) {
@@ -132,9 +138,11 @@ public class MultiMatchQuery extends MatchQuery {
         for (Map.Entry<Analyzer, List<FieldAndBoost>> group : groups.entrySet()) {
             final MatchQueryBuilder builder;
             if (group.getValue().size() == 1) {
-                builder = new MatchQueryBuilder(group.getKey(), group.getValue().get(0).fieldType);
+                builder = new MatchQueryBuilder(group.getKey(), group.getValue().get(0).fieldType,
+                    enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             } else {
-                builder = new BlendedQueryBuilder(group.getKey(), group.getValue(), tieBreaker);
+                builder = new BlendedQueryBuilder(group.getKey(), group.getValue(), tieBreaker,
+                    enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             }
 
             /*
@@ -164,28 +172,29 @@ public class MultiMatchQuery extends MatchQuery {
         private final List<FieldAndBoost> blendedFields;
         private final float tieBreaker;
 
-        BlendedQueryBuilder(Analyzer analyzer, List<FieldAndBoost> blendedFields, float tieBreaker) {
-            super(analyzer, blendedFields.get(0).fieldType);
+        BlendedQueryBuilder(Analyzer analyzer, List<FieldAndBoost> blendedFields, float tieBreaker,
+                                boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
+            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
         }
 
         @Override
-        protected Query newSynonymQuery(Term[] terms) {
+        protected Query newSynonymQuery(TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].bytes();
+                values[i] = terms[i].term.bytes();
             }
-            return blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
+            return blendTerms(context, values, tieBreaker, lenient, blendedFields);
         }
 
         @Override
-        protected Query newTermQuery(Term term) {
-            return blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
+        protected Query newTermQuery(Term term, float boost) {
+            return blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
         }
 
         @Override
-        protected Query newPrefixQuery(String field, Term term) {
+        protected Query newPrefixQuery(Term term) {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
                 Query query = fieldType.fieldType.prefixQuery(term.text(), null, context);
@@ -224,13 +233,13 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
+    static Query blendTerm(QueryShardContext context, BytesRef value, float tieBreaker,
                            boolean lenient, List<FieldAndBoost> blendedFields) {
 
-        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, lenient, blendedFields);
+        return blendTerms(context, new BytesRef[] {value}, tieBreaker, lenient, blendedFields);
     }
 
-    static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
+    static Query blendTerms(QueryShardContext context, BytesRef[] values, float tieBreaker,
                             boolean lenient, List<FieldAndBoost> blendedFields) {
 
         List<Query> queries = new ArrayList<>();
@@ -270,11 +279,7 @@ public class MultiMatchQuery extends MatchQuery {
         if (i > 0) {
             terms = Arrays.copyOf(terms, i);
             blendedBoost = Arrays.copyOf(blendedBoost, i);
-            if (commonTermsCutoff != null) {
-                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, commonTermsCutoff));
-            } else {
-                queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
-            }
+            queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
         }
         if (queries.size() == 1) {
             return queries.get(0);

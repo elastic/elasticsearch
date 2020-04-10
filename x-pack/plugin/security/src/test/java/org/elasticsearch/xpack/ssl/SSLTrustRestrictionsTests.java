@@ -15,7 +15,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -31,6 +30,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.is;
  * @see RestrictedTrustManager
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-@TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
@@ -67,7 +66,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     protected int maxNumberOfNodes() {
         // We are trying to test the SSL configuration for which clients/nodes may join a cluster
         // We prefer the cluster to only have 1 node, so that the SSL checking doesn't happen until the test methods run
-        // (That's not _quite_ true, because the base setup code checks the cluster using transport client, but it's the best we can do)
         return 1;
     }
 
@@ -149,15 +147,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings parentSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
-                .put(nodeSSL);
-        return builder.build();
-    }
-
-    @Override
     protected boolean transportSSLEnabled() {
         return true;
     }
@@ -165,7 +154,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public void testCertificateWithTrustedNameIsAccepted() throws Exception {
         writeRestrictions("*.trusted");
         try {
-            tryConnect(trustedCert);
+            tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
@@ -176,7 +165,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public void testCertificateWithUntrustedNameFails() throws Exception {
         writeRestrictions("*.trusted");
         try {
-            tryConnect(untrustedCert);
+            tryConnect(untrustedCert, true);
             fail("handshake should have failed, but was successful");
         } catch (SSLException | SocketException ex) {
             // expected
@@ -187,7 +176,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*");
         assertBusy(() -> {
             try {
-                tryConnect(untrustedCert);
+                tryConnect(untrustedCert, false);
             } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
@@ -196,7 +185,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         assertBusy(() -> {
             try {
-                tryConnect(untrustedCert);
+                tryConnect(untrustedCert, true);
                 fail("handshake should have failed, but was successful");
             } catch (SSLException | SocketException ex) {
                 // expected
@@ -221,9 +210,10 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         }
     }
 
-    private void tryConnect(CertificateInfo certificate) throws Exception {
+    private void tryConnect(CertificateInfo certificate, boolean shouldFail) throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
                 .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
                 .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
@@ -231,7 +221,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .build();
 
         String node = randomFrom(internalCluster().getNodeNames());
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
         SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
@@ -239,6 +229,16 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             assertThat(socket.isConnected(), is(true));
             // The test simply relies on this (synchronously) connecting (or not), so we don't need a handshake handler
             socket.startHandshake();
+
+            // blocking read for TLSv1.3 to see if the other side closed the connection
+            if (socket.getSession().getProtocol().equals("TLSv1.3")) {
+                if (shouldFail) {
+                    socket.getInputStream().read();
+                } else {
+                    socket.setSoTimeout(1000); // 1 second timeout
+                    expectThrows(SocketTimeoutException.class, () -> socket.getInputStream().read());
+                }
+            }
         }
     }
 

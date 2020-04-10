@@ -38,8 +38,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      *
      * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
      *
-     * TODO: once we stop using the transport client as a gateway to the cluster, we can get rid of this and resolve it to concrete nodes
-     * in the rest layer
+     * TODO: we can get rid of this and resolve it to concrete nodes in the rest layer
      **/
     private String[] nodesIds;
 
@@ -51,8 +50,11 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     private TimeValue timeout;
 
-    protected BaseNodesRequest() {
-
+    protected BaseNodesRequest(StreamInput in) throws IOException {
+        super(in);
+        nodesIds = in.readStringArray();
+        concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
+        timeout = in.readOptionalTimeValue();
     }
 
     protected BaseNodesRequest(String... nodesIds) {
@@ -100,14 +102,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodesIds = in.readStringArray();
-        concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        timeout = in.readOptionalTimeValue();
     }
 
     @Override

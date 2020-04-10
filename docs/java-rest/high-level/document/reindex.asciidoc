@@ -65,11 +65,11 @@ include-tagged::{doc-tests-file}[{api}-request-query]
 --------------------------------------------------
 <1> Only copy documents which have field `user` set to `kimchy`
 
-It’s also possible to limit the number of processed documents by setting size.
+It’s also possible to limit the number of processed documents by setting `maxDocs`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-size]
+include-tagged::{doc-tests-file}[{api}-request-maxDocs]
 --------------------------------------------------
 <1> Only copy 10 documents
 
@@ -88,16 +88,6 @@ Reindex can also use the ingest feature by specifying a `pipeline`.
 include-tagged::{doc-tests-file}[{api}-request-pipeline]
 --------------------------------------------------
 <1> set pipeline to `my_pipeline`
-
-If you want a particular set of documents from the source index you’ll need to use sort. If possible, prefer a more
-selective query to size and sort.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-sort]
---------------------------------------------------
-<1> add descending sort to`field1`
-<2> add ascending sort to `field2`
 
 +{request}+ also supports a `script` that modifies the document. It allows you to
 also change the document's metadata. The following example illustrates that.
@@ -122,7 +112,7 @@ include-tagged::{doc-tests-file}[{api}-request-remote]
 <1> set remote elastic cluster
 
 +{request}+ also helps in automatically parallelizing using `sliced-scroll` to
-slice on `_uid`. Use `setSlices` to specify the number of slices to use.
+slice on `_id`. Use `setSlices` to specify the number of slices to use.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

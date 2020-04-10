@@ -23,19 +23,22 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteIndexAction extends BaseRestHandler {
-    public RestDeleteIndexAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/", this);
-        controller.registerHandler(RestRequest.Method.DELETE, "/{index}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(DELETE, "/"),
+            new Route(DELETE, "/{index}"));
     }
 
     @Override

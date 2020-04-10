@@ -22,7 +22,10 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
+
+import java.io.IOException;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
@@ -79,30 +82,6 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         // No extra assertions needed
     }
 
-    public void testTypesGetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.types(types);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        assertArrayEquals(request.types(), types);
-    }
-
-    public void testTypesSetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        request.types(types);
-        assertArrayEquals(request.types(), types);
-    }
-
     public void testValidateGivenNoQuery() {
         SearchRequest searchRequest = new SearchRequest();
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(searchRequest);
@@ -123,5 +102,29 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         ActionRequestValidationException e = deleteByQueryRequest.validate();
 
         assertThat(e, is(nullValue()));
+    }
+
+    // TODO: Implement standard to/from x-content parsing tests
+
+    @Override
+    protected DeleteByQueryRequest createTestInstance() {
+        return newRequest();
+    }
+
+    @Override
+    protected DeleteByQueryRequest doParseInstance(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != null) {
+        }
+        return newRequest();
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {
     }
 }

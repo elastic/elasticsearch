@@ -15,8 +15,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 public final class DeletePrivilegesRequestBuilder extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse>
         implements WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
 
-    public DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {
-        super(client, action, new DeletePrivilegesRequest());
+    public DeletePrivilegesRequestBuilder(ElasticsearchClient client) {
+        super(client, DeletePrivilegesAction.INSTANCE, new DeletePrivilegesRequest());
     }
 
     public DeletePrivilegesRequestBuilder privileges(String[] privileges) {

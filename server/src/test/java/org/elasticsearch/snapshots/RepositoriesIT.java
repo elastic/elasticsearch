@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -37,7 +38,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -65,12 +66,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(FileSystemUtils.files(location).length, equalTo(numberOfFiles));
 
         logger.info("--> check that repository is really there");
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetaData(true).get();
-        MetaData metaData = clusterStateResponse.getState().getMetaData();
-        RepositoriesMetaData repositoriesMetaData = metaData.custom(RepositoriesMetaData.TYPE);
-        assertThat(repositoriesMetaData, notNullValue());
-        assertThat(repositoriesMetaData.repository("test-repo-1"), notNullValue());
-        assertThat(repositoriesMetaData.repository("test-repo-1").type(), equalTo("fs"));
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        Metadata metadata = clusterStateResponse.getState().getMetadata();
+        RepositoriesMetadata repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        assertThat(repositoriesMetadata, notNullValue());
+        assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
+        assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
 
         logger.info("-->  creating another repository");
         putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
@@ -80,15 +81,15 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> check that both repositories are in cluster state");
-        clusterStateResponse = client.admin().cluster().prepareState().clear().setMetaData(true).get();
-        metaData = clusterStateResponse.getState().getMetaData();
-        repositoriesMetaData = metaData.custom(RepositoriesMetaData.TYPE);
-        assertThat(repositoriesMetaData, notNullValue());
-        assertThat(repositoriesMetaData.repositories().size(), equalTo(2));
-        assertThat(repositoriesMetaData.repository("test-repo-1"), notNullValue());
-        assertThat(repositoriesMetaData.repository("test-repo-1").type(), equalTo("fs"));
-        assertThat(repositoriesMetaData.repository("test-repo-2"), notNullValue());
-        assertThat(repositoriesMetaData.repository("test-repo-2").type(), equalTo("fs"));
+        clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();
+        metadata = clusterStateResponse.getState().getMetadata();
+        repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        assertThat(repositoriesMetadata, notNullValue());
+        assertThat(repositoriesMetadata.repositories().size(), equalTo(2));
+        assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
+        assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
+        assertThat(repositoriesMetadata.repository("test-repo-2"), notNullValue());
+        assertThat(repositoriesMetadata.repository("test-repo-2").type(), equalTo("fs"));
 
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
         GetRepositoriesResponse repositoriesResponse = client.admin().cluster()
@@ -119,8 +120,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoriesResponse.repositories().size(), equalTo(0));
     }
 
-    private RepositoryMetaData findRepository(List<RepositoryMetaData> repositories, String name) {
-        for (RepositoryMetaData repository : repositories) {
+    private RepositoryMetadata findRepository(List<RepositoryMetadata> repositories, String name) {
+        for (RepositoryMetadata repository : repositories) {
             if (repository.name().equals(name)) {
                 return repository;
             }
@@ -128,7 +129,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         return null;
     }
 
-    public void testMisconfiguredRepository() throws Exception {
+    public void testMisconfiguredRepository() {
         Client client = client();
 
         logger.info("--> trying creating repository with incorrect settings");
@@ -136,7 +137,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             client.admin().cluster().preparePutRepository("test-repo").setType("fs").get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("missing location"));
+            assertThat(ex.getCause().getMessage(), equalTo("[test-repo] missing location"));
         }
 
         logger.info("--> trying creating fs repository with location that is not registered in path.repo setting");
@@ -148,12 +149,13 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified " +
-                "by path.repo"));
+            assertThat(
+                ex.getCause().getMessage(),
+                containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
         }
     }
 
-    public void testRepositoryAckTimeout() throws Exception {
+    public void testRepositoryAckTimeout() {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(Settings.builder()
@@ -183,7 +185,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
-    public void testRepositoryVerification() throws Exception {
+    public void testRepositoryVerification() {
+        disableRepoConsistencyCheck("This test does not create any data in the repository.");
+
         Client client = client();
 
         Settings settings = Settings.builder()
@@ -192,12 +196,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Settings readonlySettings = Settings.builder().put(settings)
             .put("readonly", true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
-        assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
+        assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-1")
                         .setType("mock").setSettings(settings),
                 RepositoryVerificationException.class);
 
         logger.info("-->  creating read-only repository that cannot read any files - should fail");
-        assertThrows(client.admin().cluster().preparePutRepository("test-repo-2")
+        assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-2")
                 .setType("mock").setSettings(readonlySettings),
             RepositoryVerificationException.class);
 
@@ -206,14 +210,14 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .setType("mock").setSettings(settings).setVerify(false));
 
         logger.info("-->  verifying repository");
-        assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
+        assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
 
         logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-2")
             .setType("mock").setSettings(readonlySettings).setVerify(false));
 
         logger.info("-->  verifying repository");
-        assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
+        assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
 
         Path location = randomRepoPath();
 
@@ -227,7 +231,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     ).get();
             fail("RepositoryVerificationException wasn't generated");
         } catch (RepositoryVerificationException ex) {
-            assertThat(ex.getMessage(), containsString("is not shared"));
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("is not shared"));
         }
     }
 }

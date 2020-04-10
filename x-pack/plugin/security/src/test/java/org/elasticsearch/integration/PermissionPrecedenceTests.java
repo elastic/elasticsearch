@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -72,24 +72,14 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         return new SecureString("test123".toCharArray());
     }
 
-    @Override
-    protected String transportClientUsername() {
-        return "admin";
-    }
-
-    @Override
-    protected SecureString transportClientPassword() {
-        return new SecureString("test123".toCharArray());
-    }
-
     public void testDifferentCombinationsOfIndices() throws Exception {
-        Client client = internalCluster().transportClient();
+        Client client = client();
 
         // first lets try with "admin"... all should work
 
         AcknowledgedResponse putResponse = client
             .filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
+                    basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword())))
             .admin().indices().preparePutTemplate("template1")
             .setPatterns(Collections.singletonList("test_*"))
             .get();
@@ -97,13 +87,13 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
         GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1")
                 .get();
-        List<IndexTemplateMetaData> templates = getResponse.getIndexTemplates();
+        List<IndexTemplateMetadata> templates = getResponse.getIndexTemplates();
         assertThat(templates, hasSize(1));
 
         // now lets try with "user"
 
         Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                transportClientPassword()));
+                nodeClientPassword()));
         assertThrowsAuthorizationException(client.filterWithHeader(auth).admin().indices().preparePutTemplate("template1")
                 .setPatterns(Collections.singletonList("test_*"))::get, PutIndexTemplateAction.NAME, "user");
 

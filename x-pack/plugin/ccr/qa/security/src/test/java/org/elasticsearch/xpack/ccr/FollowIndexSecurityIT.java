@@ -9,11 +9,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -53,9 +52,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String unallowedIndex  = "unallowed-index";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
-            Settings indexSettings = Settings.builder().put("index.soft_deletes.enabled", true).build();
-            createIndex(allowedIndex, indexSettings);
-            createIndex(unallowedIndex, indexSettings);
+            createIndex(allowedIndex, Settings.EMPTY);
+            createIndex(unallowedIndex, Settings.EMPTY);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(allowedIndex, Integer.toString(i), "field", i);
@@ -150,11 +148,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         try (RestClient leaderClient = buildLeaderClient()) {
             for (String index : new String[]{allowedIndex, disallowedIndex}) {
-                Settings settings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
-                String requestBody = "{\"settings\": " + Strings.toString(settings) +
-                    ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
+                String requestBody = "{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
                 request = new Request("PUT", "/" + index);
                 request.setJsonEntity(requestBody);
                 assertOK(leaderClient.performRequest(request));
@@ -169,7 +163,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(allowedIndex);
             verifyDocuments(allowedIndex, 5, "*:*");
-        });
+        }, 30, TimeUnit.SECONDS);
         assertThat(indexExists(disallowedIndex), is(false));
         assertBusy(() -> {
             verifyCcrMonitoring(allowedIndex, allowedIndex);
@@ -187,11 +181,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String forgetFollower = "forget-follower";
         if ("leader".equals(targetCluster)) {
             logger.info("running against leader cluster");
-            final Settings indexSettings = Settings.builder()
-                    .put("index.number_of_replicas", 0)
-                    .put("index.number_of_shards", 1)
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
+            final Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build();
             createIndex(forgetLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");
@@ -202,7 +192,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             assertOK(client().performRequest(new Request("POST", "/" + forgetFollower + "/_ccr/pause_follow")));
 
-            try (RestClient leaderClient = buildLeaderClient(restClientSettings())) {
+            try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
                 final String requestBody = "{" +
                         "\"follower_cluster\":\"follow-cluster\"," +
@@ -228,8 +218,38 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
                 final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
                 final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
-                assertThat(leases, empty());
+                for (final Object lease : leases) {
+                    assertThat(((Map<?, ?>) lease).get("source"), equalTo(ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+                }
             }
+        }
+    }
+
+    public void testCleanShardFollowTaskAfterDeleteFollower() throws Exception {
+        final String cleanLeader = "clean-leader";
+        final String cleanFollower = "clean-follower";
+        if ("leader".equals(targetCluster)) {
+            logger.info("running against leader cluster");
+            final Settings indexSettings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            createIndex(cleanLeader, indexSettings);
+        } else {
+            logger.info("running against follower cluster");
+            followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);
+
+            final Request request = new Request("DELETE", "/" + cleanFollower);
+            final Response response = client().performRequest(request);
+            assertOK(response);
+            // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
+            assertBusy(() -> {
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
+                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+                assertThat(tasks.size(), equalTo(0));
+                assertThat(countCcrNodeTasks(), equalTo(0));
+            });
         }
     }
 

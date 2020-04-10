@@ -20,13 +20,12 @@
 package org.elasticsearch.blocks;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -41,53 +40,53 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         canCreateIndex("test1");
         canIndexDocument("test1");
         setIndexReadOnly("test1", "false");
-        canIndexExists("test1");
+        assertTrue(indexExists("test1"));
 
         // cluster.read_only = true: block write and metadata
         setClusterReadOnly(true);
         canNotCreateIndex("test2");
         // even if index has index.read_only = false
         canNotIndexDocument("test1");
-        canIndexExists("test1");
+        assertTrue(indexExists("test1"));
 
         // cluster.read_only = false: removes the block
         setClusterReadOnly(false);
         canCreateIndex("test2");
         canIndexDocument("test2");
         canIndexDocument("test1");
-        canIndexExists("test1");
+        assertTrue(indexExists("test1"));
 
 
         // newly created an index has no blocks
         canCreateIndex("ro");
         canIndexDocument("ro");
-        canIndexExists("ro");
+        assertTrue(indexExists("ro"));
 
         // adds index write and metadata block
         setIndexReadOnly( "ro", "true");
         canNotIndexDocument("ro");
-        canIndexExists("ro");
+        assertTrue(indexExists("ro"));
 
         // other indices not blocked
         canCreateIndex("rw");
         canIndexDocument("rw");
-        canIndexExists("rw");
+        assertTrue(indexExists("rw"));
 
         // blocks can be removed
         setIndexReadOnly("ro", "false");
         canIndexDocument("ro");
-        canIndexExists("ro");
+        assertTrue(indexExists("ro"));
     }
 
-    public void testIndexReadWriteMetaDataBlocks() {
+    public void testIndexReadWriteMetadataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");
         client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true))
                 .execute().actionGet();
         canNotIndexDocument("test1");
         client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, false))
                 .execute().actionGet();
         canIndexDocument("test1");
     }
@@ -112,7 +111,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
+            IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
             IndexResponse r = builder.execute().actionGet();
             assertThat(r, notNullValue());
@@ -123,7 +122,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canNotIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
+            IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
             builder.execute().actionGet();
             fail();
@@ -132,18 +131,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    private void canIndexExists(String index) {
-        try {
-            IndicesExistsResponse r = client().admin().indices().prepareExists(index).execute().actionGet();
-            assertThat(r, notNullValue());
-        } catch (ClusterBlockException e) {
-            fail();
-        }
-    }
-
     private void setIndexReadOnly(String index, Object value) {
         HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put(IndexMetaData.SETTING_READ_ONLY, value);
+        newSettings.put(IndexMetadata.SETTING_READ_ONLY, value);
 
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
         settingsRequest.setSettings(newSettings);

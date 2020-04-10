@@ -245,8 +245,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMFile() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -265,8 +264,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMFileBackcompat() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = newEnvironment();
         Settings settings = Settings.builder()
             .put("key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
@@ -286,8 +284,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMKeyAndTrustFiles() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = newEnvironment();
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -311,8 +308,7 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     public void testPEMKeyAndTrustFilesBackcompat() {
-        Environment env = randomBoolean() ? null :
-                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = newEnvironment();
         Settings settings = Settings.builder()
             .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("key_passphrase", "testnode")
@@ -335,9 +331,10 @@ public class SSLConfigurationTests extends ESTestCase {
     }
 
     private void assertCombiningTrustConfigContainsCorrectIssuers(SSLConfiguration sslConfiguration) {
-        X509Certificate[] trustConfAcceptedIssuers = sslConfiguration.trustConfig().createTrustManager(null).getAcceptedIssuers();
-        X509Certificate[] keyConfAcceptedIssuers = sslConfiguration.keyConfig().createTrustManager(null).getAcceptedIssuers();
-        X509Certificate[] defaultAcceptedIssuers = new DefaultJDKTrustConfig(null).createTrustManager(null)
+        Environment env = newEnvironment();
+        X509Certificate[] trustConfAcceptedIssuers = sslConfiguration.trustConfig().createTrustManager(env).getAcceptedIssuers();
+        X509Certificate[] keyConfAcceptedIssuers = sslConfiguration.keyConfig().createTrustManager(env).getAcceptedIssuers();
+        X509Certificate[] defaultAcceptedIssuers = new DefaultJDKTrustConfig(null).createTrustManager(env)
             .getAcceptedIssuers();
         assertEquals(keyConfAcceptedIssuers.length + defaultAcceptedIssuers.length, trustConfAcceptedIssuers.length);
         assertThat(Arrays.asList(keyConfAcceptedIssuers), everyItem(isIn(trustConfAcceptedIssuers)));

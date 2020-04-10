@@ -34,12 +34,13 @@ public class CountDownTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         final CountDown countDown = new CountDown(scaledRandomIntBetween(10, 1000));
         Thread[] threads = new Thread[between(3, 10)];
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(1 + threads.length);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread() {
 
                 @Override
                 public void run() {
+                    latch.countDown();
                     try {
                         latch.await();
                     } catch (InterruptedException e) {

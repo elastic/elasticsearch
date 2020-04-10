@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -18,28 +18,25 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.Arrays;
-import java.util.HashSet;
 
 /**
  * Implementation of the action needed to create an API key
  */
 public final class TransportCreateApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
 
-    private final ApiKeyService apiKeyService;
+    private final ApiKeyGenerator generator;
     private final SecurityContext securityContext;
-    private final CompositeRolesStore rolesStore;
 
     @Inject
     public TransportCreateApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
-                                       SecurityContext context, CompositeRolesStore rolesStore) {
-        super(CreateApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<CreateApiKeyRequest>) CreateApiKeyRequest::new);
-        this.apiKeyService = apiKeyService;
+                                       SecurityContext context, CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
+        super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new);
+        this.generator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
         this.securityContext = context;
-        this.rolesStore = rolesStore;
     }
 
     @Override
@@ -48,9 +45,18 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
-            rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
-                ActionListener.wrap(roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
-                    listener::onFailure));
+            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType() && grantsAnyPrivileges(request)) {
+                listener.onFailure(new IllegalArgumentException(
+                    "creating derived api keys requires an explicit role descriptor that is empty (has no privileges)"));
+                return;
+            }
+            generator.generateApiKey(authentication, request, listener);
         }
+    }
+
+    private boolean grantsAnyPrivileges(CreateApiKeyRequest request) {
+        return request.getRoleDescriptors() == null
+            || request.getRoleDescriptors().isEmpty()
+            || false == request.getRoleDescriptors().stream().allMatch(RoleDescriptor::isEmpty);
     }
 }

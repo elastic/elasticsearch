@@ -1,0 +1,450 @@
+[role="xpack"]
+[testenv="platinum"]
+[[evaluate-dfanalytics]]
+=== Evaluate {dfanalytics} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Evaluate {dfanalytics}</titleabbrev>
+++++
+
+Evaluates the {dfanalytics} for an annotated index.
+
+experimental[]
+
+
+[[ml-evaluate-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/_evaluate`
+
+
+[[ml-evaluate-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-evaluate-dfanalytics-desc]]
+==== {api-description-title}
+
+The API packages together commonly used evaluation metrics for various types of 
+machine learning features. This has been designed for use on indexes created by 
+{dfanalytics}. Evaluation requires both a ground truth field and an analytics 
+result field to be present.
+
+
+[[ml-evaluate-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`evaluation`::
+(Required, object) Defines the type of evaluation you want to perform.
+See <<ml-evaluate-dfanalytics-resources>>.
++
+--
+Available evaluation types:
+
+* `binary_soft_classification`
+* `regression`
+* `classification`
+
+--
+
+`index`::
+(Required, object) Defines the `index` in which the evaluation will be
+performed.
+
+`query`::
+(Optional, object) A query clause that retrieves a subset of data from the
+source index. See <<query-dsl>>.
+
+[[ml-evaluate-dfanalytics-resources]]
+==== {dfanalytics-cap} evaluation resources
+
+[[binary-sc-resources]]
+===== Binary soft classification evaluation objects
+
+Binary soft classification evaluates the results of an analysis which outputs 
+the probability that each document belongs to a certain class. For example, in 
+the context of {oldetection}, the analysis outputs the probability whether each 
+document is an outlier.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`. 
+  The data type of this field can be boolean or integer. If the data type is 
+  integer, the value has to be either `0` (false) or `1` (true).
+
+`predicted_probability_field`::
+  (Required, string) The field of the `index` that defines the probability of 
+  whether the item belongs to the class in question or not. It's the field that 
+  contains the results of the analysis.
+
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation. 
+  Available metrics:
+  
+  `auc_roc`:::
+    (Optional, object) The AUC ROC (area under the curve of the receiver 
+    operating characteristic) score and optionally the curve. Default value is 
+    {"includes_curve": false}.
+    
+  `confusion_matrix`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where
+    the metrics (`tp` - true positive, `fp` - false positive, `tn` - true
+    negative, `fn` - false negative) are calculated. Default value is
+    {"at": [0.25, 0.50, 0.75]}.
+
+  `precision`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `recall`:::
+    (Optional, object) Set the different thresholds of the {olscore} at where 
+    the metric is calculated. Default value is {"at": [0.25, 0.50, 0.75]}.
+
+    
+[[regression-evaluation-resources]]
+===== {regression-cap} evaluation objects
+
+{regression-cap} evaluation evaluates the results of a {regression} analysis 
+which outputs a prediction of values.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`. 
+  The data type of this field must be numerical.
+  
+`predicted_field`::
+  (Required, string) The field in the `index` that contains the predicted value, 
+  in other words the results of the {regression} analysis.
+  
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation.
+  Available metrics:
+
+  `mean_squared_error`:::
+    (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
+    For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
+
+  `r_squared`:::
+    (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
+    For more information, read https://en.wikipedia.org/wiki/Coefficient_of_determination[this wiki article].
+
+
+  
+[[classification-evaluation-resources]]
+==== {classification-cap} evaluation objects
+
+{classification-cap} evaluation evaluates the results of a {classanalysis} which 
+outputs a prediction that identifies to which of the classes each document 
+belongs.
+
+`actual_field`::
+  (Required, string) The field of the `index` which contains the `ground truth`.
+  The data type of this field must be categorical.
+  
+`predicted_field`::
+  (Required, string) The field in the `index` that contains the predicted value, 
+  in other words the results of the {classanalysis}.
+
+`metrics`::
+  (Optional, object) Specifies the metrics that are used for the evaluation.
+  Available metrics:
+
+  `accuracy`:::
+    (Optional, object) Accuracy of predictions (per-class and overall).
+
+  `multiclass_confusion_matrix`:::
+    (Optional, object) Multiclass confusion matrix.
+
+  `precision`:::
+    (Optional, object) Precision of predictions (per-class and average).
+
+  `recall`:::
+    (Optional, object) Recall of predictions (per-class and average).
+
+
+////
+[[ml-evaluate-dfanalytics-results]]
+==== {api-response-body-title}
+
+`binary_soft_classification`::
+  (object) If you chose to do binary soft classification, the API returns the
+  following evaluation metrics:
+  
+`auc_roc`::: TBD
+
+`confusion_matrix`::: TBD
+  
+`precision`::: TBD
+
+`recall`::: TBD
+////
+
+
+[[ml-evaluate-dfanalytics-example]]
+==== {api-examples-title}
+
+
+[[ml-evaluate-binary-soft-class-example]]
+===== Binary soft classification
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "my_analytics_dest_index",
+  "evaluation": {
+    "binary_soft_classification": {
+      "actual_field": "is_outlier",
+      "predicted_probability_field": "ml.outlier_score"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "binary_soft_classification": {
+    "auc_roc": {
+      "score": 0.92584757746414444
+    },
+    "confusion_matrix": {
+      "0.25": {
+          "tp": 5,
+          "fp": 9,
+          "tn": 204,
+          "fn": 5
+      },
+      "0.5": {
+          "tp": 1,
+          "fp": 5,
+          "tn": 208,
+          "fn": 9
+      },
+      "0.75": {
+          "tp": 0,
+          "fp": 4,
+          "tn": 209,
+          "fn": 10
+      }
+    },
+    "precision": {
+        "0.25": 0.35714285714285715,
+        "0.5": 0.16666666666666666,
+        "0.75": 0
+    },
+    "recall": {
+        "0.25": 0.5,
+        "0.5": 0.1,
+        "0.75": 0
+    }
+  }
+}
+----
+
+
+[[ml-evaluate-regression-example]]
+===== {regression-cap}
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "house_price_predictions", <1>
+  "query": {
+      "bool": {
+        "filter": [
+          { "term":  { "ml.is_training": false } } <2>
+        ]
+      }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "price", <3>
+      "predicted_field": "ml.price_prediction", <4>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The output destination index from a {dfanalytics} {reganalysis}.
+<2> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the test split 
+only. 
+<3> The ground truth value for the actual house price. This is required in order 
+to evaluate results.
+<4> The predicted value for house price calculated by the {reganalysis}.
+
+
+The following example calculates the training error:
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": true <1>
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3", <2>
+      "predicted_field": "ml.G3_prediction", <3>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the train split 
+only. It means that a training error will be calculated.
+<2> The field that contains the ground truth value for the actual student 
+performance. This is required in order to evaluate results.
+<3> The field that contains the predicted value for student performance 
+calculated by the {reganalysis}.
+
+
+The next example calculates the testing error. The only difference compared with 
+the previous example is that `ml.is_training` is set to `false` this time, so 
+the query excludes the train split from the evaluation.
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": false <1>
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3", <2>
+      "predicted_field": "ml.G3_prediction", <3>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the test split 
+only. It means that a testing error will be calculated.
+<2> The field that contains the ground truth value for the actual student 
+performance. This is required in order to evaluate results.
+<3> The field that contains the predicted value for student performance 
+calculated by the {reganalysis}.
+
+
+[[ml-evaluate-classification-example]]
+===== {classification-cap}
+
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{ 
+   "index": "animal_classification",
+   "evaluation": {
+      "classification": { <1>
+         "actual_field": "animal_class", <2>
+         "predicted_field": "ml.animal_class_prediction", <3>
+         "metrics": {  
+           "multiclass_confusion_matrix" : {} <4>
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The evaluation type.
+<2> The field that contains the ground truth value for the actual animal 
+classification. This is required in order to evaluate results.
+<3> The field that contains the predicted value for animal classification by 
+the {classanalysis}.
+<4> Specifies the metric for the evaluation.
+
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+   "classification" : {
+      "multiclass_confusion_matrix" : {
+         "confusion_matrix" : [
+         {
+            "actual_class" : "cat", <1>
+            "actual_class_doc_count" : 12, <2>
+            "predicted_classes" : [ <3>
+              {
+                "predicted_class" : "cat",
+                "count" : 12 <4>
+              },
+              {
+                "predicted_class" : "dog",
+                "count" : 0 <5>
+              }
+            ],
+            "other_predicted_class_doc_count" : 0 <6>
+          },
+          {
+            "actual_class" : "dog",
+            "actual_class_doc_count" : 11,
+            "predicted_classes" : [
+              {
+                "predicted_class" : "dog",
+                "count" : 7
+              },
+              {
+                "predicted_class" : "cat",
+                "count" : 4
+              }
+            ],
+            "other_predicted_class_doc_count" : 0
+          }
+        ],
+        "other_actual_class_count" : 0
+      }
+    }
+  }
+--------------------------------------------------
+<1> The name of the actual class that the analysis tried to predict.
+<2> The number of documents in the index that belong to the `actual_class`.
+<3> This object contains the list of the predicted classes and the number of 
+predictions associated with the class.
+<4> The number of cats in the dataset that are correctly identified as cats.
+<5> The number of cats in the dataset that are incorrectly classified as dogs.
+<6> The number of documents that are classified as a class that is not listed as 
+a `predicted_class`.

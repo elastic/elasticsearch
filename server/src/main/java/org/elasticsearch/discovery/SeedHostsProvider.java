@@ -36,10 +36,9 @@ public interface SeedHostsProvider {
 
     /**
      * Helper object that allows to resolve a list of hosts to a list of transport addresses.
-     * Each host is resolved into a transport address (or a collection of addresses if the
-     * number of ports is greater than one)
+     * Each host is resolved into a transport address
      */
     interface HostsResolver {
-        List<TransportAddress> resolveHosts(List<String> hosts, int limitPortCounts);
+        List<TransportAddress> resolveHosts(List<String> hosts);
     }
 }

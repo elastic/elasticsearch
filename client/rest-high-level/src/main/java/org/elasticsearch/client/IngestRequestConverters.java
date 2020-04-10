@@ -41,8 +41,9 @@ final class IngestRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -53,10 +54,10 @@ final class IngestRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(putPipelineRequest.timeout());
         parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
-
+        request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(putPipelineRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -68,10 +69,10 @@ final class IngestRequestConverters {
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(deletePipelineRequest.timeout());
         parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
-
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -83,8 +84,9 @@ final class IngestRequestConverters {
         builder.addPathPartAsIs("_simulate");
         String endpoint = builder.build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
+        request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(simulatePipelineRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

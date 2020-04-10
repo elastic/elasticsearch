@@ -48,6 +48,12 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
     SearchTemplateResponse() {
     }
 
+    SearchTemplateResponse(StreamInput in) throws IOException {
+        super(in);
+        source = in.readOptionalBytesReference();
+        response = in.readOptionalWriteable(SearchResponse::new);
+    }
+
     public BytesReference getSource() {
         return source;
     }
@@ -75,16 +81,8 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalBytesReference(source);
-        out.writeOptionalStreamable(response);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        source = in.readOptionalBytesReference();
-        response = in.readOptionalStreamable(SearchResponse::new);
+        out.writeOptionalWriteable(response);
     }
 
     public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {

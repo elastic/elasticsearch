@@ -38,12 +38,6 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         return plugins;
     }
 
-    // Remove this once the AwaitsFix below has been resolved
-    public void testDummy() {
-        assertTrue(true);
-    }
-
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/39858")
     public void testJobRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(5);
         ensureStableCluster(5);
@@ -51,11 +45,14 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         Job.Builder job = createJob("relocation-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        ensureGreen();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         AcknowledgedResponse openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertTrue(openJobResponse.isAcknowledged());
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
+        ensureGreen();
 
         // Record which node the job starts off on
         String origJobNode = awaitJobOpenedAndAssigned(job.getId(), null);

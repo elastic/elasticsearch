@@ -43,21 +43,48 @@ public class DataLoader {
         loadEmpDatasetIntoEs(client);
     }
 
+    public static void createEmptyIndex(RestClient client, String index) throws Exception {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
+    }
+
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
         loadLogsDatasetIntoEs(client, "logs", "logs");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
+        // frozen index
+        loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
+        freeze(client, "frozen_emp");
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "emp", "employees");
         loadLibDatasetIntoEs(client, "library");
         makeAlias(client, "employees", "emp");
+        // frozen index
+        loadLibDatasetIntoEs(client, "archive");
+        freeze(client, "archive");
     }
 
-    private static void createString(String name, XContentBuilder builder) throws Exception {
+    public static void createString(String name, XContentBuilder builder) throws Exception {
         builder.startObject(name).field("type", "text")
             .startObject("fields")
                 .startObject("keyword").field("type", "keyword").endObject()
@@ -96,13 +123,11 @@ public class DataLoader {
                 createString("first_name", createIndex);
                 createString("last_name", createIndex);
                 createIndex.startObject("gender").field("type", "keyword");
-                if (extraFields) {
-                    createIndex.field("copy_to", "extra_gender");
-                }
                 createIndex.endObject();
 
                 if (extraFields) {
-                    createIndex.startObject("extra_gender").field("type", "keyword").endObject();
+                    createIndex.startObject("extra_gender").field("type", "constant_keyword").endObject();
+                    createIndex.startObject("null_constant").field("type", "constant_keyword").endObject();
                     createIndex.startObject("extra.info.gender")
                         .field("type", "alias")
                         .field("path", "gender")
@@ -171,6 +196,9 @@ public class DataLoader {
                     }
                     hadLastItem = true;
                     bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
+                    if (titles.get(f).equals("gender") && extraFields) {
+                        bulk.append(",\"extra_gender\":\"Female\"");
+                    }
                 }
             }
             // append department
@@ -286,9 +314,15 @@ public class DataLoader {
         Response response = client.performRequest(request);
     }
 
-    protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
+    public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
         for (String index : indices) {
             client.performRequest(new Request("POST", "/" + index + "/_alias/" + aliasName));
+        }
+    }
+
+    protected static void freeze(RestClient client, String... indices) throws Exception {
+        for (String index : indices) {
+            client.performRequest(new Request("POST", "/" + index + "/_freeze"));
         }
     }
 

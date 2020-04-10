@@ -25,6 +25,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.security.AccessController;
@@ -133,7 +134,9 @@ public class DeprecationLogger {
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        deprecated(THREAD_CONTEXT, msg, keys.add(key), params);
+        String xOpaqueId = getXOpaqueId(THREAD_CONTEXT);
+        boolean log = keys.add(xOpaqueId + key);
+        deprecated(THREAD_CONTEXT, msg, log, params);
     }
 
     /*
@@ -149,7 +152,7 @@ public class DeprecationLogger {
                     "299 Elasticsearch-%s%s-%s",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                    Build.CURRENT.shortHash());
+                    Build.CURRENT.hash());
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
@@ -157,7 +160,9 @@ public class DeprecationLogger {
      */
     public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
-                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+                    "Elasticsearch-" + // warn agent
+                    "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
+                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
                     "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
                     // quoted RFC 1123 date format
                     "\"" + // opening quote
@@ -169,6 +174,8 @@ public class DeprecationLogger {
                     "GMT" + // GMT
                     "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
+    public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
+
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
      * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
@@ -176,7 +183,7 @@ public class DeprecationLogger {
      * @param s the value of a warning header formatted according to RFC 7234.
      * @return the extracted warning value
      */
-    public static String extractWarningValueFromWarningHeader(final String s) {
+    public static String extractWarningValueFromWarningHeader(final String s, boolean stripXContentPosition) {
         /*
          * We know the exact format of the warning header, so to extract the warning value we can skip forward from the front to the first
          * quote and we know the last quote is at the end of the string
@@ -191,8 +198,14 @@ public class DeprecationLogger {
          */
         final int firstQuote = s.indexOf('\"');
         final int lastQuote = s.length() - 1;
-        final String warningValue = s.substring(firstQuote + 1, lastQuote);
+        String warningValue = s.substring(firstQuote + 1, lastQuote);
         assert assertWarningValue(s, warningValue);
+        if (stripXContentPosition) {
+            Matcher matcher = WARNING_XCONTENT_LOCATION_PATTERN.matcher(warningValue);
+            if (matcher.find()) {
+                warningValue = warningValue.substring(matcher.end());
+            }
+        }
         return warningValue;
     }
 
@@ -223,12 +236,11 @@ public class DeprecationLogger {
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
-
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
+            assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
@@ -244,11 +256,24 @@ public class DeprecationLogger {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
-                    logger.warn(message, params);
+                    /**
+                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
+                     */
+                    String opaqueId = getXOpaqueId(threadContexts);
+
+                    logger.warn(DeprecatedMessage.of(opaqueId, message, params));
                     return null;
                 }
             });
         }
+    }
+
+    public String getXOpaqueId(Set<ThreadContext> threadContexts) {
+        return threadContexts.stream()
+                             .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+                             .findFirst()
+                             .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+                             .orElse("");
     }
 
     /**

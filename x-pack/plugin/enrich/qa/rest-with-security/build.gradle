@@ -1,0 +1,20 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_admin", password: "x-pack-test-password", role: "superuser"
+  user username: "test_enrich", password: "x-pack-test-password", role: "enrich_user,integ_test_role"
+  user username: "test_enrich_no_privs", password: "x-pack-test-password", role: "enrich_no_privs"
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+}

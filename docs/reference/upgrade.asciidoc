@@ -7,8 +7,55 @@
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
 * Between minor versions
-* From 5.6 to 6.7
-* From 6.7 to {version}
+* From 5.6 to 6.8
+* From 6.8 to {prev-major-version}
+* From {prev-major-version} to {version}
+
+
+The following table shows the recommended upgrade paths to {version}.
+
+[cols="<1m,3",options="header",]
+|====
+|Upgrade from   
+|Recommended upgrade path  to {version}
+
+|{prev-major-version}
+|<<rolling-upgrades,Rolling upgrade>> to {version}
+
+|7.0–7.7
+a|
+. https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+
+|6.8
+a|
+. https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+
+|6.0–6.7
+a|
+
+. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+|====
+
+
+[WARNING]
+====
+The upgrade path from 6.8 to 7.0 is *not* supported (both full cluster restart and rolling upgrade).
+====
+
+To upgrade directly to {version} from 6.7 or earlier, you must shut down the
+cluster, install {version}, and restart. For more information, see
+<<restart-upgrade, Full cluster restart upgrade>>.
+
+[WARNING]
+====
+In-place downgrades to earlier versions are *not* supported. To downgrade to an
+earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
+to the version upgrade.
+====
 
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
@@ -20,25 +67,6 @@ information about upgrading old indices, see <<reindex-upgrade, Reindex to upgra
 When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
-
-To upgrade directly to {version} from 6.6 or earlier, you must shut down the
-cluster, install {version}, and restart. For more information, see
-<<restart-upgrade, Full cluster restart upgrade>>.
-
-[float]
-== Preparing to upgrade
-
-Before upgrading {es}:
-
-. Check the <<deprecation-logging, deprecation log>> to see if you are using
-any deprecated features and update your code accordingly. By default,
-deprecation warnings are logged when the log level is set to `WARN`.
-. Review the <<breaking-changes,breaking changes>> and make any necessary changes
-to your code and configuration for {version}.
-. If you use custom plugins, make sure compatible versions are available.
-. Test upgrades in a dev environment before upgrading your production cluster.
-. <<modules-snapshots,Back up your data!>> You must have a snapshot of your
-data to roll back to an earlier version.
 
 --
 

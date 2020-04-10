@@ -19,22 +19,17 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for explaining evaluating search ranking results.
+ * ActionType for explaining evaluating search ranking results.
  */
-public class RankEvalAction extends Action<RankEvalResponse> {
+public class RankEvalAction extends ActionType<RankEvalResponse> {
 
     public static final RankEvalAction INSTANCE = new RankEvalAction();
     public static final String NAME = "indices:data/read/rank_eval";
 
     private RankEvalAction() {
-        super(NAME);
-    }
-
-    @Override
-    public RankEvalResponse newResponse() {
-        return new RankEvalResponse();
+        super(NAME, RankEvalResponse::new);
     }
 }

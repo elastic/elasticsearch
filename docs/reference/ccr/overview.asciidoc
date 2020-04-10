@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-overview]]
-== Overview
+=== Overview
 
 
 {ccr-cap} is done on an index-by-index basis. Replication is
@@ -17,8 +17,20 @@ Replication is pull-based. This means that replication is driven by the
 follower index. This simplifies state management on the leader index and means
 that {ccr} does not interfere with indexing on the leader index.
 
-[float]
-=== Configuring replication
+In {ccr}, the cluster performing this pull is known as the _local cluster_. The
+cluster being replicated is known as the _remote cluster_.
+
+==== Prerequisites
+
+* {ccr-cap} requires <<modules-remote-clusters, remote clusters>>.
+
+* The {es} version of the local cluster must be **the same as or newer** than
+the remote cluster. If newer, the versions must also be compatible as outlined
+in the following matrix.
+
+include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
+
+==== Configuring replication
 
 Replication can be configured in two ways:
 
@@ -46,7 +58,7 @@ the process to complete, you can use the `wait_for_active_shards` parameter.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -54,21 +66,19 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
 
-[float]
-=== The mechanics of replication
+
+==== The mechanics of replication
 
 While replication is managed at the index level, replication is performed at the
 shard level. When a follower index is created, it is automatically
@@ -84,7 +94,7 @@ configured the follower index. If there are no new operations available on the
 leader shard, the leader shard waits up to a configured timeout for new
 operations. If new operations occur within that timeout, the leader shard
 immediately responds with those new operations. Otherwise, if the timeout
-elapses, the follower shard replies that there are no new operations. The
+elapses, the leader shard replies that there are no new operations. The
 follower shard task updates some statistics and immediately sends another read
 request to the leader shard. This ensures that the network connections between
 the remote cluster and the local cluster are continually being used so as to
@@ -112,12 +122,17 @@ governed by settings that you can configure when you create the follower index
 in {kib} or by using the {ref}/ccr-put-follow.html[create follower API].
 
 Mapping updates applied to the leader index are automatically retrieved
-as-needed by the follower index.
+as-needed by the follower index. It is not possible to manually modify the
+mapping of a follower index.
 
 Settings updates applied to the leader index that are needed by the follower
 index are automatically retried as-needed by the follower index. Not all
 settings updates are needed by the follower index. For example, changing the
 number of replicas on the leader index is not replicated by the follower index.
+
+Alias updates applied to the leader index are automatically retrieved by the
+follower index. It is not possible to manually modify an alias of a follower
+index.
 
 NOTE: If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index will go through a cycle of
@@ -125,8 +140,8 @@ closing itself, applying the settings update, and then re-opening itself. The
 follower index will be unavailable for reads and not replicating writes
 during this cycle.
 
-[float]
-=== Inspecting the progress of replication
+
+==== Inspecting the progress of replication
 
 You can inspect the progress of replication at the shard level with the
 {ref}/ccr-get-follow-stats.html[get follower stats API]. This API gives you
@@ -134,8 +149,8 @@ insight into the read and writes managed by the follower shard task. It also
 reports read exceptions that can be retried and fatal exceptions that require
 user intervention.
 
-[float]
-=== Pausing and resuming replication
+
+==== Pausing and resuming replication
 
 You can pause replication with the
 {ref}/ccr-post-pause-follow.html[pause follower API] and then later resume
@@ -144,8 +159,8 @@ Using these APIs in tandem enables you to adjust the read and write parameters
 on the follower shard task if your initial configuration is not suitable for
 your use case.
 
-[float]
-=== Leader index retaining operations for replication
+
+==== Leader index retaining operations for replication
 
 If the follower is unable to replicate operations from a leader for a period of
 time, the following process can fail due to the leader lacking a complete history
@@ -175,8 +190,8 @@ the lease expires. It is valuable to have monitoring in place to detect a follow
 replication issue prior to the lease expiring so that the problem can be remedied
 before the follower falls fatally behind.
 
-[float]
-=== Remedying a follower that has fallen behind
+
+==== Remedying a follower that has fallen behind
 
 If a follower falls sufficiently behind a leader that it can no longer replicate
 operations this can be detected in {kib} or by using the
@@ -186,7 +201,7 @@ operations this can be detected in {kib} or by using the
 In order to restart the follower, you must pause the following process, close the
 index, and the create follower index again. For example:
 
-["source","js"]
+[source,console]
 ----------------------------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 
@@ -198,7 +213,6 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 ----------------------------------------------------------------------
-// CONSOLE
 
 Re-creating the follower index is a destructive action. All of the existing Lucene
 segment files are deleted on the follower cluster. The
@@ -206,8 +220,8 @@ segment files are deleted on the follower cluster. The
 files from the leader again. After the follower index initializes, the
 following process starts again.
 
-[float]
-=== Terminating replication
+
+==== Terminating replication
 
 You can terminate replication with the
 {ref}/ccr-post-unfollow.html[unfollow API]. This API converts a follower index

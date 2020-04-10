@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -277,6 +277,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         nodes.remove(primaryNodeName);
 
         logger.info("--> shutting down all nodes except the one that holds the primary");
+        Settings node0DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
         ensureStableCluster(1);
@@ -286,8 +288,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             Settings.builder().put("index.routing.allocation.include._name", primaryNodeName)).get();
 
         logger.info("--> restarting the stopped nodes");
-        internalCluster().startNode(Settings.builder().put("node.name", nodes.get(0)).build());
-        internalCluster().startNode(Settings.builder().put("node.name", nodes.get(1)).build());
+        internalCluster().startNode(Settings.builder().put("node.name", nodes.get(0)).put(node0DataPathSettings).build());
+        internalCluster().startNode(Settings.builder().put("node.name", nodes.get(1)).put(node1DataPathSettings).build());
         ensureStableCluster(3);
 
         boolean includeYesDecisions = randomBoolean();
@@ -393,7 +395,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
 
         logger.info("--> creating an index with 1 primary, 0 replicas, with allocation filtering so the primary can't be assigned");
-        prepareIndex(IndexMetaData.State.OPEN, 1, 0,
+        prepareIndex(IndexMetadata.State.OPEN, 1, 0,
             Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(),
             ActiveShardCount.NONE);
 
@@ -1017,9 +1019,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // start replica node first, so it's path will be used first when we start a node after
         // stopping all of them at end of test.
         final String replicaNode = internalCluster().startNode();
+        Settings replicaDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         final String primaryNode = internalCluster().startNode();
 
-        prepareIndex(IndexMetaData.State.OPEN, 1, 1,
+        prepareIndex(IndexMetadata.State.OPEN, 1, 1,
             Settings.builder()
                 .put("index.routing.allocation.include._name", primaryNode)
                 .put("index.routing.allocation.exclude._name", masterNode)
@@ -1036,8 +1039,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stop node with the replica shard");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
-        final IndexMetaData.State indexState = randomIndexState();
-        if (indexState == IndexMetaData.State.OPEN) {
+        final IndexMetadata.State indexState = randomIndexState();
+        if (indexState == IndexMetadata.State.OPEN) {
             logger.info("--> index more data, now the replica is stale");
             indexData();
         } else {
@@ -1057,7 +1060,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
 
         logger.info("--> restart the node with the stale replica");
-        String restartedNode = internalCluster().startDataOnlyNode();
+        String restartedNode = internalCluster().startDataOnlyNode(replicaDataPathSettings);
         ensureClusterSizeConsistency(); // wait for the master to finish processing join.
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
@@ -1164,7 +1167,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(randomIndexState(), numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
     }
 
-    private void prepareIndex(final IndexMetaData.State state, final int numPrimaries, final int numReplicas,
+    private void prepareIndex(final IndexMetadata.State state, final int numPrimaries, final int numReplicas,
                               final Settings settings, final ActiveShardCount activeShardCount) {
 
         logger.info("--> creating a {} index with {} primary, {} replicas", state, numPrimaries, numReplicas);
@@ -1179,7 +1182,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         if (activeShardCount != ActiveShardCount.NONE) {
             indexData();
         }
-        if (state == IndexMetaData.State.CLOSE) {
+        if (state == IndexMetadata.State.CLOSE) {
             assertAcked(client().admin().indices().prepareClose("idx"));
 
             final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth("idx")
@@ -1191,13 +1194,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    private static IndexMetaData.State randomIndexState() {
-        return randomFrom(IndexMetaData.State.values());
+    private static IndexMetadata.State randomIndexState() {
+        return randomFrom(IndexMetadata.State.values());
     }
 
     private void indexData() {
         for (int i = 0; i < 10; i++) {
-            index("idx", "t", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
+            index("idx", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
         }
         flushAndRefresh("idx");
     }

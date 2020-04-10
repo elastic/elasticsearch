@@ -26,9 +26,6 @@ setup:
 
 ---
 "Get aliases wildcard and simple exclusion":
-  - skip:
-      version: " - 6.99.99"
-      reason: Exclusions in the alias expression are not handled
   - do:
       indices.get_alias:
         name: test_blias_2,test_alias*,-test_alias_1
@@ -41,9 +38,6 @@ setup:
 
 ---
 "Get aliases and wildcard exclusion":
-  - skip:
-      version: " - 6.99.99"
-      reason: Exclusions in the alias expression are not handled
   - do:
       indices.get_alias:
         name: test_alias_1,test_blias_1,-test_alias*
@@ -66,9 +60,6 @@ setup:
 
 ---
 "Non-existent exclusion alias before wildcard returns 404":
-  - skip:
-      version: " - 6.99.99"
-      reason: Exclusions in the alias expression are not handled
   - do:
       catch: missing
       indices.get_alias:
@@ -97,9 +88,6 @@ setup:
 
 ---
 "Missing exclusions does not fire 404":
-  - skip:
-      version: " - 6.99.99"
-      reason: Exclusions in the alias expression are not handled
   - do:
       indices.get_alias:
         name: test_alias*,-non-existent,test_blias*,-test
@@ -112,9 +100,6 @@ setup:
 
 ---
 "Exclusion of non wildcarded aliases":
-  - skip:
-      version: " - 6.99.99"
-      reason: Exclusions in the alias expression are not handled
   - do:
       indices.get_alias:
         name: test_alias_1,test_blias_2,-test_alias*,-test_blias_2
@@ -123,9 +108,6 @@ setup:
 
 ---
 "Wildcard exclusions does not trigger 404":
-  - skip:
-      version: " - 6.99.99"
-      reason: Exclusions in the alias expression are not handled
   - do:
       catch: missing
       indices.get_alias:

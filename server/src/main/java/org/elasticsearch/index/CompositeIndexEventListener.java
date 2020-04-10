@@ -31,9 +31,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -50,7 +48,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 throw new IllegalArgumentException("listeners must be non-null");
             }
         }
-        this.listeners = Collections.unmodifiableList(new ArrayList<>(listeners));
+        this.listeners = List.copyOf(listeners);
         this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
     }
 
@@ -120,18 +118,6 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    @Override
-    public void onShardInactive(IndexShard indexShard) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.onShardInactive(indexShard);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke on shard inactive callback",
-                    indexShard.shardId().getId()), e);
-                throw e;
-            }
-        }
-    }
 
     @Override
     public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState,
@@ -267,6 +253,19 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.onStoreClosed(shardId);
             } catch (Exception e) {
                 logger.warn("failed to invoke on store closed", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void beforeIndexShardRecovery(final IndexShard indexShard, final IndexSettings indexSettings) {
+        for (IndexEventListener listener  : listeners) {
+            try {
+                listener.beforeIndexShardRecovery(indexShard, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("failed to invoke the listener before the shard recovery starts for {}",
+                    indexShard.shardId()), e);
                 throw e;
             }
         }

@@ -34,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.action.admin.indices.validate.query.QueryExplanation.readQueryExplanation;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -49,7 +48,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
     public static final String EXPLANATIONS_FIELD = "explanations";
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<ValidateQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ValidateQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
         "validate_query",
         true,
         arg -> {
@@ -77,8 +76,16 @@ public class ValidateQueryResponse extends BroadcastResponse {
 
     private List<QueryExplanation> queryExplanations;
 
-    ValidateQueryResponse() {
-
+    ValidateQueryResponse(StreamInput in) throws IOException {
+        super(in);
+        valid = in.readBoolean();
+        int size = in.readVInt();
+        if (size > 0) {
+            queryExplanations = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                queryExplanations.add(new QueryExplanation(in));
+            }
+        }
     }
 
     ValidateQueryResponse(boolean valid, List<QueryExplanation> queryExplanations, int totalShards, int successfulShards, int failedShards,
@@ -106,19 +113,6 @@ public class ValidateQueryResponse extends BroadcastResponse {
             return Collections.emptyList();
         }
         return queryExplanations;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        valid = in.readBoolean();
-        int size = in.readVInt();
-        if (size > 0) {
-            queryExplanations = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                queryExplanations.add(readQueryExplanation(in));
-            }
-        }
     }
 
     @Override

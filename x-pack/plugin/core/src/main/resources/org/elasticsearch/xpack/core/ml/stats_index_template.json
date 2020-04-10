@@ -1,0 +1,17 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-stats-*"
+  ],
+  "settings": {
+    "index" : {
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1",
+      "hidden": true
+    }
+    ${xpack.ml.index.lifecycle.settings}
+  },
+  "mappings" : ${xpack.ml.stats.mappings},
+  "aliases" : {}
+}

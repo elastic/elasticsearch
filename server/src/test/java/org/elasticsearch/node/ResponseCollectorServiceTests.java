@@ -77,9 +77,10 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     public void testConcurrentAddingAndRemoving() throws Exception {
         String[] nodes = new String[] {"a", "b", "c", "d"};
 
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(5);
 
         Runnable f = () -> {
+            latch.countDown();
             try {
                 latch.await();
             } catch (InterruptedException e) {

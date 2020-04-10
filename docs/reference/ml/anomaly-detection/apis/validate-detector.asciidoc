@@ -1,0 +1,128 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-valid-detector]]
+=== Validate detectors API
+++++
+<titleabbrev>Validate detectors</titleabbrev>
+++++
+
+Validates detector configuration information.
+
+[[ml-valid-detector-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/_validate/detector`
+
+[[ml-valid-detector-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-valid-detector-desc]]
+==== {api-description-title}
+
+This API enables you to validate the detector configuration
+before you create an {anomaly-job}.
+
+[[ml-valid-detector-request-body]]
+==== {api-request-body-title}
+
+`by_field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
+
+`custom_rules`::
++
+--
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
+
+`analysis_config`.`detectors`.`custom_rules`.`actions`:::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+
+`analysis_config`.`detectors`.`custom_rules`.`scope`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
+
+`analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_id`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`:::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`.`applies_to`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`.`operator`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
+
+`analysis_config`.`detectors`.`custom_rules`.`conditions`.`value`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
+--
+
+`detector_description`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
+
+`detector_index`::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+
+`exclude_frequent`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
+
+`field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
+
+`function`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=function]
+
+`over_field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
+
+`partition_field_name`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+
+`use_null`::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
+
+[[ml-valid-detector-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/_validate/detector
+{
+  "function": "metric",
+  "field_name": "responsetime",
+  "by_field_name": "airline"
+}
+--------------------------------------------------
+// TEST[skip:needs-licence]
+
+When the validation completes, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

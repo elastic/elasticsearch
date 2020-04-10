@@ -40,7 +40,7 @@ public class AbstractQueryBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
     }
 
     @AfterClass
@@ -78,10 +78,15 @@ public class AbstractQueryBuilderTests extends ESTestCase {
             assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
 
-        source = "{ \"foo\" : {} }";
+        source = "{ \"boool\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
-            assertEquals("no [query] registered for [foo]", exception.getMessage());
+            assertEquals("unknown query [boool] did you mean [bool]?", exception.getMessage());
+        }
+        source = "{ \"match_\" : {} }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
+            assertEquals("unknown query [match_] did you mean any of [match, match_all, match_none]?", exception.getMessage());
         }
     }
 

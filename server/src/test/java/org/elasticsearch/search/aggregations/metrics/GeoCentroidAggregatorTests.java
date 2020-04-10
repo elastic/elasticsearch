@@ -28,17 +28,19 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
+import java.util.List;
 
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
-    private static final double GEOHASH_TOLERANCE = 1E-4D;
+    private static final double GEOHASH_TOLERANCE = 1E-6D;
 
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory();
@@ -82,6 +84,30 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
+            }
+        }
+    }
+
+    public void testUnmappedWithMissing() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
+                .field("another_field")
+                .missing("53.69437,6.475031");
+
+            GeoPoint expectedCentroid = new GeoPoint(53.69437, 6.475031);
+            Document document = new Document();
+            document.add(new LatLonDocValuesField("field", 10, 10));
+            w.addDocument(document);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+                fieldType.setHasDocValues(true);
+                fieldType.setName("another_field");
+                InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(result.centroid(), expectedCentroid);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         }
     }
@@ -156,4 +182,13 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new GeoCentroidAggregationBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.GEOPOINT);
+    }
 }

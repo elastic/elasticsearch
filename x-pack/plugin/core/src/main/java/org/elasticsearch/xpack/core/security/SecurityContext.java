@@ -5,21 +5,27 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -28,36 +34,60 @@ public class SecurityContext {
     private final Logger logger = LogManager.getLogger(SecurityContext.class);
 
     private final ThreadContext threadContext;
-    private final UserSettings userSettings;
+    private final AuthenticationContextSerializer authenticationSerializer;
     private final String nodeName;
 
-    /**
-     * Creates a new security context.
-     * If cryptoService is null, security is disabled and {@link UserSettings#getUser()}
-     * and {@link UserSettings#getAuthentication()} will always return null.
-     */
     public SecurityContext(Settings settings, ThreadContext threadContext) {
         this.threadContext = threadContext;
-        this.userSettings = new UserSettings(threadContext);
+        this.authenticationSerializer = new AuthenticationContextSerializer();
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 
+    /**
+     * Returns the current user information, or throws {@link org.elasticsearch.ElasticsearchSecurityException}
+     * if the current request has no authentication information.
+     */
+    public User requireUser() {
+        User user = getUser();
+        if (user == null) {
+            throw new ElasticsearchSecurityException("there is no user available in the current context");
+        }
+        return user;
+    }
+
     /** Returns the current user information, or null if the current request has no authentication info. */
+    @Nullable
     public User getUser() {
         Authentication authentication = getAuthentication();
         return authentication == null ? null : authentication.getUser();
     }
 
     /** Returns the authentication information, or null if the current request has no authentication info. */
+    @Nullable
     public Authentication getAuthentication() {
         try {
-            return Authentication.readFromContext(threadContext);
+            return authenticationSerializer.readFromContext(threadContext);
         } catch (IOException e) {
-            // TODO: this seems bogus, the only way to get an ioexception here is from a corrupt or tampered
-            // auth header, which should be be audited?
             logger.error("failed to read authentication", e);
-            return null;
+            throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Returns the "secondary authentication" (see {@link SecondaryAuthentication}) information,
+     * or {@code null} if the current request does not have a secondary authentication context
+     */
+    public SecondaryAuthentication getSecondaryAuthentication() {
+        try {
+            return SecondaryAuthentication.readFromContext(this);
+        } catch (IOException e) {
+            logger.error("failed to read secondary authentication", e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public ThreadContext getThreadContext() {
+        return threadContext;
     }
 
     /**
@@ -99,12 +129,24 @@ public class SecurityContext {
     }
 
     /**
+     * Runs the consumer in a new context as the provided user. The original context is provided to the consumer. When this method
+     * returns, the original context is restored.
+     */
+    public <T> T executeWithAuthentication(Authentication authentication, Function<StoredContext, T> consumer) {
+        final StoredContext original = threadContext.newStoredContext(true);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            setAuthentication(authentication);
+            return consumer.apply(original);
+        }
+    }
+
+    /**
      * Runs the consumer in a new context after setting a new version of the authentication that is compatible with the version provided.
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
         final StoredContext original = threadContext.newStoredContext(true);
-        final Authentication authentication = Objects.requireNonNull(userSettings.getAuthentication());
+        final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                 authentication.getLookedUpBy(), version, authentication.getAuthenticationType(), authentication.getMetadata()));

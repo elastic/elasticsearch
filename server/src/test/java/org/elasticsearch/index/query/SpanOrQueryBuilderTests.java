@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -44,13 +43,13 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanOrQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanOrQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) query;
         assertThat(spanOrQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
         Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
         for (SpanQuery spanQuery : spanOrQuery.getClauses()) {
-            assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context.getQueryShardContext())));
+            assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
         }
     }
 

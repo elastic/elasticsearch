@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +15,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
@@ -37,6 +37,12 @@ class AggProvider implements Writeable, ToXContentObject {
 
     static AggProvider fromXContent(XContentParser parser, boolean lenient) throws IOException {
         Map<String, Object> aggs = parser.mapOrdered();
+        // NOTE: Always rewrite potentially old date histogram intervals.
+        // This should occur in 8.x+ but not 7.x.
+        // 7.x is BWC with versions that do not support the new date_histogram fields
+        if (lenient) {
+            rewriteDateHistogramInterval(aggs, false);
+        }
         AggregatorFactories.Builder parsedAggs = null;
         Exception exception = null;
         try {
@@ -58,6 +64,35 @@ class AggProvider implements Writeable, ToXContentObject {
         return new AggProvider(aggs, parsedAggs, exception);
     }
 
+    @SuppressWarnings("unchecked")
+    static boolean rewriteDateHistogramInterval(Map<String, Object> aggs, boolean inDateHistogram) {
+        boolean didRewrite = false;
+        if (aggs.containsKey(Histogram.INTERVAL_FIELD.getPreferredName()) && inDateHistogram) {
+            Object currentInterval = aggs.remove(Histogram.INTERVAL_FIELD.getPreferredName());
+            if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(currentInterval.toString()) != null) {
+                aggs.put("calendar_interval", currentInterval.toString());
+                didRewrite = true;
+            } else if (currentInterval instanceof Number) {
+                aggs.put("fixed_interval", ((Number)currentInterval).longValue() + "ms");
+                didRewrite = true;
+            } else if (currentInterval instanceof String) {
+                aggs.put("fixed_interval", currentInterval.toString());
+                didRewrite = true;
+            } else {
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
+                    new IllegalArgumentException("unable to parse date_histogram interval parameter"));
+            }
+        }
+        for(Map.Entry<String, Object> entry : aggs.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?>) {
+                boolean rewrite = rewriteDateHistogramInterval((Map<String, Object>)entry.getValue(),
+                    entry.getKey().equals(DateHistogramAggregationBuilder.NAME));
+                didRewrite = didRewrite || rewrite;
+            }
+        }
+        return didRewrite;
+    }
+
     static AggProvider fromParsedAggs(AggregatorFactories.Builder parsedAggs) throws IOException {
         return parsedAggs == null ?
             null :
@@ -68,14 +103,7 @@ class AggProvider implements Writeable, ToXContentObject {
     }
 
     static AggProvider fromStream(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
-            return new AggProvider(in.readMap(), in.readOptionalWriteable(AggregatorFactories.Builder::new), in.readException());
-        } else if (in.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
-            return new AggProvider(in.readMap(), null, null);
-        } else { // only supports eagerly parsed objects
-            // Upstream, we have read the bool already and know for sure that we have parsed aggs in the stream
-            return AggProvider.fromParsedAggs(new AggregatorFactories.Builder(in));
-        }
+        return new AggProvider(in.readMap(), in.readOptionalWriteable(AggregatorFactories.Builder::new), in.readException());
     }
 
     AggProvider(Map<String, Object> aggs, AggregatorFactories.Builder parsedAggs, Exception parsingException) {
@@ -92,29 +120,9 @@ class AggProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
-            out.writeMap(aggs);
-            out.writeOptionalWriteable(parsedAggs);
-            out.writeException(parsingException);
-        } else if (out.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
-            // We allow the lazy parsing nodes that have the bug throw any parsing errors themselves as
-            // they already have the ability to fully parse the passed Maps
-            out.writeMap(aggs);
-        } else { // only supports eagerly parsed objects
-            if (parsingException != null) {
-                if (parsingException instanceof IOException) {
-                    throw (IOException) parsingException;
-                } else {
-                    throw new ElasticsearchException(parsingException);
-                }
-            } else if (parsedAggs == null) {
-                // This is an admittedly rare case but we should fail early instead of writing null when there
-                // actually are aggregations defined
-                throw new ElasticsearchException("Unsupported operation: parsed aggregations are null");
-            }
-            // Upstream we already verified that this calling object is not null, no need to write a second boolean to the stream
-            parsedAggs.writeTo(out);
-        }
+        out.writeMap(aggs);
+        out.writeOptionalWriteable(parsedAggs);
+        out.writeException(parsingException);
     }
 
     public Exception getParsingException() {

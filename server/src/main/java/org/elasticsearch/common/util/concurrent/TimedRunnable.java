@@ -30,6 +30,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     private final long creationTimeNanos;
     private long startTimeNanos;
     private long finishTimeNanos = -1;
+    private boolean failedOrRejected = false;
 
     TimedRunnable(final Runnable original) {
         this.original = original;
@@ -48,6 +49,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
 
     @Override
     public void onRejection(final Exception e) {
+        this.failedOrRejected = true;
         if (original instanceof AbstractRunnable) {
             ((AbstractRunnable) original).onRejection(e);
         } else {
@@ -56,19 +58,9 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     @Override
-    public void onAfter() {
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onAfter();
-        }
-    }
-
-    @Override
     public void onFailure(final Exception e) {
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onFailure(e);
-        } else {
-            ExceptionsHelper.reThrowIfNotNull(e);
-        }
+        this.failedOrRejected = true;
+        ExceptionsHelper.reThrowIfNotNull(e);
     }
 
     @Override
@@ -100,9 +92,27 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
         return Math.max(finishTimeNanos - startTimeNanos, 1);
     }
 
+    /**
+     * If the task was failed or rejected, return true.
+     * Otherwise, false.
+     */
+    boolean getFailedOrRejected() {
+        return this.failedOrRejected;
+    }
+
     @Override
     public Runnable unwrap() {
         return original;
     }
 
+    @Override
+    public String toString() {
+        return "TimedRunnable{" +
+            "original=" + original +
+            ", creationTimeNanos=" + creationTimeNanos +
+            ", startTimeNanos=" + startTimeNanos +
+            ", finishTimeNanos=" + finishTimeNanos +
+            ", failedOrRejected=" + failedOrRejected +
+            '}';
+    }
 }

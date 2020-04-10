@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -48,7 +51,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("inner").field("date", "2015-06-06").endObject()
                 .endObject();
-        index("foo", "bar", "1", xContentBuilder);
+        index("foo", "1", xContentBuilder);
         refresh();
 
         WatchSourceBuilder builder = watchBuilder()
@@ -59,10 +62,10 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 templateRequest(searchSource().sort(SortBuilders.fieldSort("inner.date").order(SortOrder.DESC)), "foo")))
         );
 
-        PutWatchResponse response = watcherClient().preparePutWatch("test_watch").setSource(builder).get();
+        PutWatchResponse response = new PutWatchRequestBuilder(client()).setId("test_watch").setSource(builder).get();
         assertThat(response.isCreated(), is(true));
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
         flushAndRefresh(".watcher-history-*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
@@ -85,23 +88,22 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             input = chainInput().add("chained", input);
         }
 
-        watcherClient().preparePutWatch("test_watch")
+        new PutWatchRequestBuilder(client()).setId("test_watch")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
                         .input(input)
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
         refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
-            .addTypes(SINGLE_MAPPING_NAME).get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.source().uncompressed();
         XContentSource source = new XContentSource(new BytesArray(bytes), XContentType.JSON);
         // lets make sure the body fields are disabled
         if (useChained) {
@@ -126,23 +128,22 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             input = chainInput().add("chained", input);
         }
 
-        watcherClient().preparePutWatch("test_watch")
+        new PutWatchRequestBuilder(client()).setId("test_watch")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
                         .input(input)
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
         refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
-            .addTypes(SINGLE_MAPPING_NAME).get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.source().uncompressed();
         XContentSource source = new XContentSource(new BytesArray(bytes), XContentType.JSON);
 
         // lets make sure the body fields are disabled
@@ -157,16 +158,16 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     }
 
     public void testThatHistoryContainsStatus() throws Exception {
-        watcherClient().preparePutWatch("test_watch")
+        new PutWatchRequestBuilder(client()).setId("test_watch")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
                         .input(simpleInput("foo", "bar"))
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        WatchStatus status = watcherClient().prepareGetWatch("test_watch").get().getStatus();
+        WatchStatus status = new GetWatchRequestBuilder(client()).setId("test_watch").get().getStatus();
 
         refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(1).get();
@@ -198,9 +199,8 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
 
         // also ensure that the status field is disabled in the watch history
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
-            .addTypes(SINGLE_MAPPING_NAME).get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.source().uncompressed();
         XContentSource mappingSource = new XContentSource(new BytesArray(bytes), XContentType.JSON);
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.enabled"), is(false));
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status"), is(nullValue()));

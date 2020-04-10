@@ -465,9 +465,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
-        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
+        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.Consumer.class));
         LeafReaderContext leaf = topLevelReader.leaves().get(0);
-        AtomicOrdinalsFieldData afd = globalOrdinals.load(leaf);
+        LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
         long ord = values.nextOrd();
@@ -553,7 +553,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         IndexOrdinalsFieldData ifd = getForField("value");
         for (LeafReaderContext atomicReaderContext : atomicReaderContexts) {
-            AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
+            LeafOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
             TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
             int size = 0;
@@ -590,7 +590,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertNotNull(globalOrdinals.getOrdinalMap());
-        assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
+        assertThat(ifd.loadGlobal(topLevelReader).getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         // 3 b/c 1 segment level caches and 1 top level cache
         // in case of doc values, we don't cache atomic FD, so only the top-level cache is there
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 1L : 4L));
@@ -602,7 +602,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 break;
             }
         }
-        assertThat(cachedInstance, sameInstance(globalOrdinals));
+        assertNotSame(cachedInstance, globalOrdinals);
+        assertThat(cachedInstance.getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 0L : 3L));

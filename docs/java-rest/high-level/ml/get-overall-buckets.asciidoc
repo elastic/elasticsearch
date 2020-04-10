@@ -3,16 +3,17 @@
 :request: GetOverallBucketsRequest
 :response: GetOverallBucketsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Overall Buckets API
+=== Get overall buckets API
 
-The Get Overall Buckets API retrieves overall bucket results that
-summarize the bucket results of multiple jobs.
+Retrieves overall bucket results that summarize the bucket results of multiple
+{anomaly-jobs}.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Overall Buckets Request
+==== Get overall buckets request
 
 A +{request}+ object gets created with one or more `jobId`.
 
@@ -22,14 +23,15 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing job IDs `jobId1` and `jobId2`.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-bucket-span]
 --------------------------------------------------
-<1> The span of the overall buckets. Must be greater or equal to the jobs' largest `bucket_span`.
+<1> The span of the overall buckets. Must be greater or equal to the jobs'
+largest `bucket_span`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -41,14 +43,16 @@ include-tagged::{doc-tests-file}[{api}-end]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
-<1> If `true`, interim results will be excluded. Overall buckets are interim if any of the job buckets
-within the overall bucket interval are interim. Defaults to `false`.
+<1> If `true`, interim results will be excluded. Overall buckets are interim if
+any of the job buckets within the overall bucket interval are interim. Defaults
+to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-overall-score]
 --------------------------------------------------
-<1> Overall buckets with overall scores greater or equal than this value will be returned.
+<1> Overall buckets with overall scores greater or equal than this value will be
+returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -60,12 +64,13 @@ include-tagged::{doc-tests-file}[{api}-start]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-top-n]
 --------------------------------------------------
-<1> The number of top job bucket scores to be used in the `overall_score` calculation. Defaults to `1`.
+<1> The number of top job bucket scores to be used in the `overall_score`
+calculation. Defaults to `1`.
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Overall Buckets Response
+==== Get overall buckets response
 
 The returned +{response}+ contains the requested buckets:
 
@@ -73,5 +78,5 @@ The returned +{response}+ contains the requested buckets:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of overall buckets that were matched
-<2> The overall buckets retrieved
+<1> The count of overall buckets that were matched.
+<2> The overall buckets retrieved.

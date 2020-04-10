@@ -19,9 +19,8 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -50,7 +49,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -201,28 +202,25 @@ public class ClusterModuleTests extends ModuleTestCase {
         }
     }
 
-    public void testPre63CustomsFiltering() {
-        final String whiteListedClusterCustom = randomFrom(ClusterModule.PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST);
-        final String whiteListedMetaDataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putCustom(whiteListedClusterCustom, new RestoreInProgress.Builder().build())
-            .putCustom("other", new RestoreInProgress.Builder().build())
-            .metaData(MetaData.builder()
-                .putCustom(whiteListedMetaDataCustom, new RepositoriesMetaData(Collections.emptyList()))
-                .putCustom("other", new RepositoriesMetaData(Collections.emptyList()))
-                .build())
-            .build();
-
-        assertNotNull(clusterState.custom(whiteListedClusterCustom));
-        assertNotNull(clusterState.custom("other"));
-        assertNotNull(clusterState.metaData().custom(whiteListedMetaDataCustom));
-        assertNotNull(clusterState.metaData().custom("other"));
-
-        final ClusterState fixedClusterState = ClusterModule.filterCustomsForPre63Clients(clusterState);
-
-        assertNotNull(fixedClusterState.custom(whiteListedClusterCustom));
-        assertNull(fixedClusterState.custom("other"));
-        assertNotNull(fixedClusterState.metaData().custom(whiteListedMetaDataCustom));
-        assertNull(fixedClusterState.metaData().custom("other"));
+    public void testRejectsReservedExistingShardsAllocatorName() {
+        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
+            List.of(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)), clusterInfoService);
+        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
+
+    public void testRejectsDuplicateExistingShardsAllocatorName() {
+        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
+            List.of(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")), clusterInfoService);
+        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
+    }
+
+    private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {
+        return new ClusterPlugin() {
+            @Override
+            public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
+                return Collections.singletonMap(allocatorName, new TestGatewayAllocator());
+            }
+        };
+    }
+
 }

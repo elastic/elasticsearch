@@ -6,15 +6,17 @@
 package org.elasticsearch.xpack.sql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class CommandExec extends LeafExec {
 
@@ -35,8 +37,8 @@ public class CommandExec extends LeafExec {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        command.execute(session, listener);
+    public void execute(SqlSession session, ActionListener<Page> listener) {
+        command.execute(session, wrap(listener::onResponse, listener::onFailure));
     }
 
     @Override

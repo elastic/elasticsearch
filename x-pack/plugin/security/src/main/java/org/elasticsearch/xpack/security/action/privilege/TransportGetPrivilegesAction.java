@@ -46,10 +46,12 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
         } else {
             names = new HashSet<>(Arrays.asList(request.privileges()));
         }
+
         final Collection<String> applications = isNullOrEmpty(request.application()) ? null : Collections.singleton(request.application());
         this.privilegeStore.getPrivileges(applications, names, ActionListener.wrap(
-                privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)),
-                listener::onFailure
+            privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)),
+            listener::onFailure
         ));
     }
+
 }

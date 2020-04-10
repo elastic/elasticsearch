@@ -20,7 +20,7 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.ArrayList;
@@ -90,7 +90,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, AliasOrIndex> aliasOrIndexLookup,
+                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
         if (isSuperuser(requestInfo.getAuthentication().getUser())) {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -109,9 +109,9 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
+                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
         if (isSuperuser(requestInfo.getAuthentication().getUser())) {
-            listener.onResponse(new ArrayList<>(aliasOrIndexLookup.keySet()));
+            listener.onResponse(new ArrayList<>(indicesLookup.keySet()));
         } else {
             listener.onResponse(Collections.emptyList());
         }
@@ -199,7 +199,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     private GetUserPrivilegesResponse getUserPrivilegesResponse(boolean isSuperuser) {
         final Set<String> cluster = isSuperuser ? Collections.singleton("ALL") : Collections.emptySet();
-        final Set<ConditionalClusterPrivilege> conditionalCluster = Collections.emptySet();
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = Collections.emptySet();
         final Set<GetUserPrivilegesResponse.Indices> indices = isSuperuser ? Collections.singleton(new Indices(Collections.singleton("*"),
             Collections.singleton("*"), Collections.emptySet(), Collections.emptySet(), true)) : Collections.emptySet();
 

@@ -30,6 +30,8 @@ import static org.mockito.Mockito.when;
 
 public class NativeControllerTests extends ESTestCase {
 
+    private static final String NODE_NAME = "native-controller-tests-node";
+
     private static final String TEST_MESSAGE = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\",\"pid\":10211,"
             + "\"thread\":\"0x7fff7d2a8000\",\"message\":\"controller (64 bit): Version 6.0.0-alpha1-SNAPSHOT (Build a0d6ef8819418c) "
             + "Copyright (c) 2017 Elasticsearch BV\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":123}\n";
@@ -50,7 +52,7 @@ public class NativeControllerTests extends ESTestCase {
         command.add("--arg2=42");
         command.add("--arg3=something with spaces");
 
-        NativeController nativeController = new NativeController(TestEnvironment.newEnvironment(settings), namedPipeHelper);
+        NativeController nativeController = new NativeController(NODE_NAME, TestEnvironment.newEnvironment(settings), namedPipeHelper);
         nativeController.startProcess(command);
 
         assertEquals("start\tmy_process\t--arg1\t--arg2=42\t--arg3=something with spaces\n",
@@ -65,7 +67,7 @@ public class NativeControllerTests extends ESTestCase {
         ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
         when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
 
-        NativeController nativeController = new NativeController(TestEnvironment.newEnvironment(settings), namedPipeHelper);
+        NativeController nativeController = new NativeController(NODE_NAME, TestEnvironment.newEnvironment(settings), namedPipeHelper);
         nativeController.tailLogsInThread();
         Map<String, Object> nativeCodeInfo = nativeController.getNativeCodeInfo();
 
@@ -83,7 +85,7 @@ public class NativeControllerTests extends ESTestCase {
         ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
         when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
 
-        NativeController nativeController = new NativeController(TestEnvironment.newEnvironment(settings), namedPipeHelper);
+        NativeController nativeController = new NativeController(NODE_NAME, TestEnvironment.newEnvironment(settings), namedPipeHelper);
         nativeController.tailLogsInThread();
 
         // As soon as the log stream ends startProcess should think the native controller has died
@@ -91,7 +93,8 @@ public class NativeControllerTests extends ESTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class,
                     () -> nativeController.startProcess(Collections.singletonList("my process")));
 
-            assertEquals("Cannot start process [my process]: native controller process has stopped", e.getMessage());
+            assertEquals("Cannot start process [my process]: native controller process has stopped on node " +
+                "[native-controller-tests-node]", e.getMessage());
         });
     }
 }

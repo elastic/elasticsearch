@@ -24,8 +24,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -38,9 +38,11 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
@@ -78,40 +80,43 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         final String node3 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_2").build());
 
         // On slow machines the initial relocation might be delayed
-        assertThat(awaitBusy(
-                () -> {
-                    logger.info("--> waiting for no relocation");
-                    ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-                        .setIndices("test1", "test2")
-                        .setWaitForEvents(Priority.LANGUID)
-                        .setWaitForGreenStatus()
-                        .setWaitForNodes("3")
-                        .setWaitForNoRelocatingShards(true)
-                        .get();
-                    if (clusterHealth.isTimedOut()) {
-                        return false;
-                    }
+        assertBusy(
+            () -> {
+                logger.info("--> waiting for no relocation");
+                ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
+                    .setIndices("test1", "test2")
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setWaitForGreenStatus()
+                    .setWaitForNodes("3")
+                    .setWaitForNoRelocatingShards(true)
+                    .get();
 
-                    logger.info("--> checking current state");
-                    ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-                    // check that closed indices are effectively closed
-                    if (indicesToClose.stream().anyMatch(index -> clusterState.metaData().index(index).getState() != State.CLOSE)) {
-                        return false;
-                    }
-                    // verify that we have all the primaries on node3
-                    ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
-                    for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                                counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                            }
+                assertThat("Cluster health request timed out", clusterHealth.isTimedOut(), equalTo(false));
+
+                logger.info("--> checking current state");
+                ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+
+                // check that closed indices are effectively closed
+                final List<String> notClosedIndices =
+                    indicesToClose.stream()
+                        .filter(index -> clusterState.metadata().index(index).getState() != State.CLOSE)
+                        .collect(Collectors.toList());
+                assertThat("Some indices not closed", notClosedIndices, empty());
+
+                // verify that we have all the primaries on node3
+                ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+                for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                    for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                        for (ShardRouting shardRouting : indexShardRoutingTable) {
+                            counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
                         }
                     }
-                    return counts.get(node3) == totalPrimaries;
-                },
-                10,
-                TimeUnit.SECONDS
-        ), equalTo(true));
+                }
+                assertThat(counts.get(node3), equalTo(totalPrimaries));
+            },
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testAwarenessZones() {
@@ -137,8 +142,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build());
 
         if (randomBoolean()) {
@@ -184,8 +189,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         String B_0 = nodes.get(1);
 
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build());
 
         if (randomBoolean()) {

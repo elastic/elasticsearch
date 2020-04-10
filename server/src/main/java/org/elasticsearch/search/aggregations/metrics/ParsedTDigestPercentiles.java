@@ -41,7 +41,7 @@ public class ParsedTDigestPercentiles extends ParsedPercentiles implements Perce
         return getPercentileAsString(percent);
     }
 
-    private static ObjectParser<ParsedTDigestPercentiles, Void> PARSER =
+    private static final ObjectParser<ParsedTDigestPercentiles, Void> PARSER =
             new ObjectParser<>(ParsedTDigestPercentiles.class.getSimpleName(), true, ParsedTDigestPercentiles::new);
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);

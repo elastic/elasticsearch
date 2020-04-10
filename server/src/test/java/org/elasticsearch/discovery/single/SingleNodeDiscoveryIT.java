@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
         numDataNodes = 1,
         numClientNodes = 0,
         supportsDedicatedMasters = false,
-        autoMinMasterNodes = false)
+        autoManageMasterNodes = false)
 public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     @Override
@@ -59,7 +59,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                .put("transport.port", "0")
+                .put("transport.port", getPortRange())
                 .build();
     }
 
@@ -100,7 +100,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         "other",
                         Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                         Function.identity())) {
-            other.beforeTest(random(), 0);
+            other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             final ClusterState second = other.getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
@@ -109,8 +109,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     first.nodes().getMasterNodeId(),
                     not(equalTo(second.nodes().getMasterNodeId())));
             assertThat(
-                    first.metaData().clusterUUID(),
-                    not(equalTo(second.metaData().clusterUUID())));
+                    first.metadata().clusterUUID(),
+                    not(equalTo(second.metadata().clusterUUID())));
         }
     }
 
@@ -175,7 +175,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
             Loggers.addAppender(clusterLogger, mockAppender);
             try {
-                other.beforeTest(random(), 0);
+                other.beforeTest(random());
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());
@@ -189,7 +189,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     public void testStatePersistence() throws Exception {
         createIndex("test");
         internalCluster().fullRestart();
-        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+        assertTrue(indexExists("test"));
     }
-
 }

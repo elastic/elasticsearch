@@ -35,7 +35,7 @@ https://www.elastic.co/subscriptions.
 
 You must have `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 [float]
 ==== Examples
@@ -43,11 +43,10 @@ For more information, see
 The following example starts a 30-day trial license. The acknowledge
 parameter is required as you are initiating a license that will expire.
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 POST /_license/start_trial?acknowledge=true
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Example response:

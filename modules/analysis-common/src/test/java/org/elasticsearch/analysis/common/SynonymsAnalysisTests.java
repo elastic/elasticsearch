@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -42,11 +42,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +67,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder().
             loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
@@ -89,7 +87,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testSynonymWordDeleteByAnalyzer() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
@@ -110,7 +108,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testExpandSynonymWordDeleteByAnalyzer() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonym_expand.type", "synonym")
             .putList("index.analysis.filter.synonym_expand.synonyms", "kimchy, shay", "dude, elasticsearch", "abides, man!")
@@ -131,7 +129,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testSynonymsWrappedByMultiplexer() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
             .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
@@ -152,7 +150,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testAsciiFoldingFilterForSynonyms() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
             .putList("index.analysis.filter.synonyms.synonyms", "hoj, height")
@@ -169,7 +167,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testPreconfigured() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
             .putList("index.analysis.filter.synonyms.synonyms", "würst, sausage")
@@ -186,7 +184,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testChainedSynonymFilters() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms1.type", "synonym")
             .putList("index.analysis.filter.synonyms1.synonyms", "term1, term2")
@@ -205,7 +203,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
     public void testShingleFilters() {
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
@@ -225,7 +223,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
     public void testTokenFiltersBypassSynonymAnalysis() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .putList("word_list", "a")
             .put("hyphenation_patterns_path", "foo")
@@ -252,60 +250,39 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     public void testPreconfiguredTokenFilters() throws IOException {
         Set<String> disallowedFilters = new HashSet<>(Arrays.asList(
-            "common_grams", "edge_ngram", "edgeNGram", "keyword_repeat", "ngram", "nGram",
-            "shingle", "word_delimiter", "word_delimiter_graph"
+            "common_grams", "edge_ngram", "keyword_repeat", "ngram", "shingle",
+            "word_delimiter", "word_delimiter_graph"
         ));
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        Set<String> disallowedFiltersTested = new HashSet<String>();
 
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-
-        for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
-            if (disallowedFilters.contains(tf.getName())) {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    "Expected exception for factory " + tf.getName(), () -> {
-                        tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
-                    });
-                assertEquals(tf.getName(), "Token filter [" + tf.getName()
-                        + "] cannot be used to parse synonyms",
-                    e.getMessage());
-            }
-            else {
-                tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
-            }
-        }
-
-        Settings settings2 = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
-            .put("path.home", createTempDir().toString())
-            .putList("common_words", "a", "b")
-            .put("output_unigrams", "true")
-            .build();
-        IndexSettings idxSettings2 = IndexSettingsModule.newIndexSettings("index", settings2);
-
-        List<String> expectedWarnings = new ArrayList<>();
-        for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
-            if (disallowedFilters.contains(tf.getName())) {
-                tf.get(idxSettings2, null, tf.getName(), settings2).getSynonymFilter();
-                expectedWarnings.add("Token filter [" + tf.getName() + "] will not be usable to parse synonyms after v7.0");
-            }
-            else {
-                tf.get(idxSettings2, null, tf.getName(), settings2).getSynonymFilter();
+        try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
+            for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
+                if (disallowedFilters.contains(tf.getName())) {
+                    IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                            "Expected exception for factory " + tf.getName(), () -> {
+                                tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                            });
+                    assertEquals(tf.getName(), "Token filter [" + tf.getName() + "] cannot be used to parse synonyms", e.getMessage());
+                    disallowedFiltersTested.add(tf.getName());
+                } else {
+                    tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                }
             }
         }
-        assertWarnings(expectedWarnings.toArray(new String[0]));
+        assertEquals("Set of dissallowed filters contains more filters than tested", disallowedFiltersTested, disallowedFilters);
     }
 
     public void testDisallowedTokenFilters() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")
@@ -332,46 +309,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
                     + "] cannot be used to parse synonyms",
                 e.getMessage());
         }
-
-        settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
-            .put("path.home", createTempDir().toString())
-            .putList("common_words", "a", "b")
-            .put("output_unigrams", "true")
-            .build();
-        idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-
-        List<String> expectedWarnings = new ArrayList<>();
-        for (String factory : disallowedFactories) {
-            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
-            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
-
-            stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
-            expectedWarnings.add("Token filter [" + factory
-                + "] will not be usable to parse synonyms after v7.0");
-        }
-
-        assertWarnings(expectedWarnings.toArray(new String[0]));
-
-        settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
-            .put("path.home", createTempDir().toString())
-            .put("preserve_original", "false")
-            .build();
-        idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        TokenFilterFactory tff = plugin.getTokenFilters().get("multiplexer").get(idxSettings, null, "multiplexer", settings);
-        TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-        SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null));
-
-        assertEquals("Token filter [multiplexer] cannot be used to parse synonyms unless [preserve_original] is [true]",
-            e.getMessage());
-
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

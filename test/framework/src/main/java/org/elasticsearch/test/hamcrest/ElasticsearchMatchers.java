@@ -52,29 +52,6 @@ public class ElasticsearchMatchers {
         }
     }
 
-    public static class SearchHitHasTypeMatcher extends TypeSafeMatcher<SearchHit> {
-        private String type;
-
-        public SearchHitHasTypeMatcher(String type) {
-            this.type = type;
-        }
-
-        @Override
-        public boolean matchesSafely(final SearchHit searchHit) {
-            return searchHit.getType().equals(type);
-        }
-
-        @Override
-        public void describeMismatchSafely(final SearchHit searchHit, final Description mismatchDescription) {
-            mismatchDescription.appendText(" was ").appendValue(searchHit.getType());
-        }
-
-        @Override
-        public void describeTo(final Description description) {
-            description.appendText("searchHit type should be ").appendValue(type);
-        }
-    }
-
     public static class SearchHitHasIndexMatcher extends TypeSafeMatcher<SearchHit> {
         private String index;
 

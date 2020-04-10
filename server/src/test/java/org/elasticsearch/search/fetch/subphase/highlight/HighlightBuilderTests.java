@@ -21,12 +21,13 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -84,7 +85,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -162,7 +163,7 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
                     "}\n");
-            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
@@ -175,7 +176,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
         }
     }
 
@@ -193,7 +194,7 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : \"value\"\n" +
                     "}\n");
-            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
@@ -206,7 +207,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
         }
     }
 
@@ -218,7 +219,7 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
                     "}\n");
-            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
@@ -231,7 +232,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
         }
     }
 
@@ -273,12 +274,13 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testBuildSearchContextHighlight() throws IOException {
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            namedWriteableRegistry, null, null, System::currentTimeMillis, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
+                null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
+                null, null, System::currentTimeMillis, null, null, () -> true, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -289,6 +291,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
+            highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
             SearchContextHighlight highlight = highlightBuilder.build(mockShardContext);
             for (SearchContextHighlight.Field field : highlight.fields()) {
                 String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;

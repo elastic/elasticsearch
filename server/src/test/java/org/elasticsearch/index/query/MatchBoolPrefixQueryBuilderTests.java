@@ -31,7 +31,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -55,7 +54,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
 
     @Override
     protected MatchBoolPrefixQueryBuilder doCreateTestQueryBuilder() {
-        final String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        final String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         final Object value = IntStream.rangeClosed(0, randomIntBetween(0, 3))
                 .mapToObj(i -> randomAlphaOfLengthBetween(1, 10) + " ")
                 .collect(Collectors.joining())
@@ -99,7 +98,9 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchBoolPrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchBoolPrefixQueryBuilder queryBuilder,
+                                       Query query,
+                                       QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
         assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(PrefixQuery.class)));
 
@@ -242,32 +243,32 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     public void testAnalysis() throws Exception {
-        final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(STRING_FIELD_NAME, "foo bar baz");
+        final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "foo bar baz");
         final Query query = builder.toQuery(createShardContext());
 
         assertBooleanQuery(query, asList(
-            new TermQuery(new Term(STRING_FIELD_NAME, "foo")),
-            new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
-            new PrefixQuery(new Term(STRING_FIELD_NAME, "baz"))
+            new TermQuery(new Term(TEXT_FIELD_NAME, "foo")),
+            new TermQuery(new Term(TEXT_FIELD_NAME, "bar")),
+            new PrefixQuery(new Term(TEXT_FIELD_NAME, "baz"))
         ));
     }
 
     public void testAnalysisSynonym() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "fox dogs red");
+        final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "fox dogs red");
 
         assertBooleanQuery(query, asList(
-            new TermQuery(new Term(STRING_FIELD_NAME, "fox")),
-            new SynonymQuery(new Term(STRING_FIELD_NAME, "dogs"), new Term(STRING_FIELD_NAME, "dog")),
-            new PrefixQuery(new Term(STRING_FIELD_NAME, "red"))
+            new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
+            new SynonymQuery(new Term(TEXT_FIELD_NAME, "dogs"), new Term(TEXT_FIELD_NAME, "dog")),
+            new PrefixQuery(new Term(TEXT_FIELD_NAME, "red"))
         ));
     }
 
     public void testAnalysisSingleTerm() throws Exception {
-        final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(STRING_FIELD_NAME, "foo");
+        final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "foo");
         final Query query = builder.toQuery(createShardContext());
-        assertThat(query, equalTo(new PrefixQuery(new Term(STRING_FIELD_NAME, "foo"))));
+        assertThat(query, equalTo(new PrefixQuery(new Term(TEXT_FIELD_NAME, "foo"))));
     }
 
     private static void assertBooleanQuery(Query actual, List<Query> expectedClauseQueries) {

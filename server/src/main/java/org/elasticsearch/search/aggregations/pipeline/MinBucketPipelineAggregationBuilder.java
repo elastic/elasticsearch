@@ -46,8 +46,8 @@ public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new MinBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new MinBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metadata);
     }
 
     @Override
@@ -62,16 +62,6 @@ public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
             return new MinBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> other) {
-        return true;
-    }
 
     @Override
     public String getWriteableName() {

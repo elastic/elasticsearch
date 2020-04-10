@@ -65,7 +65,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             loadedAnalyzers.get(preBuiltAnalyzer).add(randomVersion);
 
             final XContentBuilder mapping = jsonBuilder().startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "text")
@@ -76,7 +76,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
                 .endObject();
 
             Settings versionSettings = settings(randomVersion).build();
-            client().admin().indices().prepareCreate(indexName).addMapping("type", mapping).setSettings(versionSettings).get();
+            client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(versionSettings).get();
         }
 
         ensureGreen();
@@ -90,7 +90,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             Map<String, Object> data = new HashMap<>();
             data.put("foo", randomAlphaOfLength(scaledRandomIntBetween(5, 50)));
 
-            index(randomIndex, "type", randomId, data);
+            index(randomIndex, randomId, data);
         }
 
         refresh();

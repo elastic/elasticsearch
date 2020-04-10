@@ -44,7 +44,13 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     private List<PipelineConfiguration> pipelines;
 
-    public GetPipelineResponse() {
+    public GetPipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        pipelines = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            pipelines.add(PipelineConfiguration.readFrom(in));
+        }
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines) {
@@ -61,18 +67,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        pipelines = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            pipelines.add(PipelineConfiguration.readFrom(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(pipelines.size());
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);

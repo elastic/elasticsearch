@@ -20,10 +20,10 @@ logger.xpack_security_audit_deprecated_logfile.level = off
 --------------------------------------------------
 
 Alternatively, use the
-{ref}/cluster-update-settings.html[cluster update settings API] to dynamically
+<<cluster-update-settings,cluster update settings API>> to dynamically
 configure the logger:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -32,7 +32,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: If you overwrite the `log4j2.properties` and do not specify appenders for
 any of the audit trails, audit events are forwarded to the root appender, which
@@ -73,7 +72,7 @@ The log entries in the `<clustername>_access.log` file have the following format
 `<local_node_info>` ::      Information about the local node that generated
                             the log entry. You can control what node information
                             is included by configuring the
-                            {ref}/auditing-settings.html#node-audit-settings[local node info settings].
+                            <<node-audit-settings,local node info settings>>.
 `<layer>`           ::      The layer from which this event originated:
                             `rest`, `transport` or `ip_filter`.
 `<entry_type>`      ::       The type of event that occurred: `anonymous_access_denied`,
@@ -91,8 +90,8 @@ The log entries in the `<clustername>_access.log` file have the following format
 
 The events and some other information about what gets logged can be
 controlled using settings in the `elasticsearch.yml` file. See
-{ref}/auditing-settings.html#event-audit-settings[Audited Event Settings] and
-{ref}/auditing-settings.html#node-audit-settings[Local Node Info Settings].
+<<event-audit-settings>> and
+<<node-audit-settings>>.
 
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
@@ -132,7 +131,7 @@ Please take time to review these policies whenever your system architecture chan
 
 A policy is a named set of filter rules. Each filter rule applies to a single event attribute,
 one of the `users`, `realms`, `roles` or `indices` attributes. The filter rule defines
-a list of {ref}/query-dsl-regexp-query.html#regexp-syntax[Lucene regexp], *any* of which has to match the value of the audit
+a list of <<regexp-syntax,Lucene regexp>>, *any* of which has to match the value of the audit
 event attribute for the rule to match.
 A policy matches an event if *all* the rules comprising it match the event.
 An audit event is ignored, therefore not printed, if it matches *any* policy. All other

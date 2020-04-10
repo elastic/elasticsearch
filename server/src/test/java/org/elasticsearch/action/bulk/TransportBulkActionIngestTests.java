@@ -37,7 +37,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -556,6 +558,36 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
         when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
         when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+
+        IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
+        indexRequest.source(Collections.emptyMap());
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
+            response -> responseCalled.set(true),
+            e -> {
+                assertThat(e, sameInstance(exception));
+                failureCalled.set(true);
+            }));
+
+        assertEquals("pipeline2", indexRequest.getPipeline());
+        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
+            completionHandler.capture(), any());
+    }
+
+    public void testFindDefaultPipelineFromV2TemplateMatch() {
+        Exception exception = new Exception("fake exception");
+
+        IndexTemplateV2 t1 = new IndexTemplateV2(Collections.singletonList("missing_*"),
+            new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
+            null, null, null, null);
+
+        ClusterState state = clusterService.state();
+        Metadata metadata = Metadata.builder()
+            .put("my-template", t1)
+            .build();
+        when(state.metadata()).thenReturn(metadata);
+        when(state.getMetadata()).thenReturn(metadata);
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());

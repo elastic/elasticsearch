@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.stringContains;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.substringSlice;
 import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,6 +137,17 @@ public class StringUtilsTests extends ESTestCase {
 
         assertThat(StringUtils.between("System Idle Process", "Y", "e", false, true),
                 equalTo(""));
+    }
 
+    public void testStringContainsWithNullOrEmpty() {
+        assertFalse(stringContains(null, null));
+        assertFalse(stringContains(null, ""));
+        assertFalse(stringContains("", null));
+    }
+
+    public void testStringContainsWithRandom() throws Exception {
+        String substring = randomAlphaOfLength(10);
+        String string = randomAlphaOfLength(10) + substring + randomAlphaOfLength(10);
+        assertTrue(stringContains(string, substring));
     }
 }

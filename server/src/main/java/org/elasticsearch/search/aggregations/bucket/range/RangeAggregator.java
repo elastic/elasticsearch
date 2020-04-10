@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -227,9 +226,9 @@ public class RangeAggregator extends BucketsAggregator {
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+            Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, pipelineAggregators, metadata);
+        super(name, factories, context, parent, metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
@@ -363,10 +362,10 @@ public class RangeAggregator extends BucketsAggregator {
         private final DocValueFormat format;
 
         public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format, SearchContext context, Aggregator parent,
-                InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata)
+                InternalRange.Factory factory, Map<String, Object> metadata)
                 throws IOException {
 
-            super(name, context, parent, pipelineAggregators, metadata);
+            super(name, context, parent, metadata);
             this.ranges = ranges;
             this.keyed = keyed;
             this.format = format;

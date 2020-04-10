@@ -67,7 +67,7 @@ between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
 Source string. Empty strings return an empty string (`""`), regardless of the
 `<left>` or `<right>` parameters. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -85,7 +85,7 @@ Fields containing <<array,array values>> use the first array item only.
 Text to the left of the substring to extract. This text should include
 whitespace.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -103,7 +103,7 @@ field datatypes:
 Text to the right of the substring to extract. This text should include
 whitespace.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -178,7 +178,7 @@ endsWith(<source>, <substring>)
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -195,7 +195,7 @@ Fields containing <<array,array values>> use the first array item only.
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -243,7 +243,7 @@ length(<string>)
 String for which to return the character length. If `null`, the function returns
 `null`. Empty strings return `0`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -308,7 +308,7 @@ startsWith(<source>, <substring>)
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -325,7 +325,7 @@ Fields containing <<array,array values>> use the first array item only.
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -438,7 +438,7 @@ wildcard(<source>, <wildcard_exp>[, ...])
 (Required, string)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>

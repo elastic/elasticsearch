@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -75,8 +76,10 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
                 ActionListener.wrap(
                     r -> listener.onResponse(new AcknowledgedResponse(true)),
                     exc -> {
+                        RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                         //the index may not be there (no initial async search response stored yet?): we still want to return 200
-                        if (exc.getCause() instanceof IndexNotFoundException) {
+                        //note that index missing comes back as 200 hence it's handled in the onResponse callback
+                        if (status == RestStatus.NOT_FOUND) {
                             listener.onResponse(new AcknowledgedResponse(true));
                         } else {
                             logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);

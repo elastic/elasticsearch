@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -59,10 +61,10 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                         ActionListener.wrap(
                             p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
                             exc -> {
-                                //don't even log when: the async search document or its index is not found. That can happen if an invalid
-                                //search id is provided and no async search initial response has been stored yet.
-                                if (exc.getCause() instanceof DocumentMissingException == false
-                                    && exc.getCause() instanceof IndexNotFoundException == false) {
+                                //don't log when: the async search document or its index is not found. That can happen if an invalid
+                                //search id is provided or no async search initial response has been stored yet.
+                                RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
+                                if (status != RestStatus.NOT_FOUND) {
                                     logger.error(() -> new ParameterizedMessage("failed to update expiration time for async-search [{}]",
                                         searchId.getEncoded()), exc);
                                 }

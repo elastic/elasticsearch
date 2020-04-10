@@ -135,6 +135,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                 }
             }
         } else {
+            assert nodeNames.length >= 1;
             Map<String, String> existingNodeNameId = StreamSupport.stream(allNodes.spliterator(), false)
                                                                 .collect(Collectors.toMap(DiscoveryNode::getName, DiscoveryNode::getId));
 

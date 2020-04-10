@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.analytics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -20,7 +21,9 @@ import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
  * Utility class similar to org.elasticsearch.xpack.core.watcher.common.stats.Counters, but it is using Enum instead
- * of string to identify the counter.
+ * of string to identify the counter. The serialization happens using enum ordinals similar to
+ * {@link StreamOutput#writeEnum(Enum)}, which means that ordinal for existing enums should remain the same for backward
+ * and forward compatibility of the serialization protocol.
  */
 public class EnumCounters<E extends Enum<E>> implements Writeable {
     private final AtomicLongArray counters;

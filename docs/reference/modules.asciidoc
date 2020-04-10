@@ -79,8 +79,6 @@ include::modules/gateway.asciidoc[]
 
 include::modules/http.asciidoc[]
 
-include::modules/indices.asciidoc[]
-
 include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]

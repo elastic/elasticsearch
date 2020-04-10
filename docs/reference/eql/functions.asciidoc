@@ -338,7 +338,7 @@ field datatypes:
 +
 --
 (Required{multi-arg}, string)
-Wildcard expression used to match the source string.  If `null`, the function
+Wildcard expression used to match the source string. If `null`, the function
 returns `null`. Fields are not supported as arguments.
 -- 
 

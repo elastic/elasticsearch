@@ -240,10 +240,6 @@ stringContains(process.command_line, "regsvr32")  // returns true
 stringContains(process.command_line, "start ")    // returns true
 stringContains(process.command_line, "explorer")  // returns false
 
-// process.command_line = [ "start regsvr32.exe", "start explorer.exe" ]
-stringContains(process.command_line, "regsvr32")  // returns false
-stringContains(process.command_line, "explorer")  // returns true
-
 // empty strings
 stringContains("", "")                            // returns false
 stringContains(process.command_line, "")          // returns false
@@ -272,8 +268,6 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 
-Fields containing <<array,array values>> use the first array item only.
-
 `<substring>`::
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
@@ -285,8 +279,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 
 *Returns:* boolean or `null`
 ====

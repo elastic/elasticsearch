@@ -19,7 +19,6 @@ dependencies {
     testCompile project(path: xpackModule('security'), configuration: 'runtime')
     testCompile project(path: xpackModule('upgrade'), configuration: 'runtime')
     testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
 }
 

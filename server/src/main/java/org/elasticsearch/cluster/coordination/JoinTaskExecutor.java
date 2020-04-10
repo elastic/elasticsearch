@@ -179,7 +179,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     }).collect(Collectors.toSet());
 
                 // if VotingConfigExclusions did get updated
-                if (Sets.difference(currentVotingConfigExclusions, newVotingConfigExclusions).isEmpty() == false) {
+                if (newVotingConfigExclusions.equals(currentVotingConfigExclusions) == false) {
                     CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata())
                         .clearVotingConfigExclusions();
                     newVotingConfigExclusions.forEach(coordMetadataBuilder::addVotingConfigExclusion);

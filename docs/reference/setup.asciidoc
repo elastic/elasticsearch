@@ -94,3 +94,7 @@ include::setup/stopping.asciidoc[]
 include::setup/add-nodes.asciidoc[]
 
 include::setup/restart-cluster.asciidoc[]
+
+include::setup/bootstrap-checks-xes.asciidoc[]
+
+include::modules/plugins.asciidoc[]

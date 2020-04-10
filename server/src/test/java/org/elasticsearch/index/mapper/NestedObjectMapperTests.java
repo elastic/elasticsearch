@@ -743,39 +743,42 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(2).get("field"), equalTo("value"));
     }
 
-    public void testMergeNestedMappings() throws  IOException {
+    public void testMergeNestedMappings() throws IOException {
         MapperService mapperService = createIndex("index1", Settings.EMPTY, jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("nested1")
                     .field("type", "nested")
                 .endObject()
             .endObject().endObject()).mapperService();
-        ObjectMapper objectMapper1 = mapperService.getObjectMapper("nested1");
 
-        mapperService = createIndex("index2", Settings.EMPTY, jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("nested1")
-                    .field("type", "nested")
-                    .field("include_in_parent", true)
-                .endObject()
-            .endObject().endObject()).mapperService();
-        ObjectMapper objectMapper2 = mapperService.getObjectMapper("nested1");
+        Function<String, String> mapping1 = type -> {
+            try {
+                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                    .startObject("nested1").field("type", "nested").field("include_in_parent", true)
+                    .endObject().endObject().endObject().endObject());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
 
         // cannot update `include_in_parent` dynamically
-        MapperException e1 = expectThrows(MapperException.class, () -> objectMapper1.merge(objectMapper2));
+        MapperException e1 = expectThrows(MapperException.class, () -> mapperService.merge("type",
+            new CompressedXContent(mapping1.apply("type")), MergeReason.MAPPING_UPDATE));
         assertEquals("The [include_in_parent] parameter can't be updated for the nested object mapping [nested1].", e1.getMessage());
 
-        mapperService = createIndex("index3", Settings.EMPTY, jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("nested1")
-                    .field("type", "nested")
-                    .field("include_in_root", true)
-                .endObject()
-            .endObject().endObject()).mapperService();
-        ObjectMapper objectMapper3 = mapperService.getObjectMapper("nested1");
+        Function<String, String> mapping2 = type -> {
+            try {
+                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                    .startObject("nested1").field("type", "nested").field("include_in_root", true)
+                    .endObject().endObject().endObject().endObject());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
 
         // cannot update `include_in_root` dynamically
-        MapperException e2 = expectThrows(MapperException.class, () -> objectMapper1.merge(objectMapper3));
+        MapperException e2 = expectThrows(MapperException.class, () -> mapperService.merge("type",
+            new CompressedXContent(mapping2.apply("type")), MergeReason.MAPPING_UPDATE));
         assertEquals("The [include_in_root] parameter can't be updated for the nested object mapping [nested1].", e2.getMessage());
     }
 }

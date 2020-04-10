@@ -115,6 +115,8 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
             expect(requestCreated(), not(isCompatible())));
         createRequestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader("*/*"), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
 
         //this is for instance used by SQL
         createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/cbor"), bodyPresent(),
@@ -130,6 +132,25 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
     }
 
+    public void testTextMediaTypes(){
+        createRequestWith(acceptHeader("text/tab-separated-values"), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader("text/plain"), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader("text/csv"), contentTypeHeader("application/json"), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        //versioned
+        createRequestWith(acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
+            contentTypeHeader(7), bodyNotPresent(),
+            expect(requestCreated(), isCompatible()));
+        createRequestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"),
+            contentTypeHeader(7), bodyNotPresent(),
+            expect(requestCreated(), isCompatible()));
+        createRequestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"),
+            contentTypeHeader(7), bodyNotPresent(),
+            expect(requestCreated(), isCompatible()));
+    }
     public void testMalfunctionedMediaTypes(){
         createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/something+json"), bodyPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));

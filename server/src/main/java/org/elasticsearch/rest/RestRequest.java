@@ -146,6 +146,7 @@ public class RestRequest implements ToXContent.Params {
             param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
         }
     }
+    Set<String> textFormats = Set.of("text/plain", "text/csv", "text/tab-separated-values");
 
     private boolean isRequestCompatible() {
         String currentVersion = String.valueOf(Version.CURRENT.major);
@@ -156,11 +157,14 @@ public class RestRequest implements ToXContent.Params {
         String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
         String contentTypeVersion = XContentType.parseVersion(contentTypeHeader);
 
-        boolean isSupportedMediaTypeAccept = XContentType.fromMediaTypeOrFormat(acceptHeader) != null ||
-            acceptHeader == null;
+        boolean isSupportedMediaTypeAccept = acceptHeader == null ||
+            XContentType.fromMediaTypeOrFormat(acceptHeader) != null ||
+            // should we care what media type was used? we don't know about text formats here. hence the Set<String> textFormats
+            textFormats.contains(XContentType.parseMediaType(acceptHeader).toLowerCase(Locale.ROOT));
 
-        boolean isSupportedMediaTypeContentType = XContentType.fromMediaTypeOrFormat(contentTypeHeader) != null ||
-            contentTypeHeader == null;
+        boolean isSupportedMediaTypeContentType = contentTypeHeader == null ||
+            XContentType.fromMediaTypeOrFormat(contentTypeHeader) != null ||
+           textFormats.contains(XContentType.parseMediaType(contentTypeHeader).toLowerCase(Locale.ROOT));
 
         if (hasContent()) {
             //both headers versioned

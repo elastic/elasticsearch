@@ -111,6 +111,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        // onCancelled implements graceful shutdown of children
+        return false;
+    }
+
+    @Override
     public void markAsCompleted() {
         // It is possible that the stop API has been called in the meantime and that
         // may also cause this method to be called. We check whether we have already

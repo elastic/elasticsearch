@@ -163,10 +163,10 @@ endsWith(file.name, ".dll")               // returns true
 endsWith(file.name, ".exe")               // returns false
 
 // null handling
-endsWith("regsvr32.exe", null)            // returns null
-endsWith("", null)                        // returns null 
-endsWith(null, ".exe")                    // returns null
-endsWith(null, null)                      // returns null
+endsWith("regsvr32.exe", null)            // returns false
+endsWith("", null)                        // returns false 
+endsWith(null, ".exe")                    // returns false
+endsWith(null, null)                      // returns false
 ----
 
 *Syntax*

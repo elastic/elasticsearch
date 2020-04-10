@@ -113,7 +113,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         int i = ESTestCase.randomIntBetween(0, 2);
         List<AggregationBuilder> translated = new ArrayList<>();
 
-        Class clazz = null;
+        Class<? extends AggregationBuilder> clazz = null;
         String fieldName = null;
         int numAggs = 1;
 

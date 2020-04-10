@@ -169,12 +169,6 @@ public class MlTasksTests extends ESTestCase {
                 containsInAnyOrder("datafeed_without_assignment", "datafeed_without_node"));
     }
 
-    public void testDataFrameAnalyticsTaskIds() {
-        String taskId = MlTasks.dataFrameAnalyticsTaskId("foo");
-        assertThat(taskId, equalTo("data_frame_analytics-foo"));
-        assertThat(MlTasks.dataFrameAnalyticsIdFromTaskId(taskId), equalTo("foo"));
-    }
-
     public void testGetDataFrameAnalyticsState_GivenNullTask() {
         DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(null);
         assertThat(state, equalTo(DataFrameAnalyticsState.STOPPED));

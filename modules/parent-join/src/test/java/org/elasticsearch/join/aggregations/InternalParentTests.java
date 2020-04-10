@@ -19,10 +19,6 @@
 
 package org.elasticsearch.join.aggregations;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
@@ -30,7 +26,10 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class InternalParentTests extends InternalSingleBucketAggregationTestCase<InternalParent> {
 
@@ -44,8 +43,8 @@ public class InternalParentTests extends InternalSingleBucketAggregationTestCase
 
     @Override
     protected InternalParent createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalParent(name, docCount, aggregations, pipelineAggregators, metadata);
+            Map<String, Object> metadata) {
+        return new InternalParent(name, docCount, aggregations, metadata);
     }
 
     @Override

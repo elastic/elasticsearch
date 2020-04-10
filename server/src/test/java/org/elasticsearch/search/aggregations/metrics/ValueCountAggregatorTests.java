@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -76,8 +78,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "field";
 
-    /** Script to return the {@code _value} provided by aggs framework. */
-    private static final String VALUE_SCRIPT = "_value";
+    private static final String STRING_VALUE_SCRIPT = "string_value";
+    private static final String NUMBER_VALUE_SCRIPT = "number_value";
     private static final String SINGLE_SCRIPT = "single";
 
     @Override
@@ -99,7 +101,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     protected ScriptService getMockScriptService() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-        scripts.put(VALUE_SCRIPT, vars -> (Double.valueOf((String) vars.get("_value")) + 1));
+        scripts.put(STRING_VALUE_SCRIPT, vars -> (Double.valueOf((String) vars.get("_value")) + 1));
+        scripts.put(NUMBER_VALUE_SCRIPT, vars -> (((Number) vars.get("_value")).doubleValue() + 1));
         scripts.put(SINGLE_SCRIPT, vars -> 1);
 
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
@@ -108,6 +111,38 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+
+    public void testGeoField() throws IOException {
+        testCase(new MatchAllDocsQuery(), ValueType.GEOPOINT, iw -> {
+            for (int i = 0; i < 10; i++) {
+                Document document = new Document();
+                document.add(new LatLonDocValuesField("field", 10, 10));
+                iw.addDocument(document);
+            }
+        }, count -> assertEquals(10L, count.getValue()));
+    }
+
+    public void testDoubleField() throws IOException {
+        testCase(new MatchAllDocsQuery(), ValueType.DOUBLE, iw -> {
+            for (int i = 0; i < 15; i++) {
+                Document document = new Document();
+                document.add(new DoubleDocValuesField(FIELD_NAME, 23D));
+                iw.addDocument(document);
+            }
+        }, count -> assertEquals(15L, count.getValue()));
+    }
+
+    public void testKeyWordField() throws IOException {
+        testCase(new MatchAllDocsQuery(), ValueType.STRING, iw -> {
+            for (int i = 0; i < 20; i++) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("stringValue")));
+                document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("string11Value")));
+                iw.addDocument(document);
+            }
+        }, count -> assertEquals(40L, count.getValue()));
     }
 
     public void testNoDocs() throws IOException {
@@ -239,7 +274,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testValueScriptNumber() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .field(FIELD_NAME)
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NUMBER_VALUE_SCRIPT, Collections.emptyMap()));
 
         MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
         fieldType.setName(FIELD_NAME);
@@ -288,7 +323,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testValueScriptString() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .field(FIELD_NAME)
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, STRING_VALUE_SCRIPT, Collections.emptyMap()));
 
         MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
         fieldType.setName(FIELD_NAME);

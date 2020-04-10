@@ -48,13 +48,15 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class ECall extends AExpression {
 
+    protected final AExpression prefix;
     protected final String name;
     protected final List<AExpression> arguments;
     protected final boolean nullSafe;
 
     public ECall(Location location, AExpression prefix, String name, List<AExpression> arguments, boolean nullSafe) {
-        super(location, prefix);
+        super(location);
 
+        this.prefix = Objects.requireNonNull(prefix);
         this.name = Objects.requireNonNull(name);
         this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
         this.nullSafe = nullSafe;

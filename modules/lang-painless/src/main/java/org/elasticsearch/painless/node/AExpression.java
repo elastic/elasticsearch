@@ -28,8 +28,6 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Objects;
-
 /**
  * The superclass for all E* (expression) and P* (postfix) nodes.
  */
@@ -106,30 +104,10 @@ public abstract class AExpression extends ANode {
     }
 
     /**
-     * Prefix is the predecessor to this node in a variable chain.
-     * This is used to analyze and write variable chains in a
-     * more natural order since the parent node of a variable
-     * chain will want the data from the final postfix to be
-     * analyzed.
-     */
-    AExpression prefix;
-
-    /**
      * Standard constructor with location used for error tracking.
      */
     AExpression(Location location) {
         super(location);
-
-        prefix = null;
-    }
-
-    /**
-     * This constructor is used by variable/method chains when postfixes are specified.
-     */
-    AExpression(Location location, AExpression prefix) {
-        super(location);
-
-        this.prefix = Objects.requireNonNull(prefix);
     }
 
     /**

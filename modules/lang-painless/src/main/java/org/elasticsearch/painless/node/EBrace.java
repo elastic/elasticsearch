@@ -45,11 +45,13 @@ import java.util.Objects;
  */
 public class EBrace extends AExpression {
 
+    protected final AExpression prefix;
     protected final AExpression index;
 
     public EBrace(Location location, AExpression prefix, AExpression index) {
-        super(location, prefix);
+        super(location);
 
+        this.prefix = Objects.requireNonNull(prefix);
         this.index = Objects.requireNonNull(index);
     }
 

@@ -53,12 +53,14 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class EDot extends AExpression {
 
+    protected final AExpression prefix;
     protected final boolean nullSafe;
     protected final String value;
 
     public EDot(Location location, AExpression prefix, boolean nullSafe, String value) {
-        super(location, prefix);
+        super(location);
 
+        this.prefix = Objects.requireNonNull(prefix);
         this.nullSafe = nullSafe;
         this.value = Objects.requireNonNull(value);
     }

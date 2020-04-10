@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -40,9 +41,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -60,7 +61,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    private Settings settings = EMPTY_SETTINGS;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
@@ -90,7 +90,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        settings = readSettingsFromStream(in);
+        if (in.getVersion().before(Version.V_7_7_0)) {
+            readSettingsFromStream(in); // formerly the unused settings field
+        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
     }
@@ -108,7 +110,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        writeSettingsToStream(settings, out);
+        if (out.getVersion().before(Version.V_7_7_0)) {
+            writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
+        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
     }
@@ -127,9 +131,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
-        }
-        if (settings == null) {
-            validationException = addValidationError("settings are missing", validationException);
         }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);
@@ -325,74 +326,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(Settings settings) {
-        this.settings = settings;
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(Settings.Builder settings) {
-        this.settings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-        return this;
-    }
-
-    /**
-     * Returns repository-specific restore settings
-     *
-     * @return restore settings
-     */
-    public Settings settings() {
-        return this.settings;
-    }
-
-    /**
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public RestoreSnapshotRequest ignoreIndexSettings(String... ignoreIndexSettings) {
@@ -522,11 +455,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 }
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
-            } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("malformed settings section");
-                }
-                settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
@@ -586,13 +514,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
-        if (settings != null) {
-            builder.startObject("settings");
-            if (settings.isEmpty() == false) {
-                settings.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {
@@ -629,7 +550,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(indicesOptions, that.indicesOptions) &&
             Objects.equals(renamePattern, that.renamePattern) &&
             Objects.equals(renameReplacement, that.renameReplacement) &&
-            Objects.equals(settings, that.settings) &&
             Objects.equals(indexSettings, that.indexSettings) &&
             Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
     }
@@ -637,7 +557,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, settings, indexSettings);
+            includeGlobalState, partial, includeAliases, indexSettings);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

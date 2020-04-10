@@ -41,7 +41,9 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -91,12 +93,14 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
+    private ClusterSettings clusterSettings;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
     @After
@@ -107,6 +111,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         threadPool = null;
         networkService = null;
         bigArrays = null;
+        clusterSettings = null;
     }
 
     /**
@@ -159,7 +164,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
         };
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), dispatcher)) {
+                xContentRegistry(), dispatcher, clusterSettings)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty4HttpClient client = new Netty4HttpClient()) {
@@ -192,14 +197,20 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher())) {
+                xContentRegistry(), new NullDispatcher(), clusterSettings)) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
+            Settings settings = Settings.builder()
+                .put("http.port", remoteAddress.getPort())
+                .put("network.host", remoteAddress.getAddress())
+                .build();
             try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry(), new NullDispatcher())) {
+                    xContentRegistry(), new NullDispatcher(), clusterSettings)) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
-                assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
+                assertEquals(
+                    "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),
+                    bindHttpException.getMessage()
+                );
             }
         }
     }
@@ -237,8 +248,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (Netty4HttpServerTransport transport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher, clusterSettings)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -283,8 +294,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
 
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -341,10 +352,9 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
             .build();
 
-
         NioEventLoopGroup group = new NioEventLoopGroup();
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 

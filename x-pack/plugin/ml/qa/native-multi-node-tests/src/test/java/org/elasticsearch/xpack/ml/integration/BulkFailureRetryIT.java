@@ -13,7 +13,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -48,7 +48,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void putPastDataIntoIndex() {
         client().admin().indices().prepareCreate(index)
-            .addMapping("type", "time", "type=date", "value", "type=long")
+            .setMapping("time", "type=date", "value", "type=long")
             .get();
         long twoDaysAgo = now - DAY * 2;
         long threeDaysAgo = now - DAY * 3;
@@ -70,7 +70,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void ensureAnomaliesWrite() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), false).build();
         AtomicReference<AcknowledgedResponse> acknowledgedResponseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         blockingCall(
@@ -83,7 +83,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void setAnomaliesReadOnlyBlock() throws InterruptedException {
-        Settings settings = Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true).build();
         AtomicReference<AcknowledgedResponse> acknowledgedResponseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         blockingCall(

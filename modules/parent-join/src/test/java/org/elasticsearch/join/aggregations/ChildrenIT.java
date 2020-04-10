@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -160,7 +160,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String indexName = "xyz";
         assertAcked(
                 prepareCreate(indexName)
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
                             "name", "keyword"))
         );
@@ -220,9 +220,9 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String childType = "variantsku";
         assertAcked(
                 prepareCreate(indexName)
-                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .addMapping("doc",
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             masterType, childType),
                             "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
@@ -285,7 +285,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String childType = "city";
         assertAcked(
                 prepareCreate(indexName)
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             grandParentType, parentType, parentType, childType),
                             "name", "keyword"))
@@ -328,7 +328,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
         assertAcked(
                 prepareCreate("index")
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             "parentType", "childType"),
                             "name", "keyword", "town", "keyword", "age", "integer"))

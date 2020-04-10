@@ -151,7 +151,7 @@ request was uncompressed--even when compression is enabled.
 === Transport Tracer
 
 The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
-by settings the level of the `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
+by setting the level of the `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
 
 [source,console]
 --------------------------------------------------

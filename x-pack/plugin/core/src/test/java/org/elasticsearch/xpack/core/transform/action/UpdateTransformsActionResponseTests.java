@@ -18,7 +18,7 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
 
     @Override
     protected Response createTestInstance() {
-        return new Response(TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders());
+        return new Response(TransformConfigTests.randomTransformConfigWithoutHeaders());
     }
 
     @Override

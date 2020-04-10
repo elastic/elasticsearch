@@ -45,8 +45,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -200,7 +200,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
     protected void createIndexBasedOnFieldSettings(String index, String alias, TestFieldSetting[] fieldSettings) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject().startObject("type1").startObject("properties");
+        mappingBuilder.startObject().startObject("_doc").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
             field.addToMappings(mappingBuilder);
         }
@@ -209,7 +209,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putList("index.analysis.analyzer.tv_test.filter", "lowercase");
-        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
+        assertAcked(prepareCreate(index).setMapping(mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
     }
 
     /**
@@ -308,7 +308,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         }
         PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(CharArraySet.EMPTY_SET), mapping);
 
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
 
         conf.setOpenMode(IndexWriterConfig.OpenMode.CREATE);

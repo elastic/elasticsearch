@@ -12,19 +12,13 @@ interface TestClustersAware extends Task {
 
     default void useCluster(ElasticsearchCluster cluster) {
         if (cluster.getPath().equals(getProject().getPath()) == false) {
-            throw new TestClustersException(
-                "Task " + getPath() + " can't use test cluster from" +
-                    " another project " + cluster
-            );
+            throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 
-        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro ->
-            dependsOn(distro.getExtracted())
-        );
+        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
         getClusters().add(cluster);
     }
 
-    default void beforeStart() {
-    }
+    default void beforeStart() {}
 
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -48,11 +49,12 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
         Response.Builder responseBuilder = Response.builder();
 
-        ActionListener<Model> getModelListener = ActionListener.wrap(
+        ActionListener<Model<? extends InferenceConfig>> getModelListener = ActionListener.wrap(
             model -> {
                 TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
                     new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
@@ -62,7 +64,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     ex -> true);
                 request.getObjectsToInfer().forEach(stringObjectMap ->
                     typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getConfig(), chainedTask)));
+                        // The InferenceConfigUpdate here is unchecked, initially.
+                        // It gets checked when it is applied
+                        model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->
@@ -79,8 +83,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         } else {
             trainedModelProvider.getTrainedModel(request.getModelId(), false, ActionListener.wrap(
                 trainedModelConfig -> {
-                    responseBuilder.setLicensed(trainedModelConfig.isAvailableWithLicense(licenseState));
-                    if (trainedModelConfig.isAvailableWithLicense(licenseState) || request.isPreviouslyLicensed()) {
+                    responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
+                    if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
                         this.modelLoadingService.getModel(request.getModelId(), getModelListener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +72,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(ReindexPlugin.class, IngestCommonPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, GeoPlugin.class);
     }
 
     private static ThreadPool testThreadPool;
@@ -661,7 +663,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -724,7 +726,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -790,7 +792,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -908,7 +910,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -1029,7 +1031,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -1160,7 +1162,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 

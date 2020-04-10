@@ -17,7 +17,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
@@ -39,12 +39,13 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
@@ -136,6 +137,7 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.DeactivateRestHandler;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
@@ -197,7 +199,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
-public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
+public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, ReloadablePlugin {
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
@@ -247,7 +249,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -490,7 +493,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                             InternalWatchExecutor.THREAD_POOL_NAME,
                             getWatcherThreadPoolSize(settings),
                             1000,
-                            "xpack.watcher.thread_pool");
+                            "xpack.watcher.thread_pool",
+                            false);
             return Collections.singletonList(builder);
         }
         return Collections.emptyList();
@@ -517,12 +521,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.numberOfProcessors(settings));
+        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.allocatedProcessors(settings));
     }
 
-    static int getWatcherThreadPoolSize(final boolean isDataNode, final int numberOfProcessors) {
+    static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {
         if (isDataNode) {
-            final long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+            final long size = Math.max(Math.min(5 * allocatedProcessors, 50), allocatedProcessors);
             return Math.toIntExact(size);
         } else {
             return 1;
@@ -556,14 +560,16 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutWatchAction(restController),
-                new RestDeleteWatchAction(restController),
-                new RestWatcherStatsAction(restController),
-                new RestGetWatchAction(restController),
-                new RestWatchServiceAction(restController),
-                new RestAckWatchAction(restController),
-                new RestActivateWatchAction(restController),
-                new RestExecuteWatchAction(restController));
+                new RestPutWatchAction(),
+                new RestDeleteWatchAction(),
+                new RestWatcherStatsAction(),
+                new RestGetWatchAction(),
+                new RestWatchServiceAction(),
+                new RestWatchServiceAction.StopRestHandler(),
+                new RestAckWatchAction(),
+                new RestActivateWatchAction(),
+                new DeactivateRestHandler(),
+                new RestExecuteWatchAction());
     }
 
     @Override
@@ -640,7 +646,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     // These are all old templates from pre 6.0 era, that need to be deleted
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             map.keySet().removeIf(name -> name.startsWith("watch_history_"));
             return map;
@@ -681,5 +687,13 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             return;
         }
         reloadableServices.forEach(s -> s.reload(settings));
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return List.of(
+            new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
+            new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
+        );
     }
 }

@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
-import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 
 public class PivotColumnRef extends AggRef {
 

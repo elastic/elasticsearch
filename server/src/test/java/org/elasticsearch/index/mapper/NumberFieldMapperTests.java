@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -250,7 +250,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
                 IndexableField[] fields = doc.rootDoc().getFields("field");
                 assertEquals(0, fields.length);
-                assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
+                assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
             }
         }
     }

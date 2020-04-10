@@ -24,7 +24,7 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -108,8 +108,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
     public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
-            .addMapping("test", jsonBuilder()
-                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+            .setMapping(jsonBuilder()
+                .startObject().startObject("_doc").startObject("_routing").field("required", true).endObject().endObject().endObject()));
 
         client().prepareIndex("alias1").setId("1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE).get();
@@ -168,7 +168,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
 
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);

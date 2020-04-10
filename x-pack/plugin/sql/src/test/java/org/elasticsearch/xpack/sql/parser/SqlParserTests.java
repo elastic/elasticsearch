@@ -5,24 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import com.google.common.base.Joiner;
-
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
-import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -214,11 +212,11 @@ public class SqlParserTests extends ESTestCase {
         // Create expression in the form of a = b OR a = b OR ... a = b
 
         // 1000 elements is ok
-        new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(1000, "a = b")));
+        new SqlParser().createExpression(join(" OR ", nCopies(1000, "a = b")));
 
         // 5000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" OR ").join(nCopies(5000, "a = b"))));
+            new SqlParser().createExpression(join(" OR ", nCopies(5000, "a = b"))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -228,11 +226,11 @@ public class SqlParserTests extends ESTestCase {
 
         // 200 elements is ok
         new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(200, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(200, ")"))));
+            join("", nCopies(200, "abs(")).concat("i").concat(join("", nCopies(200, ")"))));
 
         // 5000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            Joiner.on("").join(nCopies(1000, "abs(")).concat("i").concat(Joiner.on("").join(nCopies(1000, ")")))));
+            join("", nCopies(1000, "abs(")).concat("i").concat(join("", nCopies(1000, ")")))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -241,11 +239,11 @@ public class SqlParserTests extends ESTestCase {
         // Create expression in the form of a + a + a + ... + a
 
         // 1000 elements is ok
-        new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(1000, "a")));
+        new SqlParser().createExpression(join(" + ", nCopies(1000, "a")));
 
         // 5000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(Joiner.on(" + ").join(nCopies(5000, "a"))));
+            new SqlParser().createExpression(join(" + ", nCopies(5000, "a"))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -255,15 +253,15 @@ public class SqlParserTests extends ESTestCase {
 
         // 200 elements is ok
         new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(200, "SELECT * FROM"))
+            join(" (", nCopies(200, "SELECT * FROM"))
                 .concat("t")
-                .concat(Joiner.on("").join(nCopies(199, ")"))));
+                .concat(join("", nCopies(199, ")"))));
 
         // 500 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            Joiner.on(" (").join(nCopies(500, "SELECT * FROM"))
+            join(" (", nCopies(500, "SELECT * FROM"))
                 .concat("t")
-                .concat(Joiner.on("").join(nCopies(499, ")")))));
+                .concat(join("", nCopies(499, ")")))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
     }
@@ -307,5 +305,13 @@ public class SqlParserTests extends ESTestCase {
     private String stringForDirection(Order.OrderDirection dir) {
         String dirStr = dir.toString();
         return randomBoolean() && dirStr.equals("ASC") ? "" : " " + dirStr;
+    }
+
+    private String join(String delimiter, Iterable<String> strings) {
+        StringJoiner joiner = new StringJoiner(delimiter);
+        for (String s : strings) {
+            joiner.add(s);
+        }
+        return joiner.toString();
     }
 }

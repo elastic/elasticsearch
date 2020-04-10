@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DocumentActionsIT extends ESIntegTestCase {
     protected void createIndex() {
-        ElasticsearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
+        ElasticsearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).setMapping("name", "type=keyword,store=true"));
     }
 
     protected String getConcreteIndexName() {

@@ -126,7 +126,7 @@ public class DerivativeIT extends ESIntegTestCase {
         valueCounts_empty = new Long[] { 1L, 1L, 2L, 0L, 2L, 2L, 0L, 0L, 0L, 3L, 2L, 1L };
         firstDerivValueCounts_empty = new Double[] { null, 0d, 1d, -2d, 2d, 0d, -2d, 0d, 0d, 3d, -1d, -1d };
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < valueCounts_empty.length; i++) {
             for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                 builders.add(client().prepareIndex("empty_bucket_idx").setSource(newDocBuilder(i)));
@@ -140,7 +140,7 @@ public class DerivativeIT extends ESIntegTestCase {
         firstDerivValueCounts_empty_rnd = new Double[numBuckets_empty_rnd];
         firstDerivValueCounts_empty_rnd[0] = null;
 
-        assertAcked(prepareCreate("empty_bucket_idx_rnd").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx_rnd").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < numBuckets_empty_rnd; i++) {
             valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
             // make approximately half of the buckets empty

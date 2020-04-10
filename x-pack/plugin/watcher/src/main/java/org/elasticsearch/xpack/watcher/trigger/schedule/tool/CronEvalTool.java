@@ -56,7 +56,7 @@ public class CronEvalTool extends LoggingAwareCommand {
         int count = countOption.value(options);
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
-            throw new UserException(ExitCodes.USAGE, "expecting a single argument that is the cron expression to evaluate");
+            throw new UserException(ExitCodes.USAGE, "expecting a single argument that is the cron expression to evaluate, got " + args);
         }
         boolean printDetail = options.has(detailOption);
         execute(terminal, args.get(0), count, printDetail);

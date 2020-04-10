@@ -5,13 +5,34 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.junit.Before;
+import org.mockito.Mockito;
 
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
+    protected Client client;
+    protected AdminClient adminClient;
+    protected IndicesAdminClient indicesClient;
+
+    @Before
+    public void setupClient() {
+        client = Mockito.mock(Client.class);
+        adminClient = Mockito.mock(AdminClient.class);
+        indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+    }
+
     protected static final int NUMBER_OF_TEST_RUNS = 20;
+    protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected abstract T createRandomInstance();
     protected abstract T mutateInstance(T instance);

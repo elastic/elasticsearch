@@ -29,6 +29,7 @@ import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -242,7 +243,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NamedXContentRegistry xContentRegistry,
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry) {
+            final NamedWriteableRegistry namedWriteableRegistry,
+            final IndexNameExpressionResolver expressionResolver) {
             return List.of();
         }
 

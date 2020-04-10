@@ -36,14 +36,13 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
 
     public void testHttpFields() throws Exception {
         String index = "the-index";
-        String type = "the-type";
         createIndex(index);
         indexDoc(index, "{}");
         flush();
         refresh();
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(
-                new String[]{index}, new String[]{type}, SearchType.QUERY_THEN_FETCH,
+                new String[]{index}, SearchType.QUERY_THEN_FETCH,
                 WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, new BytesArray("{}")
         );
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
@@ -64,7 +63,6 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
                 .aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
                 .aggregation(terms("input_indices").field("result.input.search.request.indices"))
-                .aggregation(terms("input_types").field("result.input.search.request.types"))
                 .aggregation(terms("input_body").field("result.input.search.request.body")))
                 .get();
 
@@ -84,12 +82,6 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey(index), notNullValue());
         assertThat(terms.getBucketByKey(index).getDocCount(), is(1L));
-
-        terms = aggs.get("input_types");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey(type), notNullValue());
-        assertThat(terms.getBucketByKey(type).getDocCount(), is(1L));
 
         terms = aggs.get("input_body");
         assertThat(terms, notNullValue());

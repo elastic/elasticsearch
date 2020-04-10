@@ -6,18 +6,17 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.plan.logical.Limit;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Assert;
 
 import java.util.List;
@@ -25,7 +24,12 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.sql.TestUtils.randomWhitespaces;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomWhitespaces;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -56,6 +60,40 @@ public class EscapedFunctionsTests extends ESTestCase {
         Expression exp = parser.createExpression(buildExpression("ts", "'%s'", date));
         assertThat(exp, instanceOf(Expression.class));
         return (Literal) exp;
+    }
+
+    private String buildDate() {
+        StringBuilder sb = new StringBuilder();
+        int length = randomIntBetween(4, 9);
+
+        if (randomBoolean()) {
+            sb.append('-');
+        } else {
+            if (length > 4) {
+                sb.append('-');
+            }
+        }
+
+        for (int i = 1; i <= length; i++) {
+            sb.append(i);
+        }
+        sb.append("-05-10");
+        return sb.toString();
+    }
+
+    private String buildTime() {
+        if (randomBoolean()) {
+            return (randomBoolean() ? "T" : " ") + "11:22" + buildSecsAndFractional();
+        }
+        return "";
+    }
+
+    private String buildSecsAndFractional() {
+        if (randomBoolean()) {
+            return ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
+                    ".1234567", ".12345678", ".123456789");
+        }
+        return "";
     }
 
     private Literal guidLiteral(String guid) {
@@ -157,9 +195,8 @@ public class EscapedFunctionsTests extends ESTestCase {
     public void testFunctionWithFunctionWithArgAndParams() {
         String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
         Function f = (Function) parser.createExpression(e,
-                asList(new SqlTypedParamValue(DataType.LONG.typeName, 1),
-                       new SqlTypedParamValue(DataType.LONG.typeName, 1),
-                       new SqlTypedParamValue(DataType.LONG.typeName, 1)));
+                asList(new SqlTypedParamValue(LONG.typeName(), 1), new SqlTypedParamValue(LONG.typeName(), 1),
+                        new SqlTypedParamValue(LONG.typeName(), 1)));
 
         assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());
@@ -182,8 +219,8 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testDateLiteral() {
-        Literal l = dateLiteral("2012-01-01");
-        assertThat(l.dataType(), is(DataType.DATE));
+        Literal l = dateLiteral(buildDate() + buildTime());
+        assertThat(l.dataType(), is(DATE));
     }
 
     public void testDateLiteralValidation() {
@@ -194,8 +231,8 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimeLiteral() {
-        Literal l = timeLiteral("12:23:56");
-        assertThat(l.dataType(), is(DataType.TIME));
+        Literal l = timeLiteral("12:23" + buildSecsAndFractional());
+        assertThat(l.dataType(), is(TIME));
     }
 
     public void testTimeLiteralValidation() {
@@ -206,23 +243,36 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimestampLiteral() {
-        Literal l = timestampLiteral("2012-01-01 10:01:02.3456");
-        assertThat(l.dataType(), is(DataType.DATETIME));
+        Literal l = timestampLiteral(buildDate() + " 10:20" + buildSecsAndFractional());
+        assertThat(l.dataType(), is(DATETIME));
+        l = timestampLiteral(buildDate() + "T11:22" + buildSecsAndFractional());
+        assertThat(l.dataType(), is(DATETIME));
     }
 
     public void testTimestampLiteralValidation() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01T10:01:02.3456"));
+        String date = buildDate();
+        ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral(date+ "_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Text '2012-01-01T10:01:02.3456' could not be parsed at index 10",
+                "line 1:2: Invalid timestamp received; Text '" + date + "_AB 10:01:02.3456' could not be parsed at index " +
+                        date.length(),
+                ex.getMessage());
+        ex = expectThrows(ParsingException.class, () -> timestampLiteral("20120101_AB 10:01:02.3456"));
+        assertEquals(
+                "line 1:2: Invalid timestamp received; Text '20120101_AB 10:01:02.3456' could not be parsed at index 0",
+                ex.getMessage());
+
+        ex = expectThrows(ParsingException.class, () -> timestampLiteral(date));
+        assertEquals(
+                "line 1:2: Invalid timestamp received; Text '" + date + "' could not be parsed at index " + date.length(),
                 ex.getMessage());
     }
 
     public void testGUID() {
         Literal l = guidLiteral("12345678-90ab-cdef-0123-456789abcdef");
-        assertThat(l.dataType(), is(DataType.KEYWORD));
+        assertThat(l.dataType(), is(KEYWORD));
 
         l = guidLiteral("12345678-90AB-cdef-0123-456789ABCdef");
-        assertThat(l.dataType(), is(DataType.KEYWORD));
+        assertThat(l.dataType(), is(KEYWORD));
     }
 
     public void testGUIDValidationHexa() {

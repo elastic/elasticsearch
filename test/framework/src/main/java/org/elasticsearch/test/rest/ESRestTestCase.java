@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -77,7 +80,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -98,6 +100,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -410,6 +413,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Determines if data streams are preserved upon completion of this test. The default implementation wipes data streams.
+     *
+     * @return whether or not to preserve data streams
+     */
+    protected boolean preserveDataStreamsUponCompletion() {
+        return false;
+    }
+
+    /**
      * Controls whether or not to preserve cluster settings upon completion of the test. The default implementation is to remove all cluster
      * settings.
      *
@@ -458,7 +470,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A set of ILM policies that should be preserved between runs.
      */
     protected Set<String> preserveILMPolicyIds() {
-        return Collections.singleton("ilm-history-ilm-policy");
+        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy", "ml-size-based-ilm-policy");
     }
 
     /**
@@ -519,6 +531,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             inProgressSnapshots.set(wipeSnapshots());
         }
 
+        // wipe data streams before indices so that the backing indices for data streams are handled properly
+        if (preserveDataStreamsUponCompletion() == false) {
+            wipeDataStreams();
+        }
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             wipeAllIndices();
@@ -546,9 +563,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                         adminClient().performRequest(new Request("DELETE", "_template/" + template));
                     }
                 }
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
             } else {
                 logger.debug("Clearing all templates");
                 adminClient().performRequest(new Request("DELETE", "_template/*"));
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
             }
         }
 
@@ -569,14 +598,28 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Response response = adminClient().performRequest(new Request("DELETE", "*"));
+            final Request deleteRequest = new Request("DELETE", "*");
+            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    protected static void wipeDataStreams() throws IOException {
+        try {
+            adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+        } catch (ResponseException e) {
+            // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
+            if (e.getResponse().getStatusLine().getStatusCode() != 405) {
                 throw e;
             }
         }
@@ -619,11 +662,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             if (preserveReposUponCompletion() == false) {
-                logger.debug("wiping snapshot repository [{}]", repoName);
-                adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
+                deleteRepository(repoName);
             }
         }
         return inProgressSnapshots;
+    }
+
+    protected void deleteRepository(String repoName) throws IOException {
+        logger.debug("wiping snapshot repository [{}]", repoName);
+        adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
     }
 
     /**
@@ -658,7 +705,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeRollupJobs() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+        final Response response;
+        try {
+            response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+        } catch (ResponseException e) {
+            // If we don't see the rollup endpoint (possibly because of running against an older ES version) we just bail
+            if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                return;
+            }
+            throw e;
+        }
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
@@ -687,6 +743,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);
         }
+    }
+
+    protected void refreshAllIndices() throws IOException {
+        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        Request refreshRequest = new Request("POST", "/_refresh");
+        refreshRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+        client().performRequest(refreshRequest);
     }
 
     private void waitForPendingRollupTasks() throws Exception {
@@ -933,14 +996,18 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth(client(), index, requestConsumer);
+    }
+
+    protected static void ensureHealth(RestClient client, String index, Consumer<Request> requestConsumer) throws IOException {
         Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
         requestConsumer.accept(request);
         try {
-            client().performRequest(request);
+            client.performRequest(request);
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state?pretty"));
+                    final Response clusterStateResponse = client.performRequest(new Request("GET", "/_cluster/state?pretty"));
                     fail("timed out waiting for green state for index [" + index + "] " +
                         "cluster state [" + EntityUtils.toString(clusterStateResponse.getEntity()) + "]");
                 } catch (Exception inner) {
@@ -964,23 +1031,27 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + "}");
-        client().performRequest(request);
+        createIndex(name, settings, null);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
-                + ", \"mappings\" : {" + mapping + "} }");
-        client().performRequest(request);
+        createIndex(name, settings, mapping, null);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
-            + ", \"mappings\" : {" + mapping + "}"
-            + ", \"aliases\": {" + aliases + "} }");
+        String entity = "{\"settings\": " + Strings.toString(settings);
+        if (mapping != null) {
+            entity += ",\"mappings\" : {" + mapping + "}";
+        }
+        if (aliases != null) {
+            entity += ",\"aliases\": {" + aliases + "}";
+        }
+        entity += "}";
+        if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+            expectSoftDeletesWarning(request, name);
+        }
+        request.setJsonEntity(entity);
         client().performRequest(request);
     }
 
@@ -997,6 +1068,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("PUT", "/" + index + "/_settings");
         request.setJsonEntity(Strings.toString(settings));
         client().performRequest(request);
+    }
+
+    protected static void expectSoftDeletesWarning(Request request, String indexName) {
+        final List<String> expectedWarnings = List.of(
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
+            "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            request.setOptions(RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false));
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            request.setOptions(RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false));
+        }
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -1058,7 +1142,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Is this template one that is automatically created by xpack?
      */
-    private static boolean isXPackTemplate(String name) {
+    protected static boolean isXPackTemplate(String name) {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
@@ -1071,15 +1155,21 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".ml-")) {
             return true;
         }
-        switch (name) {
-        case ".triggered_watches":
-        case ".watches":
-        case "logstash-index-template":
-        case "security_audit_log":
-        case ".slm-history":
+        if (name.startsWith(".transform-")) {
             return true;
-        default:
-            return false;
+        }
+        switch (name) {
+            case ".triggered_watches":
+            case ".watches":
+            case "logstash-index-template":
+            case ".logstash-management":
+            case "security_audit_log":
+            case ".slm-history":
+            case ".async-search":
+            case "saml-service-provider":
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -1176,7 +1266,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = new Request("GET", "_nodes");
         request.addParameter("filter_path", "nodes.*.version");
 
-        final Response response = client().performRequest(request);
+        final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
 
         Version minVersion = null;
@@ -1189,5 +1279,93 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         assertNotNull(minVersion);
         return minVersion;
+    }
+
+    protected void syncedFlush(String indexName) throws Exception {
+        final List<String> deprecationMessages = List.of(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
+        final List<String> transitionMessages = List.of(
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
+        final WarningsHandler warningsHandler;
+        if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
+            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
+        } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
+            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
+        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
+            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
+        } else {
+            warningsHandler = warnings -> warnings.isEmpty() == false;
+        }
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                final Request request = new Request("POST", indexName + "/_flush/synced");
+                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
+                Response resp = client().performRequest(request);
+                if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("failed"), equalTo(0));
+                }
+            } catch (ResponseException ex) {
+                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
+                    && ex.getResponse().getWarnings().equals(transitionMessages)) {
+                    logger.info("a normal flush was performed instead");
+                } else {
+                    throw new AssertionError(ex); // cause assert busy to retry
+                }
+            }
+        });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(indexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.
+     *
+     * @param restClient the client to use
+     * @throws Exception if an exception is thrown while checking the status of the license
+     */
+    protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
+        assertBusy(() -> {
+            final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder());
+
+            final Response response = restClient.performRequest(request);
+            assertOK(response);
+
+            try (InputStream is = response.getEntity().getContent()) {
+                XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+                final Map<String, ?> map = XContentHelper.convertToMap(xContentType.xContent(), is, true);
+                assertThat(map, notNullValue());
+                assertThat("License must exist", map.containsKey("license"), equalTo(true));
+                @SuppressWarnings("unchecked")
+                final Map<String, ?> license = (Map<String, ?>) map.get("license");
+                assertThat("Expecting non-null license", license, notNullValue());
+                assertThat("License status must exist", license.containsKey("status"), equalTo(true));
+                final String status = (String) license.get("status");
+                assertThat("Expecting non-null license status", status, notNullValue());
+                assertThat("Expecting active license", status, equalTo("active"));
+            }
+        });
     }
 }

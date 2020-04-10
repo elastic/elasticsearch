@@ -21,13 +21,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -127,7 +127,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 listener.onFailure(e);
             }
         );
-        final PersistentTasksCustomMetaData tasksCustomMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.
         ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
@@ -165,7 +165,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
         ActionListener<List<IsolateDatafeedAction.Response>> isolateDatafeedListener = ActionListener.wrap(
             isolatedDatafeeds -> {
                 logger.info("Isolated the datafeeds");
-                unassignPersistentTasks(tasksCustomMetaData, unassignPersistentTasksListener);
+                unassignPersistentTasks(tasksCustomMetadata, unassignPersistentTasksListener);
             },
             wrappedListener::onFailure
         );
@@ -204,7 +204,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 }
 
                 // There are no tasks to worry about starting/stopping
-                if (tasksCustomMetaData == null || tasksCustomMetaData.tasks().isEmpty()) {
+                if (tasksCustomMetadata == null || tasksCustomMetadata.tasks().isEmpty()) {
                     logger.info("No tasks to worry about after state update");
                     wrappedListener.onResponse(new AcknowledgedResponse(true));
                     return;
@@ -213,18 +213,18 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 // Did we change from disabled -> enabled?
                 if (request.isEnabled()) {
                     logger.info("Enabling upgrade mode, must isolate datafeeds");
-                    isolateDatafeeds(tasksCustomMetaData, isolateDatafeedListener);
+                    isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
                 } else {
                     logger.info("Disabling upgrade mode, must wait for tasks to not have AWAITING_UPGRADE assignment");
                     persistentTasksService.waitForPersistentTasksCondition(
-                        (persistentTasksCustomMetaData) ->
+                        (persistentTasksCustomMetadata) ->
                             // Wait for jobs to not be "Awaiting upgrade"
-                            persistentTasksCustomMetaData.findTasks(JOB_TASK_NAME,
+                            persistentTasksCustomMetadata.findTasks(JOB_TASK_NAME,
                                 (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
                                 .isEmpty() &&
 
                             // Wait for datafeeds to not be "Awaiting upgrade"
-                            persistentTasksCustomMetaData.findTasks(DATAFEED_TASK_NAME,
+                            persistentTasksCustomMetadata.findTasks(DATAFEED_TASK_NAME,
                                 (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
                                 .isEmpty(),
                         request.timeout(),
@@ -251,10 +251,10 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     logger.info("Executing cluster state update");
-                    MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MlMetadata.TYPE));
+                    MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
                     builder.isUpgradeMode(request.isEnabled());
                     ClusterState.Builder newState = ClusterState.builder(currentState);
-                    newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
+                    newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
                     return newState.build();
                 }
             });
@@ -275,12 +275,12 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
      * <p>
      * Datafeed tasks keep the state as `started` and Jobs stay `opened`
      *
-     * @param tasksCustomMetaData Current state of persistent tasks
+     * @param tasksCustomMetadata Current state of persistent tasks
      * @param listener            Alerted when tasks are unassignd
      */
-    private void unassignPersistentTasks(PersistentTasksCustomMetaData tasksCustomMetaData,
+    private void unassignPersistentTasks(PersistentTasksCustomMetadata tasksCustomMetadata,
                                          ActionListener<List<PersistentTask<?>>> listener) {
-        List<PersistentTask<?>> datafeedAndJobTasks = tasksCustomMetaData
+        List<PersistentTask<?>> datafeedAndJobTasks = tasksCustomMetadata
             .tasks()
             .stream()
             .filter(persistentTask -> (persistentTask.getTaskName().equals(MlTasks.JOB_TASK_NAME) ||
@@ -313,9 +313,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
         chainTaskExecutor.execute(listener);
     }
 
-    private void isolateDatafeeds(PersistentTasksCustomMetaData tasksCustomMetaData,
+    private void isolateDatafeeds(PersistentTasksCustomMetadata tasksCustomMetadata,
                                   ActionListener<List<IsolateDatafeedAction.Response>> listener) {
-        Set<String> datafeedsToIsolate = MlTasks.startedDatafeedIds(tasksCustomMetaData);
+        Set<String> datafeedsToIsolate = MlTasks.startedDatafeedIds(tasksCustomMetadata);
 
         logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor =

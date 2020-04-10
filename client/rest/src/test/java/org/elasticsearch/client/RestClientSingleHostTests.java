@@ -424,6 +424,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void testDeprecationWarnings() throws Exception {
         String chars = randomAsciiAlphanumOfLength(5);
         assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarningWithoutDate(chars)), singletonList(chars));
         assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
         assertDeprecationWarnings(
                 Arrays.asList(formatWarning(chars), "another one", "and another"),
@@ -433,6 +434,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 Arrays.asList("ignorable one", "and another"));
         assertDeprecationWarnings(singletonList("exact"), singletonList("exact"));
         assertDeprecationWarnings(Collections.<String>emptyList(), Collections.<String>emptyList());
+
+        String proxyWarning = "112 - \"network down\" \"Sat, 25 Aug 2012 23:34:45 GMT\"";
+        assertDeprecationWarnings(singletonList(proxyWarning), singletonList(proxyWarning));
     }
 
     private enum DeprecationWarningOption {
@@ -518,9 +522,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
-    private static String formatWarning(String warningBody) {
+    private static String formatWarningWithoutDate(String warningBody) {
         final String hash = new String(new byte[40], StandardCharsets.UTF_8).replace('\0', 'e');
-        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\"";
+    }
+
+    private static String formatWarning(String warningBody) {
+        return formatWarningWithoutDate(warningBody) + " \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {

@@ -24,16 +24,18 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -56,7 +58,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCacheAggs() throws Exception {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index")
-                .addMapping("type", "f", "type=date")
+                .setMapping("f", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)).get());
         indexRandom(true,
                 client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
@@ -96,12 +98,15 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.indices.IndicesRequestCache:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/32827")
     public void testQueryRewrite() throws Exception {
         Client client = client();
-        assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
+        assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5).put("index.number_of_routing_shards", 5)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put("index.number_of_routing_shards", 5)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
                 client.prepareIndex("index").setId("2").setRouting("1").setSource("s", "2016-03-20"),
                 client.prepareIndex("index").setId("3").setRouting("1").setSource("s", "2016-03-21"),
@@ -123,20 +128,25 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).setPreFilterShardSize(Integer.MAX_VALUE).get();
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25"))
+            // to ensure that query is executed even if it rewrites to match_no_docs
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 5);
 
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
-            .setPreFilterShardSize(Integer.MAX_VALUE).get();
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 3, 7);
 
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).setPreFilterShardSize(Integer.MAX_VALUE)
+            .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
             .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
@@ -145,9 +155,9 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     public void testQueryRewriteMissingValues() throws Exception {
         Client client = client();
-        assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
+        assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index").setId("1").setSource("s", "2016-03-19"),
                 client.prepareIndex("index").setId("2").setSource("s", "2016-03-20"),
                 client.prepareIndex("index").setId("3").setSource("s", "2016-03-21"),
@@ -189,9 +199,9 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     public void testQueryRewriteDates() throws Exception {
         Client client = client();
-        assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "d", "type=date")
+        assertAcked(client.admin().indices().prepareCreate("index").setMapping("d", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index").setId("1").setSource("d", "2014-01-01T00:00:00"),
                 client.prepareIndex("index").setId("2").setSource("d", "2014-02-01T00:00:00"),
                 client.prepareIndex("index").setId("3").setSource("d", "2014-03-01T00:00:00"),
@@ -212,23 +222,30 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
         assertCacheState(client, "index", 0, 0);
 
-        final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
-                .get();
+        final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
+            // to ensure that query is executed even if it rewrites to match_no_docs
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 0, 1);
 
-        final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
-                .get();
+        final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 1, 1);
 
-        final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
-                .get();
+        final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 2, 1);
@@ -237,12 +254,12 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewriteDatesWithNow() throws Exception {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
-        assertAcked(client.admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        assertAcked(client.admin().indices().prepareCreate("index-1").setMapping("d", "type=date")
                 .setSettings(settings).get());
-        assertAcked(client.admin().indices().prepareCreate("index-2").addMapping("type", "d", "type=date")
+        assertAcked(client.admin().indices().prepareCreate("index-2").setMapping("d", "type=date")
                 .setSettings(settings).get());
-        assertAcked(client.admin().indices().prepareCreate("index-3").addMapping("type", "d", "type=date")
+        assertAcked(client.admin().indices().prepareCreate("index-3").setMapping("d", "type=date")
                 .setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
@@ -271,8 +288,10 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index-2", 0, 0);
         assertCacheState(client, "index-3", 0, 0);
 
-        final SearchResponse r1 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        final SearchResponse r1 = client.prepareSearch("index-*")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 0, 1);
@@ -282,16 +301,22 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         // cache miss or cache hit since queries containing now can't be cached
         assertCacheState(client, "index-3", 0, 0);
 
-        final SearchResponse r2 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        final SearchResponse r2 = client.prepareSearch("index-*")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 1, 1);
         assertCacheState(client, "index-2", 1, 1);
         assertCacheState(client, "index-3", 0, 0);
 
-        final SearchResponse r3 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        final SearchResponse r3 = client.prepareSearch("index-*")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 2, 1);
@@ -302,9 +327,9 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCanCache() throws Exception {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
-        assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")
                 .setSettings(settings)
                 .get());
         indexRandom(true, client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
@@ -376,8 +401,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCacheWithFilteredAlias() {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
-        assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "created_at", "type=date")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        assertAcked(client.admin().indices().prepareCreate("index").setMapping("created_at", "type=date")
             .setSettings(settings)
             .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
             .get());
@@ -418,12 +443,12 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         assertAcked(
             client.admin().indices().prepareCreate("index")
-                .addMapping("_doc", "k", "type=keyword")
+                .setMapping("k", "type=keyword")
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
                 .get()
         );

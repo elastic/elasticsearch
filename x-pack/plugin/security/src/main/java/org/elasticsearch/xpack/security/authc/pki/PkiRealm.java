@@ -32,9 +32,9 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 

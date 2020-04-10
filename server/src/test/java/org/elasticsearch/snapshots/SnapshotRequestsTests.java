@@ -66,7 +66,6 @@ public class SnapshotRequestsTests extends ESTestCase {
         builder.field("rename_replacement", "rename-to");
         boolean partial = randomBoolean();
         builder.field("partial", partial);
-        builder.startObject("settings").field("set1", "val1").endObject();
         builder.startObject("index_settings").field("set1", "val2").endObject();
         if (randomBoolean()) {
             builder.field("ignore_index_settings", "set2,set3");
@@ -91,7 +90,6 @@ public class SnapshotRequestsTests extends ESTestCase {
         assertEquals("rename-from", request.renamePattern());
         assertEquals("rename-to", request.renameReplacement());
         assertEquals(partial, request.partial());
-        assertEquals("val1", request.settings().get("set1"));
         assertArrayEquals(request.ignoreIndexSettings(), new String[]{"set2", "set3"});
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
             ? indicesOptions.ignoreUnavailable()

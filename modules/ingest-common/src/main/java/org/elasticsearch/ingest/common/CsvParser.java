@@ -36,6 +36,7 @@ final class CsvParser {
     private final char separator;
     private final boolean trim;
     private final String[] headers;
+    private final Object emptyValue;
     private final IngestDocument ingestDocument;
     private final StringBuilder builder = new StringBuilder();
     private State state = State.START;
@@ -45,12 +46,13 @@ final class CsvParser {
     private int length;
     private int currentIndex;
 
-    CsvParser(IngestDocument ingestDocument, char quote, char separator, boolean trim, String[] headers) {
+    CsvParser(IngestDocument ingestDocument, char quote, char separator, boolean trim, String[] headers, Object emptyValue) {
         this.ingestDocument = ingestDocument;
         this.quote = quote;
         this.separator = separator;
         this.trim = trim;
         this.headers = headers;
+        this.emptyValue = emptyValue;
     }
 
     void process(String line) {
@@ -102,7 +104,8 @@ final class CsvParser {
                 return false;
             } else if (c == separator) {
                 startIndex++;
-                if (nextHeader()) {
+                builder.setLength(0);
+                if (setField(startIndex)) {
                     return true;
                 }
             } else if (isWhitespace(c)) {
@@ -190,16 +193,17 @@ final class CsvParser {
     }
 
     private boolean setField(int endIndex) {
+        String value;
         if (builder.length() == 0) {
-            ingestDocument.setFieldValue(headers[currentHeader], line.substring(startIndex, endIndex));
+            value = line.substring(startIndex, endIndex);
         } else {
-            builder.append(line, startIndex, endIndex);
-            ingestDocument.setFieldValue(headers[currentHeader], builder.toString());
+            value = builder.append(line, startIndex, endIndex).toString();
         }
-        return nextHeader();
-    }
-
-    private boolean nextHeader() {
+        if (value.length() > 0) {
+            ingestDocument.setFieldValue(headers[currentHeader], value);
+        } else if (emptyValue != null) {
+            ingestDocument.setFieldValue(headers[currentHeader], emptyValue);
+        }
         currentHeader++;
         return currentHeader == headers.length;
     }

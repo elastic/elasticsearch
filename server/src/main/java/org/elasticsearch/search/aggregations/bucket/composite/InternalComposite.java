@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -58,8 +57,8 @@ public class InternalComposite
 
     InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
                       List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls, boolean earlyTerminated,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                      Map<String, Object> metadata) {
+        super(name, metadata);
         this.sourceNames = sourceNames;
         this.formats = formats;
         this.buckets = buckets;
@@ -116,7 +115,7 @@ public class InternalComposite
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
         return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, earlyTerminated, pipelineAggregators(), getMetaData());
+            reverseMuls, earlyTerminated, getMetadata());
     }
 
     @Override
@@ -132,6 +131,13 @@ public class InternalComposite
     @Override
     public List<InternalBucket> getBuckets() {
         return buckets;
+    }
+
+    /**
+     * The formats used when writing the keys. Package private for testing.
+     */
+    List<DocValueFormat> getFormats() {
+        return formats;
     }
 
     @Override
@@ -189,9 +195,18 @@ public class InternalComposite
             reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
-        final CompositeKey lastKey = result.size() > 0 ? result.get(result.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls,
-            earlyTerminated, pipelineAggregators(), metaData);
+
+        List<DocValueFormat> reducedFormats = formats;
+        CompositeKey lastKey = null;
+        if (result.size() > 0) {
+            lastBucket = result.get(result.size() - 1);
+            /* Attach the formats from the last bucket to the reduced composite
+             * so that we can properly format the after key. */
+            reducedFormats = lastBucket.formats;
+            lastKey = lastBucket.getRawKey();
+        }
+        return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
+            earlyTerminated, metadata);
     }
 
     @Override
@@ -204,7 +219,12 @@ public class InternalComposite
             aggregations.add(bucket.aggregations);
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return new InternalBucket(sourceNames, formats, buckets.get(0).key, reverseMuls, docCount, aggs);
+        /* Use the formats from the bucket because they'll be right to format
+         * the key. The formats on the InternalComposite doing the reducing are
+         * just whatever formats make sense for *its* index. This can be real
+         * trouble when the index doing the reducing is unmapped. */
+        var reducedFormats = buckets.get(0).formats;
+        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, docCount, aggs);
     }
 
     @Override
@@ -332,6 +352,13 @@ public class InternalComposite
         @Override
         public Aggregations getAggregations() {
             return aggregations;
+        }
+
+        /**
+         * The formats used when writing the keys. Package private for testing.
+         */
+        List<DocValueFormat> getFormats() {
+            return formats;
         }
 
         @Override

@@ -51,7 +51,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, false);
 
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -68,7 +68,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, true);
 
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -85,7 +85,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, true, false, false);
 
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -102,7 +102,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, randomBoolean(), true, false);
 
-        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices, "");
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -142,8 +142,13 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
      * @param missingSeqNoStats whether some indices miss SeqNoStats
      * @return array of ShardStats
      */
-    private static ShardStats[] createRandomShardStats(Map<String, long[]> expectedCheckpoints, Set<String> userIndices,
-            boolean skipPrimaries, boolean inconsistentGlobalCheckpoints, boolean missingSeqNoStats) {
+    private static ShardStats[] createRandomShardStats(
+        Map<String, long[]> expectedCheckpoints,
+        Set<String> userIndices,
+        boolean skipPrimaries,
+        boolean inconsistentGlobalCheckpoints,
+        boolean missingSeqNoStats
+    ) {
 
         // always create the full list
         List<Index> indices = new ArrayList<>();
@@ -192,15 +197,17 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                     checkpoints.add(globalCheckpoint);
                 }
 
-                for (int replica = 0;  replica < numShardCopies; replica++) {
+                for (int replica = 0; replica < numShardCopies; replica++) {
                     ShardId shardId = new ShardId(index, shardIndex);
                     boolean primary = (replica == primaryShard);
 
                     Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardIndex));
-                    ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                    ShardRouting shardRouting = ShardRouting.newUnassigned(
+                        shardId,
+                        primary,
                         primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-                        );
+                    );
                     shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     shardRouting = shardRouting.moveToStarted();
 
@@ -222,15 +229,18 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
 
                     if (inconsistentReplica == replica) {
                         // overwrite
-                        SeqNoStats invalidSeqNoStats =
-                            new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint - randomLongBetween(10L, 100L));
+                        SeqNoStats invalidSeqNoStats = new SeqNoStats(
+                            maxSeqNo,
+                            localCheckpoint,
+                            globalCheckpoint - randomLongBetween(10L, 100L)
+                        );
                         shardStats.add(
-                            new ShardStats(shardRouting,
-                                new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null));
+                            new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null)
+                        );
                     } else {
                         shardStats.add(
-                            new ShardStats(shardRouting,
-                                new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null));
+                            new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null)
+                        );
                     }
                 }
             }

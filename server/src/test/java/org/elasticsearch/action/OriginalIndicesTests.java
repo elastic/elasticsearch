@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class OriginalIndicesTests extends ESTestCase {
@@ -41,7 +42,7 @@ public class OriginalIndicesTests extends ESTestCase {
             OriginalIndices originalIndices = randomOriginalIndices();
 
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersion(random()));
+            out.setVersion(randomCompatibleVersion(random(), Version.CURRENT));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
             StreamInput in = out.bytes().streamInput();
@@ -49,7 +50,14 @@ public class OriginalIndicesTests extends ESTestCase {
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 
             assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
-            assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
+            // indices options are not equivalent when sent to an older version and re-read due
+            // to the addition of hidden indices as expand to hidden indices is always true when
+            // read from a prior version
+            if (out.getVersion().onOrAfter(Version.V_7_7_0) || originalIndices.indicesOptions().expandWildcardsHidden()) {
+                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
+            } else if (originalIndices.indicesOptions().expandWildcardsHidden()) {
+                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
+            }
         }
     }
 

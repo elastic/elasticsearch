@@ -50,7 +50,7 @@ Which shows that the class of `doc.first` is
    "status": 400
 }
 ---------------------------------------------------------
-// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
+// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "position": $body.error.position, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
 
 You can use the same trick to see that `_source` is a `LinkedHashMap`
 in the `_update` API:
@@ -85,7 +85,7 @@ The response looks like:
 }
 ---------------------------------------------------------
 // TESTRESPONSE[s/"root_cause": \.\.\./"root_cause": $body.error.root_cause/]
-// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.caused_by.script_stack, "script": $body.error.caused_by.script, "lang": $body.error.caused_by.lang, "caused_by": $body.error.caused_by.caused_by, "reason": $body.error.caused_by.reason/]
+// TESTRESPONSE[s/\.\.\./"script_stack": $body.error.caused_by.script_stack, "script": $body.error.caused_by.script, "lang": $body.error.caused_by.lang, "position": $body.error.caused_by.position, "caused_by": $body.error.caused_by.caused_by, "reason": $body.error.caused_by.reason/]
 // TESTRESPONSE[s/"to_string": ".+"/"to_string": $body.error.caused_by.to_string/]
 
 Once you have a class you can go to <<painless-api-reference>> to see a list of

@@ -23,7 +23,7 @@ import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.regex.Pattern;
 
@@ -32,8 +32,8 @@ import static org.junit.Assume.assumeTrue;
 
 public class DebMetadataTests extends PackagingTestCase {
 
-    @Before
-    public void filterDistros() {
+    @BeforeClass
+    public static void filterDistros() {
         assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 

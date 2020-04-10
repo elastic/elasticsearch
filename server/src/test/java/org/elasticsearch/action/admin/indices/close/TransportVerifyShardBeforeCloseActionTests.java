@@ -32,14 +32,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -72,6 +71,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -106,7 +106,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         clusterService = createClusterService(threadPool);
 
-        clusterBlock = MetaDataIndexStateService.createIndexClosingBlock();
+        clusterBlock = MetadataIndexStateService.createIndexClosingBlock();
         setState(clusterService, new ClusterState.Builder(clusterService.state())
             .blocks(ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock("index", clusterBlock).build()).build());
 
@@ -161,8 +161,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
-
+        doNothing().when(indexShard).flush(flushRequest.capture());
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));
@@ -217,11 +216,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         setState(clusterService, clusterState);
 
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(index).shard(shardId.id());
-        final IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
+        final IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
         final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-        final long primaryTerm = indexMetaData.primaryTerm(0);
+        final long primaryTerm = indexMetadata.primaryTerm(0);
 
-        final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(0);
+        final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
 
         List<ShardRouting> unavailableShards = randomSubsetOf(randomIntBetween(1, nbReplicas), shardRoutingTable.replicaShards());

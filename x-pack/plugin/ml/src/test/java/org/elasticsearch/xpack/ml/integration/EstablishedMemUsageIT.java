@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -12,6 +14,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -50,15 +53,15 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_META_DATA,
+                ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
 
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client(), clusterService, settings);
-        jobResultsProvider = new JobResultsProvider(client(), settings);
-        jobResultsPersister = new JobResultsPersister(client(),
-            resultsPersisterService,
-            new AnomalyDetectionAuditor(client(), "test_node"));
+        OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver());
+        jobResultsPersister = new JobResultsPersister(
+            originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node"));
     }
 
     public void testEstablishedMem_givenNoResults() throws Exception {

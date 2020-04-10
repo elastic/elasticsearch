@@ -25,7 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -97,8 +97,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 ));
 
         ensureGreen();
@@ -144,7 +144,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                     assertEquals("unequal versions", state.version(), nodeState.version());
                     assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
                     assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
-                    assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
+                    assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
                     fail("failed comparing cluster state: " + t.getMessage() + "\n" +
@@ -164,8 +164,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
         ));
 
         // Everything is stable now, it is now time to simulate evil...
@@ -189,7 +189,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
 
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -228,7 +228,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause

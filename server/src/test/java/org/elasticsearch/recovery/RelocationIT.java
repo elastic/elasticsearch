@@ -34,7 +34,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -384,7 +385,7 @@ public class RelocationIT extends ESIntegTestCase {
         final String p_node = internalCluster().startNode();
 
         prepareCreate(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         ).get();
 
         internalCluster().startNode();
@@ -412,7 +413,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
 
         corruptionCount.await();
 
@@ -457,7 +458,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    public void testIndexAndRelocateConcurrently() throws Exception {
+    public void testIndexSearchAndRelocateConcurrently() throws Exception {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
             Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
@@ -473,9 +474,22 @@ public class RelocationIT extends ESIntegTestCase {
         final Settings.Builder settings = Settings.builder()
                 .put("index.routing.allocation.exclude.color", "blue")
                 .put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1));
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1));
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), randomIntBetween(1, 10) + "s");
+        }
         assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        Thread[] searchThreads = randomBoolean() ? new Thread[0] : new Thread[randomIntBetween(1, 4)];
+        for (int i = 0; i < searchThreads.length; i++) {
+            searchThreads[i] = new Thread(() -> {
+                while (stopped.get() == false) {
+                    assertNoFailures(client().prepareSearch("test").setRequestCache(false).get());
+                }
+            });
+            searchThreads[i].start();
+        }
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();
         logger.info(" --> indexing [{}] docs", numDocs);
@@ -513,7 +527,10 @@ public class RelocationIT extends ESIntegTestCase {
             assertNoFailures(afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
-
+        stopped.set(true);
+        for (Thread searchThread : searchThreads) {
+            searchThread.join();
+        }
     }
 
     public void testRelocateWhileWaitingForRefresh() {
@@ -622,12 +639,12 @@ public class RelocationIT extends ESIntegTestCase {
             Stream.generate(() -> Settings.builder().put("node.attr.color", "red").build()).limit(halfNodes)).toArray(Settings[]::new);
         List<String> nodes = internalCluster().startNodes(nodeSettings);
         String[] blueNodes = nodes.subList(0, halfNodes).toArray(String[]::new);
-        String[] redNodes = nodes.subList(0, halfNodes).toArray(String[]::new);
+        String[] redNodes = nodes.subList(halfNodes, nodes.size()).toArray(String[]::new);
+        logger.debug("--> blue nodes: [{}], red nodes: [{}]", blueNodes, redNodes);
         ensureStableCluster(halfNodes * 2);
         assertAcked(
             client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, halfNodes - 1))
                 .put("index.routing.allocation.include.color", "blue")));
         ensureGreen("test");
         assertBusy(() -> assertAllShardsOnNodes(indexName, blueNodes));
@@ -641,7 +658,7 @@ public class RelocationIT extends ESIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metaData().indices().keys()) {
+            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metadata().indices().keys()) {
                 Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {

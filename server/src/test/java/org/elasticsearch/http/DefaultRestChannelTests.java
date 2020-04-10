@@ -193,7 +193,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         // send a response
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext());
+            threadPool.getThreadContext(), null);
         TestRestResponse resp = new TestRestResponse();
         final String customHeader = "custom-header";
         final String customHeaderValue = "xyz";
@@ -221,7 +221,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         // send a response
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext());
+            threadPool.getThreadContext(), null);
         channel.sendResponse(new TestRestResponse());
 
         // inspect what was written
@@ -241,7 +241,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext());
+            threadPool.getThreadContext(), null);
         final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
             JsonXContent.contentBuilder().startObject().endObject());
         assertThat(response.content(), not(instanceOf(Releasable.class)));
@@ -296,7 +296,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext());
+            threadPool.getThreadContext(), null);
         channel.sendResponse(new TestRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
         ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
@@ -327,7 +327,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext());
+            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), null);
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -364,7 +364,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext());
+            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), null);
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -395,7 +395,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         RestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, httpHandlingSettings,
-            threadPool.getThreadContext());
+            threadPool.getThreadContext(), null);
         channel.sendResponse(new TestRestResponse());
 
         // get the response

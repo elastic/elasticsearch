@@ -16,6 +16,7 @@ WARNING:  While `cron` triggers are super powerful, we recommend using one of
           you want. You can use the <<croneval,`elasticsearch-croneval`>> tool to validate
           your cron expressions and see what the resulting trigger times will be.
 
+[[_cron_expressions]]
 ===== Cron expressions
 
 A cron expression is a string of the following form:
@@ -166,7 +167,7 @@ NOTE: Currently, you must specify `?` for either the `day_of_week` or
 | `0 5 9 LW * ?`        | Trigger at 9:05 AM on the last weekday of every month.
 |======
 
-
+[[_configuring_a_cron_schedule]]
 ===== Configuring a cron schedule
 
 To configure a `cron` schedule, you simply specify the cron expression as a
@@ -187,6 +188,7 @@ that triggers every day at noon:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[_configuring_a_multiple_times_cron_schedule]]
 ===== Configuring a multiple times cron schedule
 
 To configure a `cron` schedule that triggers multiple times, you can

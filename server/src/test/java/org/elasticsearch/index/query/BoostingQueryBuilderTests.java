@@ -40,8 +40,8 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
     @Override
     protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query positive = queryBuilder.positiveQuery().toQuery(context);
-        Query negative = queryBuilder.negativeQuery().toQuery(context);
+        Query positive = queryBuilder.positiveQuery().rewrite(context).toQuery(context);
+        Query negative = queryBuilder.negativeQuery().rewrite(context).toQuery(context);
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
         } else {
@@ -102,5 +102,23 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             assertNotSame(rewrite, qb);
             assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
         }
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+
+        BoostingQueryBuilder queryBuilder1 = new BoostingQueryBuilder(
+                new TermQueryBuilder("unmapped_field", "foo"), new MatchNoneQueryBuilder());
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder1.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+
+        BoostingQueryBuilder queryBuilder2 = new BoostingQueryBuilder(
+                new MatchAllQueryBuilder(), new TermQueryBuilder("unmapped_field", "foo"));
+        e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder2.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

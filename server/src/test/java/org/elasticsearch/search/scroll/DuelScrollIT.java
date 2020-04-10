@@ -25,7 +25,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -101,7 +101,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
 
     private TestContext create(SearchType... searchTypes) throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+        assertAcked(prepareCreate("index").setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field1")
                     .field("type", "long")
                 .endObject()
@@ -200,10 +200,10 @@ public class DuelScrollIT extends ESIntegTestCase {
     private int createIndex(boolean singleShard) throws Exception {
         Settings.Builder settings = Settings.builder();
         if (singleShard) {
-            settings.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1);
+            settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         }
         // no replicas, as they might be ordered differently
-        settings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+        settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         // we need to control refreshes as they might take different merges into account
         settings.put("index.refresh_interval", -1);
 

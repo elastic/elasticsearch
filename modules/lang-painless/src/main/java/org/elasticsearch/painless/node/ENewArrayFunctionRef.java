@@ -19,28 +19,30 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
+import org.elasticsearch.painless.ir.NewArrayNode;
+import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a function reference.
  */
-public final class ENewArrayFunctionRef extends AExpression implements ILambda {
-    private final String type;
+public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
-    private SFunction function;
-    private FunctionRef ref;
+    protected final String type;
+
+    // TODO: #54015
     private String defPointer;
 
     public ENewArrayFunctionRef(Location location, String type) {
@@ -50,45 +52,78 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // do nothing
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(
-                location, type, scriptRoot.getNextSyntheticName("newarray"),
-                Collections.singletonList("int"), Collections.singletonList("size"),
-                new SBlock(location, Collections.singletonList(code)), true);
-        function.generateSignature(scriptRoot.getPainlessLookup());
-        function.extractVariables(null);
-        function.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
-                function.parameters, 0, scriptRoot.getCompilerSettings().getMaxLoopCounter()));
-        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
-        scriptRoot.getClassNode().addFunction(function);
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("A newly created array must be read from."));
+        }
 
-        if (expected == null) {
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+
+        if (clazz == null) {
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+        }
+
+        String name = scriptRoot.getNextSyntheticName("newarray");
+        scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+
+        FunctionRef ref;
+
+        if (input.expected == null) {
             ref = null;
-            actual = String.class;
-            defPointer = "Sthis." + function.name + ",0";
+            output.actual = String.class;
+            defPointer = "Sthis." + name + ",0";
         } else {
             defPointer = null;
             ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, expected, "this", function.name, 0);
-            actual = expected;
+                    location, input.expected, "this", name, 0);
+            output.actual = input.expected;
         }
-    }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (ref != null) {
-            methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(ref);
-        } else {
-            // push a null instruction as a placeholder for future lambda instructions
-            methodWriter.push((String)null);
-        }
+        VariableNode variableNode = new VariableNode();
+        variableNode.setLocation(location);
+        variableNode.setExpressionType(int.class);
+        variableNode.setName("size");
+
+        NewArrayNode newArrayNode = new NewArrayNode();
+        newArrayNode.setLocation(location);
+        newArrayNode.setExpressionType(clazz);
+        newArrayNode.setInitialize(false);
+
+        newArrayNode.addArgumentNode(variableNode);
+
+        ReturnNode returnNode = new ReturnNode();
+        returnNode.setLocation(location);
+        returnNode.setExpressionNode(newArrayNode);
+
+        BlockNode blockNode = new BlockNode();
+        blockNode.setAllEscape(true);
+        blockNode.setStatementCount(1);
+        blockNode.addStatementNode(returnNode);
+
+        FunctionNode functionNode = new FunctionNode();
+        functionNode.setMaxLoopCounter(0);
+        functionNode.setName(name);
+        functionNode.setReturnType(clazz);
+        functionNode.addTypeParameter(int.class);
+        functionNode.addParameterName("size");
+        functionNode.setStatic(true);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(true);
+        functionNode.setBlockNode(blockNode);
+
+        classNode.addFunctionNode(functionNode);
+
+        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
+
+        newArrayFuncRefNode.setLocation(location);
+        newArrayFuncRefNode.setExpressionType(output.actual);
+        newArrayFuncRefNode.setFuncRef(ref);
+
+        output.expressionNode = newArrayFuncRefNode;
+
+        return output;
     }
 
     @Override
@@ -97,12 +132,7 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    public Type[] getCaptures() {
-        return new Type[0]; // no captures
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type + "[]", "new");
+    public List<Class<?>> getCaptures() {
+        return Collections.emptyList();
     }
 }

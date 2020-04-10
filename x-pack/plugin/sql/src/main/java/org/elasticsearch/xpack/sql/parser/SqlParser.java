@@ -24,8 +24,8 @@ import org.antlr.v4.runtime.misc.Pair;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.util.Arrays;

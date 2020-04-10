@@ -38,8 +38,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -260,7 +260,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.sort.field", "rank")
             )
-            .addMapping("type1", "rank", "type=integer")
+            .setMapping("rank", "type=integer")
             .get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
@@ -415,7 +415,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
+        assertAcked(prepareCreate("idx").setMapping("num", "type=integer"));
         ensureGreen("idx");
 
         try {

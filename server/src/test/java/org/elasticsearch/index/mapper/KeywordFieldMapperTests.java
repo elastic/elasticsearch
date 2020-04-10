@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -128,6 +129,9 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+
+        // used by TermVectorsService
+        assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -340,10 +344,18 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
-    public void testNormalizer() throws IOException {
+    public void testCustomNormalizer() throws IOException {
+        checkLowercaseNormalizer("my_lowercase");
+    }
+    
+    public void testInBuiltNormalizer() throws IOException {
+        checkLowercaseNormalizer("lowercase");        
+    }       
+        
+    public void checkLowercaseNormalizer(String normalizerName) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
-                .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
+                .field("type", "keyword").field("normalizer", normalizerName).endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -510,12 +522,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        MappedFieldType fieldType = indexService.mapperService().fullName("field");
+        MappedFieldType fieldType = indexService.mapperService().fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello World"});
 
-        fieldType = indexService.mapperService().fullName("field_with_normalizer");
+        fieldType = indexService.mapperService().fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
@@ -537,12 +549,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        fieldType = indexService.mapperService().fullName("field");
+        fieldType = indexService.mapperService().fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
 
-        fieldType = indexService.mapperService().fullName("field_with_normalizer");
+        fieldType = indexService.mapperService().fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));

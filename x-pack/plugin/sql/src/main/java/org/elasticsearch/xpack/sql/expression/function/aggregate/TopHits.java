@@ -5,21 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.TypeResolutions;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNotFoldable;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNotFoldable;
 
 /**
  * Super class of Aggregation functions on field types other than numeric, that need to be
  * translated into an ES {@link org.elasticsearch.search.aggregations.metrics.TopHits} aggregation.
  */
-public abstract class TopHits extends AggregateFunction {
+public abstract class TopHits extends AggregateFunction implements OptionalArgument {
 
     TopHits(Source source, Expression field, Expression sortField) {
         super(source, field, sortField != null ? Collections.singletonList(sortField) : Collections.emptyList());

@@ -79,7 +79,7 @@ The operating modes of ILM:
 |===
 
 [float]
-=== Stopping ILM=
+=== Stopping ILM
 
 The ILM service can be paused such that no further steps will be executed
 using the <<ilm-stop,Stop API>>.

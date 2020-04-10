@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -99,7 +100,8 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                                   IndexNameExpressionResolver expressionResolver) {
             this.threadPool = threadPool;
             return List.of();
         }

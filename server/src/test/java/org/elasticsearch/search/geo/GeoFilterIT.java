@@ -31,7 +31,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -366,10 +366,10 @@ public class GeoFilterIT extends ESIntegTestCase {
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("country")
+                .startObject("_doc")
                 .startObject("properties")
                 .startObject("pin")
                 .field("type", "geo_point");
@@ -384,7 +384,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder).get();
+                .setMapping(xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {

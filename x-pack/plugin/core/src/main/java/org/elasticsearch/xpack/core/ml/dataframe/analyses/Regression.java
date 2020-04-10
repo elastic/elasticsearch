@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -47,10 +48,10 @@ public class Regression implements DataFrameAnalysis {
             lenient,
             a -> new Regression(
                 (String) a[0],
-                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5]),
-                (String) a[6],
-                (Double) a[7],
-                (Long) a[8]));
+                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6]),
+                (String) a[7],
+                (Double) a[8],
+                (Long) a[9]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -85,7 +86,7 @@ public class Regression implements DataFrameAnalysis {
     }
 
     public Regression(String dependentVariable) {
-        this(dependentVariable, new BoostedTreeParams(), null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null);
     }
 
     public Regression(StreamInput in) throws IOException {
@@ -116,8 +117,7 @@ public class Regression implements DataFrameAnalysis {
         return trainingPercent;
     }
 
-    @Nullable
-    public Long getRandomizeSeed() {
+    public long getRandomizeSeed() {
         return randomizeSeed;
     }
 
@@ -156,13 +156,14 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
+    public Map<String, Object> getParams(FieldInfo fieldInfo) {
         Map<String, Object> params = new HashMap<>();
         params.put(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         params.putAll(boostedTreeParams.getParams());
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
+        params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         return params;
     }
 
@@ -182,13 +183,19 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
-        return Collections.emptyMap();
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
+        return Collections.emptyList();
     }
 
     @Override
-    public Map<String, String> getExplicitlyMappedFields(String resultsFieldName) {
-        return Collections.singletonMap(resultsFieldName + "." + predictionFieldName, dependentVariable);
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + ".feature_importance", MapUtils.featureImportanceMapping());
+        // Prediction field should be always mapped as "double" rather than "float" in order to increase precision in case of
+        // high (over 10M) values of dependent variable.
+        additionalProperties.put(resultsFieldName + "." + predictionFieldName,
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        return additionalProperties;
     }
 
     @Override
@@ -220,7 +227,7 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(boostedTreeParams, that.boostedTreeParams)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && trainingPercent == that.trainingPercent
-            && randomizeSeed == randomizeSeed;
+            && randomizeSeed == that.randomizeSeed;
     }
 
     @Override

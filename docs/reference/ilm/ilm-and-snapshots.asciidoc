@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-and-snapshots]]
-== Restoring snapshots of managed indices
+== Restore a managed index
 
 When restoring a snapshot that contains indices managed by Index Lifecycle
 Management, the lifecycle will automatically continue to execute after the

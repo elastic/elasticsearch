@@ -20,10 +20,11 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,10 +34,13 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 /**
  * Encapsulates the parameters needed to fetch terms.
  */
 public class TermsLookup implements Writeable, ToXContentFragment {
+
     private final String index;
     private final String id;
     private final String path;
@@ -102,40 +106,22 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup",
+        args -> {
+            String index = (String) args[0];
+            String id = (String) args[1];
+            String path = (String) args[2];
+            return new TermsLookup(index, id, path);
+        });
+    static {
+        PARSER.declareString(constructorArg(), new ParseField("index"));
+        PARSER.declareString(constructorArg(), new ParseField("id"));
+        PARSER.declareString(constructorArg(), new ParseField("path"));
+        PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
+    }
+
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
-        String index = null;
-        String id = null;
-        String path = null;
-        String routing = null;
-        XContentParser.Token token;
-        String currentFieldName = "";
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                switch (currentFieldName) {
-                case "index":
-                    index = parser.text();
-                    break;
-                case "id":
-                    id = parser.text();
-                    break;
-                case "routing":
-                    routing = parser.textOrNull();
-                    break;
-                case "path":
-                    path = parser.text();
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME +
-                        "] query does not support [" + currentFieldName + "] within lookup element");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token ["
-                    + token + "] after [" + currentFieldName + "]");
-            }
-        }
-        return new TermsLookup(index, id, path).routing(routing);
+        return PARSER.parse(parser, null);
     }
 
     @Override

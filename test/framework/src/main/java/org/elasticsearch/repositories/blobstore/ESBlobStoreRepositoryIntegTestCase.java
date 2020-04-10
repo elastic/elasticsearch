@@ -30,7 +30,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -132,7 +132,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
                     int offset = scaledRandomIntBetween(0, buffer.length - 1);
                     int read = stream.read(buffer, offset, buffer.length - offset);
-                    target.append(new BytesRef(buffer, offset, read));
+                    if (read >= 0) {
+                        target.append(new BytesRef(buffer, offset, read));
+                    } else {
+                        fail("Expected [" + (data.length - target.length()) + "] more bytes to be readable but reached EOF");
+                    }
                 }
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
@@ -165,13 +169,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             generatedBlobs.put(name, (long) length);
             writeRandomBlob(container, name, length);
 
-            Map<String, BlobMetaData> blobs = container.listBlobs();
+            Map<String, BlobMetadata> blobs = container.listBlobs();
             assertThat(blobs.size(), CoreMatchers.equalTo(numberOfFooBlobs + numberOfBarBlobs));
             for (Map.Entry<String, Long> generated : generatedBlobs.entrySet()) {
-                BlobMetaData blobMetaData = blobs.get(generated.getKey());
-                assertThat(generated.getKey(), blobMetaData, CoreMatchers.notNullValue());
-                assertThat(blobMetaData.name(), CoreMatchers.equalTo(generated.getKey()));
-                assertThat(blobMetaData.length(), CoreMatchers.equalTo(generated.getValue()));
+                BlobMetadata blobMetadata = blobs.get(generated.getKey());
+                assertThat(generated.getKey(), blobMetadata, CoreMatchers.notNullValue());
+                assertThat(blobMetadata.name(), CoreMatchers.equalTo(generated.getKey()));
+                assertThat(blobMetadata.length(), CoreMatchers.equalTo(generated.getValue()));
             }
 
             assertThat(container.listBlobsByPrefix("foo-").size(), CoreMatchers.equalTo(numberOfFooBlobs));

@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -202,7 +203,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
-        assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
+        assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
     }
 
     public void testChangeFormat() throws IOException {
@@ -370,8 +371,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertThat(indexService.mapperService().fullName("release_date"), notNullValue());
-        assertFalse(indexService.mapperService().fullName("release_date").stored());
+        assertThat(indexService.mapperService().fieldType("release_date"), notNullValue());
+        assertFalse(indexService.mapperService().fieldType("release_date").stored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")

@@ -127,7 +127,11 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         .build();
                 } else {
                     String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
-                    q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
+                    if (parentId == null) {
+                        result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
+                        continue;
+                    }
+                    q = context.mapperService().fieldType(IdFieldMapper.NAME).termQuery(parentId, qsc);
                 }
 
                 Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);

@@ -72,10 +72,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
         }
 
+        int maxLinesPerMessage = 1;
         List<String> sampleLines = Arrays.asList(sample.split("\n"));
         List<String> sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
-        int prevMessageEndLineNumber = isHeaderInFile ? lineNumbers.get(0) : -1;
+        int prevMessageEndLineNumber = isHeaderInFile ? lineNumbers.get(0) : 0; // This is an exclusive end
         for (int index = isHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
@@ -83,8 +84,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             Util.filterListToMap(sampleRecord, columnNames,
                 trimFields ? row.stream().map(field -> (field == null) ? null : field.trim()).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
-            sampleMessages.add(
-                String.join("\n", sampleLines.subList(prevMessageEndLineNumber + 1, lineNumbers.get(index))));
+            sampleMessages.add(String.join("\n", sampleLines.subList(prevMessageEndLineNumber, lineNumber)));
+            maxLinesPerMessage = Math.max(maxLinesPerMessage, lineNumber - prevMessageEndLineNumber);
             prevMessageEndLineNumber = lineNumber;
         }
 
@@ -93,7 +94,17 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         // null to allow GC before timestamp search
         sampleLines = null;
 
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+
+        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
+
+        List<String> columnNamesList = Arrays.asList(columnNames);
         char delimiter = (char) csvPreference.getDelimiterChar();
+        char quoteChar = csvPreference.getQuoteChar();
+
+        Map<String, Object> csvProcessorSettings = makeCsvProcessorSettings("message", columnNamesList, delimiter, quoteChar, trimFields);
+
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.DELIMITED)
             .setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
@@ -102,8 +113,21 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setHasHeaderRow(isHeaderInFile)
             .setDelimiter(delimiter)
-            .setQuote(csvPreference.getQuoteChar())
-            .setColumnNames(Arrays.stream(columnNames).collect(Collectors.toList()));
+            .setQuote(quoteChar)
+            .setColumnNames(columnNamesList);
+
+        String quote = String.valueOf(quoteChar);
+        String twoQuotes = quote + quote;
+        String quotePattern = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+        String optQuotePattern = quotePattern + "?";
+        String delimiterPattern =
+            (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+        if (isHeaderInFile) {
+            structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
+                .map(column ->
+                    optQuotePattern + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuotePattern)
+                .collect(Collectors.joining(delimiterPattern)));
+        }
 
         if (trimFields) {
             structureBuilder.setShouldTrimFields(true);
@@ -112,39 +136,6 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         Tuple<String, TimestampFormatFinder> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides,
             timeoutChecker);
         if (timeField != null) {
-            String timeLineRegex = null;
-            StringBuilder builder = new StringBuilder("^");
-            // We make the assumption that the timestamp will be on the first line of each record.  Therefore, if the
-            // timestamp is the last column then either our assumption is wrong (and the approach will completely
-            // break down) or else every record is on a single line and there's no point creating a multiline config.
-            // This is why the loop excludes the last column.
-            for (String column : Arrays.asList(columnNames).subList(0, columnNames.length - 1)) {
-                if (timeField.v1().equals(column)) {
-                    builder.append("\"?");
-                    String simpleTimePattern = timeField.v2().getSimplePattern().pattern();
-                    builder.append(simpleTimePattern.startsWith("\\b") ? simpleTimePattern.substring(2) : simpleTimePattern);
-                    timeLineRegex = builder.toString();
-                    break;
-                } else {
-                    builder.append(".*?");
-                    if (delimiter == '\t') {
-                        builder.append("\\t");
-                    } else {
-                        builder.append(delimiter);
-                    }
-                }
-            }
-
-            if (isHeaderInFile) {
-                String quote = String.valueOf(csvPreference.getQuoteChar());
-                String twoQuotes = quote + quote;
-                String optQuote = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + "?";
-                String delimiterMatcher =
-                    (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
-                structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
-                    .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuote)
-                    .collect(Collectors.joining(delimiterMatcher)));
-            }
 
             boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
 
@@ -152,17 +143,17 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timeField.v1(),
-                    timeField.v2().getJavaTimestampFormats(), needClientTimeZone))
-                .setMultilineStartPattern(timeLineRegex);
-        }
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+                    mappings, timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone))
+                .setMultilineStartPattern(makeMultilineStartPattern(explanation, columnNamesList, maxLinesPerMessage, delimiterPattern,
+                    quotePattern, mappings, timeField.v1(), timeField.v2()));
 
-        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
-
-        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
-        if (timeField != null) {
             mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
+        } else {
+            structureBuilder.setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(),
+                csvProcessorSettings, mappings, null, null, false));
+            structureBuilder.setMultilineStartPattern(makeMultilineStartPattern(explanation, columnNamesList, maxLinesPerMessage,
+                delimiterPattern, quotePattern, mappings, null, null));
         }
 
         if (mappingsAndFieldStats.v2() != null) {
@@ -578,5 +569,105 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
 
     private static boolean notUnexpectedEndOfFile(SuperCsvException e) {
         return e.getMessage().startsWith("unexpected end of file while reading quoted column") == false;
+    }
+
+    static Map<String, Object> makeCsvProcessorSettings(String field, List<String> targetFields, char separator, char quote, boolean trim) {
+
+        Map<String, Object> csvProcessorSettings = new LinkedHashMap<>();
+        csvProcessorSettings.put("field", field);
+        csvProcessorSettings.put("target_fields", Collections.unmodifiableList(targetFields));
+        if (separator != ',') {
+            // The value must be String, not Character, as XContent only works with String
+            csvProcessorSettings.put("separator", String.valueOf(separator));
+        }
+        if (quote != '"') {
+            // The value must be String, not Character, as XContent only works with String
+            csvProcessorSettings.put("quote", String.valueOf(quote));
+        }
+        csvProcessorSettings.put("ignore_missing", false);
+        if (trim) {
+            csvProcessorSettings.put("trim", true);
+        }
+        return Collections.unmodifiableMap(csvProcessorSettings);
+    }
+
+    /**
+     * The multi-line start pattern is based on the first field in the line that is boolean, numeric
+     * or the detected timestamp, and consists of a pattern matching that field, preceded by wildcards
+     * to match any prior fields and to match the delimiters in between them.
+     *
+     * This is based on the observation that a boolean, numeric or timestamp field will not contain a
+     * newline.
+     *
+     * The approach works best when the chosen field is early in each record, ideally the very first
+     * field.  It doesn't work when fields prior to the chosen field contain newlines in some of the
+     * records.
+     */
+    static String makeMultilineStartPattern(List<String> explanation, List<String> columnNames, int maxLinesPerMessage,
+                                            String delimiterPattern, String quotePattern, Map<String, Object> mappings,
+                                            String timeFieldName, TimestampFormatFinder timeFieldFormat) {
+
+        assert columnNames.isEmpty() == false;
+        assert maxLinesPerMessage > 0;
+        assert (timeFieldName == null) == (timeFieldFormat == null);
+
+        // This is the easy case: a file where there are no multi-line fields
+        if (maxLinesPerMessage == 1) {
+            explanation.add("Not creating a multi-line start pattern as no sampled message spanned multiple lines");
+            return null;
+        }
+
+        StringBuilder builder = new StringBuilder("^");
+        // Look for a field early in the line that cannot be a multi-line field based on the type we've determined for
+        // it, and create a pattern that matches this field with the appropriate number of delimiters before it.
+        // There is no point doing this for the last field on the line, so this is why the loop excludes the last column.
+        for (String columnName : columnNames.subList(0, columnNames.size() - 1)) {
+            if (columnName.equals(timeFieldName)) {
+                builder.append(quotePattern).append("?");
+                String simpleTimePattern = timeFieldFormat.getSimplePattern().pattern();
+                builder.append(simpleTimePattern.startsWith("\\b") ? simpleTimePattern.substring(2) : simpleTimePattern);
+                explanation.add("Created a multi-line start pattern based on timestamp column [" + columnName + "]");
+                return builder.toString();
+            }
+            Object columnMapping = mappings.get(columnName);
+            if (columnMapping instanceof Map) {
+                String type = (String) ((Map<?, ?>) columnMapping).get(FileStructureUtils.MAPPING_TYPE_SETTING);
+                if (type != null) {
+                    String columnPattern;
+                    switch (type) {
+                        case "boolean":
+                            columnPattern = "(?:true|false)";
+                            break;
+                        case "byte":
+                        case "short":
+                        case "integer":
+                        case "long":
+                            columnPattern = "[+-]?\\d+";
+                            break;
+                        case "half_float":
+                        case "float":
+                        case "double":
+                            columnPattern = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
+                            break;
+                        default:
+                            columnPattern = null;
+                            break;
+                    }
+                    if (columnPattern != null) {
+                        builder.append("(?:").append(columnPattern).append("|")
+                            .append(quotePattern).append(columnPattern).append(quotePattern).append(")")
+                            .append(delimiterPattern);
+                        explanation.add("Created a multi-line start pattern based on [" + type + "] column [" + columnName + "]");
+                        return builder.toString();
+                    }
+                }
+            }
+            builder.append(".*?").append(delimiterPattern);
+        }
+        // TODO: if this happens a lot then we should try looking for the a multi-line END pattern instead of a start pattern.
+        // But this would require changing the find_file_structure response, and the file upload UI, and would make creating Filebeat
+        // configs from the find_file_structure response more complex, so let's wait to see if there's significant demand.
+        explanation.add("Failed to create a suitable multi-line start pattern");
+        return null;
     }
 }

@@ -1,35 +1,12 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
   testCompile project(':x-pack:qa')
-}
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  dependsOn configurations.restSpec
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
-    include 'rest-api-spec/api/**'
-  }
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
@@ -53,11 +30,9 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
-
-    javaHome = BuildParams.runtimeJavaHome
   }
 
-  tasks.withType(RestTestRunnerTask).matching { it.name.startsWith(baseName) }.configureEach {
+  tasks.withType(RestTestRunnerTask).matching { it.name.startsWith(baseName) }.all {
     useCluster testClusters."${baseName}-leader"
     useCluster testClusters."${baseName}-follower"
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
@@ -79,27 +54,27 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
   for (kind in ["follower", "leader"]) {
     // Attention!! Groovy trap: do not pass `kind` to a closure
 
-    tasks.register("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
       ext.kindExt = kind
     }
 
-    tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'one_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
       ext.kindExt = kind
     }
 
-    tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'two_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
       ext.kindExt = kind
     }
 
-    tasks.register("${baseName}#${kind}#upgradedClusterTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#upgradedClusterTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
@@ -115,22 +90,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     dependsOn "${baseName}#follower#upgradedClusterTest"
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#leader#upgradedClusterTest"
   }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn("${baseName}#bwcTest")
-  }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-check.dependsOn(bwcTestSnapshots)
-
-test.enabled = false

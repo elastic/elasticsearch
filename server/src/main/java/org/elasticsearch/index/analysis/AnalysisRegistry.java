@@ -19,11 +19,12 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -95,14 +96,14 @@ public final class AnalysisRegistry implements Closeable {
     private static Settings getSettingsFromIndexSettings(IndexSettings indexSettings, String groupName) {
         Settings settings = indexSettings.getSettings().getAsSettings(groupName);
         if (settings.isEmpty()) {
-            settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
+            settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
         }
         return settings;
     }
 
     private static final IndexSettings NO_INDEX_SETTINGS = new IndexSettings(
-        IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE)
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build(),
@@ -292,7 +293,6 @@ public final class AnalysisRegistry implements Closeable {
 
     private Map<String, AnalyzerProvider<?>> buildNormalizerFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> normalizersSettings = indexSettings.getSettings().getGroups("index.analysis.normalizer");
-        // TODO: Have pre-built normalizers
         return buildMapping(Component.NORMALIZER, indexSettings, normalizersSettings, normalizers, Collections.emptyMap());
     }
 
@@ -383,7 +383,7 @@ public final class AnalysisRegistry implements Closeable {
     private <T> Map<String, T> buildMapping(Component component, IndexSettings settings, Map<String, Settings> settingsMap,
                     Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
                     Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {
-        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
+        Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();
@@ -536,6 +536,10 @@ public final class AnalysisRegistry implements Closeable {
                 tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
+        for (Analyzer analyzer : normalizers.values()) {
+            analyzer.normalize("", ""); // check for deprecations
+        }
+
         if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
             analyzers.put(DEFAULT_ANALYZER_NAME,
                     produceAnalyzer(DEFAULT_ANALYZER_NAME,
@@ -599,6 +603,7 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
+        checkVersions(analyzer);
         return analyzer;
     }
 
@@ -625,5 +630,21 @@ public final class AnalysisRegistry implements Closeable {
         }
         NamedAnalyzer normalizer = new NamedAnalyzer(name, normalizerFactory.scope(), normalizerF);
         normalizers.put(name, normalizer);
+    }
+
+    // Some analysis components emit deprecation warnings or throw exceptions when used
+    // with the wrong version of elasticsearch.  These exceptions and warnings are
+    // normally thrown when tokenstreams are constructed, which unless we build a
+    // tokenstream up-front does not happen until a document is indexed.  In order to
+    // surface these warnings or exceptions as early as possible, we build an empty
+    // tokenstream and pull it through an Analyzer at construction time.
+    private static void checkVersions(Analyzer analyzer) {
+        try (TokenStream ts = analyzer.tokenStream("", "")) {
+            ts.reset();
+            while (ts.incrementToken()) {}
+            ts.end();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

@@ -70,7 +70,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleGet() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
+                .setMapping("field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null))));
         ensureGreen();
@@ -219,7 +219,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleMultiGet() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
-                .addMapping("type1", "field", "type=keyword,store=true")
+                .setMapping("field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
@@ -523,7 +523,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").startObject("properties")
                         .startObject("field2").field("type", "text").endObject()
                         .endObject().endObject()
@@ -552,7 +552,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("my-index")
             // multi types in 5.6
             .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("my-type", jsonBuilder().startObject().startObject("my-type").startObject("properties")
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                                 .startObject("field3").field("type", "object").startObject("properties")

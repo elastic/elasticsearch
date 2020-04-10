@@ -31,7 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
@@ -218,6 +218,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             }
         );
     }
+
+    public void testUnmappedMissing() throws IOException {
+        testBothCases(DEFAULT_QUERY, DATES_WITH_TIME,
+            aggregation -> aggregation.setNumBuckets(10).field("wrong_field").missing("2017-12-12"),
+            histogram -> {
+                assertEquals(1, histogram.getBuckets().size());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        );
+    }
+
 
     public void testIntervalYear() throws IOException {
 
@@ -779,7 +790,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         final Settings nodeSettings = Settings.builder()
             .put("search.max_buckets", 25000).build();
         return new IndexSettings(
-            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())

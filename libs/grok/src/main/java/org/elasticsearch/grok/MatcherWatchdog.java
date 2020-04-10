@@ -128,7 +128,7 @@ public interface MatcherWatchdog {
         public void register(Matcher matcher) {
             registered.getAndIncrement();
             Long previousValue = registry.put(matcher, relativeTimeSupplier.getAsLong());
-            if (running.compareAndSet(false, true) == true) {
+            if (running.compareAndSet(false, true)) {
                 scheduler.accept(interval, this::interruptLongRunningExecutions);
             }
             assert previousValue == null;

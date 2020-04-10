@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 
 import java.util.BitSet;

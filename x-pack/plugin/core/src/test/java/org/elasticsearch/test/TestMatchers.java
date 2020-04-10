@@ -20,6 +20,10 @@ import java.util.regex.Pattern;
 
 public class TestMatchers extends Matchers {
 
+    /**
+     * @deprecated Use {@link FileMatchers#pathExists}
+     */
+    @Deprecated
     public static Matcher<Path> pathExists(Path path, LinkOption... options) {
         return new CustomMatcher<Path>("Path " + path + " exists") {
             @Override

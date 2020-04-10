@@ -38,6 +38,16 @@ PUT /_template/custom_monitoring
 }
 ----------------------------------
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/custom_monitoring
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 IMPORTANT: Only set the `number_of_shards` and `number_of_replicas` in the
 settings section. Overriding other monitoring template settings could cause
 your monitoring dashboards to stop working correctly.

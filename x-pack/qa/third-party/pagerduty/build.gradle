@@ -9,11 +9,18 @@ dependencies {
 
 String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')
 
+restResources {
+  restApi {
+    includeXpack 'watcher'
+  }
+}
+
 if (!pagerDutyServiceKey) {
   integTest.enabled = false
   testingConventions.enabled = false
 } else {
   testClusters.integTest {
+    testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'

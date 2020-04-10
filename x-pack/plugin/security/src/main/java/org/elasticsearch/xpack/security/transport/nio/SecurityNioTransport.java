@@ -126,6 +126,11 @@ public class SecurityNioTransport extends NioTransport {
         };
     }
 
+    @Override
+    public boolean isSecure() {
+        return this.sslEnabled;
+    }
+
     private class SecurityTcpChannelFactory extends TcpChannelFactory {
 
         private final String profileName;
@@ -140,7 +145,7 @@ public class SecurityNioTransport extends NioTransport {
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
+            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, pageCacheRecycler, SecurityNioTransport.this);
             final NioChannelHandler handler;
             if (ipFilter != null) {
                 handler = new NioIPFilter(readWriteHandler, socketConfig.getRemoteAddress(), ipFilter, profileName);

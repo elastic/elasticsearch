@@ -155,7 +155,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
         String delimiter = createRandomDelimiter(tokens);
         String queryString = createString(tokens, payloads, encoding, delimiter.charAt(0));
         //create the mapping
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
                 .startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
                 .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
         Settings setting =  Settings.builder()
@@ -164,7 +164,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             .put("index.analysis.filter.my_delimited_payload.delimiter", delimiter)
             .put("index.analysis.filter.my_delimited_payload.encoding", encodingString)
             .put("index.analysis.filter.my_delimited_payload.type", "mock_payload_filter").build();
-        createIndex("test", setting, "type1", mapping);
+        createIndex("test", setting, mapping);
 
         client().prepareIndex("test").setId(Integer.toString(1))
                 .setSource(jsonBuilder().startObject().field("field", queryString).endObject()).execute().actionGet();

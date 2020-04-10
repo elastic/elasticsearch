@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,8 @@ public class TransportStartTransformActionDeprecated extends TransportStartTrans
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        Settings settings
+        Settings settings,
+        IngestService ingestService
     ) {
         super(
             StartTransformActionDeprecated.NAME,
@@ -46,7 +48,8 @@ public class TransportStartTransformActionDeprecated extends TransportStartTrans
             transformServices,
             persistentTasksService,
             client,
-            settings
+            settings,
+            ingestService
         );
     }
 }

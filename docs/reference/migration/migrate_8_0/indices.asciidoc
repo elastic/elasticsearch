@@ -20,3 +20,34 @@ The `index.force_memory_term_dictionary` setting was introduced in 7.0 as a
 temporary measure to allow users to opt-out of the optimization that leaves the
 term dictionary on disk when appropriate. This optimization is now mandatory
 and the setting is removed.
+
+[float]
+==== Remove support for `template` in put index template requests
+
+In 6.0, we deprecated the `template` field in put index template requests
+in favor of using `index_patterns`. Support for the `template` field is now
+removed in 8.0.
+
+
+[float]
+==== Remove synced flush
+
+Synced flush was deprecated in 7.6 and is removed in 8.0. Use a regular flush
+instead as it has the same effect as a synced flush in 7.6 and later.
+
+
+[float]
+==== Indices with soft deletes disabled
+
+Creating indices with soft deletes disabled was deprecated in 7.6 and
+is no longer supported in 8.0. The setting index.soft_deletes.enabled
+can no longer be set to false. As the setting defaults to true, simply
+leave the setting unset.
+
+[float]
+==== Translog retention settings are no longer supported
+
+Translog retention settings `index.translog.retention.size` and
+`index.translog.retention.age` were effectively ignored in 7.4,
+deprecated in 7.7, and removed in 8.0 in favor of
+<<index-modules-history-retention,soft deletes>>.

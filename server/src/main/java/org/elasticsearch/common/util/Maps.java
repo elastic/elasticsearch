@@ -99,4 +99,23 @@ public class Maps {
         return map;
     }
 
+    /**
+     * Returns {@code true} if the two specified maps are equal to one another. Two maps are considered equal if both represent identical
+     * mappings where values are checked with Objects.deepEquals. The primary use case is to check if two maps with array values are equal.
+     *
+     * @param left  one map to be tested for equality
+     * @param right the other map to be tested for equality
+     * @return {@code true} if the two maps are equal
+     */
+    public static <K, V> boolean deepEquals(Map<K, V> left, Map<K, V> right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        return left.entrySet().stream()
+                .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
+    }
+
 }

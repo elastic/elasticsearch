@@ -22,14 +22,14 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  */
 public class CompositeAggCursor implements Cursor {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(CompositeAggCursor.class);
 
     public static final String NAME = "c";
 
@@ -167,6 +167,9 @@ public class CompositeAggCursor implements Cursor {
             ActionListener<Page> listener,
             Schema schema) {
         
+        if (log.isTraceEnabled()) {
+            Querier.logSearchResponse(response, log);
+        }
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
             // retry

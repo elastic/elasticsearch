@@ -30,6 +30,9 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -163,10 +166,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
@@ -1352,21 +1351,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request) {
-            return execute(SyncedFlushAction.INSTANCE, request);
-        }
-
-        @Override
-        public void syncedFlush(SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
-            execute(SyncedFlushAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SyncedFlushRequestBuilder prepareSyncedFlush(String... indices) {
-            return new SyncedFlushRequestBuilder(this, SyncedFlushAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
         public void getMappings(GetMappingsRequest request, ActionListener<GetMappingsResponse> listener) {
             execute(GetMappingsAction.INSTANCE, request, listener);
         }
@@ -1675,6 +1659,36 @@ public abstract class AbstractClient implements Client {
         @Override
         public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
             execute(GetSettingsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public void createDataStream(CreateDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+            execute(CreateDataStreamAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> createDataStream(CreateDataStreamAction.Request request) {
+            return execute(CreateDataStreamAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteDataStream(DeleteDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteDataStreamAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request) {
+            return execute(DeleteDataStreamAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener) {
+            execute(GetDataStreamsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request) {
+            return execute(GetDataStreamsAction.INSTANCE, request);
         }
     }
 

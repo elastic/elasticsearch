@@ -162,10 +162,6 @@ teardown:
 
 ---
 "Test All Indexes Lifecycle Explain":
-  - skip:
-      reason: https://github.com/elastic/elasticsearch/issues/47275
-      version: "6.7.0 - "
-
   - do:
       ilm.explain_lifecycle:
         index: "*"
@@ -218,7 +214,6 @@ teardown:
 
   - match: { indices.index_with_policy_that_doesnt_exist.index: "index_with_policy_that_doesnt_exist" }
   - match: { indices.index_with_policy_that_doesnt_exist.policy: "a_policy_that_doesnt_exist" }
-  - match: { indices.index_with_policy_that_doesnt_exist.step_info.reason: "policy [a_policy_that_doesnt_exist] does not exist" }
   - is_true: indices.index_with_policy_that_doesnt_exist.managed
   - is_false: indices.index_with_policy_that_doesnt_exist.phase
   - is_false: indices.index_with_policy_that_doesnt_exist.action

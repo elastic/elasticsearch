@@ -41,7 +41,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -69,6 +69,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -78,7 +79,6 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -115,7 +115,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -366,8 +365,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
-        // Some tests make use of scripting quite a bit, so increase the limit for integration tests
-        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m");
         builder.put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), random.nextBoolean());
         if (TEST_NIGHTLY) {
             builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
@@ -470,6 +467,8 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             builder.put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(),
                     timeValueSeconds(RandomNumbers.randomIntBetween(random, 10, 30)).getStringRep());
+            builder.put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(),
+                    RandomNumbers.randomIntBetween(random, 1, 10));
         }
 
         // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
@@ -496,10 +495,10 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 0, 2000));
+            builder.put(ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(),
+            builder.put(ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(),
                     timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
         }
 
@@ -657,7 +656,7 @@ public final class InternalTestCluster extends TestCluster {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
             return nodeAndClient;
         }
-        assert reuseExisting == true || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
+        assert reuseExisting || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
 
         SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {
@@ -1141,38 +1140,8 @@ public final class InternalTestCluster extends TestCluster {
         // and not all docs have been purged after the test) and inherit from
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertNoPendingIndexOperations();
-        //check that shards that have same sync id also contain same number of documents
-        assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
         assertNoSnapshottedIndexCommit();
-    }
-
-    private void assertSameSyncIdSameDocs() {
-        Map<String, Long> docsOnShards = new HashMap<>();
-        final Collection<NodeAndClient> nodesAndClients = nodes.values();
-        for (NodeAndClient nodeAndClient : nodesAndClients) {
-            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard indexShard : indexService) {
-                    try {
-                        CommitStats commitStats = indexShard.commitStats();
-                        String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
-                        if (syncId != null) {
-                            long liveDocsOnShard = commitStats.getNumDocs();
-                            if (docsOnShards.get(syncId) != null) {
-                                assertThat("sync id is equal but number of docs does not match on node "
-                                    + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got "
-                                    + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
-                            } else {
-                                docsOnShards.put(syncId, liveDocsOnShard);
-                            }
-                        }
-                    } catch (AlreadyClosedException e) {
-                        // the engine is closed or if the shard is recovering
-                    }
-                }
-            }
-        }
     }
 
     private void assertNoPendingIndexOperations() throws Exception {
@@ -1548,7 +1517,9 @@ public final class InternalTestCluster extends TestCluster {
             } catch (InterruptedException e) {
                 throw new AssertionError("interrupted while starting nodes", e);
             } catch (ExecutionException e) {
-                throw new RuntimeException("failed to start nodes", e);
+                RuntimeException re = FutureUtils.rethrowExecutionException(e);
+                re.addSuppressed(new RuntimeException("failed to start nodes"));
+                throw re;
             }
             nodeAndClients.forEach(this::publishNode);
 
@@ -2104,7 +2075,7 @@ public final class InternalTestCluster extends TestCluster {
             ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
-                assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1),
+                assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
                         greaterThan(shard));
                 OperationRouting operationRouting = clusterService.operationRouting();
                 while (true) {
@@ -2248,7 +2219,7 @@ public final class InternalTestCluster extends TestCluster {
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(flags,
-                        false, false, false, false, false, false, false, false, false, false, false, false);
+                        false, false, false, false, false, false, false, false, false, false, false, false, false);
                 assertThat("Fielddata size must be 0 on node: " + stats.getNode(),
                         stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
                 assertThat("Query cache size must be 0 on node: " + stats.getNode(),

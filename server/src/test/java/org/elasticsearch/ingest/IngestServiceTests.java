@@ -39,7 +39,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -60,6 +60,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
+import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
@@ -111,10 +112,18 @@ public class IngestServiceTests extends ESTestCase {
         }
     };
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void setup(){
+        threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(threadPool.generic()).thenReturn(executorService);
+        when(threadPool.executor(anyString())).thenReturn(executorService);
+    }
     public void testIngestPlugin() {
-        ThreadPool tp = mock(ThreadPool.class);
         Client client = mock(Client.class);
-        IngestService ingestService = new IngestService(mock(ClusterService.class), tp, null, null,
+        IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(DUMMY_PLUGIN), client);
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -122,19 +131,15 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testIngestPluginDuplicate() {
-        ThreadPool tp = mock(ThreadPool.class);
         Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new IngestService(mock(ClusterService.class), tp, null, null,
+            new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN), client));
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
 
     public void testExecuteIndexPipelineDoesNotExist() {
-        ThreadPool threadPool = mock(ThreadPool.class);
         Client client = mock(Client.class);
-        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(anyString())).thenReturn(executorService);
         IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(DUMMY_PLUGIN), client);
         final IndexRequest indexRequest =
@@ -169,7 +174,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.pipelines().size(), is(1));
@@ -249,7 +254,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder()
             .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
@@ -478,7 +483,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder()
             .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), notNullValue());
@@ -525,7 +530,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+        clusterState = ClusterState.builder(clusterState).metadata(Metadata.builder()
             .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), notNullValue());
@@ -724,7 +729,7 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
-    public void testExecutePropagateAllMetaDataUpdates() throws Exception {
+    public void testExecutePropagateAllMetadataUpdates() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
             "mock", (factories, tag, config) -> processor));
@@ -738,13 +743,13 @@ public class IngestServiceTests extends ESTestCase {
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
-            for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
-                if (metaData == IngestDocument.MetaData.VERSION) {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), newVersion);
-                } else if (metaData == IngestDocument.MetaData.VERSION_TYPE) {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), versionType);
+            for (IngestDocument.Metadata metadata : IngestDocument.Metadata.values()) {
+                if (metadata == IngestDocument.Metadata.VERSION) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), newVersion);
+                } else if (metadata == IngestDocument.Metadata.VERSION_TYPE) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), versionType);
                 } else {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
+                    ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
             }
 
@@ -1188,10 +1193,9 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         // Create ingest service:
-        ThreadPool tp = mock(ThreadPool.class);
         Client client = mock(Client.class);
         IngestService ingestService =
-            new IngestService(mock(ClusterService.class), tp, null, null, null, List.of(testPlugin), client);
+            new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(testPlugin), client);
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
@@ -1259,9 +1263,11 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-        ThreadPool threadPool = mock(ThreadPool.class);
+
         Client client = mock(Client.class);
-        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(new IngestPlugin() {

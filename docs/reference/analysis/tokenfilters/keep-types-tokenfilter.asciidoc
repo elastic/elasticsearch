@@ -26,7 +26,7 @@ type.
 ====
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/core/TypeTokenFilter.html[TypeTokenFilter].
+{lucene-analysis-docs}/core/TypeTokenFilter.html[TypeTokenFilter].
 
 [[analysis-keep-types-tokenfilter-analyze-include-ex]]
 ==== Include example

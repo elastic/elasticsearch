@@ -285,11 +285,12 @@ public class CompoundProcessorTests extends ESTestCase {
     public void testFailureProcessorIsInvokedOnFailure() {
         TestProcessor onFailureProcessor = new TestProcessor(null, "on_failure", ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
-            assertThat(ingestMetadata.entrySet(), hasSize(4));
+            assertThat(ingestMetadata.entrySet(), hasSize(5));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("failure!"));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("test-processor"));
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD), nullValue());
             assertThat(ingestMetadata.get(CompoundProcessor.ON_FAILURE_PIPELINE_FIELD), equalTo("2"));
+            assertThat(ingestMetadata.get("pipeline"), equalTo("1"));
         });
 
         Pipeline pipeline2 = new Pipeline("2", null, null, new CompoundProcessor(new TestProcessor(new RuntimeException("failure!"))));

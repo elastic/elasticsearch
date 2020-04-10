@@ -87,7 +87,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
+        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }

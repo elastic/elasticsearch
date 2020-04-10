@@ -24,8 +24,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
@@ -37,12 +37,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -73,9 +71,8 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     Query outFilter,
                                     ValuesSource.Bytes.WithOrdinals valuesSource,
                                     long maxOrd,
-                                    List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +

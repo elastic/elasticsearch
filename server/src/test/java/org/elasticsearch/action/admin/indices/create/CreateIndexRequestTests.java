@@ -97,9 +97,9 @@ public class CreateIndexRequestTests extends ESTestCase {
                     .endObject()
                 .endObject()
             .endObject().endObject();
-            request1.mapping("type1", builder);
+            request1.mapping(builder);
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("type1")
+            builder.startObject().startObject("_doc")
                 .startObject("properties")
                     .startObject("field1")
                         .field("type", "text")
@@ -113,7 +113,7 @@ public class CreateIndexRequestTests extends ESTestCase {
                     .endObject()
                 .endObject()
             .endObject().endObject();
-            request2.mapping("type1", builder);
+            request2.mapping(builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
     }

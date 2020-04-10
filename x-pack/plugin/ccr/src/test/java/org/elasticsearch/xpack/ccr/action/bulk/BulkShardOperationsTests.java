@@ -13,8 +13,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -41,8 +39,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
 
     // test that we use the primary term on the follower when applying operations from the leader
     public void testPrimaryTermFromFollower() throws IOException {
-        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build();
         final IndexShard followerPrimary = newStartedShard(true, settings, new FollowingEngineFactory());
 
         // we use this primary on the operations yet we expect the applied operations to have the primary term of the follower
@@ -76,7 +73,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     operations,
                 numOps - 1, followerPrimary, logger);
 
-        try (Translog.Snapshot snapshot = followerPrimary.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
+        try (Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
@@ -92,8 +89,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
     }
 
     public void testPrimaryResultIncludeOnlyAppliedOperations() throws Exception {
-        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build();
         final IndexShard oldPrimary = newStartedShard(true, settings, new FollowingEngineFactory());
         final long oldPrimaryTerm = oldPrimary.getOperationPrimaryTerm();
         long seqno = 0;

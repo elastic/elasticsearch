@@ -1,72 +1,35 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-management]]
-= Managing the index lifecycle
+= Manage the index lifecycle
 
 [partintro]
 --
+You can configure {ilm} ({ilm-init}) policies to automatically manage indices according to
+your performance, resiliency, and retention requirements. 
+For example, you could use {ilm-init} to:
 
-The <<index-lifecycle-management-api,{ilm} ({ilm-init}) APIs>> enable you to
-automate how you want to manage your indices over time. Rather than simply
-performing management actions on your indices on a set schedule, you can base
-actions on other factors such as shard size and performance requirements.
+* Create a new index each day, week, or month and archive previous ones
+* Spin up a new index when an index reaches a certain size
+* Delete stale indices to enforce data retention standards
 
-You control how indices are handled as they age by attaching a
-lifecycle policy to the index template used to create them. You can update
-the policy to modify the lifecycle of both new and existing indices.
+[TIP]
+To automatically back up your indices and manage snapshots, 
+use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
 
-For time series indices, there are four stages in the index lifecycle:
-
-* Hot--the index is actively being updated and queried.
-* Warm--the index is no longer being updated, but is still being queried.
-* Cold--the index is no longer being updated and is seldom queried. The
-information still needs to be searchable, but it's okay if those queries are
-slower.
-* Delete--the index is no longer needed and can safely be deleted.
-
-The lifecycle policy governs how the index transitions through these stages and
-the actions that are performed on the index at each stage. The policy can
-specify:
-
-* The maximum size or age at which you want to roll over to a new index.
-* The point at which the index is no longer being updated and the number of
-primary shards can be reduced.
-* When to force a merge to permanently delete documents marked for deletion.
-* The point at which the index can be moved to less performant hardware.
-* The point at which the availability is not as critical and the number of
-replicas can be reduced.
-* When the index can be safely deleted.
-
-For example, if you are indexing metrics data from a fleet of ATMs into
-Elasticsearch, you might define a policy that says:
-
-. When the index reaches 50GB, roll over to a new index.
-. Move the old index into the warm stage, mark it read only, and shrink it down
-to a single shard.
-. After 7 days, move the index into the cold stage and move it to less expensive
-hardware.
-. Delete the index once the required 30 day retention period is reached.
-
-*Snapshot Lifecycle Management*
-
-ILM itself does allow managing indices, however, managing snapshots for a set of
-indices is outside of the scope of an index-level policy. Instead, there are
-separate APIs for managing snapshot lifecycles. Please see the
-<<snapshot-lifecycle-management-api,Snapshot Lifecycle Management>>
-documentation for information about configuring snapshots.
-
-See <<getting-started-snapshot-lifecycle-management,getting started with SLM>>.
-
-[IMPORTANT]
-===========================
-{ilm} does not support mixed-version cluster usage. Although it
-may be possible to create such new policies against
-newer-versioned nodes, there is no guarantee they will
-work as intended. New policies using new actions that
-do not exist in the oldest versioned node will cause errors.
-===========================
+* <<overview-index-lifecycle-management>>
+* <<getting-started-index-lifecycle-management>>
+* <<ilm-policy-definition>>
+* <<set-up-lifecycle-policy>>
+* <<update-lifecycle-policy>>
+* <<index-lifecycle-error-handling>>
+* <<start-stop-ilm>>
+* <<using-policies-rollover>>
+* <<ilm-with-existing-indices>>
+* <<index-lifecycle-and-snapshots>>
 
 --
+include::overview-ilm.asciidoc[]
 
 include::getting-started-ilm.asciidoc[]
 
@@ -74,18 +37,15 @@ include::policy-definitions.asciidoc[]
 
 include::set-up-lifecycle-policy.asciidoc[]
 
-include::using-policies-rollover.asciidoc[]
-
 include::update-lifecycle-policy.asciidoc[]
 
 include::error-handling.asciidoc[]
 
-include::ilm-and-snapshots.asciidoc[]
-
 include::start-stop-ilm.asciidoc[]
+
+include::using-policies-rollover.asciidoc[]
 
 include::ilm-with-existing-indices.asciidoc[]
 
-include::getting-started-slm.asciidoc[]
+include::ilm-and-snapshots.asciidoc[]
 
-include::slm-retention.asciidoc[]

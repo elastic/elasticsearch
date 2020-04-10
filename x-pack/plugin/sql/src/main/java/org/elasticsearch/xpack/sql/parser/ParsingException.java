@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.sql.ClientSqlException;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.SqlClientException;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-public class ParsingException extends ClientSqlException {
+public class ParsingException extends SqlClientException {
     private final int line;
     private final int charPositionInLine;
 

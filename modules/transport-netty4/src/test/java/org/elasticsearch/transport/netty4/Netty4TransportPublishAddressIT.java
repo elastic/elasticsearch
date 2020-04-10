@@ -76,7 +76,7 @@ public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
                 assertThat(boundTransportAddress.boundAddresses().length, greaterThan(1));
                 for (TransportAddress boundAddress : boundTransportAddress.boundAddresses()) {
                     assertThat(boundAddress, instanceOf(TransportAddress.class));
-                    TransportAddress inetBoundAddress = (TransportAddress) boundAddress;
+                    TransportAddress inetBoundAddress = boundAddress;
                     if (inetBoundAddress.address().getAddress() instanceof Inet4Address) {
                         // IPv4 address is preferred publish address for _local_
                         assertThat(inetBoundAddress.getPort(), equalTo(boundTransportAddress.publishAddress().getPort()));

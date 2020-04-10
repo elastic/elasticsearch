@@ -246,6 +246,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
 
+  // Setup all required JDKs
+  project.jdks {
+    ['darwin', 'windows', 'linux'].each { platform ->
+      (platform == 'linux' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        "bundled_${platform}_${architecture}" {
+          it.platform = platform
+          it.version = VersionProperties.getBundledJdk(platform)
+          it.vendor = VersionProperties.bundledJdkVendor
+          it.architecture = architecture
+        }
+      }
+    }
+  }
+
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
@@ -391,16 +405,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { Project project, String platform ->
-      project.jdks {
-        "bundled_${platform}" {
-          it.platform = platform
-          it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = VersionProperties.bundledJdkVendor
-        }
-      }
+    jdkFiles = { Project project, String platform, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}"
+        from project.jdks."bundled_${platform}_${architecture}"
         exclude "demo/**"
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
@@ -413,7 +420,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
   }
-
 }
 
 testClusters {
@@ -607,10 +613,13 @@ subprojects {
 
 ['archives:windows-zip', 'archives:oss-windows-zip',
   'archives:darwin-tar', 'archives:oss-darwin-tar',
+  'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
   'archives:linux-tar', 'archives:oss-linux-tar',
   'archives:integ-test-zip',
   'packages:rpm', 'packages:deb',
+  'packages:aarch64-rpm', 'packages:aarch64-deb',
   'packages:oss-rpm', 'packages:oss-deb',
+  'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

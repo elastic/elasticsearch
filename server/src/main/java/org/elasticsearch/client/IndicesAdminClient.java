@@ -21,6 +21,9 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -42,9 +45,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -335,29 +335,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly flush one or more indices (releasing memory from the node).
      */
     FlushRequestBuilder prepareFlush(String... indices);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     *
-     * @param request The sync flush request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#syncedFlushRequest(String...)
-     */
-    ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     *
-     * @param request  The sync flush request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#syncedFlushRequest(String...)
-     */
-    void syncedFlush(SyncedFlushRequest request, ActionListener <SyncedFlushResponse> listener);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     */
-    SyncedFlushRequestBuilder prepareSyncedFlush(String... indices);
 
     /**
      * Explicitly force merge one or more indices into a the number of segments.
@@ -739,4 +716,33 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 
+    /**
+     * Store a data stream
+     */
+    void createDataStream(CreateDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Store a data stream
+     */
+    ActionFuture<AcknowledgedResponse> createDataStream(CreateDataStreamAction.Request request);
+
+    /**
+     * Delete a data stream
+     */
+    void deleteDataStream(DeleteDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Delete a data stream
+     */
+    ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request);
+
+    /**
+     * Get data streams
+     */
+    void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener);
+
+    /**
+     * Get data streams
+     */
+    ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request);
 }

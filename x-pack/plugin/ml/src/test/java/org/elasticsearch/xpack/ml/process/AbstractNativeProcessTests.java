@@ -58,7 +58,8 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(outputStream.read(new byte[512])).thenReturn(-1);
         restoreStream =  mock(OutputStream.class);
         onProcessCrash = mock(Consumer.class);
-        executorService = EsExecutors.newFixed("test", 1, 1, EsExecutors.daemonThreadFactory("test"), new ThreadContext(Settings.EMPTY));
+        executorService = EsExecutors.newFixed("test", 1, 1, EsExecutors.daemonThreadFactory("test"), new ThreadContext(Settings.EMPTY),
+            false);
     }
 
     @After

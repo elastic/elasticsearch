@@ -13,9 +13,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -250,19 +250,19 @@ public class NativeRolesStoreTests extends ESTestCase {
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
         Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(securityIndexName).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder(securityIndexName).settings(settings))
+                .put(new IndexTemplateMetadata(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
                         Collections.singletonList(securityIndexName), Settings.EMPTY, ImmutableOpenMap.of(),
                         ImmutableOpenMap.of()))
                 .build();
 
         if (withAlias) {
-            metaData = SecurityTestUtils.addAliasToMetaData(metaData, securityIndexName);
+            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
         }
 
         Index index = new Index(securityIndexName, UUID.randomUUID().toString());
@@ -279,7 +279,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
-                .metaData(metaData)
+                .metadata(metadata)
                 .routingTable(routingTable)
                 .build();
 

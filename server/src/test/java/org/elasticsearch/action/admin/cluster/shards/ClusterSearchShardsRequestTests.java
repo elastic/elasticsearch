@@ -40,7 +40,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         }
         if (randomBoolean()) {
             request.indicesOptions(
-                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
             request.preference(randomAlphaOfLengthBetween(3, 10));
@@ -54,7 +54,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.routing(routings);
         }
 
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             request.writeTo(out);
@@ -62,7 +62,12 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                 in.setVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
-                assertEquals(request.indicesOptions(), deserialized.indicesOptions());
+                // indices options are not equivalent when sent to an older version and re-read due
+                // to the addition of hidden indices as expand to hidden indices is always true when
+                // read from a prior version
+                if (version.onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                    assertEquals(request.indicesOptions(), deserialized.indicesOptions());
+                }
                 assertEquals(request.routing(), deserialized.routing());
                 assertEquals(request.preference(), deserialized.preference());
             }

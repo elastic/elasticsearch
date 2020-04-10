@@ -126,7 +126,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 .build();
     }
 
-    public void testRandom() throws Exception {
+    public void testRandom() {
         int j = 0;
         Map<String, Object> doc = new HashMap<>();
         String[] fieldMappers = new String[(allowedFields.size() + disAllowedFields.size()) * 2];
@@ -141,7 +141,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             doc.put(field, "value");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", (Object[])fieldMappers)
+                        .setMapping(fieldMappers)
         );
         client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
@@ -167,7 +167,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     public void testDuel() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
         int numDocs = scaledRandomIntBetween(32, 128);

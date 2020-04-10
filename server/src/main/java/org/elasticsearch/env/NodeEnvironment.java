@@ -33,7 +33,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
@@ -50,7 +50,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -159,7 +160,7 @@ public final class NodeEnvironment  implements Closeable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
 
-    private final NodeMetaData nodeMetaData;
+    private final NodeMetadata nodeMetadata;
 
     /**
      * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
@@ -246,13 +247,6 @@ public final class NodeEnvironment  implements Closeable {
      * @param settings settings from elasticsearch.yml
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            nodePaths = null;
-            sharedDataPath = null;
-            locks = null;
-            nodeMetaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
-            return;
-        }
         boolean success = false;
 
         try {
@@ -285,9 +279,7 @@ public final class NodeEnvironment  implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
 
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
-                ensureAtomicMoveSupported(nodePaths);
-            }
+            ensureAtomicMoveSupported(nodePaths);
 
             if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock)) {
                 assertCanWrite();
@@ -295,13 +287,13 @@ public final class NodeEnvironment  implements Closeable {
 
             if (DiscoveryNode.isDataNode(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
-                    ensureNoIndexMetaData(nodePaths);
+                    ensureNoIndexMetadata(nodePaths);
                 }
 
                 ensureNoShardData(nodePaths);
             }
 
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
+            this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
 
             success = true;
         } finally {
@@ -381,6 +373,13 @@ public final class NodeEnvironment  implements Closeable {
 
                 // determine folders to move and check that there are no extra files/folders
                 final Set<String> folderNames = new HashSet<>();
+                final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
+
+                    // node state directory, containing MetadataStateFormat-based node metadata as well as cluster state
+                    MetadataStateFormat.STATE_DIR_NAME,
+
+                    // indices
+                    INDICES_FOLDER));
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
                     for (Path subFolderPath : stream) {
@@ -388,8 +387,7 @@ public final class NodeEnvironment  implements Closeable {
                         if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
                             // ignore
                         } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
-                            if (fileName.equals(INDICES_FOLDER) == false && // indices folder
-                                fileName.equals(MetaDataStateFormat.STATE_DIR_NAME) == false) { // global metadata & node state folder
+                            if (expectedFolderNames.contains(fileName) == false) {
                                 throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
                                     subFolderPath);
                             }
@@ -407,7 +405,7 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
 
-                assert Sets.difference(folderNames, Sets.newHashSet(INDICES_FOLDER, MetaDataStateFormat.STATE_DIR_NAME)).isEmpty() :
+                assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
                     "expected indices and/or state dir folder but was " + folderNames;
 
                 upgradeActions.add(() -> {
@@ -422,7 +420,7 @@ public final class NodeEnvironment  implements Closeable {
             }
             // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
             // intermediate state would be pretty disastrous
-            loadOrCreateNodeMetaData(settings, logger, legacyNodeLock.getNodePaths());
+            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePaths());
             for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
                 upgradeAction.run();
             }
@@ -490,39 +488,39 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
-     * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
-     * and persisted into the nodePaths
+     * scans the node paths and loads existing metadata file. If not found a new meta data will be generated
      */
-    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
-                                                         NodePath... nodePaths) throws IOException {
+    private static NodeMetadata loadNodeMetadata(Settings settings, Logger logger,
+                                                 NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
-
-        final Set<String> nodeIds = new HashSet<>();
-        for (final Path path : paths) {
-            final NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
-            if (metaData != null) {
-                nodeIds.add(metaData.nodeId());
+        NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
+        if (metadata == null) {
+            // load legacy metadata
+            final Set<String> nodeIds = new HashSet<>();
+            for (final Path path : paths) {
+                final NodeMetadata oldStyleMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+                if (oldStyleMetadata != null) {
+                    nodeIds.add(oldStyleMetadata.nodeId());
+                }
+            }
+            if (nodeIds.size() > 1) {
+                throw new IllegalStateException(
+                    "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
+            }
+            // load legacy metadata
+            final NodeMetadata legacyMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
+            if (legacyMetadata == null) {
+                assert nodeIds.isEmpty() : nodeIds;
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT);
+            } else {
+                assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
+                metadata = legacyMetadata;
             }
         }
-        if (nodeIds.size() > 1) {
-            throw new IllegalStateException(
-                "data paths " + Arrays.toString(paths) + " belong to multiple nodes with IDs " + nodeIds);
-        }
+        metadata = metadata.upgradeToCurrentVersion();
+        assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
 
-        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
-        if (metaData == null) {
-            assert nodeIds.isEmpty() : nodeIds;
-            metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
-        } else {
-            assert nodeIds.equals(Collections.singleton(metaData.nodeId())) : nodeIds + " doesn't match " + metaData;
-            metaData = metaData.upgradeToCurrentVersion();
-        }
-
-        // we write again to make sure all paths have the latest state file
-        assert metaData.nodeVersion().equals(Version.CURRENT) : metaData.nodeVersion() + " != " + Version.CURRENT;
-        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
-
-        return metaData;
+        return metadata;
     }
 
     public static String generateNodeId(Settings settings) {
@@ -633,7 +631,7 @@ public final class NodeEnvironment  implements Closeable {
                         return true;
                     }
                     Path maybeState = iter.next();
-                    if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                    if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetadataStateFormat.STATE_DIR_NAME)) == false) {
                         return true;
                     }
                     try (DirectoryStream<Path> stateChildren = Files.newDirectoryStream(maybeState)) {
@@ -898,10 +896,10 @@ public final class NodeEnvironment  implements Closeable {
      * and remains across restarts.
      **/
     public String nodeId() {
-        // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
+        // we currently only return the ID and hide the underlying nodeMetadata implementation in order to avoid
         // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
-        // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
-        return nodeMetaData.nodeId();
+        // we can encapsulate both (and more) in one NodeMetadata (or NodeSettings) object ala IndexSettings
+        return nodeMetadata.nodeId();
     }
 
     /**
@@ -1170,15 +1168,15 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
-        List<Path> indexMetaDataPaths = collectIndexMetaDataPaths(nodePaths);
-        if (indexMetaDataPaths.isEmpty() == false) {
+    private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
+        List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
+        if (indexMetadataPaths.isEmpty() == false) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false and "
                 + Node.NODE_MASTER_SETTING.getKey()
                 + "=false, but has index metadata: "
-                + indexMetaDataPaths
+                + indexMetadataPaths
                 + ". Use 'elasticsearch-node repurpose' tool to clean up"
             );
         }
@@ -1194,10 +1192,10 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * Collect the paths containing index meta data in the indicated node paths. The returned paths will point to the
-     * {@link MetaDataStateFormat#STATE_DIR_NAME} folder
+     * {@link MetadataStateFormat#STATE_DIR_NAME} folder
      */
-    static List<Path> collectIndexMetaDataPaths(NodePath[] nodePaths) throws IOException {
-        return collectIndexSubPaths(nodePaths, NodeEnvironment::isIndexMetaDataPath);
+    static List<Path> collectIndexMetadataPaths(NodePath[] nodePaths) throws IOException {
+        return collectIndexSubPaths(nodePaths, NodeEnvironment::isIndexMetadataPath);
     }
 
     private static List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
@@ -1227,9 +1225,9 @@ public final class NodeEnvironment  implements Closeable {
             && path.getFileName().toString().chars().allMatch(Character::isDigit);
     }
 
-    private static boolean isIndexMetaDataPath(Path path) {
+    private static boolean isIndexMetadataPath(Path path) {
         return Files.isDirectory(path)
-            && path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);
+            && path.getFileName().toString().equals(MetadataStateFormat.STATE_DIR_NAME);
     }
 
     /**
@@ -1237,17 +1235,17 @@ public final class NodeEnvironment  implements Closeable {
      */
     public static Path resolveBaseCustomLocation(String customDataPath, Path sharedDataPath) {
         if (Strings.isNotEmpty(customDataPath)) {
-            // This assert is because this should be caught by MetaDataCreateIndexService
+            // This assert is because this should be caught by MetadataCreateIndexService
             assert sharedDataPath != null;
             return sharedDataPath.resolve(customDataPath).resolve("0");
         } else {
-            throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
+            throw new IllegalArgumentException("no custom " + IndexMetadata.SETTING_DATA_PATH + " setting available");
         }
     }
 
     /**
      * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+     * Uses the {@code IndexMetadata.SETTING_DATA_PATH} setting to determine
      * the root path for the index.
      *
      * @param customDataPath the custom data path
@@ -1262,7 +1260,7 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * Resolve the custom path for a index's shard.
-     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+     * Uses the {@code IndexMetadata.SETTING_DATA_PATH} setting to determine
      * the root path for the index.
      *
      * @param customDataPath the custom data path
@@ -1300,7 +1298,7 @@ public final class NodeEnvironment  implements Closeable {
         }
         for (String indexFolderName : this.availableIndexFolders()) {
             for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
-                Path indexStatePath = indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+                Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
                 tryWriteTempFile(indexStatePath);
                 tryWriteTempFile(indexPath);
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
@@ -1308,7 +1306,7 @@ public final class NodeEnvironment  implements Closeable {
                         String fileName = shardPath.getFileName().toString();
                         if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
                             Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
-                            Path statePath = shardPath.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+                            Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
                             Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
                             tryWriteTempFile(indexDir);
                             tryWriteTempFile(translogDir);

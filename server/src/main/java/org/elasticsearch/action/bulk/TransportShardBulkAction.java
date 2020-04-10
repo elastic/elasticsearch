@@ -43,8 +43,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -170,16 +170,29 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             public void onRejection(Exception e) {
-                // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
-                while (context.hasMoreOperationsToExecute()) {
-                    context.setRequestToExecute(context.getCurrent());
-                    final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
-                    onComplete(
-                        exceptionToResult(
-                            e, primary, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
-                        context, null);
-                }
-                finishRequest();
+                // We must finish the outstanding request. Finishing the outstanding request can include
+                //refreshing and fsyncing. Therefore, we must force execution on the WRITE thread.
+                executor.execute(new ActionRunnable<>(listener) {
+
+                    @Override
+                    protected void doRun() {
+                        // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
+                        while (context.hasMoreOperationsToExecute()) {
+                            context.setRequestToExecute(context.getCurrent());
+                            final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
+                            onComplete(
+                                exceptionToResult(
+                                    e, primary, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
+                                context, null);
+                        }
+                        finishRequest();
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+                });
             }
 
             private void finishRequest() {
@@ -221,9 +234,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case CREATED:
                 case UPDATED:
                     IndexRequest indexRequest = updateResult.action();
-                    IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
-                    MappingMetaData mappingMd = metaData.mapping();
-                    indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
+                    IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
+                    MappingMetadata mappingMd = metadata.mapping();
+                    indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
                     context.setRequestToExecute(indexRequest);
                     break;
                 case DELETED:

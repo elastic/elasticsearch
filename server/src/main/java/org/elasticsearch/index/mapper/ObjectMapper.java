@@ -20,11 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -310,8 +308,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private final Nested nested;
 
-    private final String nestedTypePathAsString;
-    private final BytesRef nestedTypePathAsBytes;
+    private final String nestedTypePath;
 
     private final Query nestedTypeFilter;
 
@@ -335,9 +332,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } else {
             this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
-        this.nestedTypePathAsString = "__" + fullPath;
-        this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
-        this.nestedTypeFilter = new TermQuery(new Term(TypeFieldMapper.NAME, nestedTypePathAsBytes));
+        if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
+            this.nestedTypePath = "__" + fullPath;
+        } else {
+            this.nestedTypePath = fullPath;
+        }
+        this.nestedTypeFilter = NestedPathFieldMapper.filter(settings, nestedTypePath);
     }
 
     @Override
@@ -401,8 +401,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.fullPath;
     }
 
-    public String nestedTypePathAsString() {
-        return nestedTypePathAsString;
+    public String nestedTypePath() {
+        return this.nestedTypePath;
     }
 
     public final Dynamic dynamic() {
@@ -465,9 +465,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
+        if (isEnabled() != mergeWith.isEnabled()) {
+            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
+        }
+
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
-            checkEnabledFieldChange(mergeWith, mergeWithMapper, mergeIntoMapper);
 
             Mapper merged;
             if (mergeIntoMapper == null) {
@@ -478,18 +481,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeIntoMapper.merge(mergeWithMapper);
             }
             putMapper(merged);
-        }
-    }
-
-    private static void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
-        if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
-            final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
-            final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;
-
-            if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
-                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
-                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
-            }
         }
     }
 

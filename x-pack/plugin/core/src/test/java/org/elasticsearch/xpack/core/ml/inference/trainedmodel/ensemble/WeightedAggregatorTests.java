@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class WeightedAggregatorTests<T extends OutputAggregator> extends AbstractSerializingTestCase<T> {
@@ -35,9 +32,9 @@ public abstract class WeightedAggregatorTests<T extends OutputAggregator> extend
 
     public void testWithValuesOfWrongLength() {
         int numberOfValues = randomIntBetween(5, 10);
-        List<Double> values = new ArrayList<>(numberOfValues);
+        double[][] values = new double[numberOfValues][];
         for (int i = 0; i < numberOfValues; i++) {
-            values.add(randomDouble());
+            values[i] = new double[] {randomDouble()};
         }
 
         OutputAggregator outputAggregatorWithTooFewWeights = createTestInstance(randomIntBetween(1, numberOfValues - 1));

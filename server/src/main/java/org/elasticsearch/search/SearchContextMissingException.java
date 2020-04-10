@@ -23,20 +23,21 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.SearchContextId;
 
 import java.io.IOException;
 
 public class SearchContextMissingException extends ElasticsearchException {
 
-    private final long id;
+    private final SearchContextId contextId;
 
-    public SearchContextMissingException(long id) {
-        super("No search context found for id [" + id + "]");
-        this.id = id;
+    public SearchContextMissingException(SearchContextId contextId) {
+        super("No search context found for id [" + contextId.getId() + "]");
+        this.contextId = contextId;
     }
 
-    public long id() {
-        return this.id;
+    public SearchContextId contextId() {
+        return this.contextId;
     }
 
     @Override
@@ -46,12 +47,12 @@ public class SearchContextMissingException extends ElasticsearchException {
 
     public SearchContextMissingException(StreamInput in) throws IOException{
         super(in);
-        id = in.readLong();
+        contextId = new SearchContextId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        contextId.writeTo(out);
     }
 }

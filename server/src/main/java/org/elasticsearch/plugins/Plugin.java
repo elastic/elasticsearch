@@ -21,7 +21,8 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -84,11 +85,13 @@ public abstract class Plugin implements Closeable {
      * @param environment the environment for path and setting configurations
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         return Collections.emptyList();
     }
 
@@ -149,11 +152,11 @@ public abstract class Plugin implements Closeable {
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
      * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetaData} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetaData}
+     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
      */
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();
     }
 

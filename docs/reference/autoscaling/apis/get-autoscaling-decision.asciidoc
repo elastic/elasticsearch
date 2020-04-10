@@ -1,0 +1,52 @@
+[role="xpack"]
+[testenv="platinum"]
+[[autoscaling-get-autoscaling-decision]]
+=== Get autoscaling decision API
+++++
+<titleabbrev>Get autoscaling decision</titleabbrev>
+++++
+
+Get autoscaling decision.
+
+[[autoscaling-get-autoscaling-decision-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+GET /_autoscaling/decision/
+--------------------------------------------------
+// TEST
+
+[[autoscaling-get-autoscaling-decision-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_autoscaling` cluster privileges. For more information, see
+<<security-privileges>>.
+
+[[autoscaling-get-autoscaling-decision-desc]]
+==== {api-description-title}
+
+This API gets the current autoscaling decision based on the configured
+autoscaling policy. This API will return whether or not autoscaling is
+needed.
+
+[[autoscaling-get-autoscaling-decision-examples]]
+==== {api-examples-title}
+
+This example retrieves the current autoscaling decision.
+
+[source,console]
+--------------------------------------------------
+GET /_autoscaling/decision
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  decisions: []
+}
+--------------------------------------------------

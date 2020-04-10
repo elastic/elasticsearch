@@ -34,7 +34,7 @@ public interface CheckpointProvider {
     void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
 
     /**
-     * Get checkpoint statistics for a running data frame
+     * Get checkpoint statistics for a running transform
      *
      * For running transforms most information is available in-memory.
      *
@@ -53,7 +53,7 @@ public interface CheckpointProvider {
     );
 
     /**
-     * Get checkpoint statistics for a stopped data frame
+     * Get checkpoint statistics for a stopped transform
      *
      * For stopped transforms we need to do lookups in the internal index.
      *

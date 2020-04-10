@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -48,6 +50,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -92,6 +95,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -151,6 +155,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
             transformConfig

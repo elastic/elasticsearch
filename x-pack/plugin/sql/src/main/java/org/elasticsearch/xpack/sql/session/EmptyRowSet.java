@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 class EmptyRowSet extends AbstractRowSet implements SchemaRowSet {
     private final Schema schema;

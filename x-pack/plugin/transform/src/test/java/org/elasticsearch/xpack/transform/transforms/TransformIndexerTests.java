@@ -67,7 +67,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.matches;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -398,7 +400,8 @@ public class TransformIndexerTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
             MockTransformAuditor auditor = new MockTransformAuditor();
-            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+            TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
             MockedTransformIndexer indexer = createMockIndexer(
                 config,
@@ -412,14 +415,7 @@ public class TransformIndexerTests extends ESTestCase {
             );
 
             final CountDownLatch latch = indexer.newLatch(1);
-            auditor.addExpectation(
-                new MockTransformAuditor.SeenAuditExpectation(
-                    "fail indexer due to script error",
-                    org.elasticsearch.xpack.core.common.notifications.Level.ERROR,
-                    transformId,
-                    "Failed to execute script with error: [*ArithmeticException: / by zero], stack trace: [stack]"
-                )
-            );
+
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -428,11 +424,15 @@ public class TransformIndexerTests extends ESTestCase {
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
             assertTrue(failIndexerCalled.get());
+            verify(contextListener, times(1)).fail(
+                matches("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]"),
+                any()
+            );
+
             assertThat(
                 failureMessage.get(),
                 matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
             );
-            auditor.assertAllExpectationsMatched();
         } finally {
             executor.shutdownNow();
         }

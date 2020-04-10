@@ -95,7 +95,7 @@ queries. However, they are often retrieved using term-level queries.
 
 Consider mapping a numeric identifier as a `keyword` if:
 
-* You don't plan to search for the identifier data using 
+* You don't plan to search for the identifier data using
   <<query-dsl-range-query,`range`>> queries.
 * Fast retrieval is important. `term` query searches on `keyword` fields are
   often faster than `term` searches on numeric fields.
@@ -116,11 +116,6 @@ The following parameters are accepted by numeric types:
 
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<doc-values,`doc_values`>>::
 

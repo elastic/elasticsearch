@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -43,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -51,9 +51,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 
-    public RestThreadPoolAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/thread_pool", this);
-        controller.registerHandler(GET, "/_cat/thread_pool/{thread_pool_patterns}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/thread_pool"),
+            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}"));
     }
 
     @Override
@@ -78,12 +80,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().process(true).threadPool(true);
+                nodesInfoRequest.clear().addMetrics(
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().threadPool(true);
+                        nodesStatsRequest.clear().addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName());
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {

@@ -23,6 +23,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileStatic
+import nebula.plugin.info.InfoBrokerPlugin
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
@@ -32,7 +33,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.tool.Boilerplate
+import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -46,6 +47,7 @@ import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ExclusiveContentRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -81,9 +83,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
-import static org.elasticsearch.gradle.tool.DockerUtils.assertDockerIsAvailable
-import static org.elasticsearch.gradle.tool.DockerUtils.getDockerPath
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -115,13 +115,8 @@ class BuildPlugin implements Plugin<Project> {
         }
         project.pluginManager.apply('java')
         configureConfigurations(project)
-        configureJars(project) // jar config must be added before info broker
-        // these plugins add lots of info to our jars
-        project.pluginManager.apply('nebula.info-broker')
-        project.pluginManager.apply('nebula.info-basic')
-        project.pluginManager.apply('nebula.info-java')
-        project.pluginManager.apply('nebula.info-scm')
-        project.pluginManager.apply('nebula.info-jar')
+        configureJars(project)
+        configureJarManifest(project)
 
         // apply global test task failure listener
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
@@ -149,7 +144,7 @@ class BuildPlugin implements Plugin<Project> {
             File securityPolicy = buildResources.copy("fips_java.policy")
             File bcfksKeystore = buildResources.copy("cacerts.bcfks")
             // This configuration can be removed once system modules are available
-            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+            GradleUtils.maybeCreate(project.configurations, 'extraJars') {
                 project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
                 project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
             }
@@ -183,51 +178,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
         }
-    }
-
-    static void requireDocker(final Task task) {
-        final Project rootProject = task.project.rootProject
-        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
-
-        if (rootProject.hasProperty('requiresDocker') == false) {
-            /*
-             * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
-             * that register as requiring Docker. We will add a delayed execution that when the task graph is ready if any such tasks are
-             * in the task graph, then we check two things:
-             *  - the Docker binary is available
-             *  - we can execute a Docker command that requires privileges
-             *
-             *  If either of these fail, we fail the build.
-             */
-
-            // check if the Docker binary exists and record its path
-            final String dockerBinary = getDockerPath().orElse(null)
-
-            final boolean buildDocker
-            final String buildDockerProperty = System.getProperty("build.docker")
-            if (buildDockerProperty == null) {
-                buildDocker = dockerBinary != null
-            } else if (buildDockerProperty == "true") {
-                buildDocker = true
-            } else if (buildDockerProperty == "false") {
-                buildDocker = false
-            } else {
-                throw new IllegalArgumentException(
-                        "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
-            }
-
-            ext.set('buildDocker', buildDocker)
-            ext.set('requiresDocker', [])
-            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
-
-                if (tasks.isEmpty() == false) {
-                    assertDockerIsAvailable(task.project, tasks)
-                }
-            }
-        }
-
-        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
@@ -281,7 +231,7 @@ class BuildPlugin implements Plugin<Project> {
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
         JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.absolutePath
+        return java == null ? null : java.javaHome.get().absolutePath
     }
 
     /**
@@ -330,6 +280,7 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
+        project.configurations.getByName(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
     }
 
     /** Adds repositories used by ES dependencies */
@@ -374,9 +325,15 @@ class BuildPlugin implements Plugin<Project> {
             // extract the revision number from the version with a regex matcher
             List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
             String revision = matches.get(1)
-            repos.maven { MavenArtifactRepository repo ->
+            MavenArtifactRepository luceneRepo = repos.maven { MavenArtifactRepository repo ->
                 repo.name = 'lucene-snapshots'
                 repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+            repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
+                exclusiveRepo.filter {
+                    it.includeVersionByRegex(/org\.apache\.lucene/, '.*', ".*-snapshot-${revision}")
+                }
+                exclusiveRepo.forRepositories(luceneRepo)
             }
         }
     }
@@ -424,7 +381,7 @@ class BuildPlugin implements Plugin<Project> {
                             dependencyNode.appendNode('groupId', dependency.group)
                             dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
                             dependencyNode.appendNode('version', dependency.version)
-                            dependencyNode.appendNode('scope', 'runtime')
+                            dependencyNode.appendNode('scope', 'compile')
                         }
                     }
                 }
@@ -493,7 +450,9 @@ class BuildPlugin implements Plugin<Project> {
 
         project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
             // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
-            project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME))
+            project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).dependencies.all { Dependency dependency ->
+                project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).dependencies.add(dependency)
+            }
         }
     }
 
@@ -520,7 +479,7 @@ class BuildPlugin implements Plugin<Project> {
         }
         // ensure javadoc task is run with 'check'
         project.pluginManager.withPlugin('lifecycle-base') {
-            project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(project.tasks.withType(Javadoc))
+            project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(project.tasks.withType(Javadoc)) }
         }
         configureJavadocJar(project)
     }
@@ -557,19 +516,15 @@ class BuildPlugin implements Plugin<Project> {
         ext.set('noticeFile', null)
         project.tasks.withType(Jar).configureEach { Jar jarTask ->
             // we put all our distributable files under distributions
-            jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            jarTask.destinationDirectory.set(new File(project.buildDir, 'distributions'))
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 JavaVersion compilerJavaVersion = BuildParams.compilerJavaVersion
                 jarTask.manifest.attributes(
-                        'Change': BuildParams.gitRevision,
-                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
-                        'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': BuildParams.buildDate,
-                        'Build-Java-Version': compilerJavaVersion)
+                        'Build-Java-Version': BuildParams.compilerJavaVersion)
             }
         }
         // add license/notice files
@@ -618,9 +573,22 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void configureTestTasks(Project project) {
-        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+    static void configureJarManifest(Project project) {
+        project.pluginManager.apply('nebula.info-broker')
+        project.pluginManager.apply('nebula.info-basic')
+        project.pluginManager.apply('nebula.info-java')
+        project.pluginManager.apply('nebula.info-jar')
 
+        project.plugins.withId('nebula.info-broker') { InfoBrokerPlugin manifestPlugin ->
+            manifestPlugin.add('Module-Origin') { BuildParams.gitOrigin }
+            manifestPlugin.add('Change') { BuildParams.gitRevision }
+            manifestPlugin.add('X-Compile-Elasticsearch-Version') { VersionProperties.elasticsearch }
+            manifestPlugin.add('X-Compile-Lucene-Version') { VersionProperties.lucene }
+            manifestPlugin.add('X-Compile-Elasticsearch-Snapshot') { VersionProperties.isElasticsearchSnapshot() }
+        }
+    }
+
+    static void configureTestTasks(Project project) {
         // Default test task should run only unit tests
         maybeConfigure(project.tasks, 'test', Test) { Test task ->
             task.include '**/*Tests.class'
@@ -654,6 +622,7 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
+                    project.mkdir(test.workingDir.toPath().resolve('temp'))
 
                     //TODO remove once jvm.options are added to test system properties
                     test.systemProperty ('java.locale.providers','SPI,COMPAT')
@@ -685,15 +654,12 @@ class BuildPlugin implements Plugin<Project> {
                     test.jvmArgs '-ea', '-esa'
                 }
 
-                // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                test.systemProperties 'java.io.tmpdir': './temp',
-                        'java.awt.headless': 'true',
+                test.systemProperties 'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
                         'tests.task': test.path,
                         'tests.security.manager': 'true',
                         'jna.nosys': 'true'
-
 
                 // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
                 if (System.getProperty('ignore.tests.seed') != null) {
@@ -706,6 +672,8 @@ class BuildPlugin implements Plugin<Project> {
                 nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
                 nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
+                // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
+                nonInputProperties.systemProperty('java.io.tmpdir', test.workingDir.toPath().resolve('temp'))
 
                 nonInputProperties.systemProperty('compiler.java', "${-> BuildParams.compilerJavaVersion.majorVersion}")
 

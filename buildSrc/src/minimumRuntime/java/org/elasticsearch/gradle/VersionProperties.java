@@ -15,7 +15,7 @@ public class VersionProperties {
         return elasticsearch;
     }
 
-    public static Version getElasticsearchVersion()  {
+    public static Version getElasticsearchVersion() {
         return Version.fromString(elasticsearch);
     }
 

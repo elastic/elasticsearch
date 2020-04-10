@@ -40,11 +40,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrde
  */
 public class FunctionScoreFieldValueIT extends ESIntegTestCase {
     public void testFieldValueFactor() throws IOException {
-        assertAcked(prepareCreate("test").addMapping(
-                "type1",
+        assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder()
                         .startObject()
-                        .startObject("type1")
+                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("test")
                         .field("type", randomFrom(new String[]{"short", "float", "long", "integer", "double"}))

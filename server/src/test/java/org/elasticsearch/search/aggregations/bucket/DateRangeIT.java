@@ -104,7 +104,7 @@ public class DateRangeIT extends ESIntegTestCase {
         for (int i = docs.size(); i < numDocs; ++i) {
             docs.add(indexDoc(randomIntBetween(6, 10), randomIntBetween(1, 20), randomInt(100)));
         }
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping("value", "type=integer"));
         for (int i = 0; i < 2; i++) {
             docs.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
@@ -888,7 +888,7 @@ public class DateRangeIT extends ESIntegTestCase {
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "date", "type=date")
+        assertAcked(prepareCreate("cache_test_idx").setMapping("date", "type=date")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true,
@@ -950,7 +950,7 @@ public class DateRangeIT extends ESIntegTestCase {
      */
     public void testRangeWithFormatStringValue() throws Exception {
         String indexName = "dateformat_test_idx";
-        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=strict_hour_minute_second"));
+        assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=strict_hour_minute_second"));
         indexRandom(true,
                 client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
                 client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
@@ -1000,7 +1000,7 @@ public class DateRangeIT extends ESIntegTestCase {
      */
     public void testRangeWithFormatNumericValue() throws Exception {
         String indexName = "dateformat_numeric_test_idx";
-        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=epoch_second"));
+        assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=epoch_second"));
         indexRandom(true,
                 client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
                 client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),

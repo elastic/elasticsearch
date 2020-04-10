@@ -25,5 +25,5 @@ set ES_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %ES_JAVA_OPTS%
   -cp "%ES_CLASSPATH%" ^
   "%ES_MAIN_CLASS%" ^
   %*
-  
+
 exit /b %ERRORLEVEL%

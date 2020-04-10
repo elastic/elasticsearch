@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[using-policies-rollover]]
-== Using policies to manage index rollover
+== Roll over automatically
 
 The rollover action enables you to automatically roll over to a new index based
 on the index size, document count, or age. When a rollover is triggered, a new
@@ -100,6 +100,16 @@ PUT _template/my_template
 <1> Template applies to all indices with the prefix test-
 <2> Associates my_policy with all indices created with this template
 <3> Rolls over the write alias test when the rollover action is triggered
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 To be able to start using the policy for these `test-*` indexes we need to
 bootstrap the process by creating the first index.

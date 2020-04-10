@@ -93,6 +93,7 @@ public class GeoUtils {
         return true;
     }
 
+
     /**
      * Calculate the width (in meters) of geohash cells at a specific level
      * @param level geohash level must be greater or equal to zero

@@ -52,6 +52,18 @@ setup:
       indices.refresh: {}
 
 ---
+teardown:
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.allow_expensive_queries: null
+
+---
 "Test basic":
     - do:
         search:
@@ -108,3 +120,29 @@ setup:
     - match: { hits.hits.1._id: "4" }
     - match: { hits.hits.1._source.join_field.name: "child" }
     - match: { hits.hits.1._source.join_field.parent: "1" }
+
+---
+"HasChild disallow expensive queries":
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  ### Update setting to false
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.allow_expensive_queries: "false"
+        flat_settings: true
+
+  - match: {transient: {search.allow_expensive_queries: "false"}}
+
+  - do:
+      catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        body:
+          sort: [ "id" ]
+          query:
+            parent_id:
+              type: child
+              id: 1

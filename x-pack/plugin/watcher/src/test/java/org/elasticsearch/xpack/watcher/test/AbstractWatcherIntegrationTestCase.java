@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -116,7 +115,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // watcher settings that should work despite randomization
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put("index.lifecycle.history_index_enabled", false)
+                .put("indices.lifecycle.history_index_enabled", false)
                 // SLM can cause timing issues during testsuite teardown: https://github.com/elastic/elasticsearch/issues/50302
                 // SLM is not required for tests extending from this base class and only add noise.
                 .put("xpack.slm.enabled", false)
@@ -267,7 +266,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]);
+        MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -277,7 +276,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.version.created");
 
         CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate(to)
-            .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping.sourceAsMap())
+            .setMapping(mapping.sourceAsMap())
             .setSettings(newSettings)
             .get();
         assertTrue(createIndexResponse.isAcknowledged());

@@ -159,13 +159,18 @@ public final class TimestampFormatFinder {
             "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP",
             Arrays.asList("    11 1111 11 11 11", "    1 1111 11 11 11"), 1, 0),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
-            // In DATESTAMP the month may be 1 or 2 digits, but the day must be 2
-            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11"), 0, 10),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
+            // In DATESTAMP the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11", "11 11 11 11 11 11", "1 11 11 11 11 11",
+                "11 1 11 11 11 11"), 1, 10),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE",
-            // In DATE the month may be 1 or 2 digits, but the day must be 2
-            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111"), 0, 0),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "\\b%{DATE}\\b", "DATE",
+            // In DATE the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111", "11 11 11", "11 1 11", "1 11 11"), 1, 0),
         UNIX_MS_CANDIDATE_FORMAT,
         UNIX_CANDIDATE_FORMAT,
         TAI64N_CANDIDATE_FORMAT,

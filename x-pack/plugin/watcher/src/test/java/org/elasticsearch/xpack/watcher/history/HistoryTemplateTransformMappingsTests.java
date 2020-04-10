@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTransformFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("doc",
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(
                 jsonBuilder().startObject()
                         .startObject("properties")
                         .startObject("foo")
@@ -78,7 +78,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                                                                 .get();
 
             // time might have rolled over to a new day, thus we need to check that this field exists only in one of the history indices
-            Optional<GetFieldMappingsResponse.FieldMappingMetaData> mapping = response.mappings().values().stream()
+            Optional<GetFieldMappingsResponse.FieldMappingMetadata> mapping = response.mappings().values().stream()
                     .map(map -> map.get("result.actions.transform.payload"))
                     .filter(Objects::nonNull)
                     .findFirst();

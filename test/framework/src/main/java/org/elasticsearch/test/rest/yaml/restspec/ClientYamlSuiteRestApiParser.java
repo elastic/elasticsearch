@@ -47,6 +47,9 @@ public class ClientYamlSuiteRestApiParser {
         if (location.endsWith(apiName + ".json") == false) {
             throw new IllegalArgumentException("API [" + apiName + "] should have the same name as its file [" + location + "]");
         }
+        if (apiName.chars().filter(c -> c == '.').count() > 1) {
+            throw new IllegalArgumentException("API [" + apiName + "] contains more then one namespace [" + location + "]");
+        }
 
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApi(location, apiName);
 

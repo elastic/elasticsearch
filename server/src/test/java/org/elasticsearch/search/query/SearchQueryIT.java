@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -28,12 +33,17 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -42,11 +52,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -58,18 +71,22 @@ import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -117,7 +134,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, MockAnalysisPlugin.class);
     }
 
     @Override
@@ -176,7 +193,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testIndexOptions() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text,index_options=docs"));
+                .setMapping("field1", "type=text,index_options=docs"));
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test").setId("2").setSource("field1", "quick lazy huge brown fox",
@@ -316,8 +333,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateRangeInQueryString() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping(
-                "type", "past", "type=date", "future", "type=date"
+        assertAcked(prepareCreate("test").setMapping(
+            "past", "type=date", "future", "type=date"
         ));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
@@ -342,7 +359,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
@@ -359,8 +376,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_10477() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping(
-                "type", "past", "type=date"
+        assertAcked(prepareCreate("test").setMapping(
+                "past", "type=date"
         ));
 
         client().prepareIndex("test").setId("1").setSource("past", "2015-04-05T23:00:00+0000").get();
@@ -536,7 +553,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testMatchQueryNumeric() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("long", "type=long", "double", "type=double"));
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("long", 1L, "double", 1.0d),
                 client().prepareIndex("test").setId("2").setSource("long", 2L, "double", 2.0d),
@@ -553,7 +570,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testMatchQueryFuzzy() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("_doc", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("text", "Unit"),
                 client().prepareIndex("test").setId("2").setSource("text", "Unity"));
@@ -657,7 +674,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
+                .setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
         refresh();
@@ -681,7 +698,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMultiMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
+                .setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
@@ -863,7 +880,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testEmptytermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("term", "1"),
                 client().prepareIndex("test").setId("2").setSource("term", "2"),
@@ -879,7 +896,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "str", "type=text", "lng", "type=long", "dbl", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("str", "type=text", "lng", "type=long", "dbl", "type=double"));
 
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("str", "1", "lng", 1L, "dbl", 1.0d),
@@ -946,13 +963,13 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", "terms","type=text", "other", "type=text"));
-        assertAcked(prepareCreate("lookup2").addMapping("type",
-                jsonBuilder().startObject().startObject("type").startObject("properties")
+        assertAcked(prepareCreate("lookup").setMapping("terms","type=text", "other", "type=text"));
+        assertAcked(prepareCreate("lookup2").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject("arr").startObject("properties").startObject("term").field("type", "text")
                         .endObject().endObject().endObject().endObject().endObject().endObject()));
-        assertAcked(prepareCreate("lookup3").addMapping("type", "_source", "enabled=false", "terms","type=text"));
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("lookup3").setMapping("_source", "enabled=false", "terms","type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(true,
                 client().prepareIndex("lookup").setId("1").setSource("terms", new String[]{"1", "3"}),
@@ -1076,7 +1093,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
+                .setMapping(
                         "num_byte", "type=byte", "num_short", "type=short",
                         "num_integer", "type=integer", "num_long", "type=long",
                         "num_float", "type=float", "num_double", "type=double"));
@@ -1175,7 +1192,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testNumericRangeFilter_2826() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1",
+                .setMapping(
                         "num_byte", "type=byte", "num_short", "type=short",
                         "num_integer", "type=integer", "num_long", "type=long",
                         "num_float", "type=float", "num_double", "type=double"));
@@ -1334,7 +1351,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", jsonBuilder()
+            .setMapping(jsonBuilder()
                 .startObject()
                 .startObject("_doc")
                 .startObject("_routing")
@@ -1496,7 +1513,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "date", "type=date", "num", "type=integer"));
+                .setMapping("date", "type=date", "num", "type=integer"));
 
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("date", "2014-01-01", "num", 1),
@@ -1583,7 +1600,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(prepareCreate("test")
-            .addMapping("type1", jsonBuilder().startObject().startObject("properties").startObject("date_field")
+            .setMapping(jsonBuilder().startObject().startObject("properties").startObject("date_field")
                     .field("type", "date")
                     .field("format", "E, d MMM yyyy HH:mm:ss Z")
                     .field("locale", "de")
@@ -1662,7 +1679,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testRangeQueryRangeFields_24744() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "int_range", "type=integer_range"));
+        assertAcked(prepareCreate("test").setMapping("int_range", "type=integer_range"));
 
         client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("int_range").field("gte", 10).field("lte", 20).endObject().endObject())
@@ -1693,7 +1710,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("index").setMapping(mapping));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .startObject("section")
@@ -1714,7 +1731,7 @@ public class SearchQueryIT extends ESIntegTestCase {
    public void testFieldAliasesForMetaFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("id-alias")
                             .field("type", "alias")
@@ -1727,7 +1744,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .endObject()
             .endObject()
         .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test")
             .setId("1")
@@ -1758,4 +1775,121 @@ public class SearchQueryIT extends ESIntegTestCase {
        }
 
    }
+
+   /**
+    * Test that wildcard queries on keyword fields get normalized
+    */
+    public void testWildcardQueryNormalizationOnKeywordField() {
+       assertAcked(prepareCreate("test")
+               .setSettings(Settings.builder()
+                       .put("index.analysis.normalizer.lowercase_normalizer.type", "custom")
+                       .putList("index.analysis.normalizer.lowercase_normalizer.filter", "lowercase")
+                       .build())
+                .setMapping("field1", "type=keyword,normalizer=lowercase_normalizer"));
+       client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+       refresh();
+
+        {
+            WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
+            SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+            assertHitCount(searchResponse, 1L);
+
+            wildCardQuery = wildcardQuery("field1", "bb*");
+            searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+            assertHitCount(searchResponse, 1L);
+        }
+   }
+
+    /**
+     * Test that wildcard queries on text fields get normalized
+     */
+     public void testWildcardQueryNormalizationOnTextField() {
+        assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                        .put("index.analysis.analyzer.lowercase_analyzer.type", "custom")
+                        .put("index.analysis.analyzer.lowercase_analyzer.tokenizer", "standard")
+                        .putList("index.analysis.analyzer.lowercase_analyzer.filter", "lowercase")
+                        .build())
+                 .setMapping("field1", "type=text,analyzer=lowercase_analyzer"));
+        client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+        refresh();
+
+         {
+             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
+             SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 1L);
+
+             wildCardQuery = wildcardQuery("field1", "bb*");
+             searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 1L);
+         }
+    }
+
+    /**
+     * Reserved characters should be excluded when the normalization is applied for keyword fields.
+     * See https://github.com/elastic/elasticsearch/issues/46300 for details.
+     */
+    public void testWildcardQueryNormalizationKeywordSpecialCharacters() {
+        assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder().put("index.analysis.char_filter.no_wildcard.type", "mock_pattern_replace")
+                        .put("index.analysis.normalizer.no_wildcard.type", "custom")
+                        .put("index.analysis.normalizer.no_wildcard.char_filter", "no_wildcard").build())
+                .setMapping("field", "type=keyword,normalizer=no_wildcard"));
+        client().prepareIndex("test").setId("1").setSource("field", "label-1").get();
+        refresh();
+
+        WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
+        SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+        assertHitCount(searchResponse, 1L);
+
+        wildCardQuery = wildcardQuery("field", "la*el-?");
+        searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+        assertHitCount(searchResponse, 1L);
+    }
+
+    public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
+
+        @Override
+        public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+            return singletonMap("mock_pattern_replace", (indexSettings, env, name, settings) -> {
+                class Factory implements NormalizingCharFilterFactory {
+
+                    private final Pattern pattern = Regex.compile("[\\*\\?]", null);
+
+                    @Override
+                    public String name() {
+                        return name;
+                    }
+
+                    @Override
+                    public Reader create(Reader reader) {
+                        return new PatternReplaceCharFilter(pattern, "", reader);
+                    }
+                }
+                return new Factory();
+            });
+        }
+
+        @Override
+        public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return singletonMap("keyword", (indexSettings, environment, name, settings) -> TokenizerFactory.newFactory(name,
+                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
+        }
+    }
+
+    /**
+     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
+     * {@link AttributeSource}.
+     */
+    public void testIssueFuzzyInsideSpanMulti() {
+        createIndex("test");
+        client().prepareIndex("test").setId("1").setSource("field", "foobarbaz").get();
+        ensureGreen();
+        refresh();
+
+        BoolQueryBuilder query = boolQuery().filter(spanMultiTermQueryBuilder(fuzzyQuery("field", "foobarbiz").rewrite("constant_score")));
+        SearchResponse response = client().prepareSearch("test").setQuery(query).get();
+        assertHitCount(response, 1);
+    }
 }

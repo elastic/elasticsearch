@@ -51,3 +51,4 @@ deprecated in 7.6, and are now removed in 8.x. The form
 `function(query, 'field')` should be used instead. For example,
 `cosineSimilarity(query, doc['field'])` is replaced by
 `cosineSimilarity(query, 'field')`.
+

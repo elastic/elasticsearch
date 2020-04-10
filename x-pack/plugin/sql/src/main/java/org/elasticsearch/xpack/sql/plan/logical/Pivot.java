@@ -6,19 +6,21 @@
 
 package org.elasticsearch.xpack.sql.plan.logical;
 
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.AttributeMap;
-import org.elasticsearch.xpack.sql.expression.AttributeSet;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

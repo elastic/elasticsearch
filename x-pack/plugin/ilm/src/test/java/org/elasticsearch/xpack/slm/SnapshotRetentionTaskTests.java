@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +27,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,6 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotRetentionTaskTests extends ESTestCase {
 
@@ -83,11 +85,11 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         assertThat(SnapshotRetentionTask.getAllPoliciesWithRetentionEnabled(state), equalTo(Collections.emptyMap()));
 
         // Test with empty SLM metadata
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE,
                 new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()))
             .build();
-        state = ClusterState.builder(new ClusterName("cluster")).metaData(metaData).build();
+        state = ClusterState.builder(new ClusterName("cluster")).metadata(metadata).build();
         assertThat(SnapshotRetentionTask.getAllPoliciesWithRetentionEnabled(state), equalTo(Collections.emptyMap()));
 
         // Test with metadata containing only a policy without retention
@@ -248,7 +250,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
             ClusterState state = createState(policy);
             state = ClusterState.builder(state)
-                .metaData(MetaData.builder(state.metaData())
+                .metadata(Metadata.builder(state.metadata())
                     .transientSettings(Settings.builder()
                         .put(LifecycleSettings.SLM_RETENTION_DURATION, "500ms")
                         .build())).build();
@@ -335,7 +337,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 snapshot, true, false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId("name", "id")), 0, 0,
                 ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap(),
-                randomBoolean()));
+                VersionUtils.randomVersion(random())));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, inProgress)
             .build();
@@ -363,6 +365,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .build();
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
+
+        restoreInProgress = mock(RestoreInProgress.class);
+        when(restoreInProgress.isEmpty()).thenReturn(true);
+        state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(true));
     }
 
     public void testSkipWhileStopping() throws Exception {
@@ -420,10 +430,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
                 repoId, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
-    
+
             ClusterState state = createState(mode, policy);
             ClusterServiceUtils.setState(clusterService, state);
-    
+
             AtomicBoolean retentionWasRun = new AtomicBoolean(false);
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
@@ -436,10 +446,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 (deletionPolicyId, repo, snapId, slmStats, listener) -> {
                 },
                 System::nanoTime);
-    
+
             long time = System.currentTimeMillis();
             task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID, time, time));
-    
+
             assertTrue("retention should be run manually even if SLM is disabled", retentionWasRun.get());
         } finally {
             threadPool.shutdownNow();
@@ -461,12 +471,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 .build())
             .collect(Collectors.toMap(pm -> pm.getPolicy().getId(), pm -> pm));
 
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE,
                 new SnapshotLifecycleMetadata(policyMetadataMap, mode, new SnapshotLifecycleStats()))
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
-            .metaData(metaData)
+            .metadata(metadata)
             .build();
     }
 

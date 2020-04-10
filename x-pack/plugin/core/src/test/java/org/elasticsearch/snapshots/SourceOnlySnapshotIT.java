@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -105,9 +105,9 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get());
-        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
+        // can-match phase pre-filters access to non-existing field
+        assertEquals(0,
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
@@ -130,9 +130,9 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get());
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get());
-        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
+        // can-match phase pre-filters access to non-existing field
+        assertEquals(0,
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
@@ -146,7 +146,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
-        MappingMetaData mapping = getMappingsResponse.getMappings().get(sourceIdx);
+        MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ?
             ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
         if (requireRouting) {
@@ -227,7 +227,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", numShards).put("number_of_replicas", 0));
-        List<Object> mappings = new ArrayList<>();
+        List<String> mappings = new ArrayList<>();
         if (requireRouting) {
             mappings.addAll(Arrays.asList("_routing", "required=true"));
         }
@@ -236,7 +236,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             mappings.addAll(Arrays.asList("nested", "type=nested", "incorrect", "type=object"));
         }
         if (mappings.isEmpty() == false) {
-            createIndexRequestBuilder.addMapping("_doc", mappings.toArray());
+            createIndexRequestBuilder.setMapping(mappings.toArray(new String[0]));
         }
         assertAcked(createIndexRequestBuilder);
         ensureGreen();

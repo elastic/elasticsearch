@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -27,10 +29,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -50,33 +53,47 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FAILED_TO_DESERIALIZE;
 
 public class TrainedModelProvider {
+
+    public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
+    private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
+    private static final String MODEL_RESOURCE_FILE_EXT = ".json";
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -91,6 +108,12 @@ public class TrainedModelProvider {
 
     public void storeTrainedModel(TrainedModelConfig trainedModelConfig,
                                   ActionListener<Boolean> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
+            return;
+        }
+
         try {
             trainedModelConfig.ensureParsedDefinition(xContentRegistry);
         } catch (IOException ex) {
@@ -159,10 +182,12 @@ public class TrainedModelProvider {
             r -> {
                 assert r.getItems().length == 2;
                 if (r.getItems()[0].isFailed()) {
+
                     logger.error(new ParameterizedMessage(
                             "[{}] failed to store trained model config for inference",
                             trainedModelConfig.getModelId()),
                         r.getItems()[0].getFailure().getCause());
+
                     wrappedListener.onFailure(r.getItems()[0].getFailure().getCause());
                     return;
                 }
@@ -183,6 +208,16 @@ public class TrainedModelProvider {
     }
 
     public void getTrainedModel(final String modelId, final boolean includeDefinition, final ActionListener<TrainedModelConfig> listener) {
+
+        if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
+            try {
+                listener.onResponse(loadModelFromResource(modelId, includeDefinition == false));
+                return;
+            } catch (ElasticsearchException ex) {
+                listener.onFailure(ex);
+                return;
+            }
+        }
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders
             .idsQuery()
@@ -267,11 +302,29 @@ public class TrainedModelProvider {
             .addSort("_index", SortOrder.DESC)
             .setQuery(queryBuilder)
             .request();
+        List<TrainedModelConfig> configs = new ArrayList<>(modelIds.size());
+        Set<String> modelsInIndex = Sets.difference(modelIds, MODELS_STORED_AS_RESOURCE);
+        Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds);
+        for(String modelId : modelsAsResource) {
+            try {
+                configs.add(loadModelFromResource(modelId, true));
+            } catch (ElasticsearchException ex) {
+                listener.onFailure(ex);
+                return;
+            }
+        }
+        if (modelsInIndex.isEmpty()) {
+            configs.sort(Comparator.comparing(TrainedModelConfig::getModelId));
+            listener.onResponse(configs);
+            return;
+        }
 
         ActionListener<SearchResponse> configSearchHandler = ActionListener.wrap(
             searchResponse -> {
-                Set<String> observedIds = new HashSet<>(searchResponse.getHits().getHits().length, 1.0f);
-                List<TrainedModelConfig> configs = new ArrayList<>(searchResponse.getHits().getHits().length);
+                Set<String> observedIds = new HashSet<>(
+                    searchResponse.getHits().getHits().length + modelsAsResource.size(),
+                    1.0f);
+                observedIds.addAll(modelsAsResource);
                 for(SearchHit searchHit : searchResponse.getHits().getHits()) {
                     try {
                         if (observedIds.contains(searchHit.getId()) == false) {
@@ -294,6 +347,8 @@ public class TrainedModelProvider {
                     listener.onFailure(new ResourceNotFoundException(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs));
                     return;
                 }
+                // Ensure sorted even with the injection of locally resourced models
+                configs.sort(Comparator.comparing(TrainedModelConfig::getModelId));
                 listener.onResponse(configs);
             },
             listener::onFailure
@@ -303,9 +358,13 @@ public class TrainedModelProvider {
     }
 
     public void deleteTrainedModel(String modelId, ActionListener<Boolean> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, modelId)));
+            return;
+        }
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
 
-        request.indices(InferenceIndexConstants.INDEX_PATTERN);
+        request.indices(InferenceIndexConstants.INDEX_PATTERN, MlStatsIndex.indexPattern());
         QueryBuilder query = QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         request.setQuery(query);
         request.setRefresh(true);
@@ -329,18 +388,34 @@ public class TrainedModelProvider {
 
     public void expandIds(String idExpression,
                           boolean allowNoResources,
-                          @Nullable PageParams pageParams,
+                          PageParams pageParams,
+                          Set<String> tags,
                           ActionListener<Tuple<Long, Set<String>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
+        Set<String> matchedResourceIds = matchedResourceIds(tokens);
+        Set<String> foundResourceIds;
+        if (tags.isEmpty()) {
+            foundResourceIds = matchedResourceIds;
+        } else {
+            foundResourceIds = new HashSet<>();
+            for(String resourceId : matchedResourceIds) {
+                // Does the model as a resource have all the tags?
+                if (Sets.newHashSet(loadModelFromResource(resourceId, true).getTags()).containsAll(tags)) {
+                    foundResourceIds.add(resourceId);
+                }
+            }
+        }
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
             .sort(SortBuilders.fieldSort(TrainedModelConfig.MODEL_ID.getPreferredName())
                 // If there are no resources, there might be no mapping for the id field.
                 // This makes sure we don't get an error if that happens.
                 .unmappedType("long"))
-            .query(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName()));
-        if (pageParams != null) {
-            sourceBuilder.from(pageParams.getFrom()).size(pageParams.getSize());
-        }
+            .query(buildExpandIdsQuery(tokens, tags))
+            // We "buffer" the from and size to take into account models stored as resources.
+            // This is so we handle the edge cases when the model that is stored as a resource is at the start/end of
+            // a page.
+            .from(Math.max(0, pageParams.getFrom() - foundResourceIds.size()))
+            .size(Math.min(10_000, pageParams.getSize() + foundResourceIds.size()));
         sourceBuilder.trackTotalHits(true)
             // we only care about the item id's
             .fetchSource(TrainedModelConfig.MODEL_ID.getPreferredName(), null);
@@ -359,8 +434,8 @@ public class TrainedModelProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(
                 response -> {
-                    Set<String> foundResourceIds = new LinkedHashSet<>();
-                    long totalHitCount = response.getHits().getTotalHits().value;
+                    long totalHitCount = response.getHits().getTotalHits().value + foundResourceIds.size();
+                    Set<String> foundFromDocs = new HashSet<>();
                     for (SearchHit hit : response.getHits().getHits()) {
                         Map<String, Object> docSource = hit.getSourceAsMap();
                         if (docSource == null) {
@@ -368,24 +443,184 @@ public class TrainedModelProvider {
                         }
                         Object idValue = docSource.get(TrainedModelConfig.MODEL_ID.getPreferredName());
                         if (idValue instanceof String) {
-                            foundResourceIds.add(idValue.toString());
+                            foundFromDocs.add(idValue.toString());
                         }
                     }
+                    Set<String> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs);
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
-                    requiredMatches.filterMatchedIds(foundResourceIds);
+                    requiredMatches.filterMatchedIds(allFoundIds);
                     if (requiredMatches.hasUnmatchedIds()) {
                         idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
                     } else {
-                        idsListener.onResponse(Tuple.tuple(totalHitCount, foundResourceIds));
+
+                        idsListener.onResponse(Tuple.tuple(totalHitCount, allFoundIds));
                     }
                 },
                 idsListener::onFailure
             ),
             client::search);
-
     }
 
-    private QueryBuilder buildQueryIdExpressionQuery(String[] tokens, String resourceIdField) {
+    public void getInferenceStats(String[] modelIds, ActionListener<List<InferenceStats>> listener) {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        Arrays.stream(modelIds).map(this::buildStatsSearchRequest).forEach(multiSearchRequest::add);
+        if (multiSearchRequest.requests().isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            multiSearchRequest,
+            ActionListener.<MultiSearchResponse>wrap(
+                responses -> {
+                    List<InferenceStats> allStats = new ArrayList<>(modelIds.length);
+                    int modelIndex = 0;
+                    assert responses.getResponses().length == modelIds.length :
+                        "mismatch between search response size and models requested";
+                    for (MultiSearchResponse.Item response : responses.getResponses()) {
+                        if (response.isFailure()) {
+                            if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
+                                modelIndex++;
+                                continue;
+                            }
+                            logger.error(new ParameterizedMessage("[{}] search failed for models",
+                                    Strings.arrayToCommaDelimitedString(modelIds)),
+                                response.getFailure());
+                            listener.onFailure(ExceptionsHelper.serverError("Searching for stats for models [{}] failed",
+                                response.getFailure(),
+                                Strings.arrayToCommaDelimitedString(modelIds)));
+                            return;
+                        }
+                        try {
+                            InferenceStats inferenceStats = handleMultiNodeStatsResponse(response.getResponse(), modelIds[modelIndex++]);
+                            if (inferenceStats != null) {
+                                allStats.add(inferenceStats);
+                            }
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
+                        }
+                    }
+                    listener.onResponse(allStats);
+                },
+                e -> {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ResourceNotFoundException) {
+                        listener.onResponse(Collections.emptyList());
+                        return;
+                    }
+                    listener.onFailure((Exception)unwrapped);
+                }
+            ),
+            client::multiSearch);
+    }
+
+    private SearchRequest buildStatsSearchRequest(String modelId) {
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
+            .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME));
+        return new SearchRequest(MlStatsIndex.indexPattern())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
+            .allowPartialSearchResults(false)
+            .source(SearchSourceBuilder.searchSource()
+                .size(0)
+                .aggregation(AggregationBuilders.sum(InferenceStats.FAILURE_COUNT.getPreferredName())
+                    .field(InferenceStats.FAILURE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName())
+                    .field(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.INFERENCE_COUNT.getPreferredName())
+                    .field(InferenceStats.INFERENCE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.max(InferenceStats.TIMESTAMP.getPreferredName())
+                    .field(InferenceStats.TIMESTAMP.getPreferredName()))
+                .query(queryBuilder));
+    }
+
+    private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
+        if (response.getAggregations() == null) {
+            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
+            return null;
+        }
+        Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
+        Sum missing = response.getAggregations().get(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName());
+        Sum count = response.getAggregations().get(InferenceStats.INFERENCE_COUNT.getPreferredName());
+        Max timeStamp = response.getAggregations().get(InferenceStats.TIMESTAMP.getPreferredName());
+        return new InferenceStats(
+            missing == null ? 0L : Double.valueOf(missing.getValue()).longValue(),
+            count == null ? 0L : Double.valueOf(count.getValue()).longValue(),
+            failures == null ? 0L : Double.valueOf(failures.getValue()).longValue(),
+            modelId,
+            null,
+            timeStamp == null ? Instant.now() : Instant.ofEpochMilli(Double.valueOf(timeStamp.getValue()).longValue())
+        );
+    }
+
+    static Set<String> collectIds(PageParams pageParams, Set<String> foundFromResources, Set<String> foundFromDocs) {
+        // If there are no matching resource models, there was no buffering and the models from the docs
+        // are paginated correctly.
+        if (foundFromResources.isEmpty()) {
+            return foundFromDocs;
+        }
+
+        TreeSet<String> allFoundIds = new TreeSet<>(foundFromDocs);
+        allFoundIds.addAll(foundFromResources);
+
+        if (pageParams.getFrom() > 0) {
+            // not the first page so there will be extra results at the front to remove
+            int numToTrimFromFront = Math.min(foundFromResources.size(), pageParams.getFrom());
+            for (int i = 0; i < numToTrimFromFront; i++) {
+                allFoundIds.remove(allFoundIds.first());
+            }
+        }
+
+        // trim down to size removing from the rear
+        while (allFoundIds.size() > pageParams.getSize()) {
+            allFoundIds.remove(allFoundIds.last());
+        }
+
+        return allFoundIds;
+    }
+
+    static QueryBuilder buildExpandIdsQuery(String[] tokens, Collection<String> tags) {
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(buildQueryIdExpressionQuery(tokens, TrainedModelConfig.MODEL_ID.getPreferredName()));
+        for(String tag : tags) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), tag));
+        }
+        return QueryBuilders.constantScoreQuery(boolQueryBuilder);
+    }
+
+    TrainedModelConfig loadModelFromResource(String modelId, boolean nullOutDefinition) {
+        URL resource = getClass().getResource(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT);
+        if (resource == null) {
+            logger.error("[{}] presumed stored as a resource but not found", modelId);
+            throw new ResourceNotFoundException(
+                Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
+        }
+        try {
+            BytesReference bytes = Streams.readFully(getClass()
+                .getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT));
+            try (XContentParser parser =
+                     XContentHelper.createParser(xContentRegistry,
+                         LoggingDeprecationHandler.INSTANCE,
+                         bytes,
+                         XContentType.JSON)) {
+                TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+                if (nullOutDefinition) {
+                    builder.clearDefinition();
+                }
+                return builder.build();
+            } catch (IOException ioEx) {
+                logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), ioEx);
+                throw ExceptionsHelper.serverError(INFERENCE_FAILED_TO_DESERIALIZE, ioEx, modelId);
+            }
+        } catch (IOException ex) {
+            String msg = new ParameterizedMessage("[{}] failed to read model as resource", modelId).getFormattedMessage();
+            logger.error(msg, ex);
+            throw ExceptionsHelper.serverError(msg, ex);
+        }
+    }
+
+    private static QueryBuilder buildQueryIdExpressionQuery(String[] tokens, String resourceIdField) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME));
 
@@ -411,6 +646,29 @@ public class TrainedModelProvider {
             boolQuery.filter(shouldQueries);
         }
         return boolQuery;
+    }
+
+    private Set<String> matchedResourceIds(String[] tokens) {
+        if (Strings.isAllOrWildcard(tokens)) {
+            return MODELS_STORED_AS_RESOURCE;
+        }
+
+        Set<String> matchedModels = new HashSet<>();
+
+        for (String token : tokens) {
+            if (Regex.isSimpleMatchPattern(token)) {
+                for (String modelId : MODELS_STORED_AS_RESOURCE) {
+                    if(Regex.simpleMatch(token, modelId)) {
+                        matchedModels.add(modelId);
+                    }
+                }
+            } else {
+                if (MODELS_STORED_AS_RESOURCE.contains(token)) {
+                    matchedModels.add(token);
+                }
+            }
+        }
+        return Collections.unmodifiableSet(matchedModels);
     }
 
     private static <T> T handleSearchItem(MultiSearchResponse.Item item,

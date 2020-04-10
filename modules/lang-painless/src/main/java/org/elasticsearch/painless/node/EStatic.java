@@ -19,22 +19,20 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a static type target.
  */
-public final class EStatic extends AExpression {
+public class EStatic extends AExpression {
 
-    private final String type;
+    protected final String type;
 
     public EStatic(Location location, String type) {
         super(location);
@@ -43,26 +41,25 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+        }
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+        Output output = new Output();
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
-        if (actual == null) {
+        if (output.actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
-    }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
+        StaticNode staticNode = new StaticNode();
 
-    @Override
-    public String toString() {
-        return singleLineToString(type);
+        staticNode.setLocation(location);
+        staticNode.setExpressionType(output.actual);
+
+        output.expressionNode = staticNode;
+
+        return output;
     }
 }

@@ -62,7 +62,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", "tag", "type=keyword").get());
+                .setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped", "idx_gappy");
 
         numDocs = randomIntBetween(6, 20);
@@ -92,7 +92,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i == 4 ? 3 : i).endObject()));
         }
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));

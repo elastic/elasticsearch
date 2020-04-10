@@ -537,3 +537,9 @@ The example above creates a boolean query:
 `(blended(terms:[field2:this, field1:this]) blended(terms:[field2:that, field1:that]) blended(terms:[field2:thus, field1:thus]))~2`
 
 that matches documents with at least two of the three per-term blended queries.
+
+==== Notes
+===== Allow expensive queries
+Query string query can be internally be transformed to a <<query-dsl-prefix-query, `prefix query`>> which means
+that if the prefix queries are disabled as explained <<prefix-query-allow-expensive-queries, here>> the query will not be
+executed and an exception will be thrown.

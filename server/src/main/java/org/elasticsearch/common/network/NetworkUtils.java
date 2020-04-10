@@ -172,6 +172,10 @@ public abstract class NetworkUtils {
         try {
             return intf.isUp();
         } catch (final SocketException e) {
+            // virtual ethernet devices come and go, we will treat such a device that disappeared as not being up
+            if (intf.getName().startsWith("veth") && e.getMessage().equals("No such device (getFlags() failed)")) {
+                return false;
+            }
             throw new IOException("failed to check if interface [" + intf.getName() + "] is up", e);
         }
     }

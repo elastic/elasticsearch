@@ -31,7 +31,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -56,7 +55,6 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.SyncedFlushResponse;
 import org.elasticsearch.client.core.BroadcastResponse.Shards;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.AnalyzeRequest;
@@ -76,7 +74,7 @@ import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.indices.IndexTemplateMetaData;
+import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
@@ -86,8 +84,8 @@ import org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -111,6 +109,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -591,8 +590,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-mappings-execute
 
             // tag::get-mappings-response
-            Map<String, MappingMetaData> allMappings = getMappingResponse.mappings(); // <1>
-            MappingMetaData indexMapping = allMappings.get("twitter"); // <2>
+            Map<String, MappingMetadata> allMappings = getMappingResponse.mappings(); // <1>
+            MappingMetadata indexMapping = allMappings.get("twitter"); // <2>
             Map<String, Object> mapping = indexMapping.sourceAsMap(); // <3>
             // end::get-mappings-response
 
@@ -643,8 +642,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                Map<String, MappingMetaData> allMappings = r.mappings();
-                MappingMetaData indexMapping = allMappings.get("twitter");
+                Map<String, MappingMetadata> allMappings = r.mappings();
+                MappingMetadata indexMapping = allMappings.get("twitter");
                 Map<String, Object> mapping = indexMapping.sourceAsMap();
 
                 Map<String, String> type = new HashMap<>();
@@ -714,15 +713,15 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-field-mappings-execute
 
             // tag::get-field-mappings-response
-            final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+            final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                 response.mappings();// <1>
-            final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings =
+            final Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings =
                 mappings.get("twitter"); // <2>
-            final GetFieldMappingsResponse.FieldMappingMetaData metaData =
+            final GetFieldMappingsResponse.FieldMappingMetadata metadata =
                 fieldMappings.get("message");// <3>
 
-            final String fullName = metaData.fullName();// <4>
-            final Map<String, Object> source = metaData.sourceAsMap(); // <5>
+            final String fullName = metadata.fullName();// <4>
+            final Map<String, Object> source = metadata.sourceAsMap(); // <5>
             // end::get-field-mappings-response
         }
 
@@ -746,14 +745,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetFieldMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                     r.mappings();
-                final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings =
+                final Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings =
                     mappings.get("twitter");
-                final GetFieldMappingsResponse.FieldMappingMetaData metaData1 = fieldMappings.get("message");
+                final GetFieldMappingsResponse.FieldMappingMetadata metadata1 = fieldMappings.get("message");
 
-                final String fullName = metaData1.fullName();
-                final Map<String, Object> source = metaData1.sourceAsMap();
+                final String fullName = metadata1.fullName();
+                final Map<String, Object> source = metadata1.sourceAsMap();
                 latchListener.onResponse(r);
             }, e -> {
                 latchListener.onFailure(e);
@@ -998,90 +997,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings("unused")
-    public void testSyncedFlushIndex() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            createIndex("index1", Settings.EMPTY);
-        }
-
-        {
-            // tag::flush-synced-request
-            SyncedFlushRequest request = new SyncedFlushRequest("index1"); // <1>
-            SyncedFlushRequest requestMultiple = new SyncedFlushRequest("index1", "index2"); // <2>
-            SyncedFlushRequest requestAll = new SyncedFlushRequest(); // <3>
-            // end::flush-synced-request
-
-            // tag::flush-synced-request-indicesOptions
-            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
-            // end::flush-synced-request-indicesOptions
-
-            // tag::flush-synced-execute
-            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, RequestOptions.DEFAULT);
-            // end::flush-synced-execute
-
-            // tag::flush-synced-response
-            int totalShards = flushSyncedResponse.totalShards(); // <1>
-            int successfulShards = flushSyncedResponse.successfulShards(); // <2>
-            int failedShards = flushSyncedResponse.failedShards(); // <3>
-
-            for (Map.Entry<String, SyncedFlushResponse.IndexResult> responsePerIndexEntry:
-                flushSyncedResponse.getIndexResults().entrySet()) {
-                String indexName = responsePerIndexEntry.getKey(); // <4>
-                SyncedFlushResponse.IndexResult indexResult = responsePerIndexEntry.getValue();
-                int totalShardsForIndex = indexResult.totalShards(); // <5>
-                int successfulShardsForIndex = indexResult.successfulShards(); // <6>
-                int failedShardsForIndex = indexResult.failedShards(); // <7>
-                if (failedShardsForIndex > 0) {
-                    for (SyncedFlushResponse.ShardFailure failureEntry: indexResult.failures()) {
-                        int shardId = failureEntry.getShardId(); // <8>
-                        String failureReason = failureEntry.getFailureReason(); // <9>
-                        Map<String, Object> routing = failureEntry.getRouting(); // <10>
-                    }
-                }
-            }
-            // end::flush-synced-response
-
-            // tag::flush-synced-execute-listener
-            ActionListener<SyncedFlushResponse> listener = new ActionListener<SyncedFlushResponse>() {
-                @Override
-                public void onResponse(SyncedFlushResponse refreshResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
-            // end::flush-synced-execute-listener
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::flush-synced-execute-async
-            client.indices().flushSyncedAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::flush-synced-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-
-        {
-            // tag::flush-synced-notfound
-            try {
-                SyncedFlushRequest request = new SyncedFlushRequest("does_not_exist");
-                client.indices().flushSynced(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
-                if (exception.status() == RestStatus.NOT_FOUND) {
-                    // <1>
-                }
-            }
-            // end::flush-synced-notfound
-        }
-    }
-
     public void testGetSettings() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1228,9 +1143,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-index-execute
 
         // tag::get-index-response
-        MappingMetaData indexMappings = getIndexResponse.getMappings().get("index"); // <1>
+        MappingMetadata indexMappings = getIndexResponse.getMappings().get("index"); // <1>
         Map<String, Object> indexTypeMappings = indexMappings.getSourceAsMap(); // <2>
-        List<AliasMetaData> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
+        List<AliasMetadata> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
         String numberOfShardsString = getIndexResponse.getSetting("index", "index.number_of_shards"); // <4>
         Settings indexSettings = getIndexResponse.getSettings().get("index"); // <5>
         Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <6>
@@ -1992,11 +1907,20 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-alias-execute
 
             // tag::get-alias-response
-            Map<String, Set<AliasMetaData>> aliases = response.getAliases(); // <1>
+            Map<String, Set<AliasMetadata>> aliases = response.getAliases(); // <1>
             // end::get-alias-response
+
+            // tag::get-alias-response-error
+            RestStatus status = response.status(); // <1>
+            ElasticsearchException exception = response.getException(); // <2>
+            String error = response.getError(); // <3>
+            // end::get-alias-response-error
 
             assertThat(response.getAliases().get("index").size(), equalTo(1));
             assertThat(response.getAliases().get("index").iterator().next().alias(), equalTo("alias"));
+            assertThat(status, equalTo(RestStatus.OK));
+            assertThat(error, nullValue());
+            assertThat(exception, nullValue());
 
             // tag::get-alias-execute-listener
             ActionListener<GetAliasesResponse> listener =
@@ -2307,7 +2231,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-execute
 
         // tag::get-templates-response
-        List<IndexTemplateMetaData> templates = getTemplatesResponse.getIndexTemplates(); // <1>
+        List<IndexTemplateMetadata> templates = getTemplatesResponse.getIndexTemplates(); // <1>
         // end::get-templates-response
 
         assertThat(templates, hasSize(1));

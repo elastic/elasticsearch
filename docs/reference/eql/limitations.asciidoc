@@ -30,3 +30,13 @@ queries that contain:
 * {eql-ref}/pipes.html[Pipes]
 
 * {eql-ref}/sequences.html[Sequences]
+
+[discrete]
+[[eql-array-values]]
+=== Array values
+
+EQL in {es} does not support <<array,array field values>>.
+
+In {es}, field mappings do not indicate whether a field contains array values or
+the order of array values. Using array field values may cause unexpected search
+results.

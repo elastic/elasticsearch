@@ -7,17 +7,16 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -188,7 +186,7 @@ class AsyncSearchIndexService {
             .index(INDEX)
             .id(docId)
             .doc(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
@@ -202,31 +200,16 @@ class AsyncSearchIndexService {
         UpdateRequest request = new UpdateRequest().index(INDEX)
             .id(docId)
             .doc(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
      * Deletes the provided <code>searchId</code> from the index if present.
      */
     void deleteResponse(AsyncSearchId searchId,
-                        boolean failIfNotFound,
-                        ActionListener<AcknowledgedResponse> listener) {
+                        ActionListener<DeleteResponse> listener) {
         DeleteRequest request = new DeleteRequest(INDEX).id(searchId.getDocId());
-        createIndexIfNecessary(
-            ActionListener.wrap(v -> client.delete(request,
-                ActionListener.wrap(
-                    resp -> {
-                        if (resp.status() == RestStatus.NOT_FOUND && failIfNotFound) {
-                            listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
-                        } else {
-                            listener.onResponse(new AcknowledgedResponse(true));
-                        }
-                    },
-                    exc -> {
-                        logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
-                        listener.onFailure(exc);
-                    })),
-                listener::onFailure));
+        client.delete(request, listener);
     }
 
     /**

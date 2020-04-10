@@ -127,8 +127,8 @@ in regular expressions. If `null`, the function returns `null`. Defaults to
 
 `<case_sensitive>`::
 (Optional, boolean or `null`)
-If `true`, matching is case-sensitive. Defaults to `false`. If `null`, the
-function returns `null`.
+If `true`, matching is case-sensitive. If `null`, the function returns `null`.
+Defaults to `false`.
 
 *Returns:* string or `null`
 ====
@@ -163,10 +163,10 @@ endsWith(file.name, ".dll")               // returns true
 endsWith(file.name, ".exe")               // returns false
 
 // null handling
-endsWith("regsvr32.exe", null)            // returns false
-endsWith("", null)                        // returns false 
-endsWith(null, ".exe")                    // returns false
-endsWith(null, null)                      // returns false
+endsWith("regsvr32.exe", null)            // returns null
+endsWith("", null)                        // returns null 
+endsWith(null, ".exe")                    // returns null
+endsWith(null, null)                      // returns null
 ----
 
 *Syntax*
@@ -182,7 +182,7 @@ endsWith(<source>, <substring>)
 +
 --
 (Required, string or `null`)
-Source string. If `null`, the function returns `false`.
+Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -199,7 +199,7 @@ Fields containing <<array,array values>> use the first array item only.
 +
 --
 (Required, string or `null`)
-Substring to search for. If `null`, the function returns `false`.
+Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -210,7 +210,7 @@ field datatypes:
   <<constant-keyword,`constant_keyword`>> sub-field
 --
 
-*Returns:* boolean
+*Returns:* boolean or `null`
 ====
 
 [discrete]
@@ -296,10 +296,10 @@ startsWith(process.name, "explorer")    // returns true
 startsWith(process.name, "regsvr32")    // returns false
 
 // null handling
-startsWith("regsvr32.exe", null)        // returns false
-startsWith("", null)                    // returns false 
-startsWith(null, "regsvr32")            // returns false
-startsWith(null, null)                  // returns false
+startsWith("regsvr32.exe", null)        // returns null
+startsWith("", null)                    // returns null 
+startsWith(null, "regsvr32")            // returns null
+startsWith(null, null)                  // returns null
 ----
 
 *Syntax*
@@ -315,7 +315,7 @@ startsWith(<source>, <substring>)
 +
 --
 (Required, string or `null`)
-Source string. If `null`, the function returns `false`.
+Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -332,7 +332,7 @@ Fields containing <<array,array values>> use the first array item only.
 +
 --
 (Required, string or `null`)
-Substring to search for. If `null`, the function returns `false`.
+Substring to search for. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -343,7 +343,7 @@ field datatypes:
   <<constant-keyword,`constant_keyword`>> sub-field
 --
 
-*Returns:* boolean
+*Returns:* boolean or `null`
 ====
 
 [discrete]
@@ -444,8 +444,8 @@ wildcard("", "*")                                   // returns true
 wildcard("", "")                                    // returns true
 
 // null handling
-wildcard(null, "*regsvr32*")                        // returns false
-wildcard(process.name, null)                        // returns false
+wildcard(null, "*regsvr32*")                        // returns null
+wildcard(process.name, null)                        // returns null
 ----
 
 *Syntax*
@@ -461,7 +461,7 @@ wildcard(<source>, <wildcard_exp>[, ...])
 +
 --
 (Required, string or `null`)
-Source string. If `null`, the function returns `false`.
+Source string. If `null`, the function returns `null`.
 
 If using a field as the argument, this parameter only supports the following
 field datatypes:
@@ -477,8 +477,8 @@ field datatypes:
 --
 (Required{multi-arg}, string or `null`)
 Wildcard expression used to match the source string. If `null`, the function
-returns `false`. Fields are not supported as arguments.
+returns `null`. Fields are not supported as arguments.
 -- 
 
-*Returns:* boolean
+*Returns:* boolean or `null`
 ====

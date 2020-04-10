@@ -127,8 +127,6 @@ public class VerifierTests extends ESTestCase {
                 error("process where multiply(6, serial_event_id) == 30"));
         assertEquals("1:15: Unknown function [divide]",
                 error("process where divide(30, 4.0) == 7.5"));
-        assertEquals("1:34: Unknown function [number]",
-                error("process where serial_event_id == number('5')"));
         assertEquals("1:15: Unknown function [concat]",
                 error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
     }

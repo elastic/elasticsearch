@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToNumber;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -37,6 +38,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 def(EndsWith.class, EndsWith::new, "endswith"),
                 def(IndexOf.class, IndexOf::new, "indexof"),
                 def(Length.class, Length::new, "length"),
+                def(ToNumber.class, ToNumber::new, "number"),
                 def(StartsWith.class, StartsWith::new, "startswith"),
                 def(ToString.class, ToString::new, "string"),
                 def(StringContains.class, StringContains::new, "stringcontains"),

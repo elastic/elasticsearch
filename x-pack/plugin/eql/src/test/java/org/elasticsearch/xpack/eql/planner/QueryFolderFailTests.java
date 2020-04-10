@@ -124,26 +124,52 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
     }
 
-    public void testStartsWithFunctionWithInexact() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where startsWith(plain_text, \"foo\") == true"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
-                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
-    }
-
     public void testIndexOfFunctionWithInexact() {
         VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where indexOf(plain_text, \"foo\") == 1"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [indexOf(plain_text, \"foo\")] cannot operate on first argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
-        
+
         e = expectThrows(VerificationException.class,
                 () -> plan("process where indexOf(\"bla\", plain_text) == 1"));
         msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [indexOf(\"bla\", plain_text)] cannot operate on second argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testNumberFunctionAlreadyNumber() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(pid) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: first argument of [number(pid)] must be [string], "
+            + "found value [pid] type [long]", msg);
+    }
+
+    public void testNumberFunctionFloatBase() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(process_name, 1.0) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: second argument of [number(process_name, 1.0)] must be [integer], "
+            + "found value [1.0] type [double]", msg);
+
+    }
+
+    public void testNumberFunctionNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(plain_text) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [number(plain_text)] cannot operate on first argument field of data type "
+                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+
+    }
+
+    public void testStartsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where startsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
     public void testStringContainsWrongParams() {
@@ -187,7 +213,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\n" +
                 "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
     }
-    
+
     public void testSequenceWithBeforeBy() {
         String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
         assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);

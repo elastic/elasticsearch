@@ -73,12 +73,12 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
-        // accept header when null is being defaulted to JSON. but it won't be compatible
+        // with body present - both headers have to be versioned
         createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
-            expect(requestCreated(), not(isCompatible())));
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
         createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
-            expect(requestCreated(), not(isCompatible())));
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
         //tests when body NOT present and one of the headers missing
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyNotPresent(),

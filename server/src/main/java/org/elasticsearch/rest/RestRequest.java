@@ -186,10 +186,10 @@ public class RestRequest implements ToXContent.Params {
             }
 
             // Content type is set but accept is not present. It will be defaulted to JSON
-            if(isSupportedMediaTypeContentType &&
-                (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
-                return false;
-            }
+//            if(isSupportedMediaTypeContentType &&
+//                (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
+//                return false;
+//            }
             // both Accept and Content-Type are not a compatible format, but are supported and not empty
             if (isSupportedMediaTypeContentType && isSupportedMediaTypeAccept &&
                 acceptHeader != null && contentTypeHeader != null) {

@@ -147,7 +147,8 @@ cidrMatch(source.address, "10.0.0.0/8")                   // returns false
 cidrMatch(source.address, "10.0.0.0/8", "10.128.0.0/9")   // returns false
 
 // null handling
-cidrMatch(null, "10.0.0.0/8", "10.128.0.0/9")             // returns null
+cidrMatch(null, "10.0.0.0/8")                             // returns null
+cidrMatch(source.address, null)                           // returns null
 ----
 
 *Syntax*
@@ -159,7 +160,7 @@ cidrMatch(null, "10.0.0.0/8", "10.128.0.0/9")             // returns null
 *Parameters*
 
 `<ip_address>`::
-(Required, string)
+(Required, string or `null`)
 IP address. Supports
 https://en.wikipedia.org/wiki/IPv4[IPv4] and
 https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
@@ -169,8 +170,8 @@ If using a field as the argument, this parameter only supports the <<ip,`ip`>>
 field datatype.
 
 `<cidr_block>`::
-(Required{multi-arg}, string)
-CIDR block you wish to search.
+(Required{multi-arg}, string or `null`)
+CIDR block you wish to search. If `null`, the function returns `null`.
 
 *Returns:* boolean or `null`
 ====

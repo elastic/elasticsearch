@@ -60,7 +60,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         restApi.getParams().forEach((key, value) -> assertThat(value, equalTo(false)));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
-        assertThat(restApi.getRequestMimeTypes(), containsInAnyOrder("application/json"));
+        assertThat(restApi.getRequestMimeTypes(), containsInAnyOrder("application/json", "a/mime-type"));
         assertThat(restApi.getResponseMimeTypes(), containsInAnyOrder("application/json"));
     }
 
@@ -172,7 +172,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"description\":\"Returns number of documents matching a query.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
-        "    \"response_types\": [\"application/json\"],\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +
@@ -234,7 +234,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html\",\n" +
         "      \"description\":\"Returns an index template.\"\n" +
         "    },\n" +
-        "    \"response_types\": [\"application/json\"],\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"stability\": \"stable\",\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
@@ -268,7 +268,10 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"description\":\"Creates or updates a document in an index.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
-        "    \"response_types\": [\"application/json\"],\n" +
+        "    \"headers\": { " +
+        "       \"accept\": [\"application/json\"],\n " +
+        "       \"content_type\": [\"application/json\", \"a/mime-type\"]\n " +
+        "   },\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +

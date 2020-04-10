@@ -32,7 +32,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
-  tasks.withType(RestTestRunnerTask).matching { it.name.startsWith(baseName) }.configureEach {
+  tasks.withType(RestTestRunnerTask).matching { it.name.startsWith(baseName) }.all {
     useCluster testClusters."${baseName}-leader"
     useCluster testClusters."${baseName}-follower"
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
@@ -54,27 +54,27 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
   for (kind in ["follower", "leader"]) {
     // Attention!! Groovy trap: do not pass `kind` to a closure
 
-    tasks.register("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
       ext.kindExt = kind
     }
 
-    tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'one_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
       ext.kindExt = kind
     }
 
-    tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'two_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
       ext.kindExt = kind
     }
 
-    tasks.register("${baseName}#${kind}#upgradedClusterTest", RestTestRunnerTask) {
+    tasks.create("${baseName}#${kind}#upgradedClusterTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"

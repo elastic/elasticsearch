@@ -84,28 +84,14 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
             .getTasks(), is(empty()));
 
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId).get(0);
-        assertThat(jobStats.getState(), equalTo(JobState.OPENED));
-        assertThat(jobStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
+        assertThat(jobStats.getState(), is(equalTo(JobState.OPENED)));
+        assertThat(jobStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
         assertThat(jobStats.getNode(), is(nullValue()));
 
         GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats = getDatafeedStats(datafeedId);
-        assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
-        assertThat(datafeedStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
+        assertThat(datafeedStats.getDatafeedState(), is(equalTo(DatafeedState.STARTED)));
+        assertThat(datafeedStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
         assertThat(datafeedStats.getNode(), is(nullValue()));
-
-        setUpgradeModeTo(false);
-
-        Job.Builder job = createScheduledJob("job-should-not-open");
-        registerJob(job);
-        putJob(job);
-
-        setUpgradeModeTo(true);
-
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class, () -> openJob(job.getId()));
-        assertThat(statusException.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(
-            statusException.getMessage(),
-            equalTo("Cannot perform cluster:admin/xpack/ml/job/open action while upgrade mode is enabled"));
 
         // Disable the setting
         setUpgradeModeTo(false);
@@ -124,12 +110,25 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
             .getTasks(), hasSize(2)));
 
         jobStats = getJobStats(jobId).get(0);
-        assertThat(jobStats.getState(), equalTo(JobState.OPENED));
-        assertThat(jobStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
+        assertThat(jobStats.getState(), is(equalTo(JobState.OPENED)));
+        assertThat(jobStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
 
         datafeedStats = getDatafeedStats(datafeedId);
-        assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
-        assertThat(datafeedStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
+        assertThat(datafeedStats.getDatafeedState(), is(equalTo(DatafeedState.STARTED)));
+        assertThat(datafeedStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+    }
+
+    public void testJobOpenActionInUpgradeMode() {
+        String jobId = "job-should-not-open";
+        Job.Builder job = createScheduledJob(jobId);
+        registerJob(job);
+        putJob(job);
+
+        setUpgradeModeTo(true);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> openJob(jobId));
+        assertThat(e.getMessage(), is(equalTo("Cannot perform cluster:admin/xpack/ml/job/open action while upgrade mode is enabled")));
+        assertThat(e.status(), is(equalTo(RestStatus.TOO_MANY_REQUESTS)));
     }
 
     public void testAnomalyDetectionActionsInUpgradeMode() {
@@ -183,8 +182,8 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedConfig.getId(), 0L, null);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1));
-            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+            assertThat(dataCounts.getProcessedRecordCount(), is(equalTo(numDocs1)));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), is(equalTo(0L)));
         });
 
         long numDocs2 = randomIntBetween(2, 64);
@@ -192,8 +191,8 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data", numDocs2, now + 5000, now + 6000);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));
-            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+            assertThat(dataCounts.getProcessedRecordCount(), is(equalTo(numDocs1 + numDocs2)));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), is(equalTo(0L)));
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -27,9 +27,13 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -96,6 +100,58 @@ public class DataStreamIT extends ESIntegTestCase {
             () -> client().admin().indices().getIndex(new GetIndexRequest().indices("metrics-foo-000001")).actionGet());
     }
 
+    public void testOtherWriteOps() throws Exception {
+        String dataStreamName = "metrics-foobar";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        createDataStreamRequest.setTimestampFieldName("@timestamp1");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        {
+            BulkRequest bulkRequest = new BulkRequest()
+                .add(new IndexRequest(dataStreamName).source("{}", XContentType.JSON));
+            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest()
+                .add(new DeleteRequest(dataStreamName, "_id"));
+            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest()
+                .add(new UpdateRequest(dataStreamName, "_id").doc("{}", XContentType.JSON));
+            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{}", XContentType.JSON);
+            expectFailure(dataStreamName, () -> client().index(indexRequest).actionGet());
+        }
+        {
+            UpdateRequest updateRequest = new UpdateRequest(dataStreamName, "_id")
+                .doc("{}", XContentType.JSON);
+            expectFailure(dataStreamName, () -> client().update(updateRequest).actionGet());
+        }
+        {
+            DeleteRequest deleteRequest = new DeleteRequest(dataStreamName, "_id");
+            expectFailure(dataStreamName, () -> client().delete(deleteRequest).actionGet());
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE);
+            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            assertThat(indexResponse.getIndex(), equalTo(dataStreamName + "-000001"));
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest()
+                .add(new IndexRequest(dataStreamName).source("{}", XContentType.JSON)
+                    .opType(DocWriteRequest.OpType.CREATE));
+            BulkResponse bulkItemResponses  = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(dataStreamName + "-000001"));
+        }
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("*");
+        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
     private static void indexDocs(String dataStream, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
@@ -115,6 +171,12 @@ public class DataStreamIT extends ESIntegTestCase {
         Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> {
             assertThat(hit.getIndex(), equalTo(dataStream + "-000001"));
         });
+    }
+
+    private static void expectFailure(String dataStreamName, ThrowingRunnable runnable) {
+        Exception e = expectThrows(IllegalArgumentException.class, runnable);
+        assertThat(e.getMessage(), equalTo("The provided expression [" + dataStreamName +
+            "] matches a data stream, specify the corresponding concrete indices instead."));
     }
 
 }

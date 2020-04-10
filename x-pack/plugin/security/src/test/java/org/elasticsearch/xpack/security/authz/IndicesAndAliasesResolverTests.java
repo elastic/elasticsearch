@@ -1533,7 +1533,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             // Resolve data streams:
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true, false));
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true, true));
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
@@ -1541,7 +1541,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             // Ignore data streams:
             searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true, true));
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true, false));
             resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
             assertThat(resolvedIndices.getLocal(), contains("-*")); // -* signals no indices to es core. An empty list means *all* indices
             assertThat(resolvedIndices.getRemote(), emptyIterable());
@@ -1553,7 +1553,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             // Resolve *all* data streams:
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true, false));
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true, true));
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
             assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());

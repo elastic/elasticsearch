@@ -19,6 +19,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -35,8 +36,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -63,6 +63,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -614,28 +615,76 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }
 
-    public void testDataStreams() throws Exception {
-        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("logs-foo");
-        request.setTimestampFieldName("ts");
-        client().admin().indices().createDataStream(request).actionGet();
-        request = new CreateDataStreamAction.Request("logs-bar");
+    public void testDataStreamsResolvability() {
+        String dataStreamName = "logs-foobar";
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
         request.setTimestampFieldName("ts");
         client().admin().indices().createDataStream(request).actionGet();
 
-        IndexResponse indexResponse =
-            client().index(new IndexRequest("logs-foo").source("{}", XContentType.JSON)).get();
-        assertThat(indexResponse.getIndex(), equalTo("logs-foo-000001"));
-        indexResponse = client().index(new IndexRequest("logs-bar").source("{}", XContentType.JSON)).get();
-        assertThat(indexResponse.getIndex(), equalTo("logs-bar-000001"));
-        refresh("logs-*");
+        verifyResolvability(dataStreamName, client().prepareIndex(dataStreamName)
+                .setSource("{}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE),
+            false);
+        verifyResolvability(dataStreamName, refreshBuilder(dataStreamName), false);
+        verifyResolvability(dataStreamName, search(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, msearch(null, dataStreamName), false);
+        verifyResolvability(dataStreamName, clearCache(dataStreamName), true);
+        verifyResolvability(dataStreamName, _flush(dataStreamName),true);
+        verifyResolvability(dataStreamName, segments(dataStreamName), true);
+        verifyResolvability(dataStreamName, stats(dataStreamName), true);
+        verifyResolvability(dataStreamName, forceMerge(dataStreamName), true);
+        verifyResolvability(dataStreamName, validateQuery(dataStreamName), true);
+        verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
+        verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
+        verifyResolvability(dataStreamName, getMapping(dataStreamName), true);
+        verifyResolvability(dataStreamName, getSettings(dataStreamName), true);
 
-        verify(client().prepareSearch("logs*"), false, 2);
-        IndicesOptions indicesOptions =
-            IndicesOptions.fromOptions(true, true, true, false, false, true, true, false, false, true);
-        verify(client().prepareSearch("logs*").setIndicesOptions(indicesOptions), false, 0);
+        request = new CreateDataStreamAction.Request("logs-barbaz");
+        request.setTimestampFieldName("ts");
+        client().admin().indices().createDataStream(request).actionGet();
+        verifyResolvability("logs-barbaz", client().prepareIndex("logs-barbaz")
+                .setSource("{}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE),
+            false);
+        verifyResolvability("logs*", refreshBuilder("logs*"), false);
+        verifyResolvability("logs*", search("logs*"), false, 2);
 
         DeleteDataStreamAction.Request deleteRequest = new DeleteDataStreamAction.Request("*");
         client().admin().indices().deleteDataStream(deleteRequest).actionGet();
+    }
+
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
+        verifyResolvability(dataStream, requestBuilder, fail, 0);
+    }
+
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+        if (fail) {
+            String expectedErrorMessage = "The provided expression [" + dataStream +
+                "] matches a data stream, specify the corresponding concrete indices instead.";
+            if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+            } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
+                ValidateQueryResponse response = (ValidateQueryResponse) requestBuilder.get();
+                assertThat(response.getQueryExplanation().get(0).getError(), equalTo(expectedErrorMessage));
+            } else {
+                Exception e = expectThrows(IllegalArgumentException.class, requestBuilder::get);
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
+            }
+        } else {
+            if (requestBuilder instanceof SearchRequestBuilder) {
+                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+                assertHitCount(searchRequestBuilder.get(), expectedCount);
+            } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+            } else {
+                requestBuilder.get();
+            }
+        }
     }
 
     private static SearchRequestBuilder search(String... indices) {

@@ -201,7 +201,8 @@ public class IndexNameExpressionResolver {
                 } else {
                     continue;
                 }
-            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.getOptions().ignoreDataStreams()) {
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
+                        context.getOptions().includeDataStreams() == false) {
                 if (failNoIndices) {
                     throw dataStreamsNotSupportedException(expression);
                 } else {
@@ -744,7 +745,8 @@ public class IndexNameExpressionResolver {
                             throw indexNotFoundException(expression);
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
                             throw aliasesNotSupportedException(expression);
-                        } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && options.ignoreDataStreams()) {
+                        } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
+                                    options.includeDataStreams() == false) {
                             throw dataStreamsNotSupportedException(expression);
                         }
                     }
@@ -795,7 +797,7 @@ public class IndexNameExpressionResolver {
                 return false;
             }
 
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && options.ignoreDataStreams()) {
+            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && options.includeDataStreams() == false) {
                 return false;
             }
 
@@ -825,7 +827,7 @@ public class IndexNameExpressionResolver {
 
         public static Map<String, IndexAbstraction> matches(Context context, Metadata metadata, String expression) {
             if (Regex.isMatchAllPattern(expression)) {
-                if (context.getOptions().ignoreAliases() || context.getOptions().ignoreDataStreams()) {
+                if (context.getOptions().ignoreAliases() || context.getOptions().includeDataStreams() == false) {
                     Stream<Map.Entry<String, IndexAbstraction>> stream = getStream(metadata.getIndicesLookup(), context.getOptions());
                     return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
@@ -845,7 +847,7 @@ public class IndexNameExpressionResolver {
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
             SortedMap<String, IndexAbstraction> subMap = metadata.getIndicesLookup().subMap(fromPrefix, toPrefix);
-            if (context.getOptions().ignoreAliases() || context.getOptions().ignoreDataStreams()) {
+            if (context.getOptions().ignoreAliases() || context.getOptions().includeDataStreams() == false) {
                  Stream<Map.Entry<String, IndexAbstraction>> stream = getStream(subMap, context.getOptions());
                  return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
@@ -865,7 +867,7 @@ public class IndexNameExpressionResolver {
             if (options.ignoreAliases()) {
                 stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.ALIAS);
             }
-            if (options.ignoreDataStreams()) {
+            if (options.includeDataStreams() == false) {
                 stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.DATA_STREAM);
             }
             return stream;

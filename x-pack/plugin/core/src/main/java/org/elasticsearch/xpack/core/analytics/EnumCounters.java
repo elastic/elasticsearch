@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.analytics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.util.Arrays;

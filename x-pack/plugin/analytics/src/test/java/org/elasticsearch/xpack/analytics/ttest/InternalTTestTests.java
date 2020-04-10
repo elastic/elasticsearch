@@ -31,8 +31,8 @@ import static java.util.Collections.emptyList;
 
 public class InternalTTestTests extends InternalAggregationTestCase<InternalTTest> {
 
-    private TTestType type = randomFrom(TTestType.values());
-    private int tails = randomIntBetween(1, 2);
+    private final TTestType type = randomFrom(TTestType.values());
+    private final int tails = randomIntBetween(1, 2);
 
     @Override
     protected InternalTTest createTestInstance(String name, Map<String, Object> metadata) {

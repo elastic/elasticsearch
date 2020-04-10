@@ -15,7 +15,7 @@
         "attachments": {
           "test_report.pdf": {
             "http": {
-              "response_types": "application/pdf",
+              "content_type": "application/pdf",
               "request": {
                 "read_timeout": "100s",
                 "scheme": "https",

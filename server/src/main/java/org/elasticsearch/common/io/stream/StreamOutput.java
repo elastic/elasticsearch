@@ -821,7 +821,7 @@ public abstract class StreamOutput extends OutputStream {
         if (writer != null) {
             writer.write(this, value);
         } else {
-            throw new IOException("can not write type [" + type + "]");
+            throw new IllegalArgumentException("can not write type [" + type + "]");
         }
     }
 

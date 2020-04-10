@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 import org.jetbrains.gradle.ext.Remote
 import org.jetbrains.gradle.ext.JUnit
 
@@ -40,7 +41,7 @@ if (System.getProperty('idea.active') == 'true') {
   idea {
     project {
       vcs = 'Git'
-      jdkName = '13'
+      jdkName = BuildParams.minimumCompilerVersion.majorVersion
 
       settings {
         delegateActions {

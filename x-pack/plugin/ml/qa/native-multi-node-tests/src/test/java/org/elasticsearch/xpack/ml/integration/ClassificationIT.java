@@ -528,7 +528,16 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(analyticsAssignedTaskList(), hasSize(1));
 
         analyticsStats = getAnalyticsStats(jobId);
-        assertThat(analyticsStats.getState(), is(equalTo(DataFrameAnalyticsState.STARTING)));
+        assertThat(
+            analyticsStats.getState(),
+            is(anyOf(
+                equalTo(DataFrameAnalyticsState.STARTING),
+                equalTo(DataFrameAnalyticsState.STARTED),
+                equalTo(DataFrameAnalyticsState.REINDEXING),
+                equalTo(DataFrameAnalyticsState.ANALYZING),
+                equalTo(DataFrameAnalyticsState.STOPPING),
+                equalTo(DataFrameAnalyticsState.STOPPED))));
+
         assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
     }
 

@@ -552,7 +552,7 @@ buildRestTests.setups['node_upgrade'] = '''
               number_of_replicas: 1
             mappings:
               properties:
-                name:
+                group:
                   type: keyword
                 startup_time_before:
                   type: long
@@ -564,17 +564,17 @@ buildRestTests.setups['node_upgrade'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"name": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
             {"index":{}}
-            {"name": "B", "startup_time_before": 99, "startup_time_after": 93}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
             {"index":{}}
-            {"name": "C", "startup_time_before": 111, "startup_time_after": 72}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
             {"index":{}}
-            {"name": "D", "startup_time_before": 97, "startup_time_after": 98}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
             {"index":{}}
-            {"name": "E", "startup_time_before": 101, "startup_time_after": 102}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
             {"index":{}}
-            {"name": "F", "startup_time_before": 99, "startup_time_after": 98}'''
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
 
 // Used by iprange agg
 buildRestTests.setups['iprange'] = '''

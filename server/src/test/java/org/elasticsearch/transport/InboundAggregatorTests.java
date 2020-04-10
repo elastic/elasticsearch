@@ -20,6 +20,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -32,20 +34,33 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class InboundAggregatorTests extends ESTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final String unBreakableAction = "non_breakable_action";
+    private final String unknownAction = "unknown_action";
     private InboundAggregator aggregator;
+    private TestCircuitBreaker circuitBreaker;
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        aggregator = new InboundAggregator();
+        Predicate<String> requestCanTripBreaker = action -> {
+            if (unknownAction.equals(action)) {
+                throw new ActionNotFoundTransportException(action);
+            } else {
+                return unBreakableAction.equals(action) == false;
+            }
+        };
+        circuitBreaker = new TestCircuitBreaker();
+        aggregator = new InboundAggregator(() -> circuitBreaker, requestCanTripBreaker);
     }
 
     public void testInboundAggregation() throws IOException {
@@ -95,7 +110,89 @@ public class InboundAggregatorTests extends ESTestCase {
         }
     }
 
-    public void testCancelAndCloseWillCloseContent() {
+    public void testInboundUnknownAction() throws IOException {
+        long requestId = randomNonNegativeLong();
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        header.actionName = unknownAction;
+        // Initiate Message
+        aggregator.headerReceived(header);
+
+        BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
+        final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
+        aggregator.aggregate(content);
+        content.close();
+        assertEquals(0, content.refCount());
+
+        // Signal EOS
+        InboundMessage aggregated = aggregator.finishAggregation();
+
+        assertThat(aggregated, notNullValue());
+        assertTrue(aggregated.isShortCircuit());
+        assertThat(aggregated.getException(), instanceOf(ActionNotFoundTransportException.class));
+    }
+
+    public void testCircuitBreak() throws IOException {
+        circuitBreaker.startBreaking();
+        // Actions are breakable
+        Header breakableHeader = new Header(randomInt(), randomNonNegativeLong(), TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        breakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        breakableHeader.actionName = "action_name";
+        // Initiate Message
+        aggregator.headerReceived(breakableHeader);
+
+        BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
+        final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes);
+        aggregator.aggregate(content1);
+        content1.close();
+
+        // Signal EOS
+        InboundMessage aggregated1 = aggregator.finishAggregation();
+
+        assertEquals(0, content1.refCount());
+        assertThat(aggregated1, notNullValue());
+        assertTrue(aggregated1.isShortCircuit());
+        assertThat(aggregated1.getException(), instanceOf(CircuitBreakingException.class));
+
+        // Actions marked as unbreakable are not broken
+        Header unbreakableHeader = new Header(randomInt(), randomNonNegativeLong(), TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        unbreakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        unbreakableHeader.actionName = unBreakableAction;
+        // Initiate Message
+        aggregator.headerReceived(unbreakableHeader);
+
+        final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes);
+        aggregator.aggregate(content2);
+        content2.close();
+
+        // Signal EOS
+        InboundMessage aggregated2 = aggregator.finishAggregation();
+
+        assertEquals(1, content2.refCount());
+        assertThat(aggregated2, notNullValue());
+        assertFalse(aggregated2.isShortCircuit());
+
+        // Handshakes are not broken
+        final byte handshakeStatus = TransportStatus.setHandshake(TransportStatus.setRequest((byte) 0));
+        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, Version.CURRENT);
+        handshakeHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        handshakeHeader.actionName = "handshake";
+        // Initiate Message
+        aggregator.headerReceived(handshakeHeader);
+
+        final ReleasableBytesReference content3 = ReleasableBytesReference.wrap(bytes);
+        aggregator.aggregate(content3);
+        content3.close();
+
+        // Signal EOS
+        InboundMessage aggregated3 = aggregator.finishAggregation();
+
+        assertEquals(1, content3.refCount());
+        assertThat(aggregated3, notNullValue());
+        assertFalse(aggregated3.isShortCircuit());
+    }
+
+    public void testCloseWillCloseContent() {
         long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
@@ -121,11 +218,7 @@ public class InboundAggregatorTests extends ESTestCase {
             content2.close();
         }
 
-        if (randomBoolean()) {
-            aggregator.cancelAggregation();
-        } else {
-            aggregator.close();
-        }
+        aggregator.close();
 
         for (ReleasableBytesReference reference : references) {
             assertEquals(0, reference.refCount());
@@ -134,24 +227,40 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testFinishAggregationWillFinishHeader() throws IOException {
         long requestId = randomNonNegativeLong();
+        final String actionName;
+        final boolean unknownAction = randomBoolean();
+        if (unknownAction) {
+            actionName = this.unknownAction;
+        } else {
+            actionName = "action_name";
+        }
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         // Initiate Message
         aggregator.headerReceived(header);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             threadContext.writeTo(streamOutput);
-            streamOutput.writeString("action_name");
+            streamOutput.writeString(actionName);
             streamOutput.write(randomByteArrayOfLength(10));
 
-            aggregator.aggregate(ReleasableBytesReference.wrap(streamOutput.bytes()));
+            final ReleasableBytesReference content = ReleasableBytesReference.wrap(streamOutput.bytes());
+            aggregator.aggregate(content);
+            content.close();
 
             // Signal EOS
             InboundMessage aggregated = aggregator.finishAggregation();
 
             assertThat(aggregated, notNullValue());
             assertFalse(header.needsToReadVariableHeader());
-            assertEquals("action_name", header.getActionName());
+            assertEquals(actionName, header.getActionName());
+            if (unknownAction) {
+                assertEquals(0, content.refCount());
+                assertTrue(aggregated.isShortCircuit());
+            } else {
+                assertEquals(1, content.refCount());
+                assertFalse(aggregated.isShortCircuit());
+            }
         }
-
     }
+
 }

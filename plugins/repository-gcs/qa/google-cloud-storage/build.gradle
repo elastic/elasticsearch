@@ -135,7 +135,7 @@ integTest {
 }
 
 testClusters.integTest {
-  plugin file(project(':plugins:repository-gcs').bundlePlugin.archiveFile)
+  plugin project(':plugins:repository-gcs').bundlePlugin.archiveFile
 
   keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 

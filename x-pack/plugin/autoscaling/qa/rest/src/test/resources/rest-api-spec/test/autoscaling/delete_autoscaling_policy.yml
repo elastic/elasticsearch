@@ -2,7 +2,7 @@
 "Test delete autoscaling policy":
   - do:
       autoscaling.put_autoscaling_policy:
-        name: hot
+        name: my_autoscaling_policy
         body:
           policy:
             deciders:
@@ -12,11 +12,22 @@
 
   - do:
       autoscaling.delete_autoscaling_policy:
-        name: hot
+        name: my_autoscaling_policy
 
-  # TODO: add validation that the policy is removed after we have a get policy API
+  # validate the policy does not exist
+  - do:
+      catch: /autoscaling policy with name \[my_autoscaling_policy\] does not exist/
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy
+
+---
+"Test delete non-existent autoscaling policy":
+  - do:
+      catch: missing
+      autoscaling.delete_autoscaling_policy:
+        name: does_not_exist
 
   - do:
-      catch: bad_request
+      catch: /autoscaling policy with name \[does_not_exist\] does not exist/
       autoscaling.delete_autoscaling_policy:
         name: does_not_exist

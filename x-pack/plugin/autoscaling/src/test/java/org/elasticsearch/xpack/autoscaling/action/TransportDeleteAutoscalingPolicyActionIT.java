@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
@@ -31,13 +33,20 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), not(hasKey(policy.name())));
+        // and verify that we can not obtain the policy via get
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet()
+        );
+        assertThat(e.getMessage(), equalTo("autoscaling policy with name [" + policy.name() + "] does not exist"));
     }
 
     public void testDeleteNonExistentPolicy() {
         final String name = randomAlphaOfLength(8);
         final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(name);
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
             () -> client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet()
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));

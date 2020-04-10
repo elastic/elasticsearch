@@ -54,6 +54,7 @@ testClusters.integTest {
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
       systemProperty 'es.eql_feature_flag_registered', 'true'
+      systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'
     setting 'xpack.eql.enabled', 'true'
@@ -89,13 +90,13 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
     return
   }
   // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
     return
   }
   // FIXME
   subproj.afterEvaluate { // need to wait until the project has been configured
     testClusters.integTest {
-      plugin file(subproj.bundlePlugin.archiveFile)
+      plugin subproj.bundlePlugin.archiveFile
     }
     tasks.integTest.dependsOn subproj.bundlePlugin
   }

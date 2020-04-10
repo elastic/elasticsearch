@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
@@ -136,7 +137,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         String jobId = "job_id";
         expectThrowsUpgradeModeException(() -> putJob(createScheduledJob(jobId)));
-        expectThrowsUpgradeModeException(() -> updateJob(jobId, null));
+        expectThrowsUpgradeModeException(() -> updateJob(jobId, new JobUpdate.Builder(jobId).build()));
         expectThrowsUpgradeModeException(() -> deleteJob(jobId));
         expectThrowsUpgradeModeException(() -> openJob(jobId));
         expectThrowsUpgradeModeException(() -> flushJob(jobId, false));

@@ -20,9 +20,9 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
     }
 
     private String errorParsing(String eql) {
-        ParsingException e = expectThrows(ParsingException.class, () -> plan(eql));
+        Exception e = expectThrows(Exception.class, () -> plan(eql));
+        assertTrue(e.getClass().getSimpleName().endsWith("ParsingException"));
         final String header = "line ";
-        assertTrue(e.getMessage().startsWith(header));
         return e.getMessage().substring(header.length());
     }
 
@@ -132,6 +132,20 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
+    public void testIndexOfFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where indexOf(plain_text, \"foo\") == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [indexOf(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+        
+        e = expectThrows(VerificationException.class,
+                () -> plan("process where indexOf(\"bla\", plain_text) == 1"));
+        msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [indexOf(\"bla\", plain_text)] cannot operate on second argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
     public void testStringContainsWrongParams() {
         assertEquals("1:16: error building [stringcontains]: expects exactly two arguments",
                 errorParsing("process where stringContains()"));
@@ -172,5 +186,15 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
                 "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
+    }
+    
+    public void testSequenceWithBeforeBy() {
+        String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
+        assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);
+    }
+
+    public void testSequenceWithNoTimeUnit() {
+        String msg = errorParsing("sequence with maxspan=30 [a where true] [b where true]");
+        assertEquals("1:24: No time unit specified, did you mean [s] as in [30s]?", msg);
     }
 }

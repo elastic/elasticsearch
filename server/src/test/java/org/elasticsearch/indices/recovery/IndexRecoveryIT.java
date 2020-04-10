@@ -132,6 +132,7 @@ import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -139,7 +140,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.oneOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -721,6 +721,112 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
+    public void testTransientErrorsDuringRecovery() throws Exception {
+        final String indexName = "test";
+        final Settings nodeSettings = Settings.builder()
+            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "360s")
+            .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
+            .build();
+        // start a master node
+        internalCluster().startNode(nodeSettings);
+
+        final String blueNodeName = internalCluster()
+            .startNode(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        final String redNodeName = internalCluster()
+            .startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
+
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+        client().admin().indices().prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).get();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+
+        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
+
+        assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
+
+        SearchResponse searchResponse = client().prepareSearch(indexName).get();
+        assertHitCount(searchResponse, numDocs);
+
+        String[] recoveryActions = new String[]{
+            PeerRecoveryTargetService.Actions.FILE_CHUNK,
+            PeerRecoveryTargetService.Actions.TRANSLOG_OPS
+        };
+        final String recoveryActionToBlock = randomFrom(recoveryActions);
+        logger.info("--> will break connection between blue & red on [{}]", recoveryActionToBlock);
+
+        MockTransportService blueMockTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
+        MockTransportService redMockTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
+        TransportService redTransportService = internalCluster().getInstance(TransportService.class, redNodeName);
+        TransportService blueTransportService = internalCluster().getInstance(TransportService.class, blueNodeName);
+
+        blueMockTransportService.addSendBehavior(redTransportService, new TransientActionBlocker(recoveryActionToBlock));
+        redMockTransportService.addSendBehavior(blueTransportService, new TransientActionBlocker(recoveryActionToBlock));
+
+        try {
+            logger.info("--> starting recovery from blue to red");
+            client().admin().indices().prepareUpdateSettings(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            ).get();
+
+            ensureGreen();
+            searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
+            assertHitCount(searchResponse, numDocs);
+        } finally {
+            blueMockTransportService.clearAllRules();
+            redMockTransportService.clearAllRules();
+        }
+    }
+
+    private class TransientActionBlocker implements StubbableTransport.SendRequestBehavior {
+
+        private final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+        private final AtomicInteger blocksRemaining;
+        private final String recoveryActionToBlock;
+
+        TransientActionBlocker(String recoveryActionToBlock) {
+            this.recoveryActionToBlock = recoveryActionToBlock;
+            this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
+        }
+
+        @Override
+        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                TransportRequestOptions options) throws IOException {
+            // The cluster state applier will immediately attempt to retry the recovery on a cluster state
+            // update. We want to assert that the first and only recovery attempt succeeds
+            if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
+                if (recoveryStarted.compareAndSet(false, true) == false) {
+                    throw new IllegalStateException("Recovery cannot be started twice");
+                }
+            }
+            if (recoveryActionToBlock.equals(action)) {
+                if (blocksRemaining.getAndDecrement() != 0) {
+                    logger.info("--> preventing {} request", action);
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        }
+    }
+
     public void testDisconnectsWhileRecovering() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
@@ -805,7 +911,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
         assertHitCount(searchResponse, numDocs);
-
     }
 
     private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {

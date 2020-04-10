@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -256,7 +257,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     private static boolean retryableException(Exception e) {
-        if (e instanceof RemoteTransportException) {
+        if (e instanceof SendRequestTransportException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause instanceof ConnectTransportException;
+        } else if (e instanceof RemoteTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
             return cause instanceof ConnectTransportException ||
                 cause instanceof CircuitBreakingException ||

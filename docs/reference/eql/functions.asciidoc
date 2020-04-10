@@ -365,6 +365,7 @@ string(<value>)
 ----
 
 *Parameters*
+
 `<value>`::
 (Required)
 Value to convert to a string. If `null`, the function returns `null`.

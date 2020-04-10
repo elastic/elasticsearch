@@ -200,7 +200,7 @@ public class TransportStartDataFrameAnalyticsAction
         );
 
         // Get start context
-        getStartContext(request.getId(), task, startContextListener);
+        getStartContext(request.getId(), startContextListener);
     }
 
     private void estimateMemoryUsageAndUpdateMemoryTracker(StartContext startContext, ActionListener<StartContext> listener) {
@@ -240,9 +240,8 @@ public class TransportStartDataFrameAnalyticsAction
 
     }
 
-    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {
+    private void getStartContext(String id, ActionListener<StartContext> finalListener) {
 
-        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
         // Step 7. Validate that there are analyzable data in the source index
         ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
             startContext -> validateSourceIndexHasRows(startContext, finalListener),
@@ -251,7 +250,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Step 6. Validate mappings can be merged
         ActionListener<StartContext> toValidateMappingsListener = ActionListener.wrap(
-            startContext -> MappingsMerger.mergeMappings(parentTaskClient, startContext.config.getHeaders(),
+            startContext -> MappingsMerger.mergeMappings(client, startContext.config.getHeaders(),
                 startContext.config.getSource(), ActionListener.wrap(
                 mappings -> validateMappingsMergeListener.onResponse(startContext), finalListener::onFailure)),
             finalListener::onFailure
@@ -262,7 +261,7 @@ public class TransportStartDataFrameAnalyticsAction
             startContext -> {
                 switch (startContext.startingState) {
                     case FIRST_TIME:
-                        checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, toValidateMappingsListener);
+                        checkDestIndexIsEmptyIfExists(client, startContext, toValidateMappingsListener);
                         break;
                     case RESUMING_REINDEXING:
                     case RESUMING_ANALYZING:
@@ -284,7 +283,7 @@ public class TransportStartDataFrameAnalyticsAction
         // Step 4. Check data extraction is possible
         ActionListener<StartContext> toValidateExtractionPossibleListener = ActionListener.wrap(
             startContext -> {
-                new ExtractedFieldsDetectorFactory(parentTaskClient).createFromSource(startContext.config, ActionListener.wrap(
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, ActionListener.wrap(
                     extractedFieldsDetector -> {
                         startContext.extractedFields = extractedFieldsDetector.detect().v1();
                         toValidateDestEmptyListener.onResponse(startContext);
@@ -362,13 +361,13 @@ public class TransportStartDataFrameAnalyticsAction
         ));
     }
 
-    private void checkDestIndexIsEmptyIfExists(ParentTaskAssigningClient parentTaskClient, StartContext startContext,
+    private void checkDestIndexIsEmptyIfExists(Client client, StartContext startContext,
                                                ActionListener<StartContext> listener) {
         String destIndex = startContext.config.getDest().getIndex();
         SearchRequest destEmptySearch = new SearchRequest(destIndex);
         destEmptySearch.source().size(0);
         destEmptySearch.allowPartialSearchResults(false);
-        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, parentTaskClient,
+        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, client,
                 SearchAction.INSTANCE, destEmptySearch, ActionListener.wrap(
                 searchResponse -> {
                     if (searchResponse.getHits().getTotalHits().value > 0) {

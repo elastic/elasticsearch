@@ -61,6 +61,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private static final Logger logger = LogManager.getLogger(RemoteRecoveryTargetHandler.class);
 
     private final TransportService transportService;
+    private final ThreadPool threadPool;
     private final long recoveryId;
     private final ShardId shardId;
     private final DiscoveryNode targetNode;
@@ -78,6 +79,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
                                        DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
         this.transportService = transportService;
+        this.threadPool = transportService.getThreadPool();
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetNode = targetNode;
@@ -131,7 +133,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
-        final ThreadPool threadPool = transportService.getThreadPool();
         final TimeValue initialDelay = TimeValue.timeValueMillis(50);
         final TimeValue timeout = translogOpsRequestOptions.timeout();
         final Object key = new Object();
@@ -209,7 +210,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             throttleTimeInNanos = 0;
         }
 
-        final ThreadPool threadPool = transportService.getThreadPool();
         final TimeValue initialDelay = TimeValue.timeValueMillis(50);
         final TimeValue timeout = fileChunkRequestOptions.timeout();
         final Object key = new Object();
@@ -242,10 +242,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     public void cancel() {
         isCancelled = true;
         final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("recovery was cancelled");
-        for (Map.Entry<Object, RetryableAction<?>> action : onGoingRetryableActions.entrySet()) {
-            action.getValue().cancel(exception);
-        }
-        onGoingRetryableActions.clear();
+        // Dispatch to generic as cancellation calls can come on the cluster state applier thread
+        threadPool.generic().execute(() -> {
+            for (Map.Entry<Object, RetryableAction<?>> action : onGoingRetryableActions.entrySet()) {
+                action.getValue().cancel(exception);
+            }
+            onGoingRetryableActions.clear();
+        });
     }
 
     private <T> void startRetryableAction(Object key, RetryableAction<T> action) {
@@ -257,6 +260,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     private static boolean retryableException(Exception e) {
+        // TODO: Probably also generic ConnectTransportException
         if (e instanceof SendRequestTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
             return cause instanceof ConnectTransportException;

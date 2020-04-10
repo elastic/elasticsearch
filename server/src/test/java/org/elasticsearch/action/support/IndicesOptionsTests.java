@@ -80,6 +80,11 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
+            if (version.before(Version.V_8_0_0)) {
+                assertThat(indicesOptions2.includeDataStreams(), is(false));
+            } else {
+                assertThat(indicesOptions2.includeDataStreams(), equalTo(indicesOptions.includeDataStreams()));
+            }
         }
     }
 
@@ -109,6 +114,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
         assertEquals(ignoreThrottled, indicesOptions.ignoreThrottled());
+        assertThat(indicesOptions.includeDataStreams(), equalTo(includeDataStreams));
     }
 
     public void testFromOptionsWithDefaultOptions() {
@@ -181,6 +187,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());
+        assertEquals(defaultOptions.includeDataStreams(), updatedOptions.includeDataStreams());
     }
 
     public void testEqualityAndHashCode() {

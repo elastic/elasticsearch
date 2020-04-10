@@ -49,11 +49,11 @@ public class ENewArray extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-
         if (input.read == false) {
-             throw createError(new IllegalArgumentException("A newly created array must be read from."));
+            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
         }
+
+        Output output = new Output();
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 

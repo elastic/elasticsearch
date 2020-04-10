@@ -100,7 +100,8 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
                 }
             );
             //we get before deleting to verify that the user is authorized
-            store.getResponse(searchId, ActionListener.wrap(res -> store.deleteResponse(searchId, deleteListener), listener::onFailure));
+            store.getResponse(searchId, false,
+                ActionListener.wrap(res -> store.deleteResponse(searchId, deleteListener), listener::onFailure));
         }
     }
 }

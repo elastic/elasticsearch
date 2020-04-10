@@ -26,12 +26,10 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public abstract class AggregatorFactory {
@@ -201,7 +199,6 @@ public abstract class AggregatorFactory {
     protected abstract Aggregator createInternal(SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
-                                                    List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metadata) throws IOException;
 
     /**
@@ -222,7 +219,7 @@ public abstract class AggregatorFactory {
      * @return The created aggregator
      */
     public final Aggregator create(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(searchContext, parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metadata);
+        return createInternal(searchContext, parent, collectsFromSingleBucket, this.metadata);
     }
 
     public AggregatorFactory getParent() {

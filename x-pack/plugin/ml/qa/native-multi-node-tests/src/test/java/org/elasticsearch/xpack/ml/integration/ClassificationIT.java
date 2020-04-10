@@ -42,7 +42,6 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -539,15 +538,17 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertThat(upgradeMode(), is(false));
 
-        setUpgradeModeTo(true);
-
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
         registerAnalytics(config);
         putAnalytics(config);
 
+        setUpgradeModeTo(true);
+
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(config.getId()));
         assertThat(e.status(), is(equalTo(RestStatus.TOO_MANY_REQUESTS)));
-        assertThat(e.getMessage(), containsString("persistent task cannot be assigned while upgrade mode is enabled"));
+        assertThat(
+            e.getMessage(),
+            is(equalTo("Cannot perform cluster:admin/xpack/ml/data_frame/analytics/start action while upgrade mode is enabled")));
 
         assertThat(analyticsTaskList(), is(empty()));
         assertThat(analyticsAssignedTaskList(), is(empty()));

@@ -53,6 +53,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -230,7 +231,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
         ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
         PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true);
+        return persistentTasks != null
+            ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
+            : Collections.emptyList();
     }
 
     protected List<TaskInfo> analyticsAssignedTaskList() {

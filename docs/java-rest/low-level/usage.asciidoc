@@ -206,6 +206,12 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-reques
 https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
  allows to set)
 
+[[java-rest-low-usage-initialization-proxy]]
+==== Using a proxy
+
+When running Elasticsearch behind a proxy, you will need to configure the
+low level REST client this way:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client-config-callback]
@@ -215,6 +221,14 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client
 http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  allows to set)
 
+If you are running Elasticsearch behind a reverse proxy which has a path
+prefix, you will need to configure the low level REST client this way:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client-config-reverse-proxy]
+--------------------------------------------------
+<1> Set the path prefix to use to access Elasticsearch
 
 [[java-rest-low-usage-requests]]
 === Performing requests
@@ -339,9 +353,9 @@ translate to the execution of that request being cancelled, which needs to be
 specifically implemented in the API itself.
 
 The use of the `Cancellable` instance is optional and you can safely ignore this
-if you don't need it. A typical usecase for this would be using this together with 
+if you don't need it. A typical usecase for this would be using this together with
 frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
-no longer needed requests is a good way to avoid putting unnecessary 
+no longer needed requests is a good way to avoid putting unnecessary
 load on Elasticsearch.
 
 ["source","java",subs="attributes,callouts,macros"]

@@ -77,7 +77,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityDefaults() {
         XPackLicenseState licenseState =
                 new XPackLicenseState(Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
@@ -100,7 +100,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(BASIC, true, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
@@ -118,7 +118,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(settings);
         licenseState.update(BASIC, true, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
@@ -135,7 +135,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(BASIC, false, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
@@ -150,7 +150,7 @@ public class XPackLicenseStateTests extends ESTestCase {
             Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
         licenseState.update(BASIC, false, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
@@ -165,7 +165,7 @@ public class XPackLicenseStateTests extends ESTestCase {
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
         licenseState.update(STANDARD, true, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
@@ -178,7 +178,7 @@ public class XPackLicenseStateTests extends ESTestCase {
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
         licenseState.update(STANDARD, false, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
@@ -191,7 +191,7 @@ public class XPackLicenseStateTests extends ESTestCase {
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
         licenseState.update(GOLD, true, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
@@ -207,7 +207,7 @@ public class XPackLicenseStateTests extends ESTestCase {
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
         licenseState.update(GOLD, false, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
@@ -223,7 +223,7 @@ public class XPackLicenseStateTests extends ESTestCase {
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
         licenseState.update(PLATINUM, true, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
@@ -239,7 +239,7 @@ public class XPackLicenseStateTests extends ESTestCase {
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
         licenseState.update(PLATINUM, false, null);
 
-        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
@@ -259,7 +259,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     private void assertSecurityNotAllowed(XPackLicenseState licenseState) {
-        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));

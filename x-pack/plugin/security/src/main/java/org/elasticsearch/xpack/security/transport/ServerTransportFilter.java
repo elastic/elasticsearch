@@ -128,7 +128,7 @@ public interface ServerTransportFilter {
                     } else {
                         authzService.authorize(authentication, securityAction, request, listener);
                     }
-                } else if (licenseState.isAuthAllowed() == false) {
+                } else if (licenseState.isSecurityEnabled() == false) {
                     listener.onResponse(null);
                 } else {
                     listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

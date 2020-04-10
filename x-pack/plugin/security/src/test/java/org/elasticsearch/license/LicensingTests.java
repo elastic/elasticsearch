@@ -15,13 +15,8 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -33,7 +28,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
@@ -130,7 +124,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Before
     public void resetLicensing() throws Exception {
-        enableLicensing(OperationMode.MISSING);
+        enableLicensing(OperationMode.BASIC);
     }
 
     @After
@@ -178,39 +172,6 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().get();
         assertThat(nodeStats, notNullValue());
-    }
-
-    public void testRestAuthenticationByLicenseType() throws Exception {
-        Response unauthorizedRootResponse = getRestClient().performRequest(new Request("GET", "/"));
-        // the default of the licensing tests is basic
-        assertThat(unauthorizedRootResponse.getStatusLine().getStatusCode(), is(200));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
-
-        // generate a new license with a mode that enables auth
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, License.OperationMode.ENTERPRISE);
-        enableLicensing(mode);
-        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
-        e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
-
-        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
-        RequestOptions options = optionsBuilder.build();
-
-        Request rootRequest = new Request("GET", "/");
-        rootRequest.setOptions(options);
-        Response authorizedRootResponse = getRestClient().performRequest(rootRequest);
-        assertThat(authorizedRootResponse.getStatusLine().getStatusCode(), is(200));
-        Request authenticateRequest = new Request("GET", "/_security/_authenticate");
-        authenticateRequest.setOptions(options);
-        Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
-        assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testSecurityActionsByLicenseType() throws Exception {
@@ -305,12 +266,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // is overwritten by some other cluster activity and the node throws an exception while we
         // wait for things to stabilize!
         assertBusy(() -> {
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                if (licenseState.isAuthAllowed() == false) {
-                    enableLicensing(OperationMode.BASIC);
-                    break;
-                }
-            }
+            enableLicensing(OperationMode.BASIC);
 
             ensureGreen();
             ensureClusterSizeConsistency();

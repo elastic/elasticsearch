@@ -59,7 +59,7 @@ setup:
 
   - do:
       node_selector:
-        version: "7.8.0 - "
+        version: "8.0.0 - "
       warnings:
         - "Use [local] in get field mapping requests is deprecated. The parameter will be removed in the next major version"
       indices.get_field_mapping:

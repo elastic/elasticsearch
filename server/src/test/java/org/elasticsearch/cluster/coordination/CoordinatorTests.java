@@ -1436,7 +1436,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testImprovecOnfigurationPerformsVotingConfigExclusionStateCheck() {
+    public void testImproveConfigurationPerformsVotingConfigExclusionStateCheck() {
         try (Cluster cluster = new Cluster(1)) {
             cluster.runRandomly();
             cluster.stabilise();

@@ -252,7 +252,12 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean addIndex(IndexMetadata metadata, Context context) {
-        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metadata.getSettings())) == false;
+        // This used to check the `index.search.throttled` setting, but we eventually decided that it was
+        // trappy to hide throttled indices by default. In order to avoid breaking backward compatibility,
+        // we changed it to look at the `index.frozen` setting instead, since frozen indices were the only
+        // type of index to use the `search_throttled` threadpool at that time.
+        // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
+        return (context.options.ignoreThrottled() && metadata.getSettings().getAsBoolean("index.frozen", false)) == false;
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {

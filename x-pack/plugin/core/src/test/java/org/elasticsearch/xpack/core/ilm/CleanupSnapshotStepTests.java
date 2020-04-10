@@ -64,13 +64,13 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-            IndexMetadata indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     assertThat(complete, is(true));
@@ -91,13 +91,13 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
-            IndexMetadata indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            cleanupSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     assertThat(complete, is(true));
@@ -122,14 +122,14 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetadata indexMetaData = indexMetadataBuilder.build();
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
         ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
         try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                 }

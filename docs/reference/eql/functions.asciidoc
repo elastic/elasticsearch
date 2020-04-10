@@ -166,7 +166,7 @@ https://en.wikipedia.org/wiki/IPv4[IPv4] and
 https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
 returns `null`.
 +
-If using a field as the argument, this parameter only supports the <<ip,`ip`>>
+If using a field as the argument, this parameter supports only the <<ip,`ip`>>
 field datatype.
 
 `<cidr_block>`::

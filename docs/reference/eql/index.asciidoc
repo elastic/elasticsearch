@@ -29,7 +29,7 @@ intuitively, which makes for quick, iterative searching.
 
 * *We designed EQL for security use cases.* +
 While you can use EQL for any event-based data, we created EQL for threat
-hunting. EQL  not only supports indicator of compromise (IOC) searching but
+hunting. EQL not only supports indicator of compromise (IOC) searching but
 makes it easy to describe activity that goes beyond IOCs.
 
 [float]

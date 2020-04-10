@@ -139,16 +139,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private void addCompatibleParameter() {
-        if (isRequestCompatible()) {
-            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
-            params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
+        Version compatible = compatibleWithVersion();
+        if (Version.PREVIOUS.equals(compatible)) {
+            params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, String.valueOf(compatible.major));
             //use it so it won't fail request validation with unused parameter
             param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
         }
     }
-//    Set<String> textFormats = Set.of("text/plain", "text/csv", "text/tab-separated-values");
 
-    private boolean isRequestCompatible() {
+    private Version compatibleWithVersion() {
         String currentVersion = String.valueOf(Version.CURRENT.major);
         String previousVersion = String.valueOf(Version.CURRENT.major - 1);
 
@@ -157,26 +156,21 @@ public class RestRequest implements ToXContent.Params {
         String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
         String contentTypeVersion = XContentType.parseVersion(contentTypeHeader);
 
+        //TODO not sure about this one as this does not cover text formats
         boolean isSupportedMediaTypeAccept = acceptHeader == null || XContentType.parseMediaType(acceptHeader) != null;
-            // should we care what media type was used? we don't know about text formats here. hence the Set<String> textFormats
-
-//            XContentType.fromMediaTypeOrFormat(acceptHeader) != null ||
-//            textFormats.contains(XContentType.parseMediaType(acceptHeader).toLowerCase(Locale.ROOT));
 
         boolean isSupportedMediaTypeContentType = contentTypeHeader == null || XContentType.parseMediaType(contentTypeHeader) != null;
-//            XContentType.fromMediaTypeOrFormat(contentTypeHeader) != null ||
-//           textFormats.contains(XContentType.parseMediaType(contentTypeHeader).toLowerCase(Locale.ROOT));
 
         if (hasContent()) {
             //both headers versioned
             if (acceptVersion != null && contentTypeVersion != null) {
                 // both Accept and Content-Type are versioned and set to a previous version
                 if (previousVersion.equals(acceptVersion) && previousVersion.equals(contentTypeVersion)) {
-                    return true;
+                    return Version.PREVIOUS;
                 }
                 // both Accept and Content-Type are versioned to a current version
                 if (currentVersion.equals(acceptVersion) && currentVersion.equals(contentTypeVersion)) {
-                    return false;
+                    return Version.CURRENT;
                 }
                 // both headers are versioned but set to incorrect version
                 throw new CompatibleApiHeadersCombinationException(
@@ -184,25 +178,29 @@ public class RestRequest implements ToXContent.Params {
                             "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
                         contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
             }
-
-            // Content type is set but accept is not present. It will be defaulted to JSON
-//            if(isSupportedMediaTypeContentType &&
-//                (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
-//                return false;
-//            }
+            // Content-Type is versioned but accept is not present
+            if(previousVersion.equals(contentTypeVersion)
+                && (acceptHeader == null || acceptHeader.equals("*/*") )) {
+                return Version.PREVIOUS;
+            }
+            // Content type is set (not verioned) but accept is not present. It will be defaulted to JSON
+            if(isSupportedMediaTypeContentType &&
+                (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
+                return Version.CURRENT;
+            }
             // both Accept and Content-Type are not a compatible format, but are supported and not empty
             if (isSupportedMediaTypeContentType && isSupportedMediaTypeAccept &&
                 acceptHeader != null && contentTypeHeader != null) {
-                return false;
+                return Version.CURRENT;
             }
         } else {
             if (acceptVersion != null) {
                 //Accept header is versioned and set to previous
                 if (previousVersion.equals(acceptVersion)) {
-                    return true;
+                    return Version.PREVIOUS;
                 }
                 if (currentVersion.equals(acceptVersion)) {
-                    return false;
+                    return Version.CURRENT;
                 }
                 // Accept header is versioned but set to incorrect version
                 throw new CompatibleApiHeadersCombinationException(
@@ -212,7 +210,7 @@ public class RestRequest implements ToXContent.Params {
             }
             //Accept header is not versioned but is supported
             if (isSupportedMediaTypeAccept) {
-                return false;
+                return Version.CURRENT;
             }
         }
 

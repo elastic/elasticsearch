@@ -80,6 +80,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_0);
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_5_0);
     public static final Version CURRENT = V_8_0_0;
+    public static final Version PREVIOUS = V_7_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
 
@@ -89,7 +90,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
                 final String fieldName = declaredField.getName();
-                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
+                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY") || fieldName.equals("PREVIOUS")) {
                     continue;
                 }
                 assert fieldName.matches("V_\\d+_\\d+_\\d+")
@@ -402,6 +403,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             }
             switch (field.getName()) {
                 case "CURRENT":
+                case "PREVIOUS":
                 case "V_EMPTY":
                     continue;
             }

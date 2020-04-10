@@ -75,13 +75,13 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             IndexMetadata.Builder indexMetadataBuilder =
                 IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-            IndexMetadata indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
-            mountSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            mountSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     fail("expecting a failure as the index doesn't have any repository name in its ILM execution state");
@@ -104,13 +104,13 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             String repository = "repository";
             ilmCustom.put("snapshot_repository", repository);
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
-            IndexMetadata indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
-            mountSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            mountSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
@@ -139,14 +139,14 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetadata indexMetaData = indexMetadataBuilder.build();
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
         ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
         try (NoOpClient client = getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, RESTORED_INDEX_PREFIX)) {
             MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX);
-            step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
                 public void onResponse(boolean complete) {
                     assertThat(complete, is(true));
@@ -173,17 +173,17 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetadata indexMetaData = indexMetadataBuilder.build();
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
         ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
+            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
         {
             RestoreSnapshotResponse responseWithOKStatus = new RestoreSnapshotResponse(new RestoreInfo("test", List.of(), 1, 1));
             try (NoOpClient clientPropagatingOKResponse = getClientTriggeringResponse(responseWithOKStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingOKResponse,
                     RESTORED_INDEX_PREFIX);
-                step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+                step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                     @Override
                     public void onResponse(boolean complete) {
                         assertThat(complete, is(true));
@@ -202,7 +202,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             try (NoOpClient clientPropagatingACCEPTEDResponse = getClientTriggeringResponse(responseWithACCEPTEDStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingACCEPTEDResponse,
                     RESTORED_INDEX_PREFIX);
-                step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
+                step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
                     @Override
                     public void onResponse(boolean complete) {
                         assertThat(complete, is(true));

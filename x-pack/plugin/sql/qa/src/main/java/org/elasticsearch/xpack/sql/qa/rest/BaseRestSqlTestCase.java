@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -19,10 +18,107 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Map;
 
 public abstract class BaseRestSqlTestCase extends ESRestTestCase {
-    
+
+    public static class RequestObjectBuilder {
+        private StringBuilder request;
+        private final boolean isQuery;
+
+        private RequestObjectBuilder(String init, boolean isQuery) {
+            request = new StringBuilder(init);
+            this.isQuery = isQuery;
+        }
+
+        public static RequestObjectBuilder query(String query) {
+            return new RequestObjectBuilder(field("query", query).substring(1), true);
+        }
+
+        public static RequestObjectBuilder cursor(String cursor) {
+            return new RequestObjectBuilder(field("cursor", cursor).substring(1), false);
+        }
+
+        public RequestObjectBuilder version(String version) {
+            request.append(field("version", version));
+            return this;
+        }
+
+        public RequestObjectBuilder mode(String mode) {
+            request.append(field("mode", mode));
+            if (isQuery) {
+                Mode m = Mode.fromString(mode);
+                if (Mode.isDedicatedClient(m)) {
+                    version(Version.CURRENT.toString());
+                }
+            }
+            return this;
+        }
+
+        public RequestObjectBuilder fetchSize(Integer fetchSize) {
+            request.append(field("fetch_size", fetchSize));
+            return this;
+        }
+
+        public RequestObjectBuilder timeZone(String timeZone) {
+            request.append(field("time_zone", timeZone));
+            return this;
+        }
+
+        public RequestObjectBuilder clientId(String clientId) {
+            request.append(field("client_id", clientId));
+            return this;
+        }
+
+        public RequestObjectBuilder filter(String filter) {
+            request.append(field("filter", filter));
+            return this;
+        }
+
+        public RequestObjectBuilder params(String params) {
+            request.append(field("params", params));
+            return this;
+        }
+
+        public RequestObjectBuilder columnar(Boolean columnar) {
+            request.append(field("columnar", columnar));
+            return this;
+        }
+
+        public RequestObjectBuilder binaryFormat(Boolean binaryFormat) {
+            request.append(field("binary_format", binaryFormat));
+            return this;
+        }
+
+        private static String field(String name, Object value) {
+            if (value == null) {
+                return StringUtils.EMPTY;
+            }
+
+            String field = "\"" + name + "\":";
+            if (value instanceof String) {
+                if (((String) value).isEmpty()) {
+                    return StringUtils.EMPTY;
+                }
+                String lowerName = name.toLowerCase(Locale.ROOT);
+                if (lowerName.equals("params") || lowerName.equals("filter")) {
+                    field += value;
+                } else {
+                    field += "\"" + value + "\"";
+                }
+            } else {
+                field += value;
+            }
+            return "," + field;
+        }
+
+        @Override
+        public String toString() {
+            return "{" + request.toString() + "}";
+        }
+    }
+
     protected void index(String... docs) throws IOException {
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
@@ -35,8 +131,12 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    public static String mode(String mode) {
-        return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
+    public static RequestObjectBuilder query(String query) {
+        return RequestObjectBuilder.query(query);
+    }
+
+    public static RequestObjectBuilder cursor(String query) {
+        return RequestObjectBuilder.cursor(query);
     }
 
     public static String version(String mode) {
@@ -48,7 +148,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     }
 
     public static String randomMode() {
-        return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
+        return randomFrom(StringUtils.EMPTY, Mode.JDBC.toString(), Mode.PLAIN.toString());
     }
 
     /**

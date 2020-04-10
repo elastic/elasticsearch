@@ -260,7 +260,7 @@ stringContains(<source>, <substring>)
 (Required, string or `null`)
 Source string to search. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -272,7 +272,7 @@ field datatypes:
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>

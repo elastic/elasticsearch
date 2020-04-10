@@ -614,6 +614,19 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 
 coming::[7.x]
 
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
 [role="exclude",id="cat-transform"]
 === cat transform API
 

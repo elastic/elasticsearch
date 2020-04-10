@@ -1,5 +1,5 @@
 [[circuit-breaker]]
-=== Circuit Breaker
+=== Circuit breaker settings
 
 Elasticsearch contains multiple circuit breakers used to prevent operations from
 causing an OutOfMemoryError. Each breaker specifies a limit for how much memory

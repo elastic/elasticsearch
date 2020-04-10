@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -136,12 +137,12 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             }
         } else {
             assert nodeNames.length >= 1;
-            Map<String, String> existingNodeNameId = StreamSupport.stream(allNodes.spliterator(), false)
-                                                                .collect(Collectors.toMap(DiscoveryNode::getName, DiscoveryNode::getId));
+            Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(allNodes.spliterator(), false)
+                                                                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
 
             for (String nodeName : nodeNames) {
-                if (existingNodeNameId.containsKey(nodeName)){
-                    DiscoveryNode discoveryNode = allNodes.get(existingNodeNameId.get(nodeName));
+                if (existingNodes.containsKey(nodeName)){
+                    DiscoveryNode discoveryNode = existingNodes.get(nodeName);
                     if (discoveryNode.isMasterNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }

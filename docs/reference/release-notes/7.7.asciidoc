@@ -269,7 +269,7 @@ Machine Learning::
 * Parse and report memory usage for DF Analytics {pull}52778[#52778]
 * Adds the class_assignment_objective parameter to classification {pull}52763[#52763] (issue: {issue}52427[#52427])
 * Add reason to DataFrameAnalyticsTask updateState log message {pull}52659[#52659] (issue: {issue}52654[#52654])
-* [Inference] Add support for multi-value leaves to the tree model {pull}52531[#52531]
+* Add support for multi-value leaves to the tree model {pull}52531[#52531]
 * Make ml internal indices hidden {pull}52423[#52423] (issue: {issue}52420[#52420])
 * Add _cat/ml/data_frame/analytics API {pull}52260[#52260] (issue: {issue}51413[#51413])
 * Adds feature importance option to inference processor {pull}52218[#52218]

@@ -471,7 +471,6 @@ Highlighting::
 Infra/Core::
 * Fix Joda compatibility in stream protocol {pull}53823[#53823] (issue: {issue}53586[#53586])
 * Avoid self-suppression on grouped action listener {pull}53262[#53262] (issue: {issue}53174[#53174])
-* Use correct package for `VM` class {pull}52803[#52803] (issue: {issue}47210[#47210])
 * Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
 * Fix ingest timezone logic {pull}51215[#51215] (issue: {issue}51108[#51108])
 

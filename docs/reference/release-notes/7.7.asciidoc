@@ -527,8 +527,8 @@ Percolator::
 * Don't index ranges including NOW in percolator {pull}52748[#52748] (issue: {issue}52617[#52617])
 
 Reindex::
-* Reindex negative TimeValue fix {pull}54057[#54057] (issue: {issue}53913[#53913])
-* Reindex: allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
+* Negative TimeValue fix {pull}54057[#54057] (issue: {issue}53913[#53913])
+* Allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
 
 SQL::
 * Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])
@@ -602,4 +602,3 @@ Snapshot/Restore::
 * Upgrade to AWS SDK 1.11.749 {pull}53962[#53962] (issue: {issue}53191[#53191])
 * Upgrade to Azure SDK 8.6.2 {pull}53865[#53865]
 * Upgrade GCS SDK to 1.104.0 {pull}52839[#52839]
-

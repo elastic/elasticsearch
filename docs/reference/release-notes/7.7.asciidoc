@@ -441,7 +441,7 @@ Features/Ingest::
 * Handle errors when evaluating if conditions in processors {pull}52543[#52543] (issue: {issue}52339[#52339])
 * Fix delete enrich policy bug {pull}52179[#52179] (issue: {issue}51228[#51228])
 * Fix ignore_missing in CsvProcessor {pull}51600[#51600]
-* Missing suffix for German Month "Juli" in Grok Pattern MONTH (#51579) {pull}51591[#51591] (issue: {issue}51579[#51579])
+* Missing suffix for German Month "Juli" in Grok Pattern MONTH  {pull}51591[#51591] (issue: {issue}51579[#51579])
 * Don't overwrite target field with SetSecurityUserProcessor {pull}51454[#51454] (issue: {issue}51428[#51428])
 
 Features/Java High Level REST Client::

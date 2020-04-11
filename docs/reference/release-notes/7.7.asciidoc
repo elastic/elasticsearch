@@ -185,7 +185,7 @@ Features/ILM+SLM::
 * Make FreezeStep retryable {pull}52540[#52540]
 * Make DeleteStep retryable {pull}52494[#52494]
 * Allow forcemerge in the hot phase for ILM policies {pull}52073[#52073] (issue: {issue}43165[#43165])
-* Stop policy on last PhaseCompleteStep instead of TerminalPolic… {pull}51631[#51631] (issue: {issue}48431[#48431])
+* Stop policy on last PhaseCompleteStep instead of TerminalPolicyStep {pull}51631[#51631] (issue: {issue}48431[#48431])
 * Convert ILM and SLM histories into hidden indices {pull}51456[#51456]
 * Make UpdateSettingsStep retryable {pull}51235[#51235] (issues: {issue}44135[#44135], {issue}48183[#48183])
 * Expose master timeout for ILM actions {pull}51130[#51130] (issue: {issue}44136[#44136])

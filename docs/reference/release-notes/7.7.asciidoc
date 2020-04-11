@@ -152,7 +152,7 @@ Authorization::
 * Allow kibana_system to create and invalidate API keys on behalf of other users {pull}53824[#53824] (issue: {issue}48716[#48716])
 * Add "grant_api_key" cluster privilege {pull}53527[#53527] (issues: {issue}48716[#48716], {issue}52886[#52886])
 * Giving kibana user privileges to create custom link index {pull}53221[#53221] (issue: {issue}59305[#59305])
-* [APM] Allow kibana to collect APM telemetry in background task {pull}52917[#52917] (issue: {issue}50757[#50757])
+* Allow kibana to collect APM telemetry in background task {pull}52917[#52917] (issue: {issue}50757[#50757])
 * Add the new 'maintenance' privilege containing 4 actions (#29998) {pull}50643[#50643]
 
 Cluster Coordination::

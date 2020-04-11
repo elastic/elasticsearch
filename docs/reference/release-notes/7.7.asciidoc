@@ -511,7 +511,6 @@ Machine Learning::
 * Calculate results and snapshot retention using latest bucket timestamps {pull}51061[#51061]
 
 Mapping::
-* Disallow duplicate `dynamic_templates` names {pull}51817[#51817] (issue: {issue}28988[#28988])
 * Throw better exception on wrong `dynamic_templates` syntax {pull}51783[#51783] (issue: {issue}51486[#51486])
 
 Network::

@@ -303,7 +303,7 @@ Ranking::
 * Adds recall@k metric to rank eval API {pull}52577[#52577] (issue: {issue}51676[#51676])
 
 SQL::
-* Jdbc debugging enhancement {pull}53880[#53880]
+* JDBC debugging enhancement {pull}53880[#53880]
 * Transfer version compatibility decision to the server {pull}53082[#53082] (issue: {issue}52766[#52766])
 * Use a proper error message for queries directed at empty mapping indices {pull}52967[#52967] (issue: {issue}52865[#52865])
 * Use calendar_interval of 1d for HISTOGRAMs with 1 DAY intervals {pull}52749[#52749] (issue: {issue}52713[#52713])

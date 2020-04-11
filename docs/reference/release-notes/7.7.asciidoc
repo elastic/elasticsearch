@@ -290,7 +290,6 @@ Machine Learning::
 
 Mapping::
 * Wildcard field - add normalizer support {pull}53851[#53851]
-* Wildcard field - added case insensitive search option {pull}53814[#53814]
 * Append index name for the source of the cluster put-mapping task {pull}52690[#52690]
 
 Network::

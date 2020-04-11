@@ -118,7 +118,6 @@ SQL::
 * Add support for passing query parameters in REST API calls {pull}51029[#51029] (issue: {issue}42916[#42916])
 
 Search::
-* Introduce compound query {pull}52387[#52387] (issue: {issue}51967[#51967])
 * Add a cluster setting to disallow expensive queries {pull}51385[#51385] (issue: {issue}29050[#29050])
 * Add new x-pack endpoints to track the progress of a search asynchronously {pull}49931[#49931] (issue: {issue}49091[#49091])
 

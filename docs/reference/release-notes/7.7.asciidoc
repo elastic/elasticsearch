@@ -224,7 +224,6 @@ Infra/Core::
 * Report parser name and location in XContent deprecation warnings {pull}53805[#53805]
 * Report parser name and location in XContent deprecation warnings {pull}53752[#53752]
 * Deprecate all variants of a ParseField with no replacement {pull}53722[#53722]
-* Add a helper method to parse maps of objects {pull}53096[#53096]
 * Allow specifying an exclusive set of fields on ObjectParser {pull}52893[#52893]
 * Support joda style date patterns in 7.x {pull}52555[#52555]
 * Implement hidden aliases {pull}52547[#52547] (issue: {issue}52304[#52304])

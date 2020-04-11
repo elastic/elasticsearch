@@ -21,6 +21,18 @@ import java.io.InputStream;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
+
 public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
     public static class RequestObjectBuilder {
@@ -33,20 +45,20 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
         }
 
         public static RequestObjectBuilder query(String query) {
-            return new RequestObjectBuilder(field("query", query).substring(1), true);
+            return new RequestObjectBuilder(field(QUERY_NAME, query).substring(1), true);
         }
 
         public static RequestObjectBuilder cursor(String cursor) {
-            return new RequestObjectBuilder(field("cursor", cursor).substring(1), false);
+            return new RequestObjectBuilder(field(CURSOR_NAME, cursor).substring(1), false);
         }
 
         public RequestObjectBuilder version(String version) {
-            request.append(field("version", version));
+            request.append(field(VERSION_NAME, version));
             return this;
         }
 
         public RequestObjectBuilder mode(String mode) {
-            request.append(field("mode", mode));
+            request.append(field(MODE_NAME, mode));
             if (isQuery) {
                 Mode m = Mode.fromString(mode);
                 if (Mode.isDedicatedClient(m)) {
@@ -57,37 +69,37 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder fetchSize(Integer fetchSize) {
-            request.append(field("fetch_size", fetchSize));
+            request.append(field(FETCH_SIZE_NAME, fetchSize));
             return this;
         }
 
         public RequestObjectBuilder timeZone(String timeZone) {
-            request.append(field("time_zone", timeZone));
+            request.append(field(TIME_ZONE_NAME, timeZone));
             return this;
         }
 
         public RequestObjectBuilder clientId(String clientId) {
-            request.append(field("client_id", clientId));
+            request.append(field(CLIENT_ID_NAME, clientId));
             return this;
         }
 
         public RequestObjectBuilder filter(String filter) {
-            request.append(field("filter", filter));
+            request.append(field(FILTER_NAME, filter));
             return this;
         }
 
         public RequestObjectBuilder params(String params) {
-            request.append(field("params", params));
+            request.append(field(PARAMS_NAME, params));
             return this;
         }
 
         public RequestObjectBuilder columnar(Boolean columnar) {
-            request.append(field("columnar", columnar));
+            request.append(field(COLUMNAR_NAME, columnar));
             return this;
         }
 
         public RequestObjectBuilder binaryFormat(Boolean binaryFormat) {
-            request.append(field("binary_format", binaryFormat));
+            request.append(field(BINARY_FORMAT_NAME, binaryFormat));
             return this;
         }
 
@@ -102,7 +114,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
                     return StringUtils.EMPTY;
                 }
                 String lowerName = name.toLowerCase(Locale.ROOT);
-                if (lowerName.equals("params") || lowerName.equals("filter")) {
+                if (lowerName.equals(PARAMS_NAME) || lowerName.equals(FILTER_NAME)) {
                     field += value;
                 } else {
                     field += "\"" + value + "\"";
@@ -137,14 +149,6 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
     public static RequestObjectBuilder cursor(String query) {
         return RequestObjectBuilder.cursor(query);
-    }
-
-    public static String version(String mode) {
-        Mode m = Mode.fromString(mode);
-        if (Mode.isDedicatedClient(m)) {
-            return ",\"version\":" + "\"" + Version.CURRENT.toString() + "\"";
-        }
-        return StringUtils.EMPTY;
     }
 
     public static String randomMode() {

@@ -280,7 +280,7 @@ Machine Learning::
 * Add GET _cat/ml/datafeeds {pull}51500[#51500] (issue: {issue}51411[#51411])
 * Use CSV ingest processor in find_file_structure ingest pipeline {pull}51492[#51492] (issue: {issue}56038[#56038])
 * Add _cat/ml/anomaly_detectors API {pull}51364[#51364]
-* [Inference] add tags url param to GET {pull}51330[#51330]
+* Add tags url param to GET {pull}51330[#51330]
 * Add parsers for inference configuration classes {pull}51300[#51300]
 * Make datafeeds work with nanosecond time fields {pull}51180[#51180] (issue: {issue}49889[#49889])
 * Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])

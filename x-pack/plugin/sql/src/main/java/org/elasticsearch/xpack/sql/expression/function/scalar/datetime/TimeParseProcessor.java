@@ -73,7 +73,7 @@ public class TimeParseProcessor extends BinaryDateTimeProcessor {
             TemporalAccessor ta = DateTimeFormatter.ofPattern((String) pattern, Locale.ROOT)
                 .parseBest((String) timestampStr, OffsetTime::from, LocalTime::from);
             if (ta instanceof LocalTime) {
-                return ((LocalTime) ta).atOffset(ZoneOffset.UTC);
+                return OffsetTime.of((LocalTime) ta, ZoneOffset.UTC);
             } else {
                 return ta;
             }

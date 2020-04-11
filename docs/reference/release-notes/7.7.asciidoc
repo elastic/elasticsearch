@@ -524,7 +524,7 @@ Network::
 
 Percolator::
 * Test percolate queries using `NOW` and sorting {pull}52758[#52758] (issues: {issue}52618[#52618], {issue}52748[#52748])
-* Don't index ranges including NOW in percolator {pull}52748[#52748] (issue: {issue}52617[#52617])
+* Don't index ranges including `NOW` in percolator {pull}52748[#52748] (issue: {issue}52617[#52617])
 
 Reindex::
 * Negative TimeValue fix {pull}54057[#54057] (issue: {issue}53913[#53913])

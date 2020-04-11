@@ -649,7 +649,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 currently supported:
 +
 --
@@ -676,7 +676,7 @@ currently supported:
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined per pivot. 
+Defines how to group the data. More than one grouping can be defined per pivot.
 The following groupings are currently supported:
 +
 --
@@ -1073,3 +1073,16 @@ Default: 1, the primary shard.
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
+
+tag::wait_for_completion[]
+`wait_for_completion`::
+(Optional, boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `true`.
+end::wait_for_completion[]
+
+
+tag::no_items_on_success[]
+`no_items_on_success`::
+(Optional, boolean) If `true`, will omit returning all the items in bulk response if all items
+are considered handled successfully. Defaults to `false`.
+end::no_items_on_success[]

@@ -1,11 +1,11 @@
 
 ---
 "No items on success returns empty array":
+  - skip:
+      version: " - 7.99.99"
+      reason: "no_items_on_success currently only on 8.0"
 
   - do:
-      skip:
-        version: "- 7.99.99"
-        reason: "no_items_on_success currently only on 8.0"
       bulk:
         no_items_on_success: true
         body:
@@ -21,11 +21,11 @@
 
 ---
 "Specifying false for no_items_on_success returns items":
+  - skip:
+      version: " - 7.99.99"
+      reason: "no_items_on_success currently only on 8.0"
 
   - do:
-      skip:
-        version: "- 7.99.99"
-        reason: "no_items_on_success currently only on 8.0"
       bulk:
         no_items_on_success: false
         body:

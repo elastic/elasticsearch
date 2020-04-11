@@ -505,7 +505,7 @@ Machine Learning::
 * Fix possible race condition starting datafeed {pull}51646[#51646] (issues: {issue}50886[#50886], {issue}51302[#51302])
 * Fix 2 digit year regex in find_file_structure {pull}51469[#51469]
 * Fix possible race condition when starting datafeed {pull}51302[#51302] (issue: {issue}51285[#51285])
-* Validate classification dependent_variable cardinality is at lea… {pull}51232[#51232]
+* Validate classification dependent_variable cardinality is at least two {pull}51232[#51232]
 * Do not copy mapping from dependent variable to prediction field in regression analysis {pull}51227[#51227]
 * Address two edge cases for categorization.GrokPatternCreator#findBestGrokMatchFromExamples {pull}51168[#51168]
 * Calculate results and snapshot retention using latest bucket timestamps {pull}51061[#51061]

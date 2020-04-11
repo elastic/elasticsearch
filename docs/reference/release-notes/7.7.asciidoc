@@ -432,7 +432,6 @@ Features/ILM+SLM::
 * Disallow negative TimeValues {pull}53913[#53913] (issue: {issue}54041[#54041])
 * Fix null config in SnapshotLifecyclePolicy.toRequest {pull}53328[#53328] (issues: {issue}44465[#44465], {issue}53171[#53171])
 * Freeze step retry when not acknowledged {pull}53287[#53287]
-* Make the set-single-node-allocation retryable (#52077) {pull}52138[#52138] (issue: {issue}52077[#52077])
 * Make the set-single-node-allocation retryable {pull}52077[#52077] (issue: {issue}43401[#43401])
 * Fix the init step to actually be retryable {pull}52076[#52076]
 

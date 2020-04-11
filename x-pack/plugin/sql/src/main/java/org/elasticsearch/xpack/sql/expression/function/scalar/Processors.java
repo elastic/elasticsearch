@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
@@ -56,7 +57,7 @@ public final class Processors {
      */
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        
+
         entries.addAll(org.elasticsearch.xpack.ql.expression.processor.Processors.getNamedWriteables());
 
         // base
@@ -87,6 +88,7 @@ public final class Processors {
         entries.add(new Entry(Processor.class, DatePartProcessor.NAME, DatePartProcessor::new));
         entries.add(new Entry(Processor.class, DateTimeFormatProcessor.NAME, DateTimeFormatProcessor::new));
         entries.add(new Entry(Processor.class, DateTimeParseProcessor.NAME, DateTimeParseProcessor::new));
+        entries.add(new Entry(Processor.class, TimeParseProcessor.NAME, TimeParseProcessor::new));
         entries.add(new Entry(Processor.class, DateTruncProcessor.NAME, DateTruncProcessor::new));
         // math
         entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));

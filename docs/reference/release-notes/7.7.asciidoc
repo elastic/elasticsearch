@@ -346,7 +346,7 @@ Store::
 
 Transform::
 * Transition Transforms to using hidden indices for notifcations index {pull}53773[#53773] (issue: {issue}53762[#53762])
-* [Rollup] add processing stats to record the time spent for processing results {pull}53770[#53770]
+* Add processing stats to record the time spent for processing results {pull}53770[#53770]
 * Create GET _cat/transforms API Issue {pull}53643[#53643] (issue: {issue}51412[#51412])
 * Add support for script in group_by {pull}53167[#53167] (issue: {issue}43152[#43152])
 * Implement node.transform to control where to run a transform {pull}52712[#52712] (issues: {issue}48734[#48734], {issue}50033[#50033], {issue}52200[#52200])

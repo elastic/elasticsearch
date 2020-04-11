@@ -432,7 +432,7 @@ Features/ILM+SLM::
 * Fix the init step to actually be retryable {pull}52076[#52076]
 
 Features/Ingest::
-* Fix ingest pipeline _simulate api with empty docs never returns a res… {pull}52937[#52937] (issue: {issue}52833[#52833])
+* Fix ingest pipeline _simulate api with empty docs never returns a response {pull}52937[#52937] (issue: {issue}52833[#52833])
 * Handle errors when evaluating if conditions in processors {pull}52543[#52543] (issue: {issue}52339[#52339])
 * Fix delete enrich policy bug {pull}52179[#52179] (issue: {issue}51228[#51228])
 * Fix ignore_missing in CsvProcessor {pull}51600[#51600]

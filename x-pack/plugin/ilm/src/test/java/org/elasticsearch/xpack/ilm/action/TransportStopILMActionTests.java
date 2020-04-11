@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verify;
 
 public class TransportStopILMActionTests extends ESTestCase {
 
-    private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<>() {
+    private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<AcknowledgedResponse>() {
         @Override
         public void onResponse(AcknowledgedResponse response) {
 
@@ -50,10 +50,8 @@ public class TransportStopILMActionTests extends ESTestCase {
 
         TransportStopILMAction transportStopILMAction = new TransportStopILMAction(mock(TransportService.class),
             clusterService, mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class));
-        Task task = new Task(randomLong(), "transport", StopILMAction.NAME, "description",
-            new TaskId(randomLong() + ":" + randomLong()), emptyMap());
         StopILMRequest request = new StopILMRequest();
-        transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
+        transportStopILMAction.masterOperation(request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 
         verify(clusterService).submitStateUpdateTask(
             eq("ilm_operation_mode_update"),

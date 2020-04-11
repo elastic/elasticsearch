@@ -169,7 +169,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             builder.field(INGEST_TOOK, ingestTookInMillis);
         }
         builder.field(ERRORS, hasFailures());
-        boolean noItems = noItemsOnSuccess != null && noItemsOnSuccess == true;
+        boolean noItems = noItemsOnSuccess != null && noItemsOnSuccess;
         boolean noFailuresAnNoItemsRequested = noItems && this.hasFailures() == false;
         builder.field(ITEMS_OMITTED, noFailuresAnNoItemsRequested);
         builder.startArray(ITEMS);

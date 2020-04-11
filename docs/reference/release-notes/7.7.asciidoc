@@ -551,9 +551,7 @@ Search::
 * Fix potential NPE in FuzzyTermsEnum {pull}53231[#53231] (issue: {issue}52894[#52894])
 * Fix inaccurate total hit count in _search/template api {pull}53155[#53155] (issue: {issue}52801[#52801])
 * Harden search context id {pull}53143[#53143]
-* A regression that allowed negative scores in a script_score query was corrected.
-  A behaviour is restored that throws an error if script_score query produces
-  a negative score. {pull}52478[#52478] (issue: {issue}48465[#48465])
+* Correct boost in `script_score` query and error on negative scores {pull}52478[#52478] (issue: {issue}48465[#48465])
 
 Snapshot/Restore::
 * Fix Non-Verbose Snapshot List Missing Empty Snapshots {pull}52433[#52433]
@@ -604,5 +602,4 @@ Snapshot/Restore::
 * Upgrade to AWS SDK 1.11.749 {pull}53962[#53962] (issue: {issue}53191[#53191])
 * Upgrade to Azure SDK 8.6.2 {pull}53865[#53865]
 * Upgrade GCS SDK to 1.104.0 {pull}52839[#52839]
-
 

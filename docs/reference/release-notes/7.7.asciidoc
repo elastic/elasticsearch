@@ -488,7 +488,7 @@ Machine Learning::
 * Get ML filters size should default to 100 {pull}54207[#54207] (issues: {issue}39976[#39976], {issue}54206[#54206])
 * Introduce a "starting" datafeed state for lazy jobs {pull}53918[#53918] (issue: {issue}53763[#53763])
 * Only retry persistence failures when the failure is intermittent and stop retrying when analytics job is stopping {pull}53725[#53725] (issue: {issue}53687[#53687])
-* [Inference] fix number inference models returned in x-pack info API {pull}53540[#53540]
+* Fix number inference models returned in x-pack info API {pull}53540[#53540]
 * Make classification evaluation metrics work when there is field mapping type mismatch {pull}53458[#53458] (issue: {issue}53485[#53485])
 * Perform evaluation in multiple steps when necessary {pull}53295[#53295]
 * Specifying missing_field_value value and using it instead of empty_string {pull}53108[#53108] (issue: {issue}1034[#1034])

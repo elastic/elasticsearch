@@ -20,7 +20,7 @@ public class RestSqlIT extends RestSqlTestCase {
 
     public void testErrorMessageForTranslatingQueryWithWhereEvaluatingToFalse() throws IOException {
         index("{\"foo\":1}");
-        expectBadRequest(() -> runTranslateSql("{\"query\":\"SELECT * FROM test WHERE foo = 1 AND foo = 2\"}"),
+        expectBadRequest(() -> runTranslateSql(query("SELECT * FROM test WHERE foo = 1 AND foo = 2").toString()),
             containsString("Cannot generate a query DSL for an SQL query that either its WHERE clause evaluates " +
                 "to FALSE or doesn't operate on a table (missing a FROM clause), sql statement: " +
                 "[SELECT * FROM test WHERE foo = 1 AND foo = 2]"));
@@ -28,14 +28,14 @@ public class RestSqlIT extends RestSqlTestCase {
 
     public void testErrorMessageForTranslatingQueryWithLocalExecution() throws IOException {
         index("{\"foo\":1}");
-        expectBadRequest(() -> runTranslateSql("{\"query\":\"SELECT SIN(PI())\"}"),
+        expectBadRequest(() -> runTranslateSql(query("SELECT SIN(PI())").toString()),
             containsString("Cannot generate a query DSL for an SQL query that either its WHERE clause evaluates " +
                 "to FALSE or doesn't operate on a table (missing a FROM clause), sql statement: [SELECT SIN(PI())]"));
     }
 
     public void testErrorMessageForTranslatingSQLCommandStatement() throws IOException {
         index("{\"foo\":1}");
-        expectBadRequest(() -> runTranslateSql("{\"query\":\"SHOW FUNCTIONS\"}"),
+        expectBadRequest(() -> runTranslateSql(query("SHOW FUNCTIONS").toString()),
             containsString("Cannot generate a query DSL for a special SQL command " +
                 "(e.g.: DESCRIBE, SHOW), sql statement: [SHOW FUNCTIONS]"));
     }

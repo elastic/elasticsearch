@@ -250,10 +250,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity(query(sql).toString(), ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
-    
+
     private void runSql(String sql) throws IOException {
         Mode mode = Mode.PLAIN;
         if (clientType.equals(ClientType.JDBC.toString())) {

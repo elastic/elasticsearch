@@ -182,12 +182,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         ZoneId zoneId = randomZone();
         String mode = randomMode();
-        String sqlRequest =
-                "{\"query\":\"SELECT DATE_PART('TZOFFSET', date) AS tz FROM test_date_timezone ORDER BY date\","
-                        + "\"time_zone\":\"" + zoneId.getId() + "\", "
-                        + "\"mode\":\"" + mode + "\""
-                        + version(mode)
-                        + ",\"fetch_size\":2}";
+        String sqlRequest = query("SELECT DATE_PART('TZOFFSET', date) AS tz FROM test_date_timezone ORDER BY date")
+            .timeZone(zoneId.getId()).mode(mode).fetchSize(2).toString();
 
         String cursor = null;
         for (int i = 0; i <= datetimes.length; i += 2) {

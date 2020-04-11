@@ -263,7 +263,7 @@ Machine Learning::
 * Adds multi-class feature importance support {pull}53803[#53803]
 * Data frame analytics analysis stats {pull}53788[#53788]
 * Add a model memory estimation endpoint for anomaly detection {pull}53507[#53507] (issue: {issue}53219[#53219])
-* [Inference] adds new default_field_map field to trained models {pull}53294[#53294]
+* Adds new default_field_map field to trained models {pull}53294[#53294]
 * Improve DF analytics audits and logging {pull}53179[#53179]
 * Add indices_options to datafeed config and update {pull}52793[#52793] (issue: {issue}48056[#48056])
 * Parse and report memory usage for DF Analytics {pull}52778[#52778]

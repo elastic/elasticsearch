@@ -315,7 +315,6 @@ SQL::
 * Extend the optimisations for equalities {pull}50792[#50792] (issue: {issue}49637[#49637])
 * Add trace logging for search responses coming from server {pull}50530[#50530]
 * Extend DATE_TRUNC to also operate on intervals(elastic - #46632 ) {pull}47720[#47720] (issue: {issue}46632[#46632])
-* Enchance output of explain for optimized plan {pull}33718[#33718]
 
 Search::
 * HLRC: Don't send defaults for SubmitAsyncSearchRequest {pull}54200[#54200]

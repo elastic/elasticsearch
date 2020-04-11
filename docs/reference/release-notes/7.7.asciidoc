@@ -113,7 +113,7 @@ Mapping::
 * Introduce a `constant_keyword` field. {pull}49713[#49713]
 
 SQL::
-* constant_keyword support {pull}53241[#53241] (issue: {issue}53016[#53016])
+* Add `constant_keyword` support {pull}53241[#53241] (issue: {issue}53016[#53016])
 * Add optimisations for not-equalities {pull}51088[#51088] (issue: {issue}49637[#49637])
 * Add support for passing query parameters in REST API calls {pull}51029[#51029] (issue: {issue}42916[#42916])
 

@@ -585,9 +585,6 @@ Engine::
 * Upgrade to final lucene 8.5.0 snapshot {pull}53293[#53293]
 * Upgrade to Lucene 8.5.0-snapshot-c4475920b08 {pull}52950[#52950]
 
-Features/Features::
-* Upgrade Tika to 1.23 {pull}52402[#52402]
-
 Features/Ingest::
 * Upgrade Tika to 1.24 {pull}54130[#54130] (issue: {issue}52402[#52402])
 
@@ -607,6 +604,5 @@ Snapshot/Restore::
 * Upgrade to AWS SDK 1.11.749 {pull}53962[#53962] (issue: {issue}53191[#53191])
 * Upgrade to Azure SDK 8.6.2 {pull}53865[#53865]
 * Upgrade GCS SDK to 1.104.0 {pull}52839[#52839]
-
 
 

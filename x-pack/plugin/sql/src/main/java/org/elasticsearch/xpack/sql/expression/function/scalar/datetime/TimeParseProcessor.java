@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -69,8 +71,12 @@ public class TimeParseProcessor extends BinaryDateTimeProcessor {
 
         try {
             TemporalAccessor ta = DateTimeFormatter.ofPattern((String) pattern, Locale.ROOT)
-                .parseBest((String) timestampStr, ZonedDateTime::from, LocalTime::from);
-            return ta;
+                .parseBest((String) timestampStr, OffsetTime::from, LocalTime::from);
+            if (ta instanceof LocalTime) {
+                return ((LocalTime) ta).atOffset(ZoneOffset.UTC);
+            } else {
+                return ta;
+            }
         } catch (IllegalArgumentException |
             DateTimeException e) {
             String msg = e.getMessage();

@@ -112,7 +112,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-            "{\n" +
+                "{\n" +
                 "  \"exists\" : {\n" +
                 "    \"field\" : \"user\",\n" +
                 "    \"boost\" : 42.0\n" +

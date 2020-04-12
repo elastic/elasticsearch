@@ -116,11 +116,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                        "] query does not support [" + currentFieldName + "]");
+                            "] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                    "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

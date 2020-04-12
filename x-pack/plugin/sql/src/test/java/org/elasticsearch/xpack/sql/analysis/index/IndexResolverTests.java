@@ -254,7 +254,7 @@ public class IndexResolverTests extends ESTestCase {
 
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "one-index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "one-index", "another-index" }, fieldCaps);
 
         assertTrue(resolution.isValid());
 

@@ -21,7 +21,127 @@ import java.sql.SQLException;
 import static org.elasticsearch.xpack.sql.qa.jdbc.ResultSetTestCase.updateMapping;
 
 public class SysColumnsTestCase extends JdbcIntegrationTestCase {
+
+    public void testMergeSameMapping() throws Exception {
+        createIndexWithMapping("test1", builder -> {
+            builder.startObject("emp_no").field("type", "integer").endObject();
+            builder.startObject("first_name").field("type", "text").endObject();
+            builder.startObject("gender").field("type", "keyword").endObject();
+            builder.startObject("languages").field("type", "byte").endObject();
+            builder.startObject("last_name").field("type", "text").endObject();
+            builder.startObject("salary").field("type", "integer").endObject();
+            builder.startObject("_meta_field").field("type", "keyword").endObject();
+        });
+        
+        createIndexWithMapping("test2", builder -> {
+            builder.startObject("emp_no").field("type", "integer").endObject();
+            builder.startObject("first_name").field("type", "text").endObject();
+            builder.startObject("gender").field("type", "keyword").endObject();
+            builder.startObject("languages").field("type", "byte").endObject();
+            builder.startObject("last_name").field("type", "text").endObject();
+            builder.startObject("salary").field("type", "integer").endObject();
+            builder.startObject("_meta_field").field("type", "keyword").endObject();
+        });
+        
+        assertResultsForSysColumnsForTableQuery("test%", new String[][] {
+            {"test%"      ,"_meta_field","KEYWORD"},
+            {"test%"      ,"emp_no"     ,"INTEGER"},
+            {"test%"      ,"first_name" ,"TEXT"},
+            {"test%"      ,"gender"     ,"KEYWORD"},
+            {"test%"      ,"languages"  ,"BYTE"},
+            {"test%"      ,"last_name"  ,"TEXT"},
+            {"test%"      ,"salary"     ,"INTEGER"}
+        });
+    }
     
+    public void testMultiLevelObjectMappings() throws Exception {
+        createIndexWithMapping("test", builder -> {
+            builder.startObject("test")
+                .startObject("properties")
+                    .startObject("test")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("keyword")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("bar")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("keyword")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("bar")
+                .field("type", "text")
+                .startObject("fields")
+                    .startObject("keyword")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject();
+        });
+        
+        assertResultsForSysColumnsQuery(new String[][] {
+            {"test"      ,"bar"              ,"TEXT"},
+            {"test"      ,"bar.keyword"      ,"KEYWORD"},
+            {"test"      ,"test.bar"         ,"TEXT"},
+            {"test"      ,"test.bar.keyword" ,"KEYWORD"},
+            {"test"      ,"test.test"        ,"TEXT"},
+            {"test"      ,"test.test.keyword","KEYWORD"}
+        });
+        assertResultsForShowColumnsForTableQuery("test", new String[][] {
+            {"bar"              ,"VARCHAR"        ,"text"},
+            {"bar.keyword"      ,"VARCHAR"        ,"keyword"},
+            {"test"             ,"STRUCT"         ,"object"},
+            {"test.bar"         ,"VARCHAR"        ,"text"},
+            {"test.bar.keyword" ,"VARCHAR"        ,"keyword"},
+            {"test.test"        ,"VARCHAR"        ,"text"},
+            {"test.test.keyword","VARCHAR"        ,"keyword"}
+        });
+    }
+
+    public void testMultiLevelNestedMappings() throws Exception {
+        createIndexWithMapping("test", builder -> {
+            builder.startObject("dep")
+                .field("type", "nested")
+                .startObject("properties")
+                    .startObject("dep_name")
+                        .field("type", "text")
+                    .endObject()
+                    .startObject("dep_no")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("keyword")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("end_date")
+                        .field("type", "date")
+                    .endObject()
+                    .startObject("start_date")
+                        .field("type", "date")
+                    .endObject()
+                .endObject()
+            .endObject();
+        });
+        
+        assertResultsForSysColumnsQuery(new String[][] {});
+        assertResultsForShowColumnsForTableQuery("test", new String[][] {
+            {"dep"               ,"STRUCT"         ,"nested"},
+            {"dep.dep_name"      ,"VARCHAR"        ,"text"},
+            {"dep.dep_no"        ,"VARCHAR"        ,"text"},
+            {"dep.dep_no.keyword","VARCHAR"        ,"keyword"},
+            {"dep.end_date"      ,"TIMESTAMP"      ,"datetime"},
+            {"dep.start_date"    ,"TIMESTAMP"      ,"datetime"},
+        });
+    }
+
     public void testAliasWithIncompatibleTypes() throws Exception {
         createIndexWithMapping("test1", builder -> {
             builder.startObject("id").field("type", "keyword").endObject();
@@ -38,7 +158,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"id"      ,"KEYWORD"},
             {"test1"      ,"value"   ,"DOUBLE"},
             {"test2"      ,"id"      ,"TEXT"},
@@ -75,7 +195,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test4").field("alias", "test_alias2").endObject().endObject();
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"       ,"id"      ,"KEYWORD"},
             {"test1"       ,"value"   ,"BOOLEAN"},
             {"test2"       ,"id"      ,"KEYWORD"},
@@ -118,7 +238,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test4").field("alias", "test_alias2").endObject().endObject();
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"id"      ,"TEXT"},
             {"test1"      ,"value"   ,"DATETIME"},
             {"test2"      ,"id"      ,"TEXT"},
@@ -153,7 +273,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"id"       ,"TEXT"},
             {"test1"      ,"id.raw"   ,"KEYWORD"},
             {"test1"      ,"value"    ,"DATETIME"},
@@ -188,7 +308,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"id"       ,"TEXT"},
             {"test1"      ,"id.raw"   ,"INTEGER"},
             {"test1"      ,"value"    ,"DATETIME"},
@@ -223,7 +343,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"id"       ,"TEXT"},
             {"test1"      ,"id.raw"   ,"INTEGER"},
             {"test1"      ,"value"    ,"IP"},
@@ -256,7 +376,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"id"      ,"KEYWORD"},
             {"test1"      ,"name"    ,"TEXT"},
             {"test1"      ,"name.raw","KEYWORD"},
@@ -337,7 +457,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"      ,"address.city"      ,"TEXT"},
             {"test1"      ,"address.city.raw"  ,"KEYWORD"},
             {"test1"      ,"address.county"    ,"KEYWORD"},
@@ -467,7 +587,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"test1"          ,"address.home.city"      ,"TEXT"},
             {"test1"          ,"address.home.city.raw"  ,"KEYWORD"},
             {"test1"          ,"address.home.county"    ,"KEYWORD"},// field type is different and its children will not make it in alias
@@ -493,7 +613,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             {"test_alias"     ,"address.work.location"  ,"TEXT"},
             {"test_alias"     ,"address.work.name"      ,"KEYWORD"},
             {"test_alias"     ,"id"                     ,"KEYWORD"}
-            // address.county gets removed since it has conflicting mappings
+            // address.home.county gets removed since it has conflicting mappings
         });
     }
     
@@ -525,7 +645,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test4").field("alias", "alias3").endObject().endObject();
         });
         
-        assertResultsForQuery("SYS COLUMNS", new String[][] {
+        assertResultsForSysColumnsQuery(new String[][] {
             {"alias1","id"    ,"KEYWORD"},
             {"alias1","name"  ,"KEYWORD"},
             {"alias1","number","LONG"},
@@ -573,13 +693,30 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
     
-    private void assertResultsForQuery(String query, String[][] rows) throws Exception {
+    private void assertResultsForSysColumnsQuery(String[][] rows) throws Exception {
+        assertResultsForSysColumnsForTableQuery(null, rows);
+    }
+
+    private void assertResultsForSysColumnsForTableQuery(String index, String[][] rows) throws Exception {
+        String query = "SYS COLUMNS" + (index == null ? "" : (" TABLE LIKE '" + index + "'"));
         doWithQuery(query, (results) -> {
             for (String[] row : rows) {
                 results.next();
                 assertEquals(row[0], results.getString(3)); // table name
                 assertEquals(row[1], results.getString(4)); // column name
                 assertEquals(row[2], results.getString(6)); // type name
+            }
+            assertFalse(results.next());
+        });
+    }
+
+    private void assertResultsForShowColumnsForTableQuery(String index, String[][] rows) throws Exception {
+        doWithQuery("SHOW COLUMNS FROM " + index, (results) -> {
+            for (String[] row : rows) {
+                results.next();
+                assertEquals(row[0], results.getString("column"));
+                assertEquals(row[1], results.getString("type"));
+                assertEquals(row[2], results.getString("mapping"));
             }
             assertFalse(results.next());
         });

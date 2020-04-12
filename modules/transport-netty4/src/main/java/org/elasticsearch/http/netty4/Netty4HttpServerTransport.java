@@ -127,7 +127,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }, s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS), Property.NodeScope);
 
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
+        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s) * 2),
         (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =

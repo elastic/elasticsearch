@@ -1,5 +1,5 @@
 [[recovery]]
-=== Index recovery
+=== Index recovery settings
 
 Peer recovery syncs data from a primary shard to a new or existing shard copy.
 

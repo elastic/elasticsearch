@@ -81,7 +81,8 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryShardContext context = queryShardContext.convertToShardContext();
         if (context != null) {
-            if (isFieldMapped(context, fieldName) == false) {
+            Collection<String> fields = getMappedField(context, fieldName);
+            if (fields.isEmpty()) {
                 return new MatchNoneQueryBuilder();
             }
         }
@@ -140,20 +141,10 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
 
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-            .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldType == null) {
-            // can only happen when no types exist, so no docs exist either
-            return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
-        }
+       Collection<String> fields = getMappedField(context, fieldPattern);
 
-        final Collection<String> fields;
-        if (context.getObjectMapper(fieldPattern) != null) {
-            // the _field_names field also indexes objects, so we don't have to
-            // do any more work to support exists queries on whole objects
-            fields = Collections.singleton(fieldPattern);
-        } else {
-            fields = context.simpleMatchToIndexNames(fieldPattern);
+        if (fields.isEmpty()) {
+            throw new IllegalStateException("Rewrite first");
         }
 
         if (fields.size() == 1) {
@@ -193,17 +184,16 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     /**
-     * Helper method to validate whether field is mapped
-     * @return true if the field is mapped, false otherwise
+     * Helper method to get field mapped to this fieldPattern
+     * @return return collection of fields if exists else return empty.
      */
-
-    private static boolean isFieldMapped(QueryShardContext context, String fieldPattern) {
+    private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
             .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
 
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
-            return false;
+            return Collections.emptySet();
         }
 
         final Collection<String> fields;
@@ -221,14 +211,13 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (fieldType == null) {
                 // The field does not exist as a leaf but could be an object so
                 // check for an object mapper
-                if (context.getObjectMapper(field) != null) {
-                    return false;
+                if (context.getObjectMapper(field) == null) {
+                    return Collections.emptySet();
                 }
-                return false; // no field mapped
             }
         }
 
-        return true;
+        return fields;
     }
 
     @Override

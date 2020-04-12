@@ -40,16 +40,18 @@ public final class SetProcessor extends AbstractProcessor {
     private final boolean overrideEnabled;
     private final TemplateScript.Factory field;
     private final ValueSource value;
+    private final boolean ignoreEmptyValue;
 
     SetProcessor(String tag, TemplateScript.Factory field, ValueSource value)  {
-        this(tag, field, value, true);
+        this(tag, field, value, true, false);
     }
 
-    SetProcessor(String tag, TemplateScript.Factory field, ValueSource value, boolean overrideEnabled)  {
+    SetProcessor(String tag, TemplateScript.Factory field, ValueSource value, boolean overrideEnabled, boolean ignoreEmptyValue)  {
         super(tag);
         this.overrideEnabled = overrideEnabled;
         this.field = field;
         this.value = value;
+        this.ignoreEmptyValue = ignoreEmptyValue;
     }
 
     public boolean isOverrideEnabled() {
@@ -64,10 +66,14 @@ public final class SetProcessor extends AbstractProcessor {
         return value;
     }
 
+    public boolean isIgnoreEmptyValue() {
+        return ignoreEmptyValue;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
         if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
-            document.setFieldValue(field, value);
+            document.setFieldValue(field, value, ignoreEmptyValue);
         }
         return document;
     }
@@ -93,11 +99,13 @@ public final class SetProcessor extends AbstractProcessor {
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
                 "field", field, scriptService);
+            boolean ignoreEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", false);
             return new SetProcessor(
                     processorTag,
                     compiledTemplate,
                     ValueSource.wrap(value, scriptService),
-                    overrideEnabled);
+                    overrideEnabled,
+                    ignoreEmptyValue);
         }
     }
 }

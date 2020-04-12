@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -75,7 +76,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                                   Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
                                   DataFrameAnalyticsAuditor auditor, StartDataFrameAnalyticsAction.TaskParams taskParams) {
         super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
-        this.client = Objects.requireNonNull(client);
+        this.client = new ParentTaskAssigningClient(Objects.requireNonNull(client), parentTask);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
         this.auditor = Objects.requireNonNull(auditor);
@@ -107,6 +108,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     protected void onCancelled() {
         stop(getReasonCancelled(), TimeValue.ZERO);
         markAsCompleted();
+    }
+
+    @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        // onCancelled implements graceful shutdown of children
+        return false;
     }
 
     @Override

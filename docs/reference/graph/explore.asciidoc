@@ -30,8 +30,10 @@ enable you to _spider out_ from one more vertices of interest. You can exclude
 vertices that have already been returned.
 
 [float]
-[role="child_attributes"]
 === Request Body
+
+[role="child_attributes"]
+====
 
 query::
 A seed query that identifies the documents of interest. Can be any valid
@@ -72,7 +74,7 @@ graph as vertices. For example:
     }
 ]
 --------------------------------------------------
-
++
 .Options for `vertices`
 [%collapsible%open]
 ======
@@ -118,7 +120,7 @@ NOTE: Connections can be nested inside the `connections` object to
 explore additional relationships in the data. Each level of nesting is
 considered a _hop_, and proximity within the graph is often described in
 terms of _hop depth_.
-
++
 .Options for `connections`
 [%collapsible%open]
 ======
@@ -144,7 +146,7 @@ Contains the fields you are interested in. For example:
 ======
 
 controls:: Direct the Graph API how to build the graph.
-
++
 .Options for `controls`
 [%collapsible%open]
 ======
@@ -181,6 +183,7 @@ a maximum number of documents per value for that field. For example:
 }
 --------------------------------------------------
 ======
+====
 
 // [float]
 // === Authorization

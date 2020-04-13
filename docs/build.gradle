@@ -96,7 +96,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   // FIXME
   subproj.afterEvaluate { // need to wait until the project has been configured
     testClusters.integTest {
-      plugin file(subproj.bundlePlugin.archiveFile)
+      plugin subproj.bundlePlugin.archiveFile
     }
     tasks.integTest.dependsOn subproj.bundlePlugin
   }

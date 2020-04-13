@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 
@@ -76,7 +77,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue(nodes.isEmpty() == false);
-        TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
+        TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()
@@ -96,7 +97,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue(nodes.isEmpty() == false);
-        TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
+        TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()

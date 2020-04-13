@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -480,7 +481,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         assertTrue("there is at least one node", nodes.size() > 0);
         NodeInfo ni = randomFrom(nodes);
         boolean useSSL = XPackSettings.HTTP_SSL_ENABLED.get(ni.getSettings());
-        TransportAddress publishAddress = ni.getHttp().address().publishAddress();
+        TransportAddress publishAddress = ni.getInfo(HttpInfo.class).address().publishAddress();
         InetSocketAddress address = publishAddress.address();
         return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
     }

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,27 +25,30 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
 
 /**
- * A service that runs a periodic cleanup over the async-search index.
+ * A service that runs a periodic cleanup over the async execution index.
  */
-class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener {
-    private static final Logger logger = LogManager.getLogger(AsyncSearchMaintenanceService.class);
+public class AsyncTaskMaintenanceService implements Releasable, ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(AsyncTaskMaintenanceService.class);
 
+    private final String index;
     private final String localNodeId;
     private final ThreadPool threadPool;
-    private final AsyncSearchIndexService indexService;
+    private final AsyncTaskIndexService indexService;
     private final TimeValue delay;
 
     private final AtomicBoolean isCleanupRunning = new AtomicBoolean(false);
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private volatile Scheduler.Cancellable cancellable;
 
-    AsyncSearchMaintenanceService(String localNodeId,
-                                  ThreadPool threadPool,
-                                  AsyncSearchIndexService indexService,
-                                  TimeValue delay) {
+    public AsyncTaskMaintenanceService(String index,
+                                       String localNodeId,
+                                       ThreadPool threadPool,
+                                       AsyncTaskIndexService indexService,
+                                       TimeValue delay) {
+        this.index = index;
         this.localNodeId = localNodeId;
         this.threadPool = threadPool;
         this.indexService = indexService;
@@ -66,7 +69,7 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
         if (isClosed.get()) {
             return;
         }
-        IndexRoutingTable indexRouting = state.routingTable().index(AsyncSearchIndexService.INDEX);
+        IndexRoutingTable indexRouting = state.routingTable().index(index);
         if (indexRouting == null) {
             if (isCleanupRunning.compareAndSet(true, false)) {
                 close();
@@ -89,7 +92,7 @@ class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener 
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest()
                 .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
             indexService.getClient()
-                .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(() -> scheduleNextCleanup()));
+                .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
         }
     }
 

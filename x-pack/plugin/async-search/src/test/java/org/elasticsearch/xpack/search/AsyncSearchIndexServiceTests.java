@@ -5,24 +5,16 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.search.AsyncSearchResponseTests.assertEqualResponses;
 import static org.elasticsearch.xpack.search.AsyncSearchResponseTests.randomAsyncSearchResponse;
 import static org.elasticsearch.xpack.search.AsyncSearchResponseTests.randomSearchResponse;
@@ -30,14 +22,14 @@ import static org.elasticsearch.xpack.search.GetAsyncSearchRequestTests.randomSe
 
 // TODO: test CRUD operations
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
-    private AsyncSearchIndexService indexService;
+    private AsyncTaskIndexService indexService;
 
     @Before
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncSearchIndexService(clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), writableRegistry());
+        indexService = new AsyncTaskIndexService(AsyncSearch.INDEX, clusterService, transportService.getThreadPool().getThreadContext(),
+            client(), ASYNC_SEARCH_ORIGIN, writableRegistry());
     }
 
     public void testEncodeSearchResponse() throws IOException {
@@ -47,73 +39,5 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             AsyncSearchResponse same = indexService.decodeResponse(encoded);
             assertEqualResponses(response, same);
         }
-    }
-
-    public void testEnsuredAuthenticatedUserIsSame() throws IOException {
-        Authentication original =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        Authentication current = randomBoolean() ? original :
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(original, current));
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
-
-        // original is not set
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(Collections.emptyMap(), current));
-        // current is not set
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), null));
-
-        // original user being run as
-        User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(original, current));
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
-
-        // both user are run as
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        Authentication runAs = current;
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(runAs, current));
-        threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
-
-        // different authenticated by type
-        Authentication differentRealmType =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", randomAlphaOfLength(5), "node"), null);
-        threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, differentRealmType));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), differentRealmType));
-
-        // wrong user
-        Authentication differentUser =
-            new Authentication(new User("test2", "role"), new Authentication.RealmRef("realm", "realm", "node"), null);
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, differentUser));
-
-        // run as different user
-        Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
-            new Authentication.RealmRef("realm", "file", "node1"), new Authentication.RealmRef("realm", "file", "node1"));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, diffRunAs));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), diffRunAs));
-
-        // run as different looked up by type
-        Authentication runAsDiffType = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(original, runAsDiffType));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
-    }
-
-    public void testSettings() throws ExecutionException, InterruptedException {
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        indexService.createIndexIfNecessary(future);
-        future.get();
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
-            new GetIndexRequest().indices(AsyncSearchIndexService.INDEX)).actionGet();
-        Settings settings = getIndexResponse.getSettings().get(AsyncSearchIndexService.INDEX);
-        assertEquals("1", settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
-        assertEquals("0-1", settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 }

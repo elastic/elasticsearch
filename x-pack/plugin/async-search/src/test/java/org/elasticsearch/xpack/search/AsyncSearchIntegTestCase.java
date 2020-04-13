@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -45,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
+import static org.elasticsearch.xpack.search.AsyncSearch.INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -59,10 +60,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Restart the node that runs the {@link TaskId} decoded from the provided {@link AsyncSearchId}.
+     * Restart the node that runs the {@link TaskId} decoded from the provided {@link AsyncExecutionId}.
      */
     protected void restartTaskNode(String id) throws Exception {
-        AsyncSearchId searchId = AsyncSearchId.decode(id);
+        AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         final ClusterStateResponse clusterState = client().admin().cluster()
             .prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
@@ -88,10 +89,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Wait the removal of the document decoded from the provided {@link AsyncSearchId}.
+     * Wait the removal of the document decoded from the provided {@link AsyncExecutionId}.
      */
     protected void ensureTaskRemoval(String id) throws Exception {
-        AsyncSearchId searchId = AsyncSearchId.decode(id);
+        AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
                 .setIndex(INDEX)
@@ -102,11 +103,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Wait the completion of the {@link TaskId} decoded from the provided {@link AsyncSearchId}.
+     * Wait the completion of the {@link TaskId} decoded from the provided {@link AsyncExecutionId}.
      */
     protected void ensureTaskCompletion(String id) throws Exception {
         assertBusy(() -> {
-            TaskId taskId = AsyncSearchId.decode(id).getTaskId();
+            TaskId taskId = AsyncExecutionId.decode(id).getTaskId();
             try {
                 GetTaskResponse resp = client().admin().cluster()
                     .prepareGetTask(taskId).get();

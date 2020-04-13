@@ -111,7 +111,7 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int deprecatedIterations = randomIntBetween(0, 256);
         for (int i = 0; i < deprecatedIterations; i++) {
-            deprecationLogger.deprecated("This is a deprecation message");
+            deprecationLogger.deprecatedAndMaybeLog("key" + i, "This is a deprecation message");
             assertWarnings("This is a deprecation message");
         }
 

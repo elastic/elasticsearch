@@ -80,6 +80,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String mappings = "{}";
 
+    private Boolean preferV2Templates;
+
     private final Set<Alias> aliases = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -107,6 +109,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            preferV2Templates = in.readOptionalBoolean();
+        }
     }
 
     public CreateIndexRequest() {
@@ -156,6 +161,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest index(String index) {
         this.index = index;
         return this;
+    }
+
+    public CreateIndexRequest preferV2Templates(Boolean preferV2Templates) {
+        this.preferV2Templates = preferV2Templates;
+        return this;
+    }
+
+    public Boolean preferV2Templates() {
+        return this.preferV2Templates;
     }
 
     /**
@@ -468,6 +482,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalBoolean(preferV2Templates);
+        }
     }
 
 }

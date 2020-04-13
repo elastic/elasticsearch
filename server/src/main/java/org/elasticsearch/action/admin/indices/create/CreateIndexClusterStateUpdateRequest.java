@@ -42,6 +42,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private Boolean preferV2Templates;
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -91,6 +92,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest copySettings(final boolean copySettings) {
         this.copySettings = copySettings;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest preferV2Templates(Boolean preferV2Templates) {
+        this.preferV2Templates = preferV2Templates;
         return this;
     }
 
@@ -145,6 +151,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return copySettings;
     }
 
+    public Boolean preferV2Templates() {
+        return preferV2Templates;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{" +
@@ -158,6 +168,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             ", aliases=" + aliases +
             ", blocks=" + blocks +
             ", waitForActiveShards=" + waitForActiveShards +
+            ", preferV2Templates=" + preferV2Templates +
             '}';
     }
 }

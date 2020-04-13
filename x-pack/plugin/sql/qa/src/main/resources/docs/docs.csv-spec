@@ -95,11 +95,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS          
-library        |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -108,9 +108,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -119,10 +119,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS             
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -132,9 +132,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX     
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -143,9 +143,9 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX        
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
@@ -166,10 +166,10 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS  
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;
@@ -182,12 +182,12 @@ showTablesIncludeFrozen
 // tag::showTablesIncludeFrozen
 SHOW TABLES INCLUDE FROZEN;
 
-     name      |     type      |     kind      
----------------+---------------+---------------
-archive        |BASE TABLE     |FROZEN INDEX
-emp            |BASE TABLE     |INDEX          
-employees      |VIEW           |ALIAS          
-library        |BASE TABLE     |INDEX    
+     name      | type     |     kind      
+---------------+----------+---------------
+archive        |TABLE     |FROZEN INDEX
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
 
 // end::showTablesIncludeFrozen
 ;
@@ -241,6 +241,7 @@ DATEADD          |SCALAR
 DATEDIFF         |SCALAR
 DATEPART         |SCALAR
 DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
@@ -2577,6 +2578,29 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 ------------------
 11 22 33.9
 // end::dateTimeFormatTime
+;
+
+// Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
+dateTimeParse1-Ignore
+schema::datetime:ts
+// tag::dateTimeParse1
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T10:20:30.123Z
+// end::dateTimeParse1
+;
+
+dateTimeParse2
+schema::datetime:ts
+// tag::dateTimeParse2
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T08:20:30.000Z
+// end::dateTimeParse2
 ;
 
 datePartDateTimeYears

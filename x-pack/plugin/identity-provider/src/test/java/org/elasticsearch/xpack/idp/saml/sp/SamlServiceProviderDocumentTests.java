@@ -81,6 +81,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54733")
     public void testStreamRoundTripWithAllFields() throws Exception {
         final SamlServiceProviderDocument doc1 = createFullDocument();
         final SamlServiceProviderDocument doc2 = assertXContentRoundTrip(doc1);

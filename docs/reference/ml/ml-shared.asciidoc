@@ -17,17 +17,6 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-tag::allow-lazy-start[]
-Whether this job should be allowed to start when there is insufficient {ml} node 
-capacity for it to be immediately assigned to a node. The default is `false`, 
-which means that the <<start-dfanalytics>> will return an error if a {ml} node 
-with capacity to run the job cannot immediately be found. (However, this is also 
-subject to the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see 
-<<advanced-ml-settings>>.) If this option is set to `true` then the 
-<<start-dfanalytics>> will not return an error, and the job will wait in the 
-`starting` state until sufficient {ml} node capacity is available.
-end::allow-lazy-start[]
-
 tag::allow-no-datafeeds[]
 Specifies what to do when the request:
 +
@@ -89,53 +78,6 @@ Limits can be applied for the resources required to hold the mathematical models
 in memory. These limits are approximate and can be set per job. They do not
 control the memory used by other processes, for example the {es} Java processes.
 end::analysis-limits[]
-
-tag::analyzed-fields[]
-Specify `includes` and/or `excludes` patterns to select which fields will be 
-included in the analysis. The patterns specified in `excludes` are applied last, 
-therefore `excludes` takes precedence. In other words, if the same field is 
-specified in both `includes` and `excludes`, then the field will not be included 
-in the analysis.
-+
---
-The supported fields for each type of analysis are as follows:
-
-* {oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
-don't support missing values therefore fields that have data types other than 
-numeric or boolean are ignored. Documents where included fields contain missing 
-values, null values, or an array are also ignored. Therefore the `dest` index 
-may contain documents that don't have an {olscore}.
-* {regression-cap} supports fields that are numeric, `boolean`, `text`, 
-`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
-supported are included in the analysis, other fields are ignored. Documents 
-where included fields contain  an array with two or more values are also 
-ignored. Documents in the `dest` index  that don’t contain a results field are 
-not included in the {reganalysis}.
-* {classification-cap} supports fields that are numeric, `boolean`, `text`,
-`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
-supported are included in the analysis, other fields are ignored. Documents
-where included fields contain an array with two or more values are also ignored. 
-Documents in the `dest` index that don’t contain a results field are not
-included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
-ordinal variable values to a  single number. For example, in case of age ranges,
-you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
-
-If `analyzed_fields` is not set, only the relevant fields will be included. For
-example, all the numeric fields for {oldetection}. For more information about
-field selection, see <<explain-dfanalytics>>.
---
-end::analyzed-fields[]
-
-tag::analyzed-fields-excludes[]
-An array of strings that defines the fields that will be excluded from the
-analysis. You do not need to add fields with unsupported data types to
-`excludes`, these fields are excluded from the analysis automatically.
-end::analyzed-fields-excludes[]
-
-tag::analyzed-fields-includes[]
-An array of strings that defines the fields that will be included in the 
-analysis.
-end::analyzed-fields-includes[]
 
 tag::assignment-explanation-anomaly-jobs[]
 For open {anomaly-jobs} only, contains messages relating to the selection
@@ -339,14 +281,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
 include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
 ====
 end::chunking-config[]
-
-tag::class-assignment-objective[]
-Defines the objective to optimize when assigning class labels. Available
-objectives are `maximize_accuracy` and `maximize_minimum_recall`. When maximizing
-accuracy class labels are chosen to maximize the number of correct predictions.
-When maximizing minimum recall labels are chosen to maximize the minimum recall
-for any class. Defaults to maximize_minimum_recall.
-end::class-assignment-objective[]
 
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
@@ -868,6 +802,33 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
 For running jobs only, contains messages relating to the selection of a node to 
 run the job.
 
+//Begin data_counts
+`data_counts`:::
+(object)
+An object containing statistical data about the documents in the analysis.
++
+.Properties of `data_counts`
+[%collapsible%open]
+====
+`skipped_docs_count`:::
+(integer)
+The number of documents that are skipped during the analysis because they 
+contained values that are not supported by the analysis. For example, 
+{oldetection} does not support missing fields so it skips documents with missing 
+fields. Likewise, all types of analysis skip documents that contain arrays with 
+more than one element.
+
+`test_docs_count`:::
+(integer)
+The number of documents that are not used for training the model and can be used 
+for testing.
+
+`training_docs_count`:::
+(integer)
+The number of documents that are used for training the model.
+====
+//End data_counts
+
 `id`:::
 (string)
 The unique identifier of the {dfanalytics-job}.
@@ -1044,7 +1005,7 @@ end::empty-bucket-count[]
 
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
-values result in larger forests which have better generalization error. However,
+values result in larger forests which have a better generalization error. However,
 the smaller the value the longer the training will take. For more information
 about shrinkage, see
 https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
@@ -1143,10 +1104,10 @@ end::function[]
 
 tag::gamma[]
 Advanced configuration option. Regularization parameter to prevent overfitting
-on the training dataset. Multiplies a linear penalty associated with the size of 
+on the training data set. Multiplies a linear penalty associated with the size of 
 individual trees in the forest. The higher the value the more training will 
 prefer smaller trees. The smaller this parameter the larger individual trees
-will be and the longer train will take.
+will be and the longer training will take.
 end::gamma[]
 
 tag::groups[]
@@ -1186,6 +1147,34 @@ For example:
 For more information about these options, see <<multi-index>>.
 --
 end::indices-options[]
+
+tag::inference-config-classification-num-top-classes[]
+Specifies the number of top class predictions to return. Defaults to 0.
+end::inference-config-classification-num-top-classes[]
+
+tag::inference-config-classification-num-top-feature-importance-values[]
+Specifies the maximum number of
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
+importance] values per document. By default, it is zero and no feature
+importance calculation occurs.
+end::inference-config-classification-num-top-feature-importance-values[]
+
+tag::inference-config-classification-top-classes-results-field[]
+Specifies the field to which the top classes are written. Defaults to
+`top_classes`.
+end::inference-config-classification-top-classes-results-field[]
+
+tag::inference-config-regression-num-top-feature-importance-values[]
+Specifies the maximum number of
+{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
+end::inference-config-regression-num-top-feature-importance-values[]
+
+tag::inference-config-results-field[]
+The field that is added to incoming documents to contain the inference
+prediction. Defaults to `predicted_value`.
+end::inference-config-results-field[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
@@ -1273,12 +1262,12 @@ end::job-id-datafeed[]
 
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting
-on the training dataset. Multiplies an L2 regularisation term which applies to
+on the training data set. Multiplies an L2 regularisation term which applies to
 leaf weights of the individual trees in the forest. The higher the value the
 more training will attempt to keep leaf weights small. This makes the prediction  
 function smoother at the expense of potentially not being able to capture 
 relevant relationships between the features and the {depvar}. The smaller this 
-parameter the larger individual trees will be and the longer train will take.
+parameter the larger individual trees will be and the longer training will take.
 end::lambda[]
 
 tag::last-data-time[]
@@ -1536,13 +1525,6 @@ tag::node-jobs[]
 Contains properties for the node that runs the job. This information is
 available only for open jobs.
 end::node-jobs[]
-
-tag::num-top-classes[]
-Defines the number of categories for which the predicted 
-probabilities are reported. It must be non-negative. If it is greater than the 
-total number of categories (in the {version} version of the {stack}, it's two) 
-to predict then we will report all category probabilities. Defaults to 2.
-end::num-top-classes[]
 
 tag::open-time[]
 For open jobs only, the elapsed time for which the job has been open.

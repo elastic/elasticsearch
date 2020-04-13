@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
@@ -29,7 +29,7 @@ public abstract class AsyncWaitStep extends Step {
         return client;
     }
 
-    public abstract void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout);
+    public abstract void evaluateCondition(IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout);
 
     public interface Listener {
 

@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -44,32 +43,29 @@ public class BinaryRangeAggregatorFactory
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
             QueryShardContext queryShardContext,
             AggregatorFactory parent, Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
+                ranges, keyed, searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof ValuesSource.Bytes == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
         }
         return new BinaryRangeAggregator(name, factories, (ValuesSource.Bytes) valuesSource, config.format(),
-                ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
+                ranges, keyed, searchContext, parent, metadata);
     }
 
 }

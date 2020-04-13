@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -103,32 +104,64 @@ public abstract class PipelineAggregator implements NamedWriteable {
 
     private String name;
     private String[] bucketsPaths;
-    private Map<String, Object> metaData;
+    private Map<String, Object> metadata;
 
-    protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
+    protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
         this.name = name;
         this.bucketsPaths = bucketsPaths;
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     /**
      * Read from a stream.
+     * @deprecated pipeline aggregations added after 7.8.0 shouldn't call this
      */
+    @Deprecated
     protected PipelineAggregator(StreamInput in) throws IOException {
-        name = in.readString();
-        bucketsPaths = in.readStringArray();
-        metaData = in.readMap();
+        if (in.getVersion().before(Version.V_7_8_0)) {
+            name = in.readString();
+            bucketsPaths = in.readStringArray();
+            metadata = in.readMap();
+        } else {
+           throw new IllegalStateException("Cannot deserialize pipeline [" + getClass() + "] from before 7.8.0");
+        }
     }
 
+    /**
+     * {@inheritDoc}
+     * @deprecated pipeline aggregations added after 7.8.0 shouldn't call this
+     */
     @Override
+    @Deprecated
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeStringArray(bucketsPaths);
-        out.writeMap(metaData);
-        doWriteTo(out);
+        if (out.getVersion().before(Version.V_7_8_0)) {
+            out.writeString(name);
+            out.writeStringArray(bucketsPaths);
+            out.writeMap(metadata);
+            doWriteTo(out);
+        } else {
+            throw new IllegalArgumentException("[" + name + "] is not supported on versions before 7.8.0");
+        }
     }
 
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+    /**
+     * Write the body of the aggregation to the wire.
+     * @deprecated pipeline aggregations added after 7.8.0 don't need to implement this
+     */
+    @Deprecated
+    protected void doWriteTo(StreamOutput out) throws IOException {
+    }
+
+    /**
+     * The name of the writeable object.
+     * @deprecated pipeline aggregations added after 7.8.0 don't need to implement this
+     */
+    @Override
+    @Deprecated
+    public String getWriteableName() {
+        throw new IllegalArgumentException("[" + name + "] is not supported on versions before 7.8.0");
+    }
+
 
     public String name() {
         return name;
@@ -138,8 +171,8 @@ public abstract class PipelineAggregator implements NamedWriteable {
         return bucketsPaths;
     }
 
-    public Map<String, Object> metaData() {
-        return metaData;
+    public Map<String, Object> metadata() {
+        return metadata;
     }
 
     public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);

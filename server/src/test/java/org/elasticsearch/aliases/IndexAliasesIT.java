@@ -31,9 +31,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -64,12 +64,12 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.deleteRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
@@ -208,7 +208,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
-        IndexMetaData indexMd = clusterState.metaData().index("test");
+        IndexMetadata indexMd = clusterState.metadata().index("test");
         assertThat(indexMd.getAliases().get("alias1").filter().string(),
             equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}"));
 
@@ -676,9 +676,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
-        AliasMetaData aliasMetaData = ((IndexAbstraction.Alias) internalCluster()
-            .clusterService().state().metaData().getIndicesLookup().get("alias1")).getFirstAliasMetaData();
-        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
+        AliasMetadata aliasMetadata = ((IndexAbstraction.Alias) internalCluster()
+            .clusterService().state().metadata().getIndicesLookup().get("alias1")).getFirstAliasMetadata();
+        assertThat(aliasMetadata.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
 
         logger.info("--> deleting alias1");
         stopWatch.start();
@@ -889,7 +889,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .removeAlias("foobar", "foo"));
 
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").get();
-        for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : getResponse.getAliases()) {
+        for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : getResponse.getAliases()) {
             assertTrue(entry.value.isEmpty());
         }
         assertTrue(admin().indices().prepareGetAliases("foo").addIndices("foobar").get().getAliases().isEmpty());
@@ -1227,39 +1227,39 @@ public class IndexAliasesIT extends ESIntegTestCase {
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
-        AliasMetaData aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias1"));
-        assertThat(aliasMetaData.filter(), nullValue());
-        assertThat(aliasMetaData.indexRouting(), nullValue());
-        assertThat(aliasMetaData.searchRouting(), nullValue());
-        assertThat(aliasMetaData.isHidden(), nullValue());
+        AliasMetadata aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetadata.alias(), equalTo("alias1"));
+        assertThat(aliasMetadata.filter(), nullValue());
+        assertThat(aliasMetadata.indexRouting(), nullValue());
+        assertThat(aliasMetadata.searchRouting(), nullValue());
+        assertThat(aliasMetadata.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias2").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
-        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias2"));
-        assertThat(aliasMetaData.filter(), notNullValue());
-        assertThat(aliasMetaData.indexRouting(), nullValue());
-        assertThat(aliasMetaData.searchRouting(), nullValue());
-        assertThat(aliasMetaData.isHidden(), nullValue());
+        aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetadata.alias(), equalTo("alias2"));
+        assertThat(aliasMetadata.filter(), notNullValue());
+        assertThat(aliasMetadata.indexRouting(), nullValue());
+        assertThat(aliasMetadata.searchRouting(), nullValue());
+        assertThat(aliasMetadata.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias3").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
-        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias3"));
-        assertThat(aliasMetaData.filter(), nullValue());
-        assertThat(aliasMetaData.indexRouting(), equalTo("index"));
-        assertThat(aliasMetaData.searchRouting(), equalTo("search"));
-        assertThat(aliasMetaData.isHidden(), nullValue());
+        aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetadata.alias(), equalTo("alias3"));
+        assertThat(aliasMetadata.filter(), nullValue());
+        assertThat(aliasMetadata.indexRouting(), equalTo("index"));
+        assertThat(aliasMetadata.searchRouting(), equalTo("search"));
+        assertThat(aliasMetadata.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias4").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
-        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
-        assertThat(aliasMetaData.alias(), equalTo("alias4"));
-        assertThat(aliasMetaData.filter(), nullValue());
-        assertThat(aliasMetaData.indexRouting(), nullValue());
-        assertThat(aliasMetaData.searchRouting(), nullValue());
-        assertThat(aliasMetaData.isHidden(), equalTo(true));
+        aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetadata.alias(), equalTo("alias4"));
+        assertThat(aliasMetadata.filter(), nullValue());
+        assertThat(aliasMetadata.indexRouting(), nullValue());
+        assertThat(aliasMetadata.searchRouting(), nullValue());
+        assertThat(aliasMetadata.isHidden(), equalTo(true));
     }
 
     private void assertHits(SearchHits hits, String... ids) {
@@ -1281,23 +1281,23 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     private void assertAliasesVersionIncreases(final String[] indices, final Runnable runnable) {
         final var beforeAliasesVersions = new HashMap<String, Long>(indices.length);
-        final var beforeMetaData = admin().cluster().prepareState().get().getState().metaData();
+        final var beforeMetadata = admin().cluster().prepareState().get().getState().metadata();
         for (final var index : indices) {
-            beforeAliasesVersions.put(index, beforeMetaData.index(index).getAliasesVersion());
+            beforeAliasesVersions.put(index, beforeMetadata.index(index).getAliasesVersion());
         }
         runnable.run();
-        final var afterMetaData = admin().cluster().prepareState().get().getState().metaData();
+        final var afterMetadata = admin().cluster().prepareState().get().getState().metadata();
         for (final String index : indices) {
-            assertThat(afterMetaData.index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
+            assertThat(afterMetadata.index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
         }
     }
 
     private void assertAliasesVersionUnchanged(final String index, final Runnable runnable) {
         final long beforeAliasesVersion =
-                admin().cluster().prepareState().get().getState().metaData().index(index).getAliasesVersion();
+                admin().cluster().prepareState().get().getState().metadata().index(index).getAliasesVersion();
         runnable.run();
         final long afterAliasesVersion =
-                admin().cluster().prepareState().get().getState().metaData().index(index).getAliasesVersion();
+                admin().cluster().prepareState().get().getState().metadata().index(index).getAliasesVersion();
         assertThat(afterAliasesVersion, equalTo(beforeAliasesVersion));
     }
 

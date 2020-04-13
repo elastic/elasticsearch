@@ -46,8 +46,8 @@ public class SumBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new SumBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new SumBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metadata);
     }
 
     @Override

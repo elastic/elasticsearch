@@ -14,7 +14,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -920,7 +920,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         BulkRequest bulkRequest = Requests.bulkRequest()
                 .add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
-        for (DocWriteRequest actionRequest : bulkRequest.requests()) {
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));
         }
     }
@@ -971,7 +971,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, internalRepresentation)) {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            IndexTemplateMetaData.Builder.removeType(IndexTemplateMetaData.Builder.fromXContent(parser, ""), builder);
+            IndexTemplateMetadata.Builder.removeType(IndexTemplateMetadata.Builder.fromXContent(parser, ""), builder);
             return BytesReference.bytes(builder).utf8ToString();
         }
     }

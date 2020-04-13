@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,8 +45,8 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected final double sum;
 
     public InternalStats(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                         Map<String, Object> metadata) {
+        super(name, metadata);
         this.count = count;
         this.sum = sum;
         this.min = min;
@@ -160,7 +159,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             // accurate than naive summation.
             kahanSummation.add(stats.getSum());
         }
-        return new InternalStats(name, count, kahanSummation.value(), min, max, format, pipelineAggregators(), getMetaData());
+        return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
     }
 
     static class Fields {

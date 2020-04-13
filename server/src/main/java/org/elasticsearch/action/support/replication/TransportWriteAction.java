@@ -127,14 +127,22 @@ public abstract class TransportWriteAction<
         public final Location location;
         public final IndexShard primary;
         private final Logger logger;
+        private final Runnable postPrimaryCoordination;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
                                   IndexShard primary, Logger logger) {
+            this(request, finalResponse, location, operationFailure, primary, logger, () -> {});
+        }
+
+        public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
+                                  @Nullable Location location, @Nullable Exception operationFailure,
+                                  IndexShard primary, Logger logger, Runnable postPrimaryCoordination) {
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
+            this.postPrimaryCoordination = postPrimaryCoordination;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
@@ -162,6 +170,11 @@ public abstract class TransportWriteAction<
                     }
                 }, logger).run();
             }
+        }
+
+        @Override
+        public void primaryCoordinationComplete() {
+            postPrimaryCoordination.run();
         }
     }
 

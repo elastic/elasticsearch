@@ -29,6 +29,7 @@ import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -255,5 +256,22 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
 
         return validationException;
+    }
+
+    static long writeSizeInBytes(Stream<DocWriteRequest<?>> requestStream) {
+        return requestStream.mapToLong(request -> {
+            // TODO: Add constant sizes for DELETE, etc
+            if (request instanceof IndexRequest) {
+                if (((IndexRequest) request).source() != null) {
+                    return ((IndexRequest) request).source().length();
+                }
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null && doc.source() != null) {
+                    return ((UpdateRequest) request).doc().source().length();
+                }
+            }
+            return 0;
+        }).sum();
     }
 }

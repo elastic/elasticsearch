@@ -77,6 +77,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -112,6 +113,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+        long operationSizeInBytes;
+        final String localNodeId = clusterService.localNode().getId();
+        if (localNodeId.equals(request.getParentTask().getNodeId())) {
+            // If we are still on the coordinating node, we have already accounted for the bytes
+            operationSizeInBytes = 0;
+        } else {
+            operationSizeInBytes = operationSizeInBytes(request.items());
+        }
+
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, mappingListener) -> {
@@ -405,6 +415,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        long operationSizeInBytes;
+        final String localNodeId = clusterService.localNode().getId();
+        if (localNodeId.equals(request.getParentTask().getNodeId())) {
+            // If we are still on the coordinating node, we have already accounted for the bytes
+            operationSizeInBytes = 0;
+        } else {
+            operationSizeInBytes = operationSizeInBytes(request.items());
+        }
+
         final Translog.Location location = performOnReplica(request, replica);
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
@@ -478,4 +497,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         return result;
     }
+
+    private static long operationSizeInBytes(BulkItemRequest[] items) {
+        return DocWriteRequest.writeSizeInBytes(Stream.of(items).map(BulkItemRequest::request));
+    }
+
+
 }

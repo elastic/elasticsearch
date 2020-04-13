@@ -174,57 +174,6 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(nodeStats, notNullValue());
     }
 
-    public void testSecurityActionsByLicenseType() throws Exception {
-        // security actions should not work!
-        Settings settings = internalCluster().transportClient().settings();
-        try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            fail("security actions should not be enabled!");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.status(), is(RestStatus.FORBIDDEN));
-            assertThat(e.getMessage(), containsString("non-compliant"));
-        }
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, OperationMode.BASIC);
-        enableLicensing(mode);
-        // security actions should work!
-        try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            PutUserResponse response = new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            assertNotNull(response);
-        }
-    }
-
-    public void testTransportClientAuthenticationByLicenseType() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put(internalCluster().transportClient().settings());
-        // remove user info
-        builder.remove(SecurityField.USER_SETTING.getKey());
-        builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
-
-        // basic has no auth
-        try (TransportClient client = new TestXPackTransportClient(builder.build(), LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            assertGreenClusterState(client);
-        }
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
-        enableLicensing(mode);
-
-        try (TransportClient client = new TestXPackTransportClient(builder.build(), LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            client.admin().cluster().prepareHealth().get();
-            fail("should not have been able to connect to a node!");
-        } catch (NoNodeAvailableException e) {
-            // expected
-        }
-    }
-
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
             License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);

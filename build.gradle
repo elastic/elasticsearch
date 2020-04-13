@@ -520,10 +520,9 @@ subprojects {
 }
 
 subprojects {
-  Closure disableMethod = { String... tasknames ->
+  project.ext.disableTasks = { String... tasknames ->
     for (String taskname : tasknames) {
       project.tasks.named(taskname).configure { onlyIf { false } }
     }
   }
-  project.ext.disableTasks = disableMethod
 }

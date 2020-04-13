@@ -241,6 +241,7 @@ DATEADD          |SCALAR
 DATEDIFF         |SCALAR
 DATEPART         |SCALAR
 DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
@@ -2577,6 +2578,29 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 ------------------
 11 22 33.9
 // end::dateTimeFormatTime
+;
+
+// Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
+dateTimeParse1-Ignore
+schema::datetime:ts
+// tag::dateTimeParse1
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T10:20:30.123Z
+// end::dateTimeParse1
+;
+
+dateTimeParse2
+schema::datetime:ts
+// tag::dateTimeParse2
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T08:20:30.000Z
+// end::dateTimeParse2
 ;
 
 datePartDateTimeYears

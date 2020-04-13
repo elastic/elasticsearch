@@ -205,6 +205,8 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
+This depends on `hot` and `warm` attributes specified in the node configurations. For example, to designate a node as a _hot_ node, set `node.attr.data: hot` in `elasticsearch.yml`. For more information, see <<index-allocation-filters>>.
+
 ===== Example: Assign index to a specific node and update replica settings
 
 This example updates the index to have one replica per shard and be allocated

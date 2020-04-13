@@ -3,10 +3,8 @@
 [[ilm-with-existing-indices]]
 == Manage existing indices
 
-NOTE:  When migrating from Curator, ensure you are running Curator version 5.7 or greater
-so that ILM indices will be ignored as you phase out existing indices.  Otherwise, 
-you may choose to manage existing indices with ILM in the manner described in this 
-section.
+NOTE:  If migrating from Curator, ensure you are running Curator version 5.7 or greater
+so that Curator will ignore ILM managed indices.
 
 While it is recommended to use {ilm-init} to manage the index lifecycle from
 start to finish, it may be useful to use {ilm-init} with existing indices,

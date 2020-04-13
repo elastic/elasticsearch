@@ -67,7 +67,7 @@ testClusters.integTest {
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
+    plugin pluginProject.tasks.bundlePlugin.archiveFile
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1
   }

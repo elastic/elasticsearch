@@ -60,7 +60,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
         final Setting<List<DiscoveryNodeRole>> nodeRolesSetting = Setting.listSetting(
             NODE_ROLES_SETTING.getKey(),
-            List.of(role.roleName()),
+            role.isEnabledByDefault(settings) ? List.of(role.roleName()) : List.of(),
             DiscoveryNode::getRoleFromRoleName,
             Property.NodeScope);
         return getRolesFromSettings(settings, nodeRolesSetting, rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream())).contains(role);

@@ -75,7 +75,7 @@ graph as vertices. For example:
 ]
 --------------------------------------------------
 +
-.Options for `vertices`
+.Properties for `vertices`
 [%collapsible%open]
 ======
 field::: Identifies a field in the documents of interest.
@@ -121,7 +121,7 @@ explore additional relationships in the data. Each level of nesting is
 considered a _hop_, and proximity within the graph is often described in
 terms of _hop depth_.
 +
-.Options for `connections`
+.Properties for `connections`
 [%collapsible%open]
 ======
 query:::
@@ -147,7 +147,7 @@ Contains the fields you are interested in. For example:
 
 controls:: Direct the Graph API how to build the graph.
 +
-.Options for `controls`
+.Properties for `controls`
 [%collapsible%open]
 ======
 use_significance:::

@@ -84,11 +84,11 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
             )
         );
 
-        assertThat(doc.rootDoc().getField("metric._min"), notNullValue());
+        assertThat(doc.rootDoc().getField("metric.min"), notNullValue());
     }
 
     /**
-     * Test parsing field mapping and adding simple field
+     * Test that invalid field mapping containing no metrics is not accepted
      */
     public void testInvalidMapping() throws Exception {
         ensureGreen();
@@ -306,7 +306,6 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                 XContentType.JSON
             )
         );
-
         assertNull(doc.rootDoc().getField("metric.min"));
     }
 
@@ -616,7 +615,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
             )
         );
 
-        assertThat(doc.rootDoc().getField("metric._value_count"), notNullValue());
+        assertThat(doc.rootDoc().getField("metric.value_count"), notNullValue());
     }
 
     /**
@@ -661,13 +660,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                 )
             )
         );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString(
-                "failed to parse field [metric._value_count] of type [integer] in document with id '1'."
-                    + " Preview of field's value: '45.43'"
-            )
-        );
+        assertThat(e.getCause().getMessage(), containsString("45.43 cannot be converted to Integer without data loss"));
     }
 
     /**
@@ -722,8 +715,8 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
         assertThat(
             e.getCause().getMessage(),
             containsString(
-                "Field [metric] of type [aggregate_metric_double] does not support "
-                    + "indexing multiple values for the same metric in the same field"
+                "Field [metric] of type [aggregate_metric_double] "
+                    + "does not support indexing multiple values for the same field in the same document"
             )
         );
     }
@@ -955,8 +948,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
                 XContentType.JSON
             )
         );
-
-        assertThat(doc.rootDoc().getField("parent.metric._min"), notNullValue());
+        assertThat(doc.rootDoc().getField("parent.metric.min"), notNullValue());
     }
 
     @Override

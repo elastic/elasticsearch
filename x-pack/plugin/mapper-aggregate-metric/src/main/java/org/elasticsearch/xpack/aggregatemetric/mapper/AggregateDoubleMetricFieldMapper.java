@@ -66,7 +66,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "aggregate_metric_double";
-    public static final String SUBFIELD_SEPARATOR = "._";
+    public static final String SUBFIELD_SEPARATOR = ".";
 
     /**
      * Return the name of a subfield of an aggregate metric field
@@ -561,16 +561,16 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         context.path().add(simpleName());
-        XContentParser.Token token = null;
+        XContentParser.Token token;
         XContentSubParser subParser = null;
-
+        List<IndexableField> metricSubfields = new ArrayList<>();
+        EnumSet<Metric> metricsParsed = EnumSet.noneOf(Metric.class);
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
                 return;
             }
-
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
@@ -591,44 +591,48 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
-
+                // We don't accept arrays of metrics
                 if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
                     throw new IllegalArgumentException(
                         "Field ["
                             + name()
                             + "] of type ["
                             + typeName()
-                            + "] does not support indexing multiple values for the same metric in the same field"
+                            + "] does not support indexing multiple values for the same field in the same document"
                     );
                 }
+                delegateFieldMapper.parseCreateField(context, metricSubfields);
 
-                delegateFieldMapper.parse(context);
-
+                // Ensure a value_count metric does not have a negative value
                 if (Metric.value_count == metric) {
-                    Number n = context.doc().getField(delegateFieldMapper.fieldType().name()).numericValue();
+                    // Instead of iterating over the metricSubfields list, we already know that the current subfield
+                    // has been appended to the end of the list. To save time we look directly at the end of the list.
+                    int lastFieldPosition = metricSubfields.size() - 1;
+                    Number n = metricSubfields.get(lastFieldPosition).numericValue();
                     if (n.intValue() < 0) {
                         throw new IllegalArgumentException(
                             "Aggregate metric [" + metric.name() + "] of field [" + fieldType.name() + "] cannot be a negative number"
                         );
                     }
                 }
-
+                metricsParsed.add(metric);
                 token = subParser.nextToken();
             }
 
-            for (Metric m : metrics.value()) {
-                if (context.doc().getField(subfieldName(fieldType().name(), m)) == null) {
-                    throw new IllegalArgumentException(
-                        "Aggregate metric field [" + fieldType.name() + "] must contain all metrics " + metrics.value().toString()
-                    );
-                }
+            // Check if all required metrics have been parsed.
+            if (metricsParsed.containsAll(metrics.value()) == false) {
+                throw new IllegalArgumentException(
+                    "Aggregate metric field [" + fieldType.name() + "] must contain all metrics " + metrics.value().toString()
+                );
             }
+            fields.addAll(metricSubfields);
         } catch (Exception e) {
             if (ignoreMalformed.value()) {
                 if (subParser != null) {
                     // close the subParser so we advance to the end of the object
                     subParser.close();
                 }
+                // If ignoreMalformed == true, clear all parsed fields
                 context.addIgnoredField(fieldType().name());
             } else {
                 // Rethrow exception as is. It is going to be caught and nested in a MapperParsingException

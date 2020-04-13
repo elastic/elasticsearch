@@ -61,7 +61,6 @@ public class EqlCancellationIT extends AbstractEqlIntegTestCase {
         executorService.shutdown();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55126")
     public void testCancellation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")

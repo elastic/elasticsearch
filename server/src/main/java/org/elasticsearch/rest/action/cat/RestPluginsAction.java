@@ -102,7 +102,7 @@ public class RestPluginsAction extends AbstractCatAction {
             if (info == null) {
                 continue;
             }
-            PluginsAndModules plugins = info.getPlugins();
+            PluginsAndModules plugins = info.getInfo(PluginsAndModules.class);
             if (plugins == null) {
                 continue;
             }

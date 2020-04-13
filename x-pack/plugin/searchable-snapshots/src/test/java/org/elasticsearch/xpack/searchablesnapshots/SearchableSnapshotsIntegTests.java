@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55126")
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

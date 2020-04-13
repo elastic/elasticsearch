@@ -19,9 +19,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -62,6 +64,34 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
+
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            final SortedNumericDocValues values = ((ValuesSource.Numeric)valuesSource).longValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    if (values.advanceExact(doc)) {
+                        counts.increment(bucket, values.docValueCount());
+                    }
+                }
+            };
+        }
+        if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
+            MultiGeoPointValues values = ((ValuesSource.GeoPoint)valuesSource).geoPointValues(ctx);
+            return new LeafBucketCollectorBase(sub, null) {
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    if (values.advanceExact(doc)) {
+                        counts.increment(bucket, values.docValueCount());
+                    }
+                }
+            };
+        }
+        // The following is default collector. Including the keyword FieldType
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
 

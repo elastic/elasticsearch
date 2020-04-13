@@ -49,7 +49,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     protected int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals("bulk") || name.equals(ThreadPool.Names.WRITE)) {
-            return 1 + EsExecutors.numberOfProcessors(settings);
+            return 1 + EsExecutors.allocatedProcessors(settings);
         } else {
             return Integer.MAX_VALUE;
         }

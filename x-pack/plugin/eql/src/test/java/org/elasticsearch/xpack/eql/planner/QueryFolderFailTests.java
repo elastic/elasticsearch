@@ -20,9 +20,9 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
     }
 
     private String errorParsing(String eql) {
-        ParsingException e = expectThrows(ParsingException.class, () -> plan(eql));
+        Exception e = expectThrows(Exception.class, () -> plan(eql));
+        assertTrue(e.getClass().getSimpleName().endsWith("ParsingException"));
         final String header = "line ";
-        assertTrue(e.getMessage().startsWith(header));
         return e.getMessage().substring(header.length());
     }
 
@@ -186,5 +186,15 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
                 "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
+    }
+    
+    public void testSequenceWithBeforeBy() {
+        String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
+        assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);
+    }
+
+    public void testSequenceWithNoTimeUnit() {
+        String msg = errorParsing("sequence with maxspan=30 [a where true] [b where true]");
+        assertEquals("1:24: No time unit specified, did you mean [s] as in [30s]?", msg);
     }
 }

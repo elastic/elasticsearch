@@ -35,8 +35,8 @@ of transforms to certain nodes instead of using `xpack.transform.enabled`. On de
 coordinating nodes or dedicated master nodes, disable the node.transform role.
 
 `xpack.transform.enabled`::
+deprecated:[7.8.0,Basic License features should always be enabled] +
 Set to `true` (default) to enable {transforms} on the node.
-deprecated:[7.8.0,Basic License features are always enabled] +
 +
 If set to `false` in `elasticsearch.yml`, the {transform} APIs are disabled on
 the node. Therefore the node cannot start or administrate {transforms} or

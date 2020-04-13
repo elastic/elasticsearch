@@ -174,7 +174,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         // wait until we have a usable cluster state
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) ||
-            ClusterState.UNKNOWN_UUID.equals(state.metaData().clusterUUID()) ||
+            ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID()) ||
             state.version() == ClusterState.UNKNOWN_VERSION) {
             logger.trace("skipping exporters because the cluster state is not loaded");
 

@@ -388,7 +388,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     private Configuration getRuntimeConfiguration() {
-        Configuration runtime = getProject().getConfigurations().findByName("runtime");
+        Configuration runtime = getProject().getConfigurations().findByName("runtimeClasspath");
         if (runtime == null) {
             return getProject().getConfigurations().getByName("testCompile");
         }

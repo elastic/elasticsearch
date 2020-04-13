@@ -8,7 +8,334 @@ experimental::[]
 
 {es} supports the following EQL functions:
 
+* <<eql-fn-between>>
+* <<eql-fn-endswith>>
+* <<eql-fn-length>>
+* <<eql-fn-startswith>>
 * <<eql-fn-substring>>
+* <<eql-fn-wildcard>>
+
+[discrete]
+[[eql-fn-between]]
+=== `between`
+
+Extracts a substring that's between a provided `left` and `right` text in a
+source string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// file.path = "C:\\Windows\\System32\\cmd.exe"
+between(file.path, "system32\\\\", ".exe")   // returns "cmd"
+between(file.path, "workspace\\\\", ".exe")  // returns ""
+
+
+// Greedy matching defaults to false.
+between(file.path, "\\\\", "\\\\", false)  // returns "Windows"
+// Sets greedy matching to true
+between(file.path, "\\\\", "\\\\", true)  // returns "Windows\\System32"
+
+// Case sensitivity defaults to false.
+between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
+// Sets case sensitivity to true
+between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
+between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
+
+// empty source string
+between("", "system32\\\\", ".exe")          // returns ""
+between("", "", "")                          // returns ""
+
+// null handling
+between(null, "system32\\\\", ".exe")                   // returns null
+----
+
+*Syntax*
+
+[source,txt]
+----
+between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. Empty strings return an empty string (`""`), regardless of the
+`<left>` or `<right>` parameters. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing <<array,array values>> use the first array item only.
+--
+
+`<left>`::
++
+--
+(Required, string)
+Text to the left of the substring to extract. This text should include
+whitespace.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+<<array,Array values>> are not supported.
+--
+
+`<right>`::
++
+--
+(Required, string)
+Text to the right of the substring to extract. This text should include
+whitespace.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+<<array,Array values>> are not supported.
+--
+
+`<greedy_matching>`::
+(Optional, boolean)
+If `true`, match the longest possible substring, similar to `.*` in regular
+expressions. If `false`, match the shortest possible substring, similar to `.*?`
+in regular expressions. Defaults to `false`.
+
+`<case_sensitive>`::
+(Optional, boolean)
+If `true`, matching is case-sensitive. Defaults to `false`.
+
+*Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-endswith]]
+=== `endsWith`
+
+Returns `true` if a source string ends with a provided substring. Matching is
+case insensitive.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+endsWith("regsvr32.exe", ".exe")          // returns true
+endsWith("regsvr32.exe", ".EXE")          // returns true
+endsWith("regsvr32.exe", ".dll")          // returns false
+endsWith("", "")                          // returns true
+
+// file.name = "regsvr32.exe"
+endsWith(file.name, ".exe")               // returns true
+endsWith(file.name, ".dll")               // returns false
+
+// file.extension = ".exe"
+endsWith("regsvr32.exe", file.extension)  // returns true
+endsWith("ntdll.dll", file.name)          // returns false
+
+// file.name = [ "ntdll.dll", "regsvr32.exe" ]
+endsWith(file.name, ".dll")               // returns true
+endsWith(file.name, ".exe")               // returns false
+
+// null handling
+endsWith("regsvr32.exe", null)            // returns null
+endsWith("", null)                        // returns null 
+endsWith(null, ".exe")                    // returns null
+endsWith(null, null)                      // returns null
+----
+
+*Syntax*
+
+[source,txt]
+----
+endsWith(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing <<array,array values>> use the first array item only.
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-length]]
+=== `length`
+
+Returns the character length of a provided string, including whitespace and
+punctuation.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+length("explorer.exe")         // returns 12
+length("start explorer.exe")   // returns 18
+length("")                     // returns 0
+length(null)                   // returns null
+
+// process.name = "regsvr32.exe"
+length(process.name)           // returns 12
+----
+
+*Syntax*
+[source,txt]
+----
+length(<string>)
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String for which to return the character length. If `null`, the function returns
+`null`. Empty strings return `0`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+<<array,Array values>> are not supported.
+--
+
+*Returns:* integer or `null`
+====
+
+[discrete]
+[[eql-fn-startswith]]
+=== `startsWith`
+
+Returns `true` if a source string begins with a provided substring. Matching is
+case insensitive.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+startsWith("regsvr32.exe", "regsvr32")  // returns true
+startsWith("regsvr32.exe", "RegSvr32")  // returns true
+startsWith("regsvr32.exe", "explorer")  // returns false
+startsWith("", "")                      // returns true
+
+// process.name = "regsvr32.exe"
+startsWith(process.name, "regsvr32")    // returns true
+startsWith(process.name, "explorer")    // returns false
+
+// process.name = "regsvr32"
+startsWith("regsvr32.exe", process.name) // returns true
+startsWith("explorer.exe", process.name) // returns false
+
+// process.name = [ "explorer.exe", "regsvr32.exe" ]
+startsWith(process.name, "explorer")    // returns true
+startsWith(process.name, "regsvr32")    // returns false
+
+// null handling
+startsWith("regsvr32.exe", null)        // returns null
+startsWith("", null)                    // returns null 
+startsWith(null, "regsvr32")            // returns null
+startsWith(null, null)                  // returns null
+----
+
+*Syntax*
+
+[source,txt]
+----
+startsWith(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing <<array,array values>> use the first array item only.
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+*Returns:* boolean or `null`
+====
 
 [discrete]
 [[eql-fn-substring]]
@@ -63,4 +390,70 @@ function returns the remaining string.
 Positions are zero-indexed. Negative offsets are supported.
 
 *Returns:* string
+====
+
+[discrete]
+[[eql-fn-wildcard]]
+=== `wildcard`
+Returns `true` if a source string matches one or more provided wildcard
+expressions.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// The two following expressions are equivalent.
+process.name == "*regsvr32*" or process.name == "*explorer*"
+wildcard(process.name, "*regsvr32*", "*explorer*")
+
+// process.name = "regsvr32.exe"
+wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
+wildcard(process.name, "*explorer*")                // returns false
+wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
+
+// empty strings
+wildcard("", "*start*")                             // returns false
+wildcard("", "*")                                   // returns true
+wildcard("", "")                                    // returns true
+
+// null handling
+wildcard(null, "*regsvr32*")                        // returns null
+wildcard(process.name, null)                        // returns null
+----
+
+*Syntax*
+
+[source,txt]
+----
+wildcard(<source>, <wildcard_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<wildcard_exp>`::
++
+--
+(Required{multi-arg}, string)
+Wildcard expression used to match the source string. If `null`, the function
+returns `null`. Fields are not supported as arguments.
+-- 
+
+*Returns:* boolean
 ====

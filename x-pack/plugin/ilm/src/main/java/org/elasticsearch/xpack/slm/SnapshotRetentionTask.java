@@ -125,7 +125,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             };
 
             try {
-                final TimeValue maxDeletionTime = LifecycleSettings.SLM_RETENTION_DURATION_SETTING.get(state.metaData().settings());
+                final TimeValue maxDeletionTime = LifecycleSettings.SLM_RETENTION_DURATION_SETTING.get(state.metadata().settings());
 
                 logger.info("starting SLM retention snapshot cleanup task");
                 slmStats.retentionRun();
@@ -190,7 +190,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     }
 
     static Map<String, SnapshotLifecyclePolicy> getAllPoliciesWithRetentionEnabled(final ClusterState state) {
-        final SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             return Collections.emptyMap();
         }

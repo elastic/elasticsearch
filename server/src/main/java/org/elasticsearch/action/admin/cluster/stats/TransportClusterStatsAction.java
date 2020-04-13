@@ -77,7 +77,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         ClusterState state = clusterService.state();
         return new ClusterStatsResponse(
             System.currentTimeMillis(),
-            state.metaData().clusterUUID(),
+            state.metadata().clusterUUID(),
             clusterService.getClusterName(),
             responses,
             failures,

@@ -23,9 +23,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -183,22 +183,22 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         final Map<String, AtomicInteger> globalMetadata = new ConcurrentHashMap<>();
         final Map<String, AtomicInteger> indicesMetadata = new ConcurrentHashMap<>();
 
-        public CountingMockRepository(final RepositoryMetaData metadata,
+        public CountingMockRepository(final RepositoryMetadata metadata,
                                       final Environment environment,
                                       final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
             super(metadata, environment, namedXContentRegistry, clusterService);
         }
 
         @Override
-        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
             globalMetadata.computeIfAbsent(snapshotId.getName(), (s) -> new AtomicInteger(0)).incrementAndGet();
-            return super.getSnapshotGlobalMetaData(snapshotId);
+            return super.getSnapshotGlobalMetadata(snapshotId);
         }
 
         @Override
-        public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId indexId) throws IOException {
+        public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId indexId) throws IOException {
             indicesMetadata.computeIfAbsent(key(snapshotId.getName(), indexId.getName()), (s) -> new AtomicInteger(0)).incrementAndGet();
-            return super.getSnapshotIndexMetaData(snapshotId, indexId);
+            return super.getSnapshotIndexMetadata(snapshotId, indexId);
         }
     }
 

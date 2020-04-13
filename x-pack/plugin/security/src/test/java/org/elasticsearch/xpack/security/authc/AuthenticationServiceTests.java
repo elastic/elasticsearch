@@ -25,7 +25,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -189,7 +189,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.areAllRealmsAllowed()).thenReturn(true);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
@@ -1550,6 +1550,6 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetaData.State.OPEN);
+            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN);
     }
 }

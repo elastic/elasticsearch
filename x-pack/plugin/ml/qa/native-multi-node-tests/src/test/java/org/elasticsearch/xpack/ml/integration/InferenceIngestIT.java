@@ -96,7 +96,6 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54786")
     public void testPipelineIngest() throws Exception {
 
         client().performRequest(putPipeline("simple_classification_pipeline", CLASSIFICATION_PIPELINE));

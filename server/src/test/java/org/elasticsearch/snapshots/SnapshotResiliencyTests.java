@@ -408,6 +408,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55103")
     public void testSnapshotDeleteWithMasterFailover() {
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(3, 5);

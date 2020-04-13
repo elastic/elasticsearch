@@ -19,6 +19,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -230,7 +231,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue(nodes.isEmpty() == false);
-        TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
+        TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()

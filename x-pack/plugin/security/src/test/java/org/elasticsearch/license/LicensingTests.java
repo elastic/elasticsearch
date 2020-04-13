@@ -26,6 +26,7 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.After;
@@ -169,7 +170,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         enableLicensing(mode);
 
         final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
-            .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
+            .getNodes().stream().map(n -> n.getInfo(TransportInfo.class).getAddress().publishAddress().toString()).distinct()
             .collect(Collectors.toList());
 
         Path home = createTempDir();

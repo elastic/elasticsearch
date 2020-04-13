@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -176,7 +177,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
 
         InetSocketAddress[] httpAddresses = new InetSocketAddress[nodes.size()];
         for (int i = 0; i < nodes.size(); i++) {
-            httpAddresses[i] = nodes.get(i).getHttp().address().publishAddress().address();
+            httpAddresses[i] = nodes.get(i).getInfo(HttpInfo.class).address().publishAddress().address();
         }
         return NetworkAddress.format(randomFrom(httpAddresses));
     }

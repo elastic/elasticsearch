@@ -809,12 +809,6 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and indexOf(file_name, 'plorer.', 2)'''
 expected_event_ids  = [88, 92]
 description = "check built-in string functions"
@@ -830,18 +824,6 @@ query = '''
 file where opcode=0 and indexOf(file_name, 'thing that never happened')'''
 expected_event_ids = []
 description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2'''
-expected_event_ids  = [88, 92]
-description = "check substring ranges"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0'''
-expected_event_ids  = [88, 92]
-description = "check substring ranges"
 
 [[queries]]
 query = '''
@@ -1055,30 +1037,6 @@ file where between(file_path, "dev", ".json", false) == "\\testlogs\\something"
 expected_event_ids = [95]
 query = '''
 file where between(file_path, "dev", ".json", true) == "\\testlogs\\something"
-'''
-
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "10.6.48.157/8")
-'''
-
-[[queries]]
-expected_event_ids = []
-query = '''
-network where cidrMatch(source_address, "192.168.0.0/16")
-'''
-
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8")
-
-'''
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "0.0.0.0/0")
 '''
 
 [[queries]]

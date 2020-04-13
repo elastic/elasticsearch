@@ -198,7 +198,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
   }
 
   testClusters."${integTestTaskName}" {
-    plugin(file(bundlePlugin.archiveFile))
+    plugin(bundlePlugin.archiveFile)
     if (integTestTaskName.contains("Secure")) {
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(

@@ -101,7 +101,7 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unknown function [arrayContains]",
+        assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
                 error("registry where arrayContains(bytes_written_string_list, 'En')"));
         assertEquals("1:16: Unknown function [arraySearch]",
             error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
@@ -119,10 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:25: Unknown function [stringContains]",
-                error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
-        assertEquals("1:25: Unknown function [indexOf]",
-                error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",
                 error("process where add(serial_event_id, 0) == 1"));
         assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",
@@ -135,8 +131,6 @@ public class VerifierTests extends ESTestCase {
                 error("process where serial_event_id == number('5')"));
         assertEquals("1:15: Unknown function [concat]",
                 error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
-        assertEquals("1:15: Unknown function [cidrMatch]",
-                error("network where cidrMatch(source_address, \"192.168.0.0/16\", \"10.6.48.157/8\")"));
     }
 
     // Test unsupported array indexes
@@ -342,5 +336,13 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'");
         accept(idxr, "foo where multi_field_nested.end_date == ''");
         accept(idxr, "foo where multi_field_nested.start_date == 'bar'");
+    }
+
+    public void testStringFunctionWithText() {
+        final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
+        assertEquals("1:15: [string(multi_field.english)] cannot operate on field " +
+                "of data type [text]: No keyword/multi-field defined exact matches for [english]; " +
+                "define one or use MATCH/QUERY instead",
+            error(idxr, "process where string(multi_field.english) == 'foo'"));
     }
 }

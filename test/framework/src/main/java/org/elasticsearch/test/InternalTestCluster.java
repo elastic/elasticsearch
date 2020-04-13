@@ -712,7 +712,7 @@ public final class InternalTestCluster extends TestCluster {
             return "c";
         }
 
-        return roles.stream().sorted().map(DiscoveryNodeRole::roleNameAbbreviation).collect(Collectors.joining());
+        return roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
     }
 
     @Override

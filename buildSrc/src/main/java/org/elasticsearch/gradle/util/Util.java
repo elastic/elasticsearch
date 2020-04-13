@@ -21,14 +21,23 @@ package org.elasticsearch.gradle.util;
 
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
+import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.util.PatternSet;
 
+import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Function;
 
 public class Util {
 
@@ -74,5 +83,92 @@ public class Util {
         } catch (URISyntaxException e) {
             throw new GradleException("Error determining build tools JAR location", e);
         }
+    }
+
+    public static Function<FileTree, FileTree> filterByPatterns(
+        PatternSet patternSet,
+        @Nullable List<String> includePatterns,
+        @Nullable List<String> excludePatterns
+    ) {
+        return inFiles -> {
+            if (inFiles != null && inFiles.isEmpty() == false) {
+                if (includePatterns != null) {
+                    patternSet.include(includePatterns);
+                }
+                if (excludePatterns != null) {
+                    patternSet.exclude(excludePatterns);
+                }
+                return inFiles.getAsFileTree().matching(patternSet);
+            } else {
+                return null;
+            }
+        };
+    }
+
+    /**
+     * @param project The project to look for resources.
+     * @param filter  Optional filter function to filter the returned resources
+     * @return Returns the {@FileTree} for main resources from Java projects. Returns null if no files exist.
+     */
+    @Nullable
+    public static FileTree getJavaMainSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
+        if (filter == null) {
+            filter = Function.identity();
+        }
+        final Optional<FileTree> mainFileTree = getJavaMainSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
+        return filter.apply(mainFileTree.orElse(null));
+    }
+
+    /**
+     * @param project The project to look for resources.
+     * @param filter  Optional filter function to filter the returned resources
+     * @return Returns the {@FileTree} for test resources from Java projects. Returns null if no files exist.
+     */
+    @Nullable
+    public static FileTree getJavaTestSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
+        if (filter == null) {
+            filter = Function.identity();
+        }
+        final Optional<FileTree> testFileTree = getJavaTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
+        return filter.apply(testFileTree.orElse(null));
+    }
+
+    /**
+     * @param project The project to look for resources.
+     * @param filter  Optional filter function to filter the returned resources
+     * @return Returns the combined {@FileTree} for test and main resources from Java projects. Returns null if no files exist.
+     */
+    @Nullable
+    public static FileTree getJavaTestAndMainSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
+        if (filter == null) {
+            filter = Function.identity();
+        }
+        final Optional<FileTree> testFileTree = getJavaTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
+        final Optional<FileTree> mainFileTree = getJavaMainSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
+        if (testFileTree.isPresent() && mainFileTree.isPresent()) {
+            return filter.apply(testFileTree.get().plus(mainFileTree.get()));
+        } else {
+            return filter.apply(testFileTree.orElse(mainFileTree.orElse(null)));
+        }
+    }
+
+    /**
+     * @param project The project to look for test Java resources.
+     * @return An Optional that contains the Java test SourceSet if it exists.
+     */
+    public static Optional<SourceSet> getJavaTestSourceSet(Project project) {
+        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+            ? Optional.ofNullable(null)
+            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
+    }
+
+    /**
+     * @param project The project to look for main Java resources.
+     * @return An Optional that contains the Java main SourceSet if it exists.
+     */
+    public static Optional<SourceSet> getJavaMainSourceSet(Project project) {
+        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+            ? Optional.ofNullable(null)
+            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
     }
 }

@@ -55,6 +55,7 @@ public class TrainedModelStatsService {
         "    ctx._source.{3} = params.{3};";
     // Script to only update if stats have increased since last persistence
     private static final String STATS_UPDATE_SCRIPT = Messages.getMessage(STATS_UPDATE_SCRIPT_TEMPLATE,
+        InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName(),
         InferenceStats.INFERENCE_COUNT.getPreferredName(),
         InferenceStats.FAILURE_COUNT.getPreferredName(),
         InferenceStats.TIMESTAMP.getPreferredName());

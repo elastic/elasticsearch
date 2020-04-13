@@ -108,7 +108,7 @@ public class Util {
     /**
      * @param project The project to look for resources.
      * @param filter  Optional filter function to filter the returned resources
-     * @return Returns the {@FileTree} for main resources from Java projects. Returns null if no files exist.
+     * @return Returns the {@link FileTree} for main resources from Java projects. Returns null if no files exist.
      */
     @Nullable
     public static FileTree getJavaMainSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
@@ -122,7 +122,7 @@ public class Util {
     /**
      * @param project The project to look for resources.
      * @param filter  Optional filter function to filter the returned resources
-     * @return Returns the {@FileTree} for test resources from Java projects. Returns null if no files exist.
+     * @return Returns the {@link FileTree} for test resources from Java projects. Returns null if no files exist.
      */
     @Nullable
     public static FileTree getJavaTestSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
@@ -136,7 +136,7 @@ public class Util {
     /**
      * @param project The project to look for resources.
      * @param filter  Optional filter function to filter the returned resources
-     * @return Returns the combined {@FileTree} for test and main resources from Java projects. Returns null if no files exist.
+     * @return Returns the combined {@link FileTree} for test and main resources from Java projects. Returns null if no files exist.
      */
     @Nullable
     public static FileTree getJavaTestAndMainSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {

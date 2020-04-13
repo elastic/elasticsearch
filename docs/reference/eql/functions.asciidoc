@@ -13,6 +13,7 @@ experimental::[]
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
 * <<eql-fn-substring>>
+* <<eql-fn-wildcard>>
 
 [discrete]
 [[eql-fn-between]]
@@ -66,7 +67,7 @@ between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
 Source string. Empty strings return an empty string (`""`), regardless of the
 `<left>` or `<right>` parameters. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -84,7 +85,7 @@ Fields containing <<array,array values>> use the first array item only.
 Text to the left of the substring to extract. This text should include
 whitespace.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -102,7 +103,7 @@ field datatypes:
 Text to the right of the substring to extract. This text should include
 whitespace.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -177,7 +178,7 @@ endsWith(<source>, <substring>)
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -194,7 +195,7 @@ Fields containing <<array,array values>> use the first array item only.
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -242,7 +243,7 @@ length(<string>)
 String for which to return the character length. If `null`, the function returns
 `null`. Empty strings return `0`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -307,7 +308,7 @@ startsWith(<source>, <substring>)
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -324,7 +325,7 @@ Fields containing <<array,array values>> use the first array item only.
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
 
-If using a field as the argument, this parameter only supports the following
+If using a field as the argument, this parameter supports only the following
 field datatypes:
 
 * <<keyword,`keyword`>>
@@ -389,4 +390,70 @@ function returns the remaining string.
 Positions are zero-indexed. Negative offsets are supported.
 
 *Returns:* string
+====
+
+[discrete]
+[[eql-fn-wildcard]]
+=== `wildcard`
+Returns `true` if a source string matches one or more provided wildcard
+expressions.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// The two following expressions are equivalent.
+process.name == "*regsvr32*" or process.name == "*explorer*"
+wildcard(process.name, "*regsvr32*", "*explorer*")
+
+// process.name = "regsvr32.exe"
+wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
+wildcard(process.name, "*explorer*")                // returns false
+wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
+
+// empty strings
+wildcard("", "*start*")                             // returns false
+wildcard("", "*")                                   // returns true
+wildcard("", "")                                    // returns true
+
+// null handling
+wildcard(null, "*regsvr32*")                        // returns null
+wildcard(process.name, null)                        // returns null
+----
+
+*Syntax*
+
+[source,txt]
+----
+wildcard(<source>, <wildcard_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<wildcard_exp>`::
++
+--
+(Required{multi-arg}, string)
+Wildcard expression used to match the source string. If `null`, the function
+returns `null`. Fields are not supported as arguments.
+-- 
+
+*Returns:* boolean
 ====

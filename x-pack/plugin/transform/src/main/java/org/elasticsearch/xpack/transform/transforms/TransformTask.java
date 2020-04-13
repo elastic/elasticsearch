@@ -420,6 +420,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
     }
 
+    @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        // shutdown implements graceful shutdown of children
+        return false;
+    }
+
     /**
      * Attempt to gracefully cleanup the transform so it can be terminated.
      * This tries to remove the job from the scheduler and completes the persistent task

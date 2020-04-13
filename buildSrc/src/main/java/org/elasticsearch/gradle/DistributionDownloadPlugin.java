@@ -224,7 +224,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             }
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
-                assert distribution.getBundledJdk();
+                assert distribution.hasBundledJdk();
                 return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
             }
         }
@@ -306,7 +306,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             projectName += "oss-";
         }
 
-        if (distribution.getBundledJdk() == false) {
+        if (distribution.hasBundledJdk() == false) {
             projectName += "no-jdk-";
         }
 
@@ -315,9 +315,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 Platform platform = distribution.getPlatform();
 
                 projectName += platform.toString();
-                if (platform != Platform.WINDOWS
-                    && distribution.getArchitecture() != Architecture.X64
-                    && distribution.getBundledJdk() == true) {
+                if (platform != Platform.WINDOWS && distribution.getArchitecture() != Architecture.X64) {
                     projectName += "-" + distribution.getArchitecture().toString().toLowerCase();
                 }
 
@@ -345,7 +343,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             distribution.getType(),
             distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
             distribution.getFlavor(),
-            distribution.getBundledJdk() ? "" : "_nojdk"
+            distribution.hasBundledJdk() ? "" : "_nojdk"
         );
     }
 
@@ -355,7 +353,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getFlavor() == Flavor.OSS) {
                 taskName += "Oss";
             }
-            if (distribution.getBundledJdk() == false) {
+            if (distribution.hasBundledJdk() == false) {
                 taskName += "NoJdk";
             }
         }

@@ -435,6 +435,12 @@ public class DistroTestPlugin implements Plugin<Project> {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
                 for (Flavor flavor : Flavor.values()) {
                     for (boolean bundledJdk : Arrays.asList(true, false)) {
+                        if (bundledJdk == false && architecture != Architecture.X64) {
+                            // We will never publish distributions for non-x86 (amd64) platforms
+                            // without a bundled JDK
+                            continue;
+                        }
+
                         addDistro(
                             distributions,
                             architecture,
@@ -521,6 +527,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
         Type type = distro.getType();
         return "destructiveDistroTest."
-            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
+            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.hasBundledJdk(), distro.getArchitecture());
     }
 }

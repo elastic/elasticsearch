@@ -260,7 +260,7 @@ public class TransportStartDataFrameAnalyticsAction
             startContext -> {
                 switch (startContext.startingState) {
                     case FIRST_TIME:
-                        checkDestIndexIsEmptyIfExists(startContext, toValidateMappingsListener);
+                        checkDestIndexIsEmptyIfExists(client, startContext, toValidateMappingsListener);
                         break;
                     case RESUMING_REINDEXING:
                     case RESUMING_ANALYZING:
@@ -360,13 +360,14 @@ public class TransportStartDataFrameAnalyticsAction
         ));
     }
 
-    private void checkDestIndexIsEmptyIfExists(StartContext startContext, ActionListener<StartContext> listener) {
+    private void checkDestIndexIsEmptyIfExists(Client client, StartContext startContext,
+                                               ActionListener<StartContext> listener) {
         String destIndex = startContext.config.getDest().getIndex();
         SearchRequest destEmptySearch = new SearchRequest(destIndex);
         destEmptySearch.source().size(0);
         destEmptySearch.allowPartialSearchResults(false);
-        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE,
-            destEmptySearch, ActionListener.wrap(
+        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, client,
+                SearchAction.INSTANCE, destEmptySearch, ActionListener.wrap(
                 searchResponse -> {
                     if (searchResponse.getHits().getTotalHits().value > 0) {
                         listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));

@@ -196,7 +196,7 @@ final class AsyncSearchTask extends SearchTask {
             if (hasCompleted) {
                 executeImmediately = true;
             } else {
-                completionListeners.put(completionId++, listener::accept);
+                completionListeners.put(completionId++, listener);
             }
         }
         if (executeImmediately) {

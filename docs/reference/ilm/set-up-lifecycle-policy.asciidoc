@@ -44,6 +44,11 @@ To set the policy for an index there are two options:
 1. Apply the policy to an index template and bootstrap creating the first index
 2. Apply the policy to a new index in a create index request
 
+NOTE: ILM policies are stored in global cluster state which can be backed up using Snapshot with the 
+`include_global_state` parameter set to `true`.
+Restoring ILM policies from global state in a Snapshot is all-or-nothing that will overwrite the entire global
+state using the snapshot's point in time copy including all ILM policies.
+
 [[applying-policy-to-template]]
 === Applying a policy to an index template
 

@@ -302,8 +302,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             // fork so stopping all ml nodes proceeds quicker:
             Runnable r = () -> {
                 try {
-                    internalCluster()
-                            .stopRandomNode(settings -> DiscoveryNode.hasRole(settings, MachineLearning.ML_ROLE) == false);
+                    internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, MachineLearning.ML_ROLE));
                 } catch (IOException e) {
                     logger.error("error stopping node", e);
                 }

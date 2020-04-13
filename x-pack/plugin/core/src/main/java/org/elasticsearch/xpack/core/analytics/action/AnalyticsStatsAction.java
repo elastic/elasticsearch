@@ -124,7 +124,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             } else {
                 counters = new EnumCounters<>(Item.class);
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.BOXPLOT, in.readLong());
+                    counters.inc(Item.BOXPLOT, in.readVLong());
                 }
                 counters.inc(Item.CUMULATIVE_CARDINALITY, in.readZLong());
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {

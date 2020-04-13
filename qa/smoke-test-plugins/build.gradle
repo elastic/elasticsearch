@@ -32,7 +32,7 @@ testClusters.integTest {
       // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
       return
     }
-    plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
+    plugin pluginProject.tasks.bundlePlugin.archiveFile
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1
   }

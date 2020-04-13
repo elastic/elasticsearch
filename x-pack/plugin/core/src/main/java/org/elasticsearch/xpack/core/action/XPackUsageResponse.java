@@ -43,4 +43,4 @@ public class XPackUsageResponse extends ActionResponse {
         }
     }
 
-    }
+}

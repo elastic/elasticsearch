@@ -170,7 +170,6 @@ final class IndicesRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
         parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
-        parameters.withLocal(getFieldMappingsRequest.local());
         request.addParameters(parameters.asMap());
         return request;
     }

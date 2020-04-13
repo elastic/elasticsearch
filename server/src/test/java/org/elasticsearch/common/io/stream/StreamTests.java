@@ -437,10 +437,10 @@ public class StreamTests extends ESTestCase {
     }
 
     public void testGenericSet() throws IOException {
-        Set<String> set = Set.of("a", "b", "c", "d", "e");
+        Set<String> set = new HashSet<>(Arrays.asList("a", "b", "c", "d", "e"));
         assertGenericRoundtrip(set);
         // reverse order in normal set so linked hashset does not match the order
-        var list = new ArrayList<>(set);
+        List<String> list = new ArrayList<>(set);
         Collections.reverse(list);
         assertGenericRoundtrip(new LinkedHashSet<>(list));
     }

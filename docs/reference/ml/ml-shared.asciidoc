@@ -17,17 +17,6 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-tag::allow-lazy-start[]
-Whether this job should be allowed to start when there is insufficient {ml} node 
-capacity for it to be immediately assigned to a node. The default is `false`, 
-which means that the <<start-dfanalytics>> will return an error if a {ml} node 
-with capacity to run the job cannot immediately be found. (However, this is also 
-subject to the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see 
-<<advanced-ml-settings>>.) If this option is set to `true` then the 
-<<start-dfanalytics>> will not return an error, and the job will wait in the 
-`starting` state until sufficient {ml} node capacity is available.
-end::allow-lazy-start[]
-
 tag::allow-no-datafeeds[]
 Specifies what to do when the request:
 +
@@ -292,14 +281,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
 include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
 ====
 end::chunking-config[]
-
-tag::class-assignment-objective[]
-Defines the objective to optimize when assigning class labels. Available
-objectives are `maximize_accuracy` and `maximize_minimum_recall`. When maximizing
-accuracy class labels are chosen to maximize the number of correct predictions.
-When maximizing minimum recall labels are chosen to maximize the minimum recall
-for any class. Defaults to maximize_minimum_recall.
-end::class-assignment-objective[]
 
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
@@ -1024,7 +1005,7 @@ end::empty-bucket-count[]
 
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
-values result in larger forests which have better generalization error. However,
+values result in larger forests which have a better generalization error. However,
 the smaller the value the longer the training will take. For more information
 about shrinkage, see
 https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
@@ -1123,10 +1104,10 @@ end::function[]
 
 tag::gamma[]
 Advanced configuration option. Regularization parameter to prevent overfitting
-on the training dataset. Multiplies a linear penalty associated with the size of 
+on the training data set. Multiplies a linear penalty associated with the size of 
 individual trees in the forest. The higher the value the more training will 
 prefer smaller trees. The smaller this parameter the larger individual trees
-will be and the longer train will take.
+will be and the longer training will take.
 end::gamma[]
 
 tag::groups[]
@@ -1281,12 +1262,12 @@ end::job-id-datafeed[]
 
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting
-on the training dataset. Multiplies an L2 regularisation term which applies to
+on the training data set. Multiplies an L2 regularisation term which applies to
 leaf weights of the individual trees in the forest. The higher the value the
 more training will attempt to keep leaf weights small. This makes the prediction  
 function smoother at the expense of potentially not being able to capture 
 relevant relationships between the features and the {depvar}. The smaller this 
-parameter the larger individual trees will be and the longer train will take.
+parameter the larger individual trees will be and the longer training will take.
 end::lambda[]
 
 tag::last-data-time[]
@@ -1544,13 +1525,6 @@ tag::node-jobs[]
 Contains properties for the node that runs the job. This information is
 available only for open jobs.
 end::node-jobs[]
-
-tag::num-top-classes[]
-Defines the number of categories for which the predicted 
-probabilities are reported. It must be non-negative. If it is greater than the 
-total number of categories (in the {version} version of the {stack}, it's two) 
-to predict then we will report all category probabilities. Defaults to 2.
-end::num-top-classes[]
 
 tag::open-time[]
 For open jobs only, the elapsed time for which the job has been open.

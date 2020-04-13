@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -35,6 +36,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private static final int RESULTS_BATCH_SIZE = 1000;
 
     private final String analyticsId;
+    private final TaskId parentTaskId;
     private final DataFrameDataExtractor dataExtractor;
     private final ResultsPersisterService resultsPersisterService;
     private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
@@ -42,8 +44,10 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private volatile String failure;
     private volatile boolean isCancelled;
 
-    DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor, ResultsPersisterService resultsPersisterService) {
+    DataFrameRowsJoiner(String analyticsId, TaskId parentTaskId, DataFrameDataExtractor dataExtractor,
+                        ResultsPersisterService resultsPersisterService) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
+        this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.dataFrameRowsIterator = new ResultMatchingDataFrameRows();
@@ -90,6 +94,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             bulkRequest.add(createIndexRequest(result, row.getHit()));
         }
         if (bulkRequest.numberOfActions() > 0) {
+            bulkRequest.setParentTask(parentTaskId);
             resultsPersisterService.bulkIndexWithHeadersWithRetry(
                 dataExtractor.getHeaders(),
                 bulkRequest,
@@ -117,6 +122,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         indexRequest.id(hit.getId());
         indexRequest.source(source);
         indexRequest.opType(DocWriteRequest.OpType.INDEX);
+        indexRequest.setParentTask(parentTaskId);
         return indexRequest;
     }
 

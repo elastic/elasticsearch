@@ -58,6 +58,7 @@ testClusters.integTest {
     }
     setting 'xpack.autoscaling.enabled', 'true'
     setting 'xpack.eql.enabled', 'true'
+    keystorePassword 's3cr3t'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them

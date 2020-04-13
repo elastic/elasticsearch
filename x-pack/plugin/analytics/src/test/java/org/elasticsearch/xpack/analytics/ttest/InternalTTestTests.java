@@ -31,28 +31,28 @@ import static java.util.Collections.emptyList;
 
 public class InternalTTestTests extends InternalAggregationTestCase<InternalTTest> {
 
-    private final TTestType type = randomFrom(TTestType.values());
-    private final int tails = randomIntBetween(1, 2);
-
     @Override
     protected InternalTTest createTestInstance(String name, Map<String, Object> metadata) {
-        TTestState state = randomState(Long.MAX_VALUE);
+        TTestState state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalTTest(name, state, formatter, metadata);
     }
 
     @Override
     protected List<InternalTTest> randomResultsToReduce(String name, int size) {
+        TTestType type = randomFrom(TTestType.values());
+        int tails = randomIntBetween(1, 2);
         List<InternalTTest> inputs = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            TTestState state = randomState(Long.MAX_VALUE / size); // Make sure the sum of all the counts doesn't wrap
+            // Make sure the sum of all the counts doesn't wrap and type and tail parameters are consistent
+            TTestState state = randomState(Long.MAX_VALUE / size, type, tails);
             DocValueFormat formatter = randomNumericDocValueFormat();
             inputs.add(new InternalTTest(name, state, formatter, null));
         }
         return inputs;
     }
 
-    private TTestState randomState(long maxCount) {
+    private TTestState randomState(long maxCount, TTestType type, int tails) {
         if (type == TTestType.PAIRED) {
             return new PairedTTestState(randomStats(maxCount), tails);
         } else {
@@ -100,7 +100,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
                 name += randomAlphaOfLength(5);
                 break;
             case 1:
-                state = randomState(Long.MAX_VALUE);
+                state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
                 break;
             case 2:
                 if (metadata == null) {

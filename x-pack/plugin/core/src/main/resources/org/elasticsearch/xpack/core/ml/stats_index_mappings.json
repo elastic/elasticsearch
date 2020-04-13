@@ -85,6 +85,21 @@
       "peak_usage_bytes" : {
         "type" : "long"
       },
+      "model_id": {
+        "type": "keyword"
+      },
+      "node_id": {
+        "type": "keyword"
+      },
+      "inference_count": {
+        "type": "long"
+      },
+      "failure_count": {
+        "type": "long"
+      },
+      "missing_all_fields_count": {
+        "type": "long"
+      },
       "skipped_docs_count": {
         "type": "long"
       },

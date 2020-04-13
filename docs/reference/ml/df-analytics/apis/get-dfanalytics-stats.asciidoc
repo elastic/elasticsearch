@@ -65,8 +65,422 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 The API returns the following information:
 
 `data_frame_analytics`::
-(array) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=data-frame-analytics-stats]
+(array)
+An array of statistics objects for {dfanalytics-jobs}, which are
+sorted by the `id` value in ascending order.
+
+//Begin analysis_stats
+`analysis_stats`::
+(object)
+An object containing statistical data about the analysis.
++
+.Properties of `analysis_stats`
+[%collapsible%open]
+====
+//Begin classification_stats
+`classification_stats`:::
+(object)
+An object containing statistical data about the {classanalysis}.
++
+.Properties of `classification_stats`
+[%collapsible%open]
+=====
+//Begin class_hyperparameters
+`hyperparameters`::::
+(object)
+An object containing the parameters of the {classanalysis}.
++
+.Properties of `hyperparameters`
+[%collapsible%open]
+======
+
+`alpha`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
+`class_assignment_objective`::::
+(string)
+Defines whether class assignment maximizes the accuracy or the minimum recall 
+metric. Possible values are `maximize_accuracy` and `maximize_minimum_recall`.
+
+`downsample_factor`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
+`eta`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta]
+
+`eta_growth_rate_per_tree`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+
+`feature_bag_fraction`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-feature-bag-fraction]
+
+`gamma`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-gamma]
+
+`lambda`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-lambda]
+
+`max_attempts_to_add_tree`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
+
+`max_optimization_rounds_per_hyperparameter`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+
+`max_trees`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-trees]
+
+`num_folds`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
+
+`num_splits_per_feature`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
+
+`soft_tree_depth_limit`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+`soft_tree_depth_tolerance`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+======
+//End class_hyperparameters
+
+`iteration`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
+
+`timestamp`::::
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+
+//Begin class_timing_stats
+`timing_stats`::::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
++
+.Properties of `timing_stats`
+[%collapsible%open]
+======
+`elapsed_time`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+
+`iteration_time`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
+======
+//End class_timing_stats
+
+//Begin class_validation_loss
+`validation_loss`::::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
++
+.Properties of `validation_loss`
+[%collapsible%open]
+======
+`loss_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
+
+`fold_values`::::
+(array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
+======
+//End class_validation_loss
+=====
+//End classification_stats
+
+//Begin outlier_detection_stats
+`outlier_detection_stats`:::
+(object)
+An object containing statistical data about the {oldetection} job.
++
+.Properties of `outlier_detection_stats`
+[%collapsible%open]
+=====
+//Begin parameters
+`parameters`::::
+(object)
+The list of job parameters specified by the user or determined by algorithmic 
+heuristics.
++
+.Properties of `parameters`
+[%collapsible%open]
+======
+`compute_feature_influence`::::
+(boolean)
+If true, feature influence calculation is enabled.
+
+`feature_influence_threshold`::::
+(double)
+The minimum {olscore} that a document needs to have to calculate its feature 
+influence score.
+
+`method`::::
+(string)
+The method that {oldetection} uses. Possible values are `lof`, `ldof`, 
+`distance_kth_nn`, `distance_knn`, and `ensemble`.
+
+`n_neighbors`::::
+(integer)
+The value for how many nearest neighbors each method of {oldetection} uses to 
+calculate its outlier score.
+
+`outlier_fraction`::::
+(double)
+The proportion of the data set that is assumed to be outlying prior to 
+{oldetection}.
+
+`standardization_enabled`::::
+(boolean)
+If true, then the following operation is performed on the columns before 
+computing {olscores}: (x_i - mean(x_i)) / sd(x_i).
+======
+//End parameters
+
+`timestamp`::::
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+
+//Begin od_timing_stats
+`timing_stats`::::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
++
+.Property of `timing_stats`
+[%collapsible%open]
+======
+`elapsed_time`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+======
+//End od_timing_stats
+=====
+//End outlier_detection_stats
+
+//Begin regression_stats
+`regression_stats`:::
+(object)
+An object containing statistical data about the {reganalysis}.
++
+.Properties of `regression_stats`
+[%collapsible%open]
+=====
+//Begin reg_hyperparameters
+`hyperparameters`::::
+(object)
+An object containing the parameters of the {reganalysis}.
++
+.Properties of `hyperparameters`
+[%collapsible%open]
+======
+`alpha`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
+`downsample_factor`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
+`eta`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta]
+
+`eta_growth_rate_per_tree`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+
+`feature_bag_fraction`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-feature-bag-fraction]
+
+`gamma`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-gamma]
+
+`lambda`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-lambda]
+
+`max_attempts_to_add_tree`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
+
+`max_optimization_rounds_per_hyperparameter`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+
+`max_trees`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-trees]
+
+`num_folds`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
+
+`num_splits_per_feature`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
+
+`soft_tree_depth_limit`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+`soft_tree_depth_tolerance`::::
+(double)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+======
+//End reg_hyperparameters
+
+`iteration`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
+
+`timestamp`::::
+(date)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+
+//Begin reg_timing_stats
+`timing_stats`::::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
++
+.Propertis of `timing_stats`
+[%collapsible%open]
+======
+`elapsed_time`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+
+`iteration_time`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
+======
+//End reg_timing_stats
+
+//Begin reg_validation_loss
+`validation_loss`::::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
++
+.Properties of `validation_loss`
+[%collapsible%open]
+======
+`loss_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
+
+`fold_values`::::
+(array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
+======
+//End reg_validation_loss
+=====
+//End regression_stats
+====
+//End analysis_stats
+
+`assignment_explanation`:::
+(string)
+For running jobs only, contains messages relating to the selection of a node to 
+run the job.
+
+//Begin data_counts
+`data_counts`:::
+(object)
+An object containing statistical data about the documents in the analysis.
++
+.Properties of `data_counts`
+[%collapsible%open]
+====
+`skipped_docs_count`:::
+(integer)
+The number of documents that are skipped during the analysis because they 
+contained values that are not supported by the analysis. For example, 
+{oldetection} does not support missing fields so it skips documents with missing 
+fields. Likewise, all types of analysis skip documents that contain arrays with 
+more than one element.
+
+`test_docs_count`:::
+(integer)
+The number of documents that are not used for training the model and can be used 
+for testing.
+
+`training_docs_count`:::
+(integer)
+The number of documents that are used for training the model.
+====
+//End data_counts
+
+`id`:::
+(string)
+The unique identifier of the {dfanalytics-job}.
+
+`memory_usage`:::
+(Optional, object)
+An object describing memory usage of the analytics. It is present only after the 
+job is started and memory usage is reported.
+
+`memory_usage`.`peak_usage_bytes`:::
+(long)
+The number of bytes used at the highest peak of memory usage.
+
+`memory_usage`.`timestamp`:::
+(date)
+The timestamp when memory usage was calculated.
+
+`node`:::
+(object)
+Contains properties for the node that runs the job. This information is 
+available only for running jobs.
+
+`node`.`attributes`:::
+(object)
+Lists node attributes such as `ml.machine_memory`, `ml.max_open_jobs`, and 
+`xpack.installed`.
+
+`node`.`ephemeral_id`:::
+(string)
+The ephemeral id of the node.
+
+`node`.`id`:::
+(string)
+The unique identifier of the node.
+
+`node`.`name`:::
+(string)
+The node name.
+
+`node`.`transport_address`:::
+(string)
+The host and port where transport HTTP connections are accepted.
+
+`progress`:::
+(array) The progress report of the {dfanalytics-job} by phase.
+  
+`progress`.`phase`:::
+(string) Defines the phase of the {dfanalytics-job}. Possible phases: 
+`reindexing`, `loading_data`, `analyzing`, and `writing_results`.
+    
+`progress`.`progress_percent`:::
+(integer) The progress that the {dfanalytics-job} has made expressed in 
+percentage.
+
+`state`:::
+(string) Current state of the {dfanalytics-job}.
 
 
 [[ml-get-dfanalytics-stats-response-codes]]

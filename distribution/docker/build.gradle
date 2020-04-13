@@ -235,6 +235,7 @@ subprojects { Project subProject ->
     }
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
+    exportDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'

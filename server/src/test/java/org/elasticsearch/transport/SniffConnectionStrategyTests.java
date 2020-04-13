@@ -324,6 +324,34 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
+    public void testConnectFailsIfNoConnectionsOpened() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService closedTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = closedTransport.getLocalNode();
+            knownNodes.add(discoverableNode);
+            closedTransport.close();
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                // Predicate excludes seed node as a possible connection
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> n.equals(seedNode) == false, seedNodes(seedNode))) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
+                    assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
     public void testClusterNameValidationPreventConnectingToDifferentClusters() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         List<DiscoveryNode> otherKnownNodes = new CopyOnWriteArrayList<>();

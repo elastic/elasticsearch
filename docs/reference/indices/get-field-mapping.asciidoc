@@ -48,7 +48,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 (Optional, boolean) If `true`, the response includes default mapping values.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+`local`::
+deprecated:[7.8.0, This parameter is a no-op and field mappings are always retrieved locally]
+(Optional, boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
+the master node.
 
 
 [[get-field-mapping-api-example]]

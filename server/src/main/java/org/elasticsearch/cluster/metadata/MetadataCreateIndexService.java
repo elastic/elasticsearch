@@ -458,14 +458,15 @@ public class MetadataCreateIndexService {
             MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
 
         final Settings aggregatedIndexSettings =
-            aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(currentState, templateName),
+            aggregateIndexSettings(currentState, request,
+                MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
                 mappings, null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(currentState, templateName), currentState.metadata(), aliasValidator,
+                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),

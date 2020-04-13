@@ -10,29 +10,29 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
+import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingPolicyAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestDeleteAutoscalingPolicyActionHandler extends BaseRestHandler {
+public class RestGetAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_autoscaling/policy/{name}"));
+        return List.of(new Route(GET, "/_autoscaling/policy/{name}"));
     }
 
     @Override
     public String getName() {
-        return "delete_autoscaling_policy";
+        return "get_autoscaling_policy";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final String name = restRequest.param("name");
-        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request(name);
-        return channel -> client.execute(DeleteAutoscalingPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request(name);
+        return channel -> client.execute(GetAutoscalingPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
 }

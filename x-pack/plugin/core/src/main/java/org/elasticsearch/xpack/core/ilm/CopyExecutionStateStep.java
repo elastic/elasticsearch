@@ -19,23 +19,32 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTO
 
 /**
  * Copies the execution state data from one index to another, typically after a
- * new index has been created. Useful for actions such as shrink.
+ * new index has been created. As part of the execution state copy it will set the target index
+ * "current step" to the provided step name (part of the same phase and action as the current step's, unless
+ * the "complete" step is configured in which case the action will be changed to "complete" as well)
+ *
+ * Useful for actions such as shrink.
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {
     public static final String NAME = "copy-execution-state";
 
     private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
 
-    private String shrunkIndexPrefix;
+    private final String targetIndexPrefix;
+    private final String targetNextStepName;
 
-
-    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String targetIndexPrefix, String targetNextStepName) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
+        this.targetIndexPrefix = targetIndexPrefix;
+        this.targetNextStepName = targetNextStepName;
     }
 
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
+    String getTargetIndexPrefix() {
+        return targetIndexPrefix;
+    }
+
+    String getTargetNextStepName() {
+        return targetNextStepName;
     }
 
     @Override
@@ -48,8 +57,8 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         }
         // get source index
         String indexName = indexMetadata.getIndex().getName();
-        // get target shrink index
-        String targetIndexName = shrunkIndexPrefix + indexName;
+        // get target index
+        String targetIndexName = targetIndexPrefix + indexName;
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
@@ -67,8 +76,14 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder();
         relevantTargetCustomData.setIndexCreationDate(lifecycleDate);
         relevantTargetCustomData.setPhase(phase);
-        relevantTargetCustomData.setAction(action);
-        relevantTargetCustomData.setStep(ShrunkenIndexCheckStep.NAME);
+        relevantTargetCustomData.setStep(targetNextStepName);
+        if (targetNextStepName.equals(PhaseCompleteStep.NAME)) {
+            relevantTargetCustomData.setAction(PhaseCompleteStep.NAME);
+        } else {
+            relevantTargetCustomData.setAction(action);
+        }
+        relevantTargetCustomData.setSnapshotRepository(lifecycleState.getSnapshotRepository());
+        relevantTargetCustomData.setSnapshotName(lifecycleState.getSnapshotName());
 
         Metadata.Builder newMetadata = Metadata.builder(clusterState.getMetadata())
             .put(IndexMetadata.builder(targetIndexMetadata)
@@ -79,15 +94,22 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
         CopyExecutionStateStep that = (CopyExecutionStateStep) o;
-        return Objects.equals(shrunkIndexPrefix, that.shrunkIndexPrefix);
+        return Objects.equals(targetIndexPrefix, that.targetIndexPrefix) &&
+            Objects.equals(targetNextStepName, that.targetNextStepName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
+        return Objects.hash(super.hashCode(), targetIndexPrefix, targetNextStepName);
     }
 }

@@ -154,5 +154,19 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         public EnumCounters<Item> getStats() {
             return counters;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeResponse that = (NodeResponse) o;
+            return counters.equals(that.counters) &&
+                getNode().equals(that.getNode());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(counters, getNode());
+        }
     }
 }

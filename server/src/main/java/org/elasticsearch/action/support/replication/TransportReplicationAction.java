@@ -395,10 +395,6 @@ public abstract class TransportReplicationAction<
 
     }
 
-    protected ActionListener<Response> wrapResponseActionListener(ActionListener<Response> listener, IndexShard shard) {
-        return listener;
-    }
-
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse>
             implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
@@ -443,6 +439,9 @@ public abstract class TransportReplicationAction<
                 listener.onResponse(null);
             }
         }
+
+        @Override
+        public void primaryCoordinationComplete() {}
     }
 
     public static class ReplicaResult {

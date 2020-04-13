@@ -52,8 +52,12 @@ public class NodeInfo extends BaseNodeResponse {
     @Nullable
     private Settings settings;
 
-    // TODO: is it OK to key this map on class?
-    Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
+    /**
+     * Do not expose this map to other classes. For type safety, use {@link #getInfo(Class)}
+     * to retrieve items from this map and {@link #addInfoIfNonNull(Class, ReportingService.Info)}
+     * to retrieve items from it.
+     */
+    private Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
 
     @Nullable
     private ByteSizeValue totalIndexingBuffer;
@@ -129,7 +133,16 @@ public class NodeInfo extends BaseNodeResponse {
         return this.settings;
     }
 
-    // TODO: javadoc on the utility of a method that hides casting
+    /**
+     * Get a particular info object, e.g. {@link JvmInfo} or {@link OsInfo}. This
+     * generic method handles all casting in order to spare client classes the
+     * work of explicit casts. This {@link NodeInfo} class guarantees type
+     * safety for these stored info blocks.
+     *
+     * @param clazz Class for retrieval.
+     * @param <T>   Specific subtype of ReportingService.Info to retrieve.
+     * @return      An object of type T.
+     */
     public <T extends ReportingService.Info> T getInfo(Class<T> clazz) {
         return clazz.cast(infoMap.get(clazz));
     }
@@ -139,7 +152,11 @@ public class NodeInfo extends BaseNodeResponse {
         return totalIndexingBuffer;
     }
 
-    private void addInfoIfNonNull(Class<? extends ReportingService.Info> clazz, ReportingService.Info info) {
+    /**
+     * Add a value to the map of information blocks. This method guarantees the
+     * type safety of the storage of heterogeneous types of reporting service information.
+     */
+    private <T extends ReportingService.Info> void addInfoIfNonNull(Class<T> clazz, T info) {
         if (info != null) {
             infoMap.put(clazz, info);
         }

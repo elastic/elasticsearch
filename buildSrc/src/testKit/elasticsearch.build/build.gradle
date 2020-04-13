@@ -17,7 +17,8 @@ repositories {
 }
 
 // todo remove offending rules
-disableTasks('forbiddenApisMain', 'forbiddenApisTest')
+tasks.named('forbiddenApisMain').configure { onlyIf { false } }
+tasks.named('forbiddenApisTest').configure { onlyIf { false } }
 // requires dependency on testing fw
 jarHell.enabled = false
 // we don't have tests for now

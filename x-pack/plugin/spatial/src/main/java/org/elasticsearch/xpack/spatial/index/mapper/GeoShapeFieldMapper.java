@@ -137,7 +137,6 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
                         } else {
                             docValuesField.add(triangles, calculator);
                         }
-                        fields.add(docValuesField);
                     }
                     return fields;
                 }

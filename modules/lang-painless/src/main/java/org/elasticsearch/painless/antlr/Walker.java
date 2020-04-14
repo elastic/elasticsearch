@@ -165,6 +165,7 @@ import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -1121,7 +1122,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     public ANode visitLambda(LambdaContext ctx) {
         List<String> paramTypes = new ArrayList<>();
         List<String> paramNames = new ArrayList<>();
-        List<AStatement> statements = new ArrayList<>();
+        SBlock block;
 
         for (LamtypeContext lamtype : ctx.lamtype()) {
             if (lamtype.decltype() == null) {
@@ -1136,18 +1137,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         if (ctx.expression() != null) {
             // single expression
             AExpression expression = (AExpression)visit(ctx.expression());
-            statements.add(new SReturn(location(ctx), expression));
+            block = new SBlock(location(ctx),
+                    Collections.singletonList(new SReturn(location(ctx), expression)));
         } else {
-            for (StatementContext statement : ctx.block().statement()) {
-                statements.add((AStatement)visit(statement));
-            }
-
-            if (ctx.block().dstatement() != null) {
-                statements.add((AStatement)visit(ctx.block().dstatement()));
-            }
+            block = (SBlock)visit(ctx.block());
         }
 
-        return new ELambda(location(ctx), paramTypes, paramNames, statements);
+        return new ELambda(location(ctx), paramTypes, paramNames, block);
     }
 
     @Override

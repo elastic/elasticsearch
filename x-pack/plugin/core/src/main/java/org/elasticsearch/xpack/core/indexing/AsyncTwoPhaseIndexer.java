@@ -495,6 +495,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, maximumRequestsPerSecond,
                         lastDocCount);
                 scheduledNextSearch = threadPool.schedule(() -> triggerNextSearch(), executionDelay, executorName);
+
+                // corner case: if for whatever reason stop() has been called meanwhile fast forward
+                if (getState().equals(IndexerState.STOPPING)) {
+                    triggerThrottledSearchNow();
+                }
+
                 return;
             }
         }

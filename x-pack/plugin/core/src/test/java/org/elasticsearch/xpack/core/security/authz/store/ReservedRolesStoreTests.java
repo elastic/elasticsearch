@@ -1168,13 +1168,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_admin"), "*"), is(true));
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(
             new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
+            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_admin"), "*"), is(false));
     }
 
     public void testMachineLearningUserRole() {
@@ -1256,13 +1256,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"), is(true));
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(
             new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
+            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"), is(false));
     }
 
     public void testTransformAdminRole() {
@@ -1304,8 +1304,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
 
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
-                assertThat(role.application()
-                    .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+                assertThat(role.application().grants(
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"), is(true));
             }
 
             final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
@@ -1313,7 +1313,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
                 assertThat(role.application().grants(
-                        new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
+                        new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"), is(false));
             }
         }
     }
@@ -1358,7 +1358,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
                 assertThat(role.application().grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"), is(true));
             }
 
             final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
@@ -1366,7 +1366,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
                 assertThat(role.application().grants(
-                    new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
+                    new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"), is(false));
             }
         }
     }

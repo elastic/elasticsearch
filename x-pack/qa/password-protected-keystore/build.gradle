@@ -1,0 +1,52 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Tests that need to run against an Elasticsearch cluster that
+ * is using a password protected keystore in its nodes.
+ */
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+  keystorePassword 's3cr3t'
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.anonymous.roles', 'anonymous'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+
+  extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
+  extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
+  extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+
+  user username: 'admin_user', password: 'admin-password'
+  user username:'test-user' ,password: 'test-password', role: 'user_role'
+}

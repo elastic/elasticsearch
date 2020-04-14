@@ -32,7 +32,7 @@ public class GetIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
 
     @Override
     protected GetIndexTemplateV2Action.Request createTestInstance() {
-        return new GetIndexTemplateV2Action.Request(generateRandomStringArray(5, 5, false, false));
+        return new GetIndexTemplateV2Action.Request(randomBoolean() ? null : randomAlphaOfLength(4));
     }
 
     @Override

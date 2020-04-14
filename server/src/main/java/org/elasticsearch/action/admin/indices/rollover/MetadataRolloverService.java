@@ -25,22 +25,25 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
@@ -169,6 +172,18 @@ public class MetadataRolloverService {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                     rolloverRequestAlias, template.aliases().keys(), template.name()));
+            }
+        }
+
+        final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden);
+        if (matchedV2Template != null) {
+            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
+            for (Map<String, AliasMetadata> aliasConfig : aliases) {
+                if (aliasConfig.containsKey(rolloverRequestAlias)) {
+                    throw new IllegalArgumentException(String.format(Locale.ROOT,
+                        "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
+                        rolloverRequestAlias, aliasConfig.keySet(), matchedV2Template));
+                }
             }
         }
     }

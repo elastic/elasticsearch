@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -200,8 +199,8 @@ public final class InternalAutoDateHistogram extends
     private long bucketInnerInterval;
 
     InternalAutoDateHistogram(String name, List<Bucket> buckets, int targetBuckets, BucketInfo emptyBucketInfo, DocValueFormat formatter,
-                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata, long bucketInnerInterval) {
-        super(name, pipelineAggregators, metadata);
+                              Map<String, Object> metadata, long bucketInnerInterval) {
+        super(name, metadata);
         this.buckets = buckets;
         this.bucketInfo = emptyBucketInfo;
         this.format = formatter;
@@ -259,7 +258,7 @@ public final class InternalAutoDateHistogram extends
 
     @Override
     public InternalAutoDateHistogram create(List<Bucket> buckets) {
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators(), metadata, 1);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, 1);
     }
 
     @Override
@@ -517,7 +516,7 @@ public final class InternalAutoDateHistogram extends
                 this.bucketInfo.emptySubAggregations);
 
         return new InternalAutoDateHistogram(getName(), reducedBucketsResult.buckets, targetBuckets, bucketInfo, format,
-                pipelineAggregators(), getMetadata(), reducedBucketsResult.innerInterval);
+                getMetadata(), reducedBucketsResult.innerInterval);
     }
 
     private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult,
@@ -594,7 +593,7 @@ public final class InternalAutoDateHistogram extends
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalAutoDateHistogram(name, buckets2, targetBuckets, bucketInfo, format, pipelineAggregators(), getMetadata(), 1);
+        return new InternalAutoDateHistogram(name, buckets2, targetBuckets, bucketInfo, format, getMetadata(), 1);
     }
 
     @Override

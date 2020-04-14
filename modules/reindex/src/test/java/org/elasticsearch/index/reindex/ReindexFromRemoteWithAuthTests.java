@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -99,7 +100,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     @Before
     public void fetchTransportAddress() {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
-        address = nodeInfo.getHttp().getAddress().publishAddress();
+        address = nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress();
     }
 
     /**

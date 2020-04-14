@@ -24,10 +24,14 @@ Stops one or more {transforms}.
 [[stop-transform-prereq]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_transform` 
-cluster privileges to use this API. The built-in `transform_admin` role has 
-these privileges. For more information, see <<security-privileges>> and 
-<<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `manage_transform` 
+
+The built-in `transform_admin` role has this privilege. 
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[stop-transform-desc]]

@@ -253,7 +253,8 @@ allowed by <<email-html-sanitization, Configuring HTML Sanitization Options>>.
 
 You configure the accounts {watcher} can use to send email in the
 `xpack.notification.email` namespace in `elasticsearch.yml`. 
-The password for the specified SMTP user is stored securely in the <<secure-settings, {es} keystore>>.
+The password for the specified SMTP user is stored securely in the
+<<secure-settings, {es} keystore>>.
 
 If your email account is configured to require two step verification, you need
 to generate and use a unique App Password to send email from {watcher}.

@@ -732,6 +732,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
             searchContext = new DefaultSearchContext(reader, request, shardTarget, clusterService, indexService, indexShard,
                 bigArrays, threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
+            // we clone the query shard context here just for rewriting otherwise we
+            // might end up with incorrect state since we are using now() or script services
+            // during rewrite and normalized / evaluate templates etc.
+            QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
+            Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();
             success = true;
         } finally {

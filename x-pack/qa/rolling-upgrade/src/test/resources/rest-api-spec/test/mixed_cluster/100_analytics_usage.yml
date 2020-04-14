@@ -64,7 +64,10 @@ setup:
 
   - length: { aggregations.histo.buckets: 1 }
 
-  - do: {xpack.usage: {}}
+  - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      xpack.usage: {}
   - match: { analytics.available: true }
   - match: { analytics.enabled: true }
   - gt: { analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage }

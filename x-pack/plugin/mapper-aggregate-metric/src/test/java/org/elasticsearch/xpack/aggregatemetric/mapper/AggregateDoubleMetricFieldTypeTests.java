@@ -40,13 +40,13 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         final MappedFieldType fieldType = createDefaultFieldType();
         Query query = fieldType.termQuery(55.2, null);
-        assertThat(query, equalTo(DoublePoint.newRangeQuery("foo._max", 55.2, 55.2)));
+        assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
         final MappedFieldType fieldType = createDefaultFieldType();
         Query query = fieldType.termsQuery(asList(55.2, 500.3), null);
-        assertThat(query, equalTo(DoublePoint.newSetQuery("foo._max", 55.2, 500.3)));
+        assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
     public void testRangeQuery() throws Exception {

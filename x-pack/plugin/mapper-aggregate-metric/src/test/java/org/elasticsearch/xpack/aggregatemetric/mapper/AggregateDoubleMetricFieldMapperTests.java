@@ -958,5 +958,4 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
         plugins.add(LocalStateCompositeXPackPlugin.class);
         return plugins;
     }
-
 }

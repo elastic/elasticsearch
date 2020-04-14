@@ -12,6 +12,7 @@ experimental::[]
 * <<eql-fn-endswith>>
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
+* <<eql-fn-string>>
 * <<eql-fn-substring>>
 * <<eql-fn-wildcard>>
 
@@ -335,6 +336,44 @@ field datatypes:
 --
 
 *Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-string]]
+=== `string`
+
+Converts a value to a string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+string(42)               // returns "42"
+string(42.5)             // returns "42.5"
+string("regsvr32.exe")   // returns "regsvr32.exe"
+string(true)             // returns "true"
+
+// null handling
+string(null)             // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+string(<value>)
+----
+
+*Parameters*
+
+`<value>`::
+(Required)
+Value to convert to a string. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter does not support the
+<<text,`text`>> field datatype.
+
+*Returns:* string or `null`
 ====
 
 [discrete]

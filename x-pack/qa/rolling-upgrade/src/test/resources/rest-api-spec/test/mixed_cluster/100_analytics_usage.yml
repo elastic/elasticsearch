@@ -6,7 +6,7 @@ setup:
       features: allowed_warnings
   - do:
       bulk:
-        index: test
+        index: "analytics_usage"
         refresh: true
         body:
           - '{"index": {}}'
@@ -46,7 +46,7 @@ setup:
   # use cumulative_cardinality agg
   - do:
       search:
-        index: "test"
+        index: "analytics_usage"
         body:
           size: 0
           aggs:

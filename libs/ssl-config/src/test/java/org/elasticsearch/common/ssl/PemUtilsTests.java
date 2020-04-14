@@ -27,6 +27,8 @@ import java.nio.file.Path;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
+import java.security.spec.ECParameterSpec;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -64,6 +66,16 @@ public class PemUtilsTests extends ESTestCase {
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEcKeyCurves() throws Exception {
+        String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + curve + ".pem"), ""::toCharArray);
+        assertThat(privateKey, instanceOf(ECPrivateKey.class));
+        ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
+        // This is brittle but we can't access sun.security.util.NamedCurve
+        assertThat(parameterSpec.toString(), containsString(curve));
     }
 
     public void testReadPKCS8EcKey() throws Exception {

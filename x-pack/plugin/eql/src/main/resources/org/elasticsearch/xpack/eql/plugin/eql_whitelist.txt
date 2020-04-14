@@ -12,7 +12,7 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 
 #
 # Utilities
-# 
+#
   def docValue(java.util.Map, String)
   boolean nullSafeFilter(Boolean)
   double nullSafeSortNumeric(Number)
@@ -54,12 +54,13 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
 
 #
 # ASCII Functions
-# 
+#
   String  between(String, String, String, Boolean, Boolean)
   Boolean endsWith(String, String)
   Integer indexOf(String, String, Number)
   Integer length(String)
   Boolean startsWith(String, String)
+  String  string(Object)
   Boolean stringContains(String, String)
   String  substring(String, Number, Number)
 }

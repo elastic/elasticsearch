@@ -15,9 +15,6 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       # This setting is for integration testing.  To disable compilation rate limiting for a
-       # specific context, use script.context.$CONTEXT.max_compilations_rate="unlimited"
-       - script.disable_max_compilations_rate=true
        - node.store.allow_mmap=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
@@ -67,9 +64,6 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       # This setting is for integration testing.  To disable compilation rate limiting for a
-       # specific context, use script.context.$CONTEXT.max_compilations_rate="unlimited"
-       - script.disable_max_compilations_rate=true
        - node.store.allow_mmap=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true

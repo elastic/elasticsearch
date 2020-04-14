@@ -1040,10 +1040,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
         defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
-        // increase script compilation limit since tests can rapid-fire script compilations
-        // This setting is for integration testing.  To disable compilation rate limiting for a
-        // specific context, use script.context.$CONTEXT.max_compilations_rate="unlimited"
-        defaultConfig.put("script.disable_max_compilations_rate", "true");
         if (getVersion().getMajor() >= 6) {
             defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }

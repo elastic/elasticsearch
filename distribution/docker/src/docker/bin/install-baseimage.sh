@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Create a very basic Docker image for running Elasticsearch, using files from CentOS
+# Create a very basic Docker image that can be extended for running Elastic
+# Stack images.
 #
 # Originally from:
 # 
@@ -10,44 +11,19 @@ set -e
 
 usage() {
     cat <<EOOPTS
-$(basename $0) [OPTIONS] <name>
-OPTIONS:
-  -y <yumconf>     The path to the yum config to install packages from. The
-                   default is /etc/yum.conf for Centos/RHEL and /etc/dnf/dnf.conf for Fedora
-  -t <tag>         Specify Tag information.
-                   default is reffered at /etc/{redhat,system}-release
+$(basename $0) <platform> <output_file>
 EOOPTS
     exit 1
 }
 
-# option defaults
-yum_config=/etc/yum.conf
-if [ -f /etc/dnf/dnf.conf ] && command -v dnf &> /dev/null; then
-  yum_config=/etc/dnf/dnf.conf
-  alias yum=dnf
-fi
-version=
-while getopts ":y:t:h" opt; do
-    case $opt in
-        y)
-            yum_config=$OPTARG
-            ;;
-        h)
-            usage
-            ;;
-        t)
-            version="$OPTARG"
-            ;;
-        \?)
-            echo "Invalid option: -$OPTARG"
-            usage
-            ;;
-    esac
-done
-shift $((OPTIND - 1))
-name=$1
+platform="$1"
+output_file="$2"
 
-if [[ -z $name ]]; then
+if [[ -z $platform ]]; then
+    usage
+fi
+
+if [[ -z "$output_file" ]]; then
     usage
 fi
 
@@ -69,10 +45,20 @@ mknod -m 666 "$target"/dev/tty0 c 4 0
 mknod -m 666 "$target"/dev/urandom c 1 9
 mknod -m 666 "$target"/dev/zero c 1 5
 
+ARCH="$(arch)"
+
+TINI_URL=""
+if [[ "$ARCH" == "x86_64" ]]; then
+  TINI_URL="https://github.com/krallin/tini/releases/download/v0.18.0/tini_0.18.0-amd64.rpm"
+fi
+
 # Install files. We attempt to install a headless Java distro, and exclude a
 # number of unnecessary dependencies. In so doing, we also filter out Java itself,
 # but since Elasticsearch ships its own JDK, with its own libs, that isn't a problem
 # and in fact is what we want.
+#
+# Note that we also skip coreutils, as it pulls in all kinds of stuff that
+# we don't want.
 #
 # Note that I haven't yet verified that these dependencies are, in fact, unnecessary.
 #
@@ -81,37 +67,53 @@ mknod -m 666 "$target"/dev/zero c 1 5
 #    * `pigz` is used for compressing large heaps dumps, and is considerably faster than `gzip` for this task.
 #    * `tini` is a tiny but valid init for containers. This is used to cleanly control how ES and any child processes are shut down.
 #
-yum -c "$yum_config" --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
+yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --setopt=group_package_types=mandatory -y  \
-  -x copy-jdk-configs -x cups-libs -x javapackages-tools -x alsa-lib -x freetype -x libjpeg -x libjpeg-turbo  \
+  -x copy-jdk-configs -x cups-libs -x javapackages-tools -x alsa-lib -x freetype -x libjpeg -x libjpeg-turbo \
+  -x coreutils \
   --skip-broken \
   install \
     java-latest-openjdk-headless \
     bash zip pigz \
-    https://github.com/krallin/tini/releases/download/v0.18.0/tini_0.18.0-amd64.rpm
+    $TINI_URL
+
+if [[ "$ARCH" == "aarch64" ]]; then
+  curl --retry 10 -L -o "$target"/bin/tini https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-arm64
+  chmod +x "$target"/bin/tini
+fi
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
 # stuff we don't want. Unforunately, there's no RPM for busybox available for CentOS.
-curl -o "$target"/bin/busybox https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox
+BUSYBOX_URL="https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox"
+if [[ "$ARCH" == "aarch64" ]]; then
+  BUSYBOX_URL="https://www.busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-armv8l"
+fi
+curl --retry 10 -L -o "$target"/bin/busybox "$BUSYBOX_URL"
 chmod +x "$target"/bin/busybox
 
 set +x
 # Add links for all the utilities (except sh, as we have bash)
 for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
-  ln -s "$target"/bin/busybox "$target"/$path
+  ln "$target"/bin/busybox "$target"/$path
 done
 set -x
 
-cp /build/curl "$target"/usr/bin/curl
+# Copy in our mostly-static curl build
+# TODO
+# cp /build/curl "$target"/usr/bin/curl
+
+# Curl needs files under here. More importantly, e.g. we change Elasticsearch's
+# bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
+# the bundled cacerts.
 tar cf - /etc/pki | (cd "$target" && tar xf -)
 
-yum -c "$yum_config" --installroot="$target" -y clean all
+yum --installroot="$target" -y clean all
 
 # effectively: febootstrap-minimize --keep-zoneinfo --keep-rpmdb --keep-services "$target".
 #  locales
 rm -rf "$target"/usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive}
 #  docs and man pages
-rm -rf "$target"/usr/share/{awk,man,doc,info,gnome/help,groff}
+rm -rf "$target"/usr/share/{awk,man,doc,info,games,gdb,ghostscript,gnome,groff,icons}
 #  cracklib
 rm -rf "$target"/usr/share/cracklib
 #  i18n
@@ -128,8 +130,10 @@ mkdir -p --mode=0755 "$target"/var/cache/ldconfig
 rm -rf \
   "$target"/etc/yum* \
   "$target"/etc/csh* \
+  "$target"/etc/centos-release* \
   "$target"/etc/profile* \
   "$target"/etc/skel* \
+  "$target"/etc/X11 \
   "$target"/usr/share/awk \
   "$target"/usr/lib/systemd \
   "$target"/usr/lib/dracut \
@@ -137,26 +141,18 @@ rm -rf \
   "$target"/var/lib/yum \
   "$target"/var/lib/rpm \
   "$target"/usr/lib/udev \
+  "$target"/usr/share/centos-release \
+  "$target"/usr/share/desktop-directories \
+  "$target"/usr/share/gcc-* \
+  "$target"/usr/share/icons \
+  "$target"/usr/share/licenses \
+  "$target"/usr/share/xsessions \
+  "$target"/usr/share/zoneinfo \
   "$target"/etc/groff \
   "$target"/usr/bin/rpm \
-  "$target"/usr/bin/tini-static
+  "$target"/usr/bin/tini-static \
+  "$target"/usr/local
 
-if [ -z "$version" ]; then
-    for file in "$target"/etc/{redhat,system}-release; do
-        if [ -r "$file" ]; then
-            version="$(sed 's/^[^0-9\]*\([0-9.]\+\).*$/\1/' "$file")"
-            break
-        fi
-    done
-fi
-
-if [ -z "$version" ]; then
-    echo >&2 "warning: cannot autodetect OS version, using '$name' as tag"
-    version=$name
-fi
-
-# Import the base filesystem into Docker
-tar --numeric-owner -c -C "$target" . | docker import - $name:$version
-
-# Remove the temp dir
-rm -rf "$target"
+# Write the base filesystem to stdout. The command changes to $target, so .
+# refers to that directory
+tar --numeric-owner -c -f "$output_file" -C "$target" .

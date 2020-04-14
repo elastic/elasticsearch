@@ -11,7 +11,9 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM ${base_image} AS builder
+FROM scratch AS builder
+
+ADD ${base_image_tar} /
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -29,14 +31,15 @@ RUN chmod 0775 config config/jvm.options.d data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
-
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):
 # Copy elasticsearch from stage 0
 # Add entrypoint
 ################################################################################
 
-FROM ${base_image}
+FROM scratch
+
+ADD ${base_image_tar} /
 
 ENV ELASTIC_CONTAINER true
 

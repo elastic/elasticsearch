@@ -38,7 +38,7 @@ ext.expansions = { architecture, oss, local ->
   final String classifier = "aarch64".equals(architecture) ? "linux-aarch64" : "linux-x86_64"
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
-    'base_image'          : "elastic/baseimage:20200407-${'aarch64'.equals(architecture) ? 'arm64' : 'amd64'}",
+    'base_image_tar'      : "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar",
     'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
     'git_revision'        : BuildParams.gitRevision,
@@ -78,12 +78,19 @@ project.ext {
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
         expand(expansions(architecture, oss, local))
       }
+
+      from("${projectDir}/build") {
+        include "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar"
+      }
     }
   }
 }
 
 void addCopyDockerContextTask(final String architecture, final boolean oss) {
   task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
+    TaskProvider<Sync> buildBaseImageTask = tasks.named(taskName("build", architecture, oss, "DockerBaseImage"))
+    dependsOn(buildBaseImageTask)
+
     expansions(architecture, oss, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
@@ -171,10 +178,29 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
+void addBuildDockerBaseImage(final String architecture, final boolean oss) {
+  def installer = "${projectDir}/src/docker/bin/install-baseimage.sh"
+  def outputFile = "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar"
+  def outputPath = "${projectDir}/build/${outputFile}"
+  def archArg = "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64'
+
+  final Task buildDockerBaseImageTask = task(taskName("build", architecture, oss, "DockerBaseImage"), type: LoggedExec) {
+    outputs.file(outputPath)
+    executable 'bash'
+    args '-c', "docker run --rm -t " +
+      "-v ${projectDir}/build:/build " +
+      "-v ${installer}:/tmp/install-baseimage.sh " +
+      "centos:7 /tmp/install-baseimage.sh ${archArg} /build/${outputFile}"
+  }
+
+  buildDockerBaseImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
+}
+
 void addBuildDockerImage(final String architecture, final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", architecture, oss, "DockerImage"), type: DockerBuildTask) {
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, "DockerContext"))
     dependsOn(copyContextTask)
+
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
     pull = false
@@ -201,6 +227,7 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
 
 for (final String architecture : ["aarch64", "x64"]) {
   for (final boolean oss : [false, true]) {
+    addBuildDockerBaseImage(architecture, oss)
     addCopyDockerContextTask(architecture, oss)
     addBuildDockerImage(architecture, oss)
   }

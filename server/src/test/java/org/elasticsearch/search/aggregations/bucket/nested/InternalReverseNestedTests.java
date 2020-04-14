@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,8 +32,8 @@ import java.util.Map;
 public class InternalReverseNestedTests extends InternalSingleBucketAggregationTestCase<InternalReverseNested> {
     @Override
     protected InternalReverseNested createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalReverseNested(name, docCount, aggregations, pipelineAggregators, metadata);
+            Map<String, Object> metadata) {
+        return new InternalReverseNested(name, docCount, aggregations, metadata);
     }
 
     @Override

@@ -33,13 +33,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -55,10 +53,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.StringFilter includeExclude, SearchContext context,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+            Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators, metadata);
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(1, context.bigArrays());

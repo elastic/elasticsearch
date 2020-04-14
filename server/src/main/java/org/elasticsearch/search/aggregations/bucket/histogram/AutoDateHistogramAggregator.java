@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -66,9 +65,9 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, RoundingInfo[] roundingInfos,
             @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+            Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata);
+        super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = numBuckets;
         this.valuesSource = valuesSource;
         this.formatter = formatter;
@@ -185,16 +184,14 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
 
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo,
-            formatter, pipelineAggregators(), metadata(), 1);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
-        return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter,
-                pipelineAggregators(), metadata(), 1);
+        return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
     }
 
     @Override

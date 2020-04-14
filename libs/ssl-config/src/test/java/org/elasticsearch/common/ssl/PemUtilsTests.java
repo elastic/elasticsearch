@@ -55,7 +55,6 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode_with_bagattrs.pem"), EMPTY_PASSWORD);
-        assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
 
@@ -70,8 +69,7 @@ public class PemUtilsTests extends ESTestCase {
 
     public void testReadEcKeyCurves() throws Exception {
         String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + curve + ".pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), ""::toCharArray);
         assertThat(privateKey, instanceOf(ECPrivateKey.class));
         ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
         // This is brittle but we can't access sun.security.util.NamedCurve

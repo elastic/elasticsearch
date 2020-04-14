@@ -240,6 +240,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
     }
 
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public interface DelegatingHttpHandler extends HttpHandler {
         HttpHandler getDelegate();
     }
@@ -248,23 +249,34 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      * Wrap a {@link HttpHandler} to log any thrown exception using the given {@link Logger}.
      */
     public static DelegatingHttpHandler wrap(final HttpHandler handler, final Logger logger) {
-        return new DelegatingHttpHandler() {
+        return new ExceptionCatchingHttpHandler(handler, logger);
+    }
 
-            @Override
-            public void handle(HttpExchange exchange) throws IOException {
-                try {
-                    handler.handle(exchange);
-                } catch (Throwable t) {
-                    logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
-                        exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
-                    throw t;
-                }
-            }
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
+    private static class ExceptionCatchingHttpHandler implements DelegatingHttpHandler {
 
-            @Override
-            public HttpHandler getDelegate() {
-                return handler;
+        private final HttpHandler handler;
+        private final Logger logger;
+
+        ExceptionCatchingHttpHandler(HttpHandler handler, Logger logger) {
+            this.handler = handler;
+            this.logger = logger;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            try {
+                handler.handle(exchange);
+            } catch (Throwable t) {
+                logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
+                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
+                throw t;
             }
-        };
+        }
+
+        @Override
+        public HttpHandler getDelegate() {
+            return handler;
+        }
     }
 }

@@ -371,18 +371,6 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     static void configurePomGeneration(Project project) {
-        // Add git origin info to generated POM files
-        project.pluginManager.withPlugin('nebula.maven-base-publish') {
-            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
-            MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
-            nebulaPublication.pom.withXml { XmlProvider xml ->
-                Node root = xml.asNode()
-                root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
-                Node scmNode = root.appendNode('scm')
-                scmNode.appendNode('url', BuildParams.gitOrigin)
-            }
-        }
-
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
             TaskProvider generatePomTask = project.tasks.register("generatePom") { Task task ->
                 task.dependsOn 'generatePomFileForNebulaPublication'
@@ -404,6 +392,7 @@ class BuildPlugin implements Plugin<Project> {
                 shadow.component(publication)
                 // Workaround for https://github.com/johnrengelman/shadow/issues/334
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+                publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
                     Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
                     project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
@@ -419,6 +408,20 @@ class BuildPlugin implements Plugin<Project> {
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
             }
         }
+
+        // Add git origin info to generated POM files
+        project.pluginManager.withPlugin('nebula.maven-base-publish') {
+            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+            MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
+            nebulaPublication.pom.withXml(this.&addScmInfo)
+        }
+    }
+
+    private static void addScmInfo(XmlProvider xml) {
+        Node root = xml.asNode()
+        root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
+        Node scmNode = root.appendNode('scm')
+        scmNode.appendNode('url', BuildParams.gitOrigin)
     }
 
     /**

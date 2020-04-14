@@ -22,7 +22,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -47,7 +46,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         if (count == 0) {
             centroid = null;
         }
-        return new InternalGeoCentroid(name, centroid, count, Collections.emptyList(), Collections.emptyMap());
+        return new InternalGeoCentroid(name, centroid, count, Collections.emptyMap());
     }
 
     @Override
@@ -88,7 +87,6 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         String name = instance.getName();
         GeoPoint centroid = instance.centroid();
         long count = instance.count();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -127,6 +125,6 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metadata);
+        return new InternalGeoCentroid(name, centroid, count, metadata);
     }
 }

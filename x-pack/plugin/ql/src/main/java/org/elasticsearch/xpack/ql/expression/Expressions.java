@@ -31,7 +31,8 @@ public final class Expressions {
         FIRST,
         SECOND,
         THIRD,
-        FOURTH;
+        FOURTH,
+        FIFTH;
 
         public static ParamOrdinal fromIndex(int index) {
             switch (index) {
@@ -39,6 +40,7 @@ public final class Expressions {
                 case 1: return ParamOrdinal.SECOND;
                 case 2: return ParamOrdinal.THIRD;
                 case 3: return ParamOrdinal.FOURTH;
+                case 4: return ParamOrdinal.FIFTH;
                 default: return ParamOrdinal.DEFAULT;
             }
         }

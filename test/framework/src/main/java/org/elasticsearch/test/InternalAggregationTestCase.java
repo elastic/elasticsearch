@@ -163,6 +163,7 @@ import static org.elasticsearch.search.aggregations.InternalMultiBucketAggregati
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
@@ -281,16 +282,28 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, metadata);
     }
 
-    public void testReduceRandom() throws IOException {
-        String name = randomAlphaOfLength(5);
+    /**
+     * Generate a list of inputs to reduce. Defaults to calling
+     * {@link #createTestInstance(String)} and
+     * {@link #createUnmappedInstance(String)} but should be overridden
+     * if it isn't realistic to reduce test instances.
+     */
+    protected List<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();
-        List<InternalAggregation> toReduce = new ArrayList<>();
-        int toReduceSize = between(1, 200);
-        for (int i = 0; i < toReduceSize; i++) {
+        for (int i = 0; i < size; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
-            toReduce.add(t);
         }
+        return inputs;
+    }
+
+    public void testReduceRandom() throws IOException {
+        String name = randomAlphaOfLength(5);
+        int size = between(1, 200);
+        List<T> inputs = randomResultsToReduce(name, size);
+        assertThat(inputs, hasSize(size));
+        List<InternalAggregation> toReduce = new ArrayList<>();
+        toReduce.addAll(inputs);
         // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
         inputs.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
@@ -298,7 +311,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         if (randomBoolean() && toReduce.size() > 1) {
             // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
-            int r = randomIntBetween(1, toReduceSize);
+            int r = randomIntBetween(1, inputs.size());
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
@@ -319,7 +332,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             if (randomBoolean()) {
                 reduced = copyInstance(reduced);
             }
-            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
+            toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,

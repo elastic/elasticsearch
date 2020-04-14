@@ -78,7 +78,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
-        out.writeOptionalWriteable(aggregations.get());
+        out.writeOptionalWriteable(aggregations == null ? null : aggregations.get());
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);

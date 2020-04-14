@@ -34,7 +34,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 

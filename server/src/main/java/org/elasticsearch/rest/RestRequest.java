@@ -88,6 +88,12 @@ public class RestRequest implements ToXContent.Params {
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
+        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestId, true);
+
+    }
+    private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
+                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,
+                        long requestId, boolean headersValidation) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
@@ -104,7 +110,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        addCompatibleParameter();
+        addCompatibleParameter(headersValidation);
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -138,12 +144,14 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    private void addCompatibleParameter() {
-        Version compatible = compatibleWithVersion();
-        if (Version.PREVIOUS.equals(compatible)) {
-            params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, String.valueOf(compatible.major));
-            //use it so it won't fail request validation with unused parameter
-            param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
+    private void addCompatibleParameter(boolean headersValidation) {
+        if(headersValidation){
+            Version compatible = compatibleWithVersion();
+            if (Version.minimumRestCompatibilityVersion().equals(compatible)) {
+                params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, String.valueOf(compatible.major));
+                //use it so it won't fail request validation with unused parameter
+                param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
+            }
         }
     }
 
@@ -166,7 +174,7 @@ public class RestRequest implements ToXContent.Params {
             if (acceptVersion != null && contentTypeVersion != null) {
                 // both Accept and Content-Type are versioned and set to a previous version
                 if (previousVersion.equals(acceptVersion) && previousVersion.equals(contentTypeVersion)) {
-                    return Version.PREVIOUS;
+                    return Version.minimumRestCompatibilityVersion();
                 }
                 // both Accept and Content-Type are versioned to a current version
                 if (currentVersion.equals(acceptVersion) && currentVersion.equals(contentTypeVersion)) {
@@ -181,9 +189,9 @@ public class RestRequest implements ToXContent.Params {
             // Content-Type is versioned but accept is not present
             if(previousVersion.equals(contentTypeVersion)
                 && (acceptHeader == null || acceptHeader.equals("*/*") )) {
-                return Version.PREVIOUS;
+                return Version.minimumRestCompatibilityVersion();
             }
-            // Content type is set (not verioned) but accept is not present. It will be defaulted to JSON
+            // Content type is set (not versioned) but accept is not present. It will be defaulted to JSON
             if(isSupportedMediaTypeContentType &&
                 (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
                 return Version.CURRENT;
@@ -197,7 +205,7 @@ public class RestRequest implements ToXContent.Params {
             if (acceptVersion != null) {
                 //Accept header is versioned and set to previous
                 if (previousVersion.equals(acceptVersion)) {
-                    return Version.PREVIOUS;
+                    return Version.minimumRestCompatibilityVersion();
                 }
                 if (currentVersion.equals(acceptVersion)) {
                     return Version.CURRENT;
@@ -255,8 +263,29 @@ public class RestRequest implements ToXContent.Params {
                                                        HttpChannel httpChannel) {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet());
+            requestIdGenerator.incrementAndGet(), false);
     }
+
+    public static RestRequest requestWithoutContentType(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
+                                                       HttpChannel httpChannel) {
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+        Map<String, String> params = params(httpRequest.uri());
+        String path = path(httpRequest.uri());
+        return new RestRequest(xContentRegistry, params, path, httpRequestWithoutContentType.getHeaders(),
+            httpRequestWithoutContentType, httpChannel,
+            requestIdGenerator.incrementAndGet(), false);
+    }
+
+
+    public static RestRequest requestNoValidation(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
+        Map<String, String> params = Collections.emptyMap();
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+
+        return new RestRequest(xContentRegistry, params, httpRequestWithoutContentType.uri(),
+            httpRequestWithoutContentType.getHeaders(), httpRequestWithoutContentType, httpChannel,
+            requestIdGenerator.incrementAndGet(), false);
+    }
+
 
     public enum Method {
         GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT

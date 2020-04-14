@@ -101,4 +101,25 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         assertThat(map.get("type"), equalTo("content_type_header_exception"));
         assertThat(map.get("reason"), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header []"));
     }
+
+    public void testInvalidHeaderCombinations() throws IOException {
+        final Request request = new Request("GET", "/_cluster/settings");
+        final RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7");
+        options.addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=8");
+        request.setOptions(options);
+        request.setJsonEntity("{\"transient\":{\"search.*\":null}}");
+
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        final Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> map = objectPath.evaluate("error");
+        assertThat(map.get("type"), equalTo("compatible_api_headers_combination_exception"));
+        assertThat(map.get("reason"), equalTo("Request with a body and incompatible Accept and Content-Type header values. " +
+            "Accept=application/vnd.elasticsearch+json;compatible-with=8 " +
+            "Content-Type=application/vnd.elasticsearch+json;compatible-with=7 " +
+            "hasContent=true " +
+            "/_cluster/settings {} GET"));
+    }
 }

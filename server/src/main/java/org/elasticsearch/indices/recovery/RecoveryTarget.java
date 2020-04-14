@@ -50,7 +50,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -361,10 +360,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
              * the policy.
              */
             indexShard().updateRetentionLeasesOnReplica(retentionLeases);
-            final ArrayList<Object> objects = new ArrayList<>();
             for (Translog.Operation operation : operations) {
                 Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
-                objects.add(result);
                 if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }

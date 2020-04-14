@@ -907,8 +907,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             ).get();
 
             disrupted.await();
-            blueMockTransportService.clearAllRules();
-            redMockTransportService.clearAllRules();
+            blueMockTransportService.clearInboundRules();
+            redMockTransportService.clearInboundRules();
 
             ensureGreen();
             searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();

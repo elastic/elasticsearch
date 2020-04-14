@@ -17,7 +17,6 @@
  * under the License.
  */
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 
 dependencies {
   // do not add non-test compile dependencies to secure-sm without a good reason to do so

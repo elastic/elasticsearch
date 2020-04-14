@@ -224,7 +224,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             }
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
-                assert distribution.hasBundledJdk();
+                assert distribution.getBundledJdk();
                 return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
             }
         }
@@ -306,7 +306,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             projectName += "oss-";
         }
 
-        if (distribution.hasBundledJdk() == false) {
+        if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
 
@@ -343,7 +343,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             distribution.getType(),
             distribution.getPlatform() == null ? "" : distribution.getPlatform() + "_",
             distribution.getFlavor(),
-            distribution.hasBundledJdk() ? "" : "_nojdk"
+            distribution.getBundledJdk() ? "" : "_nojdk"
         );
     }
 
@@ -353,7 +353,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getFlavor() == Flavor.OSS) {
                 taskName += "Oss";
             }
-            if (distribution.hasBundledJdk() == false) {
+            if (distribution.getBundledJdk() == false) {
                 taskName += "NoJdk";
             }
         }

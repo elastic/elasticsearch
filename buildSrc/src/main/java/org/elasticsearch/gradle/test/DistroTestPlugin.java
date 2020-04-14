@@ -349,14 +349,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         Provider<DockerSupportService> dockerSupport
     ) {
         return project.getTasks().register(destructiveDistroTestTaskName(distribution), Test.class, t -> {
-            // Only run tests for the current architecture
             // Disable Docker distribution tests unless a Docker installation is available
-            t.onlyIf(t2 -> {
-                if (distribution.getArchitecture() != Architecture.current()) {
-                    return false;
-                }
-                return distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable;
-            });
+            t.onlyIf(t2 -> distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable);
+            // Only run tests for the current architecture
+            t.onlyIf(t3 -> distribution.getArchitecture() == Architecture.current());
             t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
             t.setMaxParallelForks(1);
             t.setWorkingDir(project.getProjectDir());
@@ -527,6 +523,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
         Type type = distro.getType();
         return "destructiveDistroTest."
-            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.hasBundledJdk(), distro.getArchitecture());
+            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
     }
 }

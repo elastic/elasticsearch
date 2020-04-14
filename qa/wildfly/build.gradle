@@ -56,7 +56,7 @@ war {
 elasticsearch_distributions {
   docker {
     type = 'docker'
-    architecture = Architecture.X64
+    architecture = Architecture.current()
     flavor = System.getProperty('tests.distribution', 'default')
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable

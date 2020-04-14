@@ -163,7 +163,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             null,
             true
         );
-        assertTrue(distro.hasBundledJdk());
+        assertTrue(distro.getBundledJdk());
     }
 
     public void testBundledJdkForIntegTest() {

@@ -184,7 +184,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.flavor.set(flavor);
     }
 
-    public boolean hasBundledJdk() {
+    public boolean getBundledJdk() {
         return bundledJdk.getOrElse(true);
     }
 
@@ -192,7 +192,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.bundledJdk.set(bundledJdk);
     }
 
-    public boolean shouldFailIfUnavailable() {
+    public boolean getFailIfUnavailable() {
         return this.failIfUnavailable.get();
     }
 
@@ -231,7 +231,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public TaskDependency getBuildDependencies() {
         // For non-required Docker distributions, skip building the distribution is Docker is unavailable
         if (getType() == Type.DOCKER
-            && shouldFailIfUnavailable() == false
+            && getFailIfUnavailable() == false
             && dockerSupport.get().getDockerAvailability().isAvailable == false) {
             return task -> Collections.emptySet();
         }

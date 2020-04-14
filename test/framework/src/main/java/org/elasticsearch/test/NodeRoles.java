@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Utility methods for creating {@link Settings} instances defining a set of {@link DiscoveryNodeRole}.
@@ -79,9 +80,9 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-                .stream().filter(roles::contains)
+            Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
                 .map(DiscoveryNodeRole::roleName)
+                .distinct()
                 .collect(Collectors.toUnmodifiableList())
         );
         return builder.build();

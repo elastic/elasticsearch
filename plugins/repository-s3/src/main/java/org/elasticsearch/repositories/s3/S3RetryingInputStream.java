@@ -19,19 +19,15 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.Request;
-import com.amazonaws.Response;
-import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.util.AWSRequestMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,7 +53,6 @@ class S3RetryingInputStream extends InputStream {
     private final long start;
     private final long end;
     private final int maxAttempts;
-    private final RequestMetricCollector metricCollector;
 
     private InputStream currentStream;
     private int attempt = 1;
@@ -82,23 +77,13 @@ class S3RetryingInputStream extends InputStream {
         this.maxAttempts = blobStore.getMaxRetries() + 1;
         this.start = start;
         this.end = end;
-        this.metricCollector = new RequestMetricCollector() {
-            @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
-                assert request.getHttpMethod().name().equals("GET");
-                final Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-                    .getCounter(AWSRequestMetrics.Field.RequestCount.name());
-                assert requestCount != null;
-                blobStore.modifiableStats().getCount.addAndGet(requestCount.longValue());
-            }
-        };
         currentStream = openStream();
     }
 
     private InputStream openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(metricCollector);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end :
                     "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;

@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,8 +92,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
     @Before
     public void setUpHttpServer() {
-        handlers = createHttpHandlers();
-        handlers.forEach((c, h) -> httpServer.createContext(c, wrap(randomBoolean() ? createErroneousHttpHandler(h) : h, logger)));
+        handlers = new HashMap<>(createHttpHandlers());
+        handlers.replaceAll((k, h) -> wrap(randomBoolean() ? createErroneousHttpHandler(h) : h, logger));
+        handlers.forEach(httpServer::createContext);
     }
 
     @AfterClass
@@ -106,8 +108,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         if (handlers != null) {
             for(Map.Entry<String, HttpHandler> handler : handlers.entrySet()) {
                 httpServer.removeContext(handler.getKey());
-                if (handler.getValue() instanceof BlobStoreHttpHandler) {
-                    List<String> blobs = ((BlobStoreHttpHandler) handler.getValue()).blobs().keySet().stream()
+                HttpHandler h = handler.getValue();
+                while (h instanceof DelegatingHttpHandler) {
+                    h = ((DelegatingHttpHandler) h).getDelegate();
+                }
+                if (h instanceof BlobStoreHttpHandler) {
+                    List<String> blobs = ((BlobStoreHttpHandler) h).blobs().keySet().stream()
                         .filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
                     assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
                 }
@@ -172,11 +178,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      * slow down the test suite.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
-    protected abstract static class ErroneousHttpHandler implements HttpHandler {
+    protected abstract static class ErroneousHttpHandler implements DelegatingHttpHandler {
 
         // first key is a unique identifier for the incoming HTTP request,
         // value is the number of times the request has been seen
         private final Map<String, AtomicInteger> requests;
+
         private final HttpHandler delegate;
         private final int maxErrorsPerRequest;
 
@@ -227,19 +234,36 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         protected boolean canFailRequest(final HttpExchange exchange) {
             return true;
         }
+
+        public HttpHandler getDelegate() {
+            return delegate;
+        }
+    }
+
+    public interface DelegatingHttpHandler extends HttpHandler {
+        HttpHandler getDelegate();
     }
 
     /**
      * Wrap a {@link HttpHandler} to log any thrown exception using the given {@link Logger}.
      */
-    public static HttpHandler wrap(final HttpHandler handler, final Logger logger) {
-        return exchange -> {
-            try {
-                handler.handle(exchange);
-            } catch (Throwable t) {
-                logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
-                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
-                throw t;
+    public static DelegatingHttpHandler wrap(final HttpHandler handler, final Logger logger) {
+        return new DelegatingHttpHandler() {
+
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                try {
+                    handler.handle(exchange);
+                } catch (Throwable t) {
+                    logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
+                        exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
+                    throw t;
+                }
+            }
+
+            @Override
+            public HttpHandler getDelegate() {
+                return handler;
             }
         };
     }

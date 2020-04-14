@@ -235,23 +235,35 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         final long getCalls = handlers.values().stream()
             .mapToLong(h -> {
+                long count = 0;
+                while (h instanceof DelegatingHttpHandler) {
+                    if (h instanceof S3ErroneousHttpHandler) {
+                        count += ((S3ErroneousHttpHandler) h).getCalls.get();
+                    }
+                    h = ((DelegatingHttpHandler) h).getDelegate();
+                }
                 if (h instanceof S3HttpHandler) {
-                    return ((S3HttpHandler) h).getCalls.get();
-                } else if (h instanceof S3ErroneousHttpHandler) {
-                    return ((S3ErroneousHttpHandler) h).getCalls.get();
+                    return count + ((S3HttpHandler) h).getCalls.get();
                 } else {
-                    return 0L;
+                    assert false;
+                    return count;
                 }
             })
             .sum();
-        final long listCalls = handlers.values().stream().filter(h -> h instanceof S3HttpHandler)
+        final long listCalls = handlers.values().stream()
             .mapToLong(h -> {
+                long count = 0;
+                while (h instanceof DelegatingHttpHandler) {
+                    if (h instanceof S3ErroneousHttpHandler) {
+                        count += ((S3ErroneousHttpHandler) h).listCalls.get();
+                    }
+                    h = ((DelegatingHttpHandler) h).getDelegate();
+                }
                 if (h instanceof S3HttpHandler) {
-                    return ((S3HttpHandler) h).listCalls.get();
-                } else if (h instanceof S3ErroneousHttpHandler) {
-                    return ((S3ErroneousHttpHandler) h).listCalls.get();
+                    return count + ((S3HttpHandler) h).listCalls.get();
                 } else {
-                    return 0L;
+                    assert false;
+                    return count;
                 }
             })
             .sum();

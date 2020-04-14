@@ -58,6 +58,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     static final String COORDINATING_ONLY = "coordinating_only";
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
+        /*
+         * This method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized. We do not want to trigger
+         * initialization prematurely because that will bake the default roles before plugins have had a chance to register them. Therefore,
+         * to avoid initializing this setting prematurely, we use a fake version of the setting here.
+         */
         final Setting<List<DiscoveryNodeRole>> nodeRolesSetting = Setting.listSetting(
             "node.roles", // this can not refer to the official setting or it could trigger initialization of the setting prematurely
             role.isEnabledByDefault(settings) ? List.of(role.roleName()) : List.of(),

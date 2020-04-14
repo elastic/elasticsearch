@@ -349,7 +349,6 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   // The integ-test-distribution is published to maven
   BuildPlugin.configurePomGeneration(project)
   apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
 
   // make the pom file name use elasticsearch instead of the project name
   archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"

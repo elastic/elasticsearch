@@ -34,7 +34,8 @@ how wildcard expressions are expanded
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-local]
 --------------------------------------------------
-<1> The `local` flag (defaults to `false`) controls whether the aliases need
+<1> deprecated:[7.8.0, This parameter is a no-op and field mappings are always retrieved locally]
+The `local` flag (defaults to `false`) controls whether the aliases need
 to be looked up in the local cluster state or in the cluster state held by
 the elected master node
 

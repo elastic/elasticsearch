@@ -5,8 +5,14 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -15,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -24,6 +31,8 @@ import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import java.io.IOException;
 
 public class TransportDeleteAsyncSearchAction extends HandledTransportAction<DeleteAsyncSearchAction.Request, AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportDeleteAsyncSearchAction.class);
+
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final AsyncSearchIndexService store;
@@ -58,16 +67,43 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
         }
     }
 
-    private void cancelTaskAndDeleteResult(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> listener) throws IOException {
+    void cancelTaskAndDeleteResult(AsyncSearchId searchId, ActionListener<AcknowledgedResponse> listener) throws IOException {
         AsyncSearchTask task = store.getTask(taskManager, searchId);
         if (task != null) {
-            task.cancelTask(() -> store.deleteResponse(searchId, false, listener));
+            //the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
+            task.cancelTask(() -> store.deleteResponse(searchId,
+                ActionListener.wrap(
+                    r -> listener.onResponse(new AcknowledgedResponse(true)),
+                    exc -> {
+                        RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
+                        //the index may not be there (no initial async search response stored yet?): we still want to return 200
+                        //note that index missing comes back as 200 hence it's handled in the onResponse callback
+                        if (status == RestStatus.NOT_FOUND) {
+                            listener.onResponse(new AcknowledgedResponse(true));
+                        } else {
+                            logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
+                            listener.onFailure(exc);
+                        }
+                    })));
         } else {
-            // the task is not running anymore so we throw a not found exception if
-            // the search id is also not present in the index (already deleted) or if the user
-            // is not allowed to access it.
+            // the task was not found (already cancelled, already completed, or invalid id?)
+            // we fail if the response is not found in the index
+            ActionListener<DeleteResponse> deleteListener = ActionListener.wrap(
+                resp -> {
+                    if (resp.status() == RestStatus.NOT_FOUND) {
+                        listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
+                    } else {
+                        listener.onResponse(new AcknowledgedResponse(true));
+                    }
+                },
+                exc -> {
+                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
+                    listener.onFailure(exc);
+                }
+            );
+            //we get before deleting to verify that the user is authorized
             store.getResponse(searchId, false,
-                ActionListener.wrap(res -> store.deleteResponse(searchId, true, listener), listener::onFailure));
+                ActionListener.wrap(res -> store.deleteResponse(searchId, deleteListener), listener::onFailure));
         }
     }
 }

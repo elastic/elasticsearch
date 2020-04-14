@@ -158,7 +158,6 @@ if (project == rootProject) {
 if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
   apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
 
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false

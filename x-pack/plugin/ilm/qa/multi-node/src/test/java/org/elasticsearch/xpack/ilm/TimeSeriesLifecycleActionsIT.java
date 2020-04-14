@@ -1549,7 +1549,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse("expected " + index + " to be deleted by ILM", indexExists(index)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55050")
     public void testSearchableSnapshotAction() throws Exception {
         String snapshotRepo = createSnapshotRepo();
         createNewSingletonPolicy("cold", new SearchableSnapshotAction(snapshotRepo));

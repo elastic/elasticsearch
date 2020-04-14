@@ -79,6 +79,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -824,12 +825,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         // adds alias from new index to existing index
-        BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder> metadataTransaction = (builder, indexMetadata) -> {
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction = (builder, indexMetadata) -> {
             AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
             IndexMetadata myIndex = builder.get("my-index");
-            return builder
-                .put(IndexMetadata.builder(myIndex)
-                    .putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
+            builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
 
         ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata,

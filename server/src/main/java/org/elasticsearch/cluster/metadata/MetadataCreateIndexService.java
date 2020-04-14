@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -305,8 +306,7 @@ public class MetadataCreateIndexService {
      * All the requested changes are firstly validated before mutating the {@link ClusterState}.
      */
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent,
-                                                BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder>
-                                                    metadataTransaction) throws Exception {
+                                                BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction) throws Exception {
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
 
         validate(request, currentState);
@@ -373,8 +373,8 @@ public class MetadataCreateIndexService {
                                                               final Map<String, Object> mappings,
                                                               final Function<IndexService, List<AliasMetadata>> aliasSupplier,
                                                               final List<String> templatesApplied,
-                                                              final BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder>
-                                                                  metadataTransaction) throws Exception {
+                                                              final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction)
+                                                                                        throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
             try {
@@ -438,8 +438,8 @@ public class MetadataCreateIndexService {
                                                                 final CreateIndexClusterStateUpdateRequest request,
                                                                 final boolean silent,
                                                                 final List<IndexTemplateMetadata> templates,
-                                                                final BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder>
-                                                                    metadataTransaction) throws Exception {
+                                                                final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction)
+                                                                                        throws Exception {
         logger.info("applying create index request using v1 templates {}", templates);
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(),
@@ -464,8 +464,8 @@ public class MetadataCreateIndexService {
                                                                final CreateIndexClusterStateUpdateRequest request,
                                                                final boolean silent,
                                                                final String templateName,
-                                                               final BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder>
-                                                                   metadataTransaction) throws Exception {
+                                                               final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction)
+                                                                                    throws Exception {
         logger.info("applying create index request using v2 template [{}]", templateName);
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseMappings(request.mappings(),
@@ -491,8 +491,8 @@ public class MetadataCreateIndexService {
                                                                      final CreateIndexClusterStateUpdateRequest request,
                                                                      final boolean silent,
                                                                      final IndexMetadata sourceMetadata,
-                                                                     final BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder>
-                                                                         metadataTransaction) throws Exception {
+                                                                     final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction)
+                                                                                            throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
         final Map<String, Object> mappings = Collections.unmodifiableMap(MapperService.parseMapping(xContentRegistry, request.mappings()));
@@ -702,11 +702,11 @@ public class MetadataCreateIndexService {
      */
     static ClusterState clusterStateCreateIndex(ClusterState currentState, Set<ClusterBlock> clusterBlocks, IndexMetadata indexMetadata,
                                                 BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable,
-                                                BiFunction<Metadata.Builder, IndexMetadata, Metadata.Builder> metadataTransaction) {
+                                                BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction) {
         Metadata.Builder builder = Metadata.builder(currentState.metadata())
             .put(indexMetadata, false);
         if (metadataTransaction != null) {
-            builder = metadataTransaction.apply(builder, indexMetadata);
+            metadataTransaction.accept(builder, indexMetadata);
         }
         Metadata newMetadata = builder.build();
 

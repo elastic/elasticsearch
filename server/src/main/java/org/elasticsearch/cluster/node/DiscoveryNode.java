@@ -228,14 +228,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             return roleMap.values()
                 .stream()
-                .filter(s -> s.legacySetting().get(settings))
+                .filter(s -> s.legacySetting() != null && s.legacySetting().get(settings))
                 .collect(Collectors.toUnmodifiableSet());
         }
     }
 
     private static void validateLegacySettings(final Settings settings, final Map<String, DiscoveryNodeRole> roleMap) {
         for (final DiscoveryNodeRole role : roleMap.values()) {
-            if (role.legacySetting().exists(settings)) {
+            if (role.legacySetting() != null && role.legacySetting().exists(settings)) {
                 final String message = String.format(
                     Locale.ROOT,
                     "can not explicitly configure node roles and use legacy role setting [%s]=[%s]",
@@ -510,7 +510,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {
-        assert additionalRoles.stream().allMatch(r -> r.legacySetting().isDeprecated()) : additionalRoles;
+        assert additionalRoles.stream().allMatch(r -> r.legacySetting() == null || r.legacySetting().isDeprecated()) : additionalRoles;
         final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles =
             rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()));
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations

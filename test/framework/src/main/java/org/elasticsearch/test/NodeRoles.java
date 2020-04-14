@@ -149,7 +149,7 @@ public class NodeRoles {
     }
 
     public static Settings masterNode(final Settings settings) {
-        return addRoles(settings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        return addRoles(settings, Set.of(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     public static Settings masterOnlyNode() {

@@ -66,7 +66,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     }
 
     public boolean isEnabledByDefault(final Settings settings) {
-        return legacySetting().get(settings);
+        return legacySetting() != null && legacySetting().get(settings);
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {

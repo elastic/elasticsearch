@@ -53,7 +53,6 @@ between(null, "system32\\\\", ".exe")                   // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
@@ -165,7 +164,6 @@ endsWith(null, null)                      // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 endsWith(<source>, <substring>)
@@ -295,7 +293,6 @@ startsWith(null, null)                  // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 startsWith(<source>, <substring>)
@@ -397,7 +394,6 @@ substring("start regsvr32.exe", -4, -1)   // returns ".ex"
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 substring(<source>, <start_pos>[, <end_pos>])
@@ -463,7 +459,6 @@ wildcard(process.name, null)                        // returns null
 ----
 
 *Syntax*
-
 [source,txt]
 ----
 wildcard(<source>, <wildcard_exp>[, ...])

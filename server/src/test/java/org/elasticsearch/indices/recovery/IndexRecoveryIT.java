@@ -795,13 +795,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response", recoveryActionToBlock);
                 requestFailed.countDown();
-                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
+                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
                 handler.messageReceived(request, channel, task);
             });
             redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response", recoveryActionToBlock);
                 requestFailed.countDown();
-                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
+                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
                 handler.messageReceived(request, channel, task);
             });
         }

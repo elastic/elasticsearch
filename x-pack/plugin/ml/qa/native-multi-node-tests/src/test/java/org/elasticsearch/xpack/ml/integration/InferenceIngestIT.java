@@ -54,6 +54,14 @@ public class InferenceIngestIT extends ESRestTestCase {
         request = new Request("PUT", "_ml/inference/test_regression");
         request.setJsonEntity(REGRESSION_CONFIG);
         client().performRequest(request);
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference\" : \"TRACE\"\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
     }
 
     @Override
@@ -67,6 +75,14 @@ public class InferenceIngestIT extends ESRestTestCase {
         ESRestTestCase.waitForPendingTasks(adminClient());
         client().performRequest(new Request("DELETE", "_ml/inference/test_classification"));
         client().performRequest(new Request("DELETE", "_ml/inference/test_regression"));
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference\" : null\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
     }
 
     public void testPathologicalPipelineCreationAndDeletion() throws Exception {

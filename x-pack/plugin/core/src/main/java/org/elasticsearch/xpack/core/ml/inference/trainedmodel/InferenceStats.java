@@ -254,28 +254,13 @@ public class InferenceStats implements ToXContentObject, Writeable {
         }
 
         public Accumulator incFailure() {
+            readWriteLock.readLock().lock();
             try {
-                readWriteLock.readLock().lock();
                 this.failureCountAccumulator.increment();
                 return this;
             } finally {
                 readWriteLock.readLock().unlock();
             }
-        }
-
-        private InferenceStats currentStats() {
-            return currentStats(Instant.now());
-        }
-
-        /**
-         * This resets all the internal counters.
-         *
-         * This is NOT thread safe.
-         */
-        private void reset() {
-            this.missingFieldsAccumulator.reset();
-            this.inferenceAccumulator.reset();
-            this.failureCountAccumulator.reset();
         }
 
         /**
@@ -287,8 +272,10 @@ public class InferenceStats implements ToXContentObject, Writeable {
         public InferenceStats currentStatsAndReset() {
             readWriteLock.writeLock().lock();
             try {
-                InferenceStats stats = currentStats();
-                reset();
+                InferenceStats stats = currentStats(Instant.now());
+                this.missingFieldsAccumulator.reset();
+                this.inferenceAccumulator.reset();
+                this.failureCountAccumulator.reset();
                 return stats;
             } finally {
                 readWriteLock.writeLock().unlock();

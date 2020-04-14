@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -36,9 +37,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -98,6 +101,9 @@ public class TrainedModelStatsService {
     }
 
     public void queueStats(InferenceStats stats) {
+        if (stats.hasStats() == false) {
+            return;
+        }
         statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
             (k, previousStats) -> previousStats == null ?
                 stats :
@@ -138,9 +144,12 @@ public class TrainedModelStatsService {
         }
 
         List<InferenceStats> stats = new ArrayList<>(statsQueue.size());
-        for(String k : statsQueue.keySet()) {
+        // We want a copy as the underlying concurrent map could be changed while iterating
+        // We don't want to accidentally grab updates twice
+        Set<String> keys = new HashSet<>(statsQueue.keySet());
+        for(String k : keys) {
             InferenceStats inferenceStats = statsQueue.remove(k);
-            if (inferenceStats != null && inferenceStats.hasStats()) {
+            if (inferenceStats != null) {
                 stats.add(inferenceStats);
             }
         }
@@ -153,6 +162,11 @@ public class TrainedModelStatsService {
         if (bulkRequest.requests().isEmpty()) {
             return;
         }
+        //TODO debug logging, REMOVE
+        logger.trace(() -> new ParameterizedMessage(
+            "Indexing the following updates [{}]",
+            bulkRequest.requests().stream().map(DocWriteRequest::toString).collect(Collectors.joining(",\n"))
+            ));
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
             () -> stopped == false,

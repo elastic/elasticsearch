@@ -1,23 +1,21 @@
 [role="xpack"]
 [testenv="platinum"]
-[[searchable-snapshots-api-stats]]
-=== Searchable snapshot statistics API
+[[searchable-snapshots-repository-stats]]
+=== Searchable snapshot repository statistics API
 ++++
-<titleabbrev>Searchable snapshot statistics</titleabbrev>
+<titleabbrev>Searchable snapshot repository statistics</titleabbrev>
 ++++
 
 experimental[]
 
-Retrieve various statistics about searchable snapshots.
+Retrieve usage statistics about a snapshot repository.
 
-[[searchable-snapshots-api-stats-request]]
+[[searchable-snapshots-repository-stats-request]]
 ==== {api-request-title}
 
-`GET /_searchable_snapshots/stats`
+`GET /_snapshot/<repository>/_stats`
 
-`GET /<index>/_searchable_snapshots/stats`
-
-[[searchable-snapshots-api-stats-prereqs]]
+[[searchable-snapshots-repository-stats-prereqs]]
 ==== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the
@@ -25,20 +23,19 @@ If the {es} {security-features} are enabled, you must have the
 for any included indices to use this API.
 For more information, see <<security-privileges>>.
 
-[[searchable-snapshots-api-stats-desc]]
+[[searchable-snapshots-repository-stats-desc]]
 ==== {api-description-title}
 
 
-[[searchable-snapshots-api-stats-path-params]]
+[[searchable-snapshots-repository-stats-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Optional, string)
-A comma-separated list of index names for which the
-statistics must be retrieved.
+`<repository>`::
+(Required, string)
+The repository for which to retrieve stats.
 
 
-[[searchable-snapshots-api-stats-example]]
+[[searchable-snapshots-repository-stats-example]]
 ==== {api-examples-title}
 ////
 [source,console]
@@ -67,10 +64,10 @@ POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 // TEST[setup:setup-repository]
 ////
 
-Retrieves the statistics of the index `docs`:
+Retrieves the statistics of the repository `my_repository`:
 
 [source,console]
 --------------------------------------------------
-GET /docs/_searchable_snapshots/stats
+GET /_snapshot/my_repository/_stats
 --------------------------------------------------
 // TEST[continued]

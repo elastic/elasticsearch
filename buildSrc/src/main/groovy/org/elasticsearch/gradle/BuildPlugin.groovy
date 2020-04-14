@@ -28,6 +28,7 @@ import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.info.JavaHome
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
@@ -43,6 +44,7 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
@@ -369,6 +371,18 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     static void configurePomGeneration(Project project) {
+        // Add git origin info to generated POM files
+        project.pluginManager.withPlugin('nebula.maven-base-publish') {
+            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+            MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
+            nebulaPublication.pom.withXml { XmlProvider xml ->
+                Node root = xml.asNode()
+                root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
+                Node scmNode = root.appendNode('scm')
+                scmNode.appendNode('url', BuildParams.gitOrigin)
+            }
+        }
+
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
             TaskProvider generatePomTask = project.tasks.register("generatePom") { Task task ->
                 task.dependsOn 'generatePomFileForNebulaPublication'

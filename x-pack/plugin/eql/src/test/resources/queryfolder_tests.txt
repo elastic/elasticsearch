@@ -185,3 +185,84 @@ process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def
 "wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
 "wildcard":{"process_path":{"wildcard":"*def*"
 ;
+
+
+addOperator
+process where serial_event_id + 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+addFunction
+process where add(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+divideOperator
+process where serial_event_id / 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+divideFunction
+process where divide(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+moduloOperator
+process where serial_event_id % 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+moduloFunction
+process where modulo(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+multiplyOperator
+process where serial_event_id * 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+multiplyFunction
+process where multiply(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+subtractOperator
+process where serial_event_id - 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+subtractFunction
+process where subtract(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;

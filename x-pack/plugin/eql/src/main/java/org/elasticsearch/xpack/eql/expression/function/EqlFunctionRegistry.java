@@ -18,6 +18,11 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 
 import java.util.Locale;
 
@@ -32,15 +37,20 @@ public class EqlFunctionRegistry extends FunctionRegistry {
         // Scalar functions
         // String
             new FunctionDefinition[] {
+                def(Add.class, Add::new,"add"),
                 def(Between.class, Between::new, 2, "between"),
                 def(CIDRMatch.class, CIDRMatch::new, "cidrmatch"),
+                def(Div.class, Div::new,"divide"),
                 def(EndsWith.class, EndsWith::new, "endswith"),
                 def(IndexOf.class, IndexOf::new, "indexof"),
                 def(Length.class, Length::new, "length"),
+                def(Mod.class, Mod::new,"modulo"),
+                def(Mul.class, Mul::new,"multiply"),
                 def(StartsWith.class, StartsWith::new, "startswith"),
                 def(ToString.class, ToString::new, "string"),
                 def(StringContains.class, StringContains::new, "stringcontains"),
                 def(Substring.class, Substring::new, "substring"),
+                def(Sub.class, Sub::new,"subtract"),
                 def(Wildcard.class, Wildcard::new, "wildcard"),
             }
         };

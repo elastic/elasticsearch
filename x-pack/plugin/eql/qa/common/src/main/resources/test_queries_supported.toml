@@ -17,3 +17,10 @@ file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
 [[queries]]
 query = 'process where string(serial_event_id) = "1"'
 expected_event_ids  = [1]
+
+[[queries]]
+# Basic test for modulo function
+query = '''
+process where modulo(11, 10) == serial_event_id'''
+expected_event_ids  = [1]
+description = "test built-in modulo math functions"

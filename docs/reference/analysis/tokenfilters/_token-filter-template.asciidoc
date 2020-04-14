@@ -1,0 +1,233 @@
+////
+This is a template for token filter reference documentation.
+
+To document a new token filter, copy this file, remove comments like this, and
+replace "sample" with the appropriate filter name.
+
+Ensure the new filter docs are linked and included in
+docs/reference/analysis/tokefilters.asciidoc
+////
+
+[[sample-tokenfilter]]
+=== Sample token filter
+++++
+<titleabbrev>Sample</titleabbrev>
+++++
+
+////
+INTRO
+Include a brief, 1-2 sentence description.
+If based on a Lucene token filter, link to the Lucene documentation.
+////
+
+Does a cool thing. For example, the `sample` filter changes `x` to `y`.
+
+The filter uses Lucene's
+{lucene-analysis-docs}/sampleFilter.html[SampleFilter].
+
+[[analysis-sample-tokenfilter-analyze-ex]]
+==== Example
+////
+Basic example of the filter's input and output token streams.
+
+Guidelines
+***************************************
+* The _analyze API response should be included but commented out.
+* Ensure // TEST[skip:...] comments are removed.
+***************************************
+////
+
+The following <<indices-analyze,analyze API>> request uses the `sample`
+filter to do a cool thing to `the quick fox jumps the lazy dog`:
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer" : "standard",
+  "filter" : ["sample"],
+  "text" : "the quick fox jumps the lazy dog"
+}
+----
+// TEST[skip: REMOVE THIS COMMENT.]
+
+The filter produces the following tokens:
+
+[source,text]
+----
+[ the, quick, fox, jumps, the, lazy, dog ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens" : [
+    {
+      "token" : "the",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "quick",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "fox",
+      "start_offset" : 10,
+      "end_offset" : 13,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    },
+    {
+      "token" : "jumps",
+      "start_offset" : 14,
+      "end_offset" : 19,
+      "type" : "<ALPHANUM>",
+      "position" : 3
+    },
+    {
+      "token" : "over",
+      "start_offset" : 20,
+      "end_offset" : 24,
+      "type" : "<ALPHANUM>",
+      "position" : 4
+    },
+    {
+      "token" : "the",
+      "start_offset" : 25,
+      "end_offset" : 28,
+      "type" : "<ALPHANUM>",
+      "position" : 5
+    },
+    {
+      "token" : "lazy",
+      "start_offset" : 29,
+      "end_offset" : 33,
+      "type" : "<ALPHANUM>",
+      "position" : 6
+    },
+    {
+      "token" : "dog",
+      "start_offset" : 34,
+      "end_offset" : 37,
+      "type" : "<ALPHANUM>",
+      "position" : 7
+    }
+  ]
+}
+----
+// TEST[skip: REMOVE THIS COMMENT.]
+////
+
+[[analysis-sample-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+////
+Example of how to add a pre-configured token filter to an analyzer.
+If the filter requires arguments, skip this section.
+
+Guidelines
+***************************************
+* If needed, change the tokenizer so the example fits the filter.
+* Ensure // TEST[skip:...] comments are removed.
+***************************************
+////
+
+The following <<indices-create-index,create index API>> request uses the
+`sample` filter to configure a new <<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+----
+PUT sample_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_sample_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["sample"]
+                }
+            }
+        }
+    }
+}
+----
+// TEST[skip: REMOVE THIS COMMENT.]
+
+
+[[analysis-sample-tokenfilter-configure-parms]]
+==== Configurable parameters
+////
+Documents each parameter for the token filter.
+If the filter does not have any configurable parameters, skip this section.
+
+Guidelines
+***************************************
+* Use a definition list.
+* End each definition with a period.
+* Include whether the parameter is Optional or Required and the data type.
+* Include default values as the last sentence of the first paragraph.
+* Include a range of valid values, if applicable.
+* If the parameter requires a specific delimiter for multiple values, say so.
+* If the parameter supports wildcards, ditto.
+* For large or nested objects, consider linking to a separate definition list.
+***************************************
+////
+
+`foo`::
+(Optional, boolean)
+If `true`, do a cool thing.
+Defaults to `false`.
+
+`baz`::
+(Optional, string)
+Path to another cool thing.
+
+[[analysis-sample-tokenfilter-customize]]
+==== Customize
+////
+Example of a custom token filter with configurable parameters.
+If the filter does not have any configurable parameters, skip this section.
+
+Guidelines
+***************************************
+* If able, use a different tokenizer than used in "Add to an analyzer."
+* Ensure // TEST[skip:...] comments are removed.
+***************************************
+////
+
+To customize the `sample` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `sample` filter with
+`foo` set to `true`:
+
+[source,console]
+----
+PUT sample_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_custom_analyzer" : {
+                    "tokenizer" : "whitespace",
+                    "filter" : ["my_custom_sample_token_filter"]
+                }
+            },
+            "filter" : {
+                "my_custom_sample_token_filter" : {
+                    "type" : "sample",
+                    "foo" : true
+                }
+            }
+        }
+    }
+}
+----
+// TEST[skip: REMOVE THIS COMMENT.]

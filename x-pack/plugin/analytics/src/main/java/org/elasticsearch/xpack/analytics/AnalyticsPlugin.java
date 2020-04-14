@@ -73,7 +73,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new PipelineAggregationSpec(
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.CUMULATIVE_CARDINALITY,
+                usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
                         checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
         );
     }
@@ -84,24 +84,24 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
                 .addResultReader(InternalStringStats::new)
                 .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
                 .addResultReader(InternalBoxplot::new)
                 .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
                 .addResultReader(InternalTopMetrics::new),
             new AggregationSpec(
                 TTestAggregationBuilder.NAME,
                 TTestAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
                 .addResultReader(InternalTTest::new)
         );
     }
@@ -135,7 +135,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver) {
-        return singletonList(new AnalyticsUsage());
+        return singletonList(usage);
     }
 
     @Override

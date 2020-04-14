@@ -95,7 +95,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
@@ -148,13 +147,10 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
-import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
-import static org.elasticsearch.test.NodeRoles.nonDataNode;
-import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -703,17 +699,19 @@ public final class InternalTestCluster extends TestCluster {
      * returns a suffix string based on the node role. If no explicit role is defined, the suffix will be empty
      */
     private static String getRoleSuffix(Settings settings) {
-        if (NodeRoleSettings.NODE_ROLES_SETTING.exists(settings) == false) {
-            return "";
+        String suffix = "";
+        if (settings.hasValue("node.roles") && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
+            suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
         }
-
-        final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
-
-        if (roles.isEmpty()) {
-            return "c";
+        if (settings.hasValue("node.roles") && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)) {
+            suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
         }
-
-        return roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
+        if (settings.hasValue("node.roles")
+            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
+            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false) {
+            suffix = suffix + "c";
+        }
+        return suffix;
     }
 
     @Override
@@ -1927,12 +1925,11 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public List<String> startMasterOnlyNodes(int numNodes, Settings settings) {
-        Settings settings1 = Settings.builder()
-                .put(settings)
-                .put(masterNode(settings))
-                .put(nonDataNode(settings))
-                .build();
-        return startNodes(numNodes, settings1);
+        return startNodes(
+            numNodes,
+            Settings.builder()
+                .put(onlyRole(settings, DiscoveryNodeRole.MASTER_ROLE))
+                .build());
     }
 
     public List<String> startDataOnlyNodes(int numNodes) {
@@ -1943,9 +1940,7 @@ public final class InternalTestCluster extends TestCluster {
         return startNodes(
             numNodes,
             Settings.builder()
-                .put(settings)
-                .put(nonMasterNode(settings))
-                .put(dataNode(settings))
+                .put(onlyRole(settings, DiscoveryNodeRole.DATA_ROLE))
                 .build());
     }
 

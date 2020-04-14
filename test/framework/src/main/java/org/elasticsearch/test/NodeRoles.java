@@ -51,7 +51,7 @@ public class NodeRoles {
             .put(settings)
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList()))
+                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList()))
             .build();
     }
 

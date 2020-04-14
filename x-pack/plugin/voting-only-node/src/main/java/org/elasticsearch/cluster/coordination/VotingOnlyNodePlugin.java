@@ -84,7 +84,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public VotingOnlyNodePlugin(Settings settings) {
         this.settings = settings;
         threadPool = new SetOnce<>();
-        isVotingOnlyNode = VOTING_ONLY_NODE_SETTING.get(settings);
+        isVotingOnlyNode = DiscoveryNode.hasRole(settings, VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {

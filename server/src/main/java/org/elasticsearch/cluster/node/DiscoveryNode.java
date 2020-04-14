@@ -24,8 +24,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
@@ -61,14 +59,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         /*
          * This method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized. We do not want to trigger
          * initialization prematurely because that will bake the default roles before plugins have had a chance to register them. Therefore,
-         * to avoid initializing this setting prematurely, we use a fake version of the setting here.
+         * to avoid initializing this setting prematurely, we avoid using the actual node roles setting instance here.
          */
-        final Setting<List<DiscoveryNodeRole>> nodeRolesSetting = Setting.listSetting(
-            "node.roles", // this can not refer to the official setting or it could trigger initialization of the setting prematurely
-            role.isEnabledByDefault(settings) ? List.of(role.roleName()) : List.of(),
-            DiscoveryNode::getRoleFromRoleName,
-            Property.NodeScope);
-        return getRolesFromSettings(settings, nodeRolesSetting, rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream())).contains(role);
+        if (settings.hasValue("node.roles")) {
+            return settings.getAsList("node.roles").contains(role.roleName());
+        } else {
+            return role.legacySetting() != null && role.legacySetting().get(settings);
+        }
     }
 
     public static boolean isMasterNode(final Settings settings) {
@@ -214,17 +211,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
-        return getRolesFromSettings(settings, NODE_ROLES_SETTING, DiscoveryNode.roleMap);
-    }
-
-    private static Set<DiscoveryNodeRole> getRolesFromSettings(
-        final Settings settings,
-        final Setting<List<DiscoveryNodeRole>> nodeRolesSetting,
-        final Map<String, DiscoveryNodeRole> roleMap
-    ) {
-        if (nodeRolesSetting.exists(settings)) {
+        if (NODE_ROLES_SETTING.exists(settings)) {
             validateLegacySettings(settings, roleMap);
-            return Set.copyOf(nodeRolesSetting.get(settings));
+            return Set.copyOf(NODE_ROLES_SETTING.get(settings));
         } else {
             return roleMap.values()
                 .stream()
@@ -519,7 +508,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
         assert roleNameToPossibleRoles.size() == roleNameAbbreviationToPossibleRoles.size() :
                 "roles by name [" + roleNameToPossibleRoles + "], roles by name abbreviation [" + roleNameAbbreviationToPossibleRoles + "]";
-        DiscoveryNode.roleMap = roleNameToPossibleRoles;
+        roleMap = roleNameToPossibleRoles;
     }
 
     public static Set<String> getPossibleRoleNames() {

@@ -136,6 +136,9 @@ public class TrainedModelStatsService {
                 PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
                 MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
                 listener.actionGet();
+                // Sometimes another call occurred on a different node to create the index + alias combo
+                // We exit here seeing that it already created, but that does not mean it actually has?
+                client.admin().cluster().prepareHealth().setWaitForYellowStatus().setIndices(MlStatsIndex.writeAlias()).get();
                 verifiedStatsIndexCreated = true;
             } catch (Exception e) {
                 logger.error("failure creating ml stats index for storing model stats", e);

@@ -34,6 +34,9 @@ Rolling upgrades are supported:
 * Between minor versions
 * {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
 * From 6.8 to {version}
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
 Upgrading directly to {version} from 6.7 or earlier requires a
 <<restart-upgrade, full cluster restart>>.

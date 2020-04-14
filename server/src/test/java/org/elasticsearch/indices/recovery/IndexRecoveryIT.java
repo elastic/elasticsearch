@@ -42,6 +42,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -726,6 +727,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
+                .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "1s")
                 .build();
         // start a master node
         internalCluster().startNode(nodeSettings);
@@ -793,13 +795,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         } else {
             // Fail on the receiving side.
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
-                logger.info("--> preventing {} response", recoveryActionToBlock);
+                logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
                 redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
                 handler.messageReceived(request, channel, task);
             });
             redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
-                logger.info("--> preventing {} response", recoveryActionToBlock);
+                logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
                 blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
                 handler.messageReceived(request, channel, task);
@@ -840,12 +842,14 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
                                 TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
-                logger.info("--> preventing {} request", action);
                 requestBlocked.countDown();
                 if (dropRequests) {
+                    logger.info("--> preventing {} request by dropping request", action);
                     return;
+                } else {
+                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
                 }
-                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
             }
             connection.sendRequest(requestId, action, request, options);
         }

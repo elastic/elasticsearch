@@ -219,7 +219,6 @@ occurrence of the substring at or after the start position.
 
 [%collapsible]
 ====
-
 *Example*
 [source,eql]
 ----

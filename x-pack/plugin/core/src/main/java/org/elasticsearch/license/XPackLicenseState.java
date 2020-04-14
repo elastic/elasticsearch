@@ -401,13 +401,6 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
-    /**
-     * @return true if authentication and authorization should be enabled.
-     */
-    public boolean isAuthAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.BASIC, false);
-    }
-
     public boolean isIpFilteringAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
     }

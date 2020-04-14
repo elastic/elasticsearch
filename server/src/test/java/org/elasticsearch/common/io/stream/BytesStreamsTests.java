@@ -349,6 +349,13 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
         assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
         assertEquals(0, in.available());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
+            @Override
+            public String toString() {
+                return "This object cannot be serialized by writeGeneric method";
+            }
+        }));
+        assertThat(ex.getMessage(), containsString("can not write type"));
         in.close();
         out.close();
     }

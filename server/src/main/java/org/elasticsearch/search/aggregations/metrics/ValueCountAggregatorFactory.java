@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -46,9 +44,8 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         ValuesSource valuesSource,
                                         SearchContext aggregationContext,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
-                    return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, pipelineAggregators, metadata);
+                    return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, metadata);
                 }
             });
     }
@@ -62,9 +59,8 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new ValueCountAggregator(name, null, searchContext, parent, pipelineAggregators, metadata);
+        return new ValueCountAggregator(name, null, searchContext, parent, metadata);
     }
 
     @Override
@@ -72,7 +68,6 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             ValueCountAggregationBuilder.NAME);
@@ -81,6 +76,6 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((ValueCountAggregatorSupplier) aggregatorSupplier)
-            .build(name, valuesSource, searchContext, parent, pipelineAggregators,metadata);
+            .build(name, valuesSource, searchContext, parent, metadata);
     }
 }

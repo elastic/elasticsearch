@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -28,15 +27,29 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /** testing for {@link org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper} */
-public class ShapeFieldMapperTests extends ESSingleNodeTestCase {
+public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class, SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
+    }
+
+    @Override
+    protected XContentBuilder createDefaultMapping(String fieldName,
+                                                   boolean ignored_malformed,
+                                                   boolean ignoreZValue) throws IOException {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject(fieldName).field("type", "shape");
+        if (ignored_malformed || randomBoolean()) {
+            xContentBuilder.field("ignore_malformed", ignored_malformed);
+        }
+        if (ignoreZValue == false || randomBoolean()) {
+            xContentBuilder.field(PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue);
+        }
+        return xContentBuilder.endObject().endObject().endObject().endObject();
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -247,21 +260,6 @@ public class ShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
         assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
-    }
-
-    public void testEmptyName() throws Exception {
-        // after 5.x
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("")
-            .field("type", "shape")
-            .endObject().endObject()
-            .endObject().endObject());
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type1", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
     public void testSerializeDefaults() throws Exception {

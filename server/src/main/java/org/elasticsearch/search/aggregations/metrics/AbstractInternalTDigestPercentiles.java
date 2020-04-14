@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,9 +38,8 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     final boolean keyed;
 
     AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+        super(name, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -96,11 +94,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetadata());
+        return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
+            Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

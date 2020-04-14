@@ -97,7 +97,7 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
             PARSER.declareString((entry, dummy) -> entry.dummy = dummy, DUMMY);
             /*
              * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
-             * The bug ID is 9064309.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
              */
             PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }

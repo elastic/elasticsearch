@@ -1,5 +1,5 @@
 [[indexing-buffer]]
-=== Indexing Buffer
+=== Indexing buffer settings
 
 The indexing buffer is used to store newly indexed documents.  When it fills
 up, the documents in the buffer are written to a segment on disk. It is divided

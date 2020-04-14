@@ -20,6 +20,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -113,15 +115,16 @@ public class DataFrameAnalyticsManager {
 
         // Make sure the stats index and alias exist
         ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
-            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(clusterState, statsIndexListener),
-            configListener::onFailure
+            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(new ParentTaskAssigningClient(client, task.getParentTaskId()),
+                    clusterState, statsIndexListener), configListener::onFailure
         );
 
         // Make sure the state index and alias exist
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(new ParentTaskAssigningClient(client, task.getParentTaskId()),
+                clusterState, expressionResolver, stateAliasListener);
     }
 
-    private void createStatsIndexAndUpdateMappingsIfNecessary(ClusterState clusterState, ActionListener<Boolean> listener) {
+    private void createStatsIndexAndUpdateMappingsIfNecessary(Client client, ClusterState clusterState, ActionListener<Boolean> listener) {
         ActionListener<Boolean> createIndexListener = ActionListener.wrap(
             aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
                     MlStatsIndex.writeAlias(),
@@ -175,7 +178,7 @@ public class DataFrameAnalyticsManager {
             task.markAsCompleted();
             return;
         }
-        ClientHelper.executeAsyncWithOrigin(client,
+        ClientHelper.executeAsyncWithOrigin(new ParentTaskAssigningClient(client, task.getParentTaskId()),
             ML_ORIGIN,
             DeleteIndexAction.INSTANCE,
             new DeleteIndexRequest(config.getDest().getIndex()),
@@ -199,6 +202,8 @@ public class DataFrameAnalyticsManager {
             task.markAsCompleted();
             return;
         }
+
+        final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
         // Reindexing is complete; start analytics
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
@@ -239,8 +244,9 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
                 reindexRequest.setDestIndex(config.getDest().getIndex());
                 reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
+                reindexRequest.setParentTask(task.getParentTaskId());
 
-                final ThreadContext threadContext = client.threadPool().getThreadContext();
+                final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
                     LOGGER.info("[{}] Started reindexing", config.getId());
@@ -261,7 +267,7 @@ public class DataFrameAnalyticsManager {
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));
                 LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
-                DestinationIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
+                DestinationIndex.updateMappingsToDestIndex(parentTaskClient, config, indexResponse, ActionListener.wrap(
                     acknowledgedResponse -> copyIndexCreatedListener.onResponse(null),
                     copyIndexCreatedListener::onFailure
                 ));
@@ -272,14 +278,14 @@ public class DataFrameAnalyticsManager {
                         config.getId(),
                         Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex()));
                     LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
-                    DestinationIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
+                    DestinationIndex.createDestinationIndex(parentTaskClient, Clock.systemUTC(), config, copyIndexCreatedListener);
                 } else {
                     copyIndexCreatedListener.onFailure(e);
                 }
             }
         );
 
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, GetIndexAction.INSTANCE,
+        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, GetIndexAction.INSTANCE,
                 new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
     }
 
@@ -289,6 +295,7 @@ public class DataFrameAnalyticsManager {
             task.markAsCompleted();
             return;
         }
+        final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
@@ -325,14 +332,14 @@ public class DataFrameAnalyticsManager {
                 // TODO This could fail with errors. In that case we get stuck with the copied index.
                 // We could delete the index in case of failure or we could try building the factory before reindexing
                 // to catch the error early on.
-                DataFrameDataExtractorFactory.createForDestinationIndex(client, config, dataExtractorFactoryListener);
+                DataFrameDataExtractorFactory.createForDestinationIndex(parentTaskClient, config, dataExtractorFactoryListener);
             },
             dataExtractorFactoryListener::onFailure
         );
 
         // First we need to refresh the dest index to ensure data is searchable in case the job
         // was stopped after reindexing was complete but before the index was refreshed.
-        executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, RefreshAction.INSTANCE,
+        executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, RefreshAction.INSTANCE,
             new RefreshRequest(config.getDest().getIndex()), refreshListener);
     }
 

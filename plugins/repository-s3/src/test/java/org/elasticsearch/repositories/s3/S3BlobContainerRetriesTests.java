@@ -545,9 +545,9 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         if (rangeEnd.isPresent()) {
             // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
             final int effectiveRangeEnd = Math.min(rangeEnd.get(), bytes.length - 1);
-            length = effectiveRangeEnd - rangeStart;
+            length = effectiveRangeEnd - rangeStart + 1;
         } else {
-            length = bytes.length - rangeStart - 1;
+            length = bytes.length - rangeStart;
         }
         exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);

@@ -92,8 +92,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /**
  * Starts the persistent task for running data frame analytics.
- *
- * TODO Add to the upgrade mode action
  */
 public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {

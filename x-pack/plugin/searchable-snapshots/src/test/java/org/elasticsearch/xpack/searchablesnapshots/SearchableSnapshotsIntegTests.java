@@ -265,11 +265,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final NumShards restoredNumShards = getNumShards(indexName);
         assertThat(statsResponse.getStats(), hasSize(restoredNumShards.totalNumShards));
 
-        final long totalSize = statsResponse.getStats().stream().flatMap(s -> s.getStats().stream())
-            .mapToLong(SearchableSnapshotShardStats.CacheIndexInputStats::getFileLength).sum();
+        final long totalSize = statsResponse.getStats()
+            .stream()
+            .flatMap(s -> s.getStats().stream())
+            .mapToLong(SearchableSnapshotShardStats.CacheIndexInputStats::getFileLength)
+            .sum();
         final Set<String> nodeIdsWithLargeEnoughCache = new HashSet<>();
-        for (ObjectCursor<DiscoveryNode> nodeCursor :
-            client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes().getDataNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> nodeCursor : client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .nodes()
+            .getDataNodes()
+            .values()) {
             final Settings nodeSettings = internalCluster().getInstance(Environment.class, nodeCursor.value.getName()).settings();
             if (totalSize <= CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(nodeSettings).getBytes()) {
                 nodeIdsWithLargeEnoughCache.add(nodeCursor.value.getId());
@@ -330,11 +341,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         assertThat(
                             "Expected at least 1 read or write of any kind for " + fileName + " of shard " + shardRouting,
                             Math.max(
-                                Math.max(indexInputStats.getCachedBytesRead().getCount(),
-                                    indexInputStats.getCachedBytesWritten().getCount()),
-                                Math.max(indexInputStats.getOptimizedBytesRead().getCount(),
-                                    indexInputStats.getDirectBytesRead().getCount())),
-                            greaterThan(0L));
+                                Math.max(
+                                    indexInputStats.getCachedBytesRead().getCount(),
+                                    indexInputStats.getCachedBytesWritten().getCount()
+                                ),
+                                Math.max(
+                                    indexInputStats.getOptimizedBytesRead().getCount(),
+                                    indexInputStats.getDirectBytesRead().getCount()
+                                )
+                            ),
+                            greaterThan(0L)
+                        );
                     }
                 }
             }

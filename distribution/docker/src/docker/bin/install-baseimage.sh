@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Create a very basic Docker image that can be extended for running Elastic
-# Stack images.
+# Create a basic filesystem that can be used to create a Docker images that
+# don't require a full distro.
 #
 # Originally from:
 # 
@@ -45,10 +45,8 @@ mknod -m 666 "$target"/dev/tty0 c 4 0
 mknod -m 666 "$target"/dev/urandom c 1 9
 mknod -m 666 "$target"/dev/zero c 1 5
 
-ARCH="$(arch)"
-
 TINI_URL=""
-if [[ "$ARCH" == "x86_64" ]]; then
+if [[ "$platform" == "linux/amd64" ]]; then
   TINI_URL="https://github.com/krallin/tini/releases/download/v0.18.0/tini_0.18.0-amd64.rpm"
 fi
 
@@ -77,7 +75,7 @@ yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
     bash zip pigz \
     $TINI_URL
 
-if [[ "$ARCH" == "aarch64" ]]; then
+if [[ "$platform" == "linux/arm64" ]]; then
   curl --retry 10 -L -o "$target"/bin/tini https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-arm64
   chmod +x "$target"/bin/tini
 fi
@@ -85,7 +83,7 @@ fi
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
 # stuff we don't want. Unforunately, there's no RPM for busybox available for CentOS.
 BUSYBOX_URL="https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox"
-if [[ "$ARCH" == "aarch64" ]]; then
+if [[ "$platform" == "linux/arm64" ]]; then
   BUSYBOX_URL="https://www.busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-armv8l"
 fi
 curl --retry 10 -L -o "$target"/bin/busybox "$BUSYBOX_URL"
@@ -153,6 +151,6 @@ rm -rf \
   "$target"/usr/bin/tini-static \
   "$target"/usr/local
 
-# Write the base filesystem to stdout. The command changes to $target, so .
-# refers to that directory
+# Write out the base filesystem. The command changes directory to $target,
+# so '.' refers to that directory
 tar --numeric-owner -c -f "$output_file" -C "$target" .

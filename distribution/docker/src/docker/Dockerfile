@@ -11,7 +11,7 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM scratch AS builder
+FROM --platform=${platform} scratch AS builder
 
 ADD ${base_image_tar} /
 
@@ -37,7 +37,7 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # Add entrypoint
 ################################################################################
 
-FROM scratch
+FROM --platform=${platform} scratch
 
 ADD ${base_image_tar} /
 

@@ -38,6 +38,7 @@ ext.expansions = { architecture, oss, local ->
   final String classifier = "aarch64".equals(architecture) ? "linux-aarch64" : "linux-x86_64"
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
+    'platform'            : "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64',
     'base_image_tar'      : "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar",
     'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
@@ -203,8 +204,6 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
 
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
-    pull = false
-
     if (oss) {
       tags = [
         "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
@@ -219,10 +218,8 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
       ]
     }
   }
-  if (Architecture.current().name().toLowerCase().equals(architecture)) {
-//    buildDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
-    assemble.dependsOn(buildDockerImageTask)
-  }
+  buildDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
+  assemble.dependsOn(buildDockerImageTask)
 }
 
 for (final String architecture : ["aarch64", "x64"]) {

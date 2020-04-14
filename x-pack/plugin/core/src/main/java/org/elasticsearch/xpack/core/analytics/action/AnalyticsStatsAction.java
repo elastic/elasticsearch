@@ -152,7 +152,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeVLong(boxplotUsage);
             }
-            out.writeVLong(cumulativeCardinalityUsage);
+            out.writeZLong(cumulativeCardinalityUsage);
             if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
@@ -184,6 +184,22 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public long getTopMetricsUsage() {
             return topMetricsUsage;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeResponse that = (NodeResponse) o;
+            return boxplotUsage == that.boxplotUsage &&
+                cumulativeCardinalityUsage == that.cumulativeCardinalityUsage &&
+                stringStatsUsage == that.stringStatsUsage &&
+                topMetricsUsage == that.topMetricsUsage;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(boxplotUsage, cumulativeCardinalityUsage, stringStatsUsage, topMetricsUsage);
         }
     }
 }

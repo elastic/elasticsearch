@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictedFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -246,11 +246,11 @@ public class AnalyticsResultProcessor {
             case CLASSIFICATION:
                 assert analytics.getAnalysis() instanceof Classification;
                 Classification classification = ((Classification)analytics.getAnalysis());
-                PredictedFieldType predictedFieldType = getPredictedFieldType(classification);
+                PredictionFieldType predictionFieldType = getPredictionFieldType(classification);
                 return ClassificationConfig.builder()
                     .setNumTopClasses(classification.getNumTopClasses())
                     .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                    .setPredictedFieldType(predictedFieldType)
+                    .setPredictionFieldType(predictionFieldType)
                     .build();
             case REGRESSION:
                 assert analytics.getAnalysis() instanceof Regression;
@@ -266,27 +266,15 @@ public class AnalyticsResultProcessor {
         }
     }
 
-    PredictedFieldType getPredictedFieldType(Classification classification) {
+    PredictionFieldType getPredictionFieldType(Classification classification) {
         String dependentVariable = classification.getDependentVariable();
         Optional<ExtractedField> extractedField = fieldNames.stream()
             .filter(f -> f.getName().equals(dependentVariable))
             .findAny();
-        String predictionFieldType = Classification.getPredictionFieldType(
+        PredictionFieldType predictionFieldType = Classification.getPredictionFieldType(
             extractedField.isPresent() ? extractedField.get().getTypes() : null
         );
-        if (predictionFieldType == null || predictionFieldType.equals("string")) {
-            return PredictedFieldType.STRING;
-        }
-        if (predictionFieldType.equals("bool")) {
-            return PredictedFieldType.BOOLEAN;
-        }
-        if (predictionFieldType.equals("int")) {
-            return PredictedFieldType.NUMBER;
-        }
-        throw ExceptionsHelper.serverError(
-            "unable to determine correct predicted field type from [{}]",
-            null,
-            predictionFieldType);
+        return predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
     }
 
     private String getDependentVariable() {

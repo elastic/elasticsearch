@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictedFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     private final String resultsField;
     private final String classificationLabel;
     private final List<TopClassEntry> topClasses;
-    private final PredictedFieldType predictedFieldType;
+    private final PredictionFieldType predictionFieldType;
 
     public ClassificationInferenceResults(double value,
                                           String classificationLabel,
@@ -61,7 +61,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.topClasses = topClasses == null ? Collections.emptyList() : Collections.unmodifiableList(topClasses);
         this.topNumClassesField = classificationConfig.getTopClassesResultsField();
         this.resultsField = classificationConfig.getResultsField();
-        this.predictedFieldType = classificationConfig.getPredictedFieldType();
+        this.predictionFieldType = classificationConfig.getPredictionFieldType();
     }
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
@@ -71,9 +71,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.topNumClassesField = in.readString();
         this.resultsField = in.readString();
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.predictedFieldType = in.readEnum(PredictedFieldType.class);
+            this.predictionFieldType = in.readEnum(PredictionFieldType.class);
         } else {
-            this.predictedFieldType = PredictedFieldType.STRING;
+            this.predictionFieldType = PredictionFieldType.STRING;
         }
     }
 
@@ -93,7 +93,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         out.writeString(topNumClassesField);
         out.writeString(resultsField);
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeEnum(predictedFieldType);
+            out.writeEnum(predictionFieldType);
         }
     }
 
@@ -107,7 +107,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(topNumClassesField, that.topNumClassesField)
             && Objects.equals(topClasses, that.topClasses)
-            && Objects.equals(predictedFieldType, that.predictedFieldType)
+            && Objects.equals(predictionFieldType, that.predictionFieldType)
             && Objects.equals(getFeatureImportance(), that.getFeatureImportance());
     }
 
@@ -119,7 +119,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             resultsField,
             topNumClassesField,
             getFeatureImportance(),
-            predictedFieldType);
+            predictionFieldType);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
         document.setFieldValue(parentResultField + "." + this.resultsField,
-            predictedFieldType.transformPredictedValue(value(), valueAsString()));
+            predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.size() > 0) {
             document.setFieldValue(parentResultField + "." + topNumClassesField,
                 topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));

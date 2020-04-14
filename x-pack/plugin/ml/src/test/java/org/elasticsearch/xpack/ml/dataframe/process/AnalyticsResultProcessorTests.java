@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictedFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
@@ -213,17 +213,17 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
     }
 
-    public void testGetPredictedFieldType() {
+    public void testGetPredictionFieldType() {
         List<ExtractedField> extractedFieldList = Arrays.asList(
             new DocValueField("foo", Collections.emptySet()),
             new DocValueField("bar", Set.of("keyword")),
             new DocValueField("baz", Set.of("long")),
             new DocValueField("bingo", Set.of("boolean")));
         AnalyticsResultProcessor resultProcessor = createResultProcessor(extractedFieldList);
-        assertThat(resultProcessor.getPredictedFieldType(new Classification("foo")), equalTo(PredictedFieldType.STRING));
-        assertThat(resultProcessor.getPredictedFieldType(new Classification("bar")), equalTo(PredictedFieldType.STRING));
-        assertThat(resultProcessor.getPredictedFieldType(new Classification("baz")), equalTo(PredictedFieldType.NUMBER));
-        assertThat(resultProcessor.getPredictedFieldType(new Classification("bingo")), equalTo(PredictedFieldType.BOOLEAN));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("foo")), equalTo(PredictionFieldType.STRING));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("bar")), equalTo(PredictionFieldType.STRING));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("baz")), equalTo(PredictionFieldType.NUMBER));
+        assertThat(resultProcessor.getPredictionFieldType(new Classification("bingo")), equalTo(PredictionFieldType.BOOLEAN));
     }
 
     @SuppressWarnings("unchecked")

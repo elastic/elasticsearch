@@ -37,7 +37,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     private final String topClassesResultsField;
     private final String resultsField;
     private final int numTopFeatureImportanceValues;
-    private final PredictedFieldType predictedFieldType;
+    private final PredictionFieldType predictionFieldType;
 
     private static final ObjectParser<ClassificationConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<ClassificationConfig.Builder, Void> STRICT_PARSER = createParser(false);
@@ -51,13 +51,13 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         parser.declareString(ClassificationConfig.Builder::setResultsField, RESULTS_FIELD);
         parser.declareString(ClassificationConfig.Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
         parser.declareInt(ClassificationConfig.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
-        parser.declareField(ClassificationConfig.Builder::setPredictedFieldType,
+        parser.declareField(ClassificationConfig.Builder::setPredictionFieldType,
             (p, c) -> {
             try {
-                return PredictedFieldType.fromString(p.text());
+                return PredictionFieldType.fromString(p.text());
             } catch (IllegalArgumentException iae) {
                 if (lenient) {
-                    return PredictedFieldType.STRING;
+                    return PredictionFieldType.STRING;
                 }
                 throw iae;
             }
@@ -81,7 +81,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
                                 String resultsField,
                                 String topClassesResultsField,
                                 Integer featureImportance,
-                                PredictedFieldType predictedFieldType) {
+                                PredictionFieldType predictionFieldType) {
         this.numTopClasses = numTopClasses == null ? 0 : numTopClasses;
         this.topClassesResultsField = topClassesResultsField == null ? DEFAULT_TOP_CLASSES_RESULTS_FIELD : topClassesResultsField;
         this.resultsField = resultsField == null ? DEFAULT_RESULTS_FIELD : resultsField;
@@ -90,7 +90,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
                 "] must be greater than or equal to 0");
         }
         this.numTopFeatureImportanceValues = featureImportance == null ? 0 : featureImportance;
-        this.predictedFieldType = predictedFieldType == null ? PredictedFieldType.STRING : predictedFieldType;
+        this.predictionFieldType = predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
     }
 
     public ClassificationConfig(StreamInput in) throws IOException {
@@ -103,9 +103,9 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
             this.numTopFeatureImportanceValues = 0;
         }
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.predictedFieldType = PredictedFieldType.fromStream(in);
+            this.predictionFieldType = PredictionFieldType.fromStream(in);
         } else {
-            this.predictedFieldType = PredictedFieldType.STRING;
+            this.predictionFieldType = PredictionFieldType.STRING;
         }
     }
 
@@ -125,8 +125,8 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         return numTopFeatureImportanceValues;
     }
 
-    public PredictedFieldType getPredictedFieldType() {
-        return predictedFieldType;
+    public PredictionFieldType getPredictionFieldType() {
+        return predictionFieldType;
     }
 
     @Override
@@ -143,7 +143,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
             out.writeVInt(numTopFeatureImportanceValues);
         }
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            predictedFieldType.writeTo(out);
+            predictionFieldType.writeTo(out);
         }
     }
 
@@ -156,12 +156,12 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
             && Objects.equals(topClassesResultsField, that.topClassesResultsField)
             && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
-            && Objects.equals(predictedFieldType, that.predictedFieldType);
+            && Objects.equals(predictionFieldType, that.predictionFieldType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numTopClasses, topClassesResultsField, resultsField, numTopFeatureImportanceValues, predictedFieldType);
+        return Objects.hash(numTopClasses, topClassesResultsField, resultsField, numTopFeatureImportanceValues, predictionFieldType);
     }
 
     @Override
@@ -171,7 +171,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         builder.field(TOP_CLASSES_RESULTS_FIELD.getPreferredName(), topClassesResultsField);
         builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
-        builder.field(PREDICTION_FIELD_TYPE.getPreferredName(), predictedFieldType.toString());
+        builder.field(PREDICTION_FIELD_TYPE.getPreferredName(), predictionFieldType.toString());
         builder.endObject();
         return builder;
     }
@@ -204,7 +204,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         private Integer numTopClasses;
         private String topClassesResultsField;
         private String resultsField;
-        private PredictedFieldType predictedFieldType;
+        private PredictionFieldType predictionFieldType;
         private Integer numTopFeatureImportanceValues;
 
         Builder() {}
@@ -236,8 +236,8 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
             return this;
         }
 
-        public Builder setPredictedFieldType(PredictedFieldType predictedFieldType) {
-            this.predictedFieldType = predictedFieldType;
+        public Builder setPredictionFieldType(PredictionFieldType predictionFieldType) {
+            this.predictionFieldType = predictionFieldType;
             return this;
         }
 
@@ -246,7 +246,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
                 resultsField,
                 topClassesResultsField,
                 numTopFeatureImportanceValues,
-                predictedFieldType);
+                predictionFieldType);
         }
     }
 }

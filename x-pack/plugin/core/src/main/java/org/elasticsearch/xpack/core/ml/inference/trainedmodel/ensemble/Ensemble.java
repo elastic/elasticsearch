@@ -187,7 +187,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                     classificationLabels,
                     classificationWeights,
                     classificationConfig.getNumTopClasses(),
-                    classificationConfig.getPredictedFieldType());
+                    classificationConfig.getPredictionFieldType());
                 return new ClassificationInferenceResults((double)topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),
                     topClasses.v2(),

@@ -32,7 +32,7 @@ public final class InferenceHelpers {
                                                                                                 List<String> classificationLabels,
                                                                                                 @Nullable double[] classificationWeights,
                                                                                                 int numToInclude,
-                                                                                                PredictedFieldType predictedFieldType) {
+                                                                                                PredictionFieldType predictionFieldType) {
 
         if (classificationLabels != null && probabilities.length != classificationLabels.size()) {
             throw ExceptionsHelper
@@ -69,7 +69,7 @@ public final class InferenceHelpers {
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
             topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(
-                predictedFieldType.transformPredictedValue((double)idx, labels.get(idx)),
+                predictionFieldType.transformPredictedValue((double)idx, labels.get(idx)),
                 probabilities[idx],
                 scores[idx]));
         }

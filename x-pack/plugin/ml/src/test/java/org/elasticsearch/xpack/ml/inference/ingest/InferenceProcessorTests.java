@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictedFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -79,7 +79,7 @@ public class InferenceProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClasses() {
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, null, null);
-        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, null, PredictedFieldType.STRING);
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, null, PredictionFieldType.STRING);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
@@ -108,7 +108,7 @@ public class InferenceProcessorTests extends ESTestCase {
     }
 
     public void testMutateDocumentClassificationFeatureInfluence() {
-        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2, PredictedFieldType.STRING);
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2, PredictionFieldType.STRING);
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, 2, null);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
@@ -149,7 +149,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
-        ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops", null, PredictedFieldType.STRING);
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops", null, PredictionFieldType.STRING);
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, "result", "tops", null, null);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,

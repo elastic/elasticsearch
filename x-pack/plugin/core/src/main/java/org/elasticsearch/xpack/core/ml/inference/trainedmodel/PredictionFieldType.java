@@ -13,19 +13,24 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum PredictedFieldType implements Writeable {
+/**
+ * The type of the predicted field.
+ * This modifies how the predicted class values are written for classification models
+ */
+public enum PredictionFieldType implements Writeable {
 
     STRING,
     NUMBER,
     BOOLEAN;
 
     private static final double EPS = 1.0E-9;
-    public static PredictedFieldType fromString(String name) {
+
+    public static PredictionFieldType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static PredictedFieldType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(PredictedFieldType.class);
+    public static PredictionFieldType fromStream(StreamInput in) throws IOException {
+        return in.readEnum(PredictionFieldType.class);
     }
 
     @Override
@@ -42,12 +47,22 @@ public enum PredictedFieldType implements Writeable {
         if (value == null) {
             return null;
         }
-        if(this == STRING) {
-            return stringRep == null ? value.toString() : stringRep;
+        switch(this) {
+            case STRING:
+                return stringRep == null ? value.toString() : stringRep;
+            case BOOLEAN:
+                if ((areClose(value, 1.0D) || areClose(value, 0.0D)) == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]");
+                }
+                return (1.0D - value) <= EPS;
+            case NUMBER:
+            default:
+                return value;
         }
-        if(this == BOOLEAN) {
-            return (1.0 - value) < EPS;
-        }
-        return value;
+    }
+
+    private static boolean areClose(double value1, double value2) {
+        return Math.abs(value1 - value2) < EPS;
     }
 }

@@ -35,7 +35,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
     private final String topClassesResultsField;
     private final String resultsField;
     private final Integer numTopFeatureImportanceValues;
-    private final PredictedFieldType predictedFieldType;
+    private final PredictionFieldType predictionFieldType;
 
     public static ClassificationConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
@@ -43,7 +43,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         String topClassesResultsField = (String)options.remove(TOP_CLASSES_RESULTS_FIELD.getPreferredName());
         String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
         Integer featureImportance = (Integer)options.remove(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
-        String predictedFieldTypeStr = (String)options.remove(PREDICTION_FIELD_TYPE.getPreferredName());
+        String predictionFieldTypeStr = (String)options.remove(PREDICTION_FIELD_TYPE.getPreferredName());
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
@@ -52,7 +52,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
             resultsField,
             topClassesResultsField,
             featureImportance,
-            predictedFieldTypeStr == null ? null : PredictedFieldType.fromString(predictedFieldTypeStr));
+            predictionFieldTypeStr == null ? null : PredictionFieldType.fromString(predictionFieldTypeStr));
     }
 
     public static ClassificationConfigUpdate fromConfig(ClassificationConfig config) {
@@ -60,7 +60,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
             config.getResultsField(),
             config.getTopClassesResultsField(),
             config.getNumTopFeatureImportanceValues(),
-            config.getPredictedFieldType());
+            config.getPredictionFieldType());
     }
 
     private static final ObjectParser<ClassificationConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
@@ -74,7 +74,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         parser.declareString(ClassificationConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         parser.declareString(ClassificationConfigUpdate.Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
         parser.declareInt(ClassificationConfigUpdate.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
-        parser.declareString(ClassificationConfigUpdate.Builder::setPredictedFieldType, PREDICTION_FIELD_TYPE);
+        parser.declareString(ClassificationConfigUpdate.Builder::setPredictionFieldType, PREDICTION_FIELD_TYPE);
         return parser;
     }
 
@@ -86,7 +86,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
                                       String resultsField,
                                       String topClassesResultsField,
                                       Integer featureImportance,
-                                      PredictedFieldType predictedFieldType) {
+                                      PredictionFieldType predictionFieldType) {
         this.numTopClasses = numTopClasses;
         this.topClassesResultsField = topClassesResultsField;
         this.resultsField = resultsField;
@@ -95,7 +95,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
                 "] must be greater than or equal to 0");
         }
         this.numTopFeatureImportanceValues = featureImportance;
-        this.predictedFieldType = predictedFieldType;
+        this.predictionFieldType = predictionFieldType;
     }
 
     public ClassificationConfigUpdate(StreamInput in) throws IOException {
@@ -103,7 +103,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         this.topClassesResultsField = in.readOptionalString();
         this.resultsField = in.readOptionalString();
         this.numTopFeatureImportanceValues = in.readOptionalVInt();
-        this.predictedFieldType = in.readOptionalWriteable(PredictedFieldType::fromStream);
+        this.predictionFieldType = in.readOptionalWriteable(PredictionFieldType::fromStream);
     }
 
     public Integer getNumTopClasses() {
@@ -122,8 +122,8 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         return numTopFeatureImportanceValues;
     }
 
-    public PredictedFieldType getPredictedFieldType() {
-        return predictedFieldType;
+    public PredictionFieldType getPredictionFieldType() {
+        return predictionFieldType;
     }
 
     @Override
@@ -132,7 +132,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         out.writeOptionalString(topClassesResultsField);
         out.writeOptionalString(resultsField);
         out.writeOptionalVInt(numTopFeatureImportanceValues);
-        out.writeOptionalWriteable(predictedFieldType);
+        out.writeOptionalWriteable(predictionFieldType);
     }
 
     @Override
@@ -144,12 +144,12 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
             && Objects.equals(topClassesResultsField, that.topClassesResultsField)
             && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
-            && Objects.equals(predictedFieldType, that.predictedFieldType);
+            && Objects.equals(predictionFieldType, that.predictionFieldType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numTopClasses, topClassesResultsField, resultsField, numTopFeatureImportanceValues, predictedFieldType);
+        return Objects.hash(numTopClasses, topClassesResultsField, resultsField, numTopFeatureImportanceValues, predictionFieldType);
     }
 
     @Override
@@ -167,8 +167,8 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         if (numTopFeatureImportanceValues != null) {
             builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
         }
-        if (predictedFieldType != null) {
-            builder.field(PREDICTION_FIELD_TYPE.getPreferredName(), predictedFieldType.toString());
+        if (predictionFieldType != null) {
+            builder.field(PREDICTION_FIELD_TYPE.getPreferredName(), predictionFieldType.toString());
         }
         builder.endObject();
         return builder;
@@ -202,8 +202,8 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         if (numTopClasses != null) {
             builder.setNumTopClasses(numTopClasses);
         }
-        if (predictedFieldType != null) {
-            builder.setPredictedFieldType(predictedFieldType);
+        if (predictionFieldType != null) {
+            builder.setPredictionFieldType(predictionFieldType);
         }
         return builder.build();
     }
@@ -224,7 +224,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
                 || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues)
             && (topClassesResultsField == null || topClassesResultsField.equals(originalConfig.getTopClassesResultsField()))
             && (numTopClasses == null || originalConfig.getNumTopClasses() == numTopClasses)
-            && (predictedFieldType == null || predictedFieldType.equals(originalConfig.getPredictedFieldType()));
+            && (predictionFieldType == null || predictionFieldType.equals(originalConfig.getPredictionFieldType()));
     }
 
     public static class Builder {
@@ -232,7 +232,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
         private String topClassesResultsField;
         private String resultsField;
         private Integer numTopFeatureImportanceValues;
-        private PredictedFieldType predictedFieldType;
+        private PredictionFieldType predictionFieldType;
 
         public Builder setNumTopClasses(int numTopClasses) {
             this.numTopClasses = numTopClasses;
@@ -254,8 +254,8 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
             return this;
         }
 
-        private Builder setPredictedFieldType(String predictedFieldType) {
-            this.predictedFieldType = PredictedFieldType.fromString(predictedFieldType);
+        private Builder setPredictionFieldType(String predictionFieldType) {
+            this.predictionFieldType = PredictionFieldType.fromString(predictionFieldType);
             return this;
         }
 
@@ -264,7 +264,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
                 resultsField,
                 topClassesResultsField,
                 numTopFeatureImportanceValues,
-                predictedFieldType);
+                predictionFieldType);
         }
     }
 }

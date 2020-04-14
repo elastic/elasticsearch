@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictedFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -124,7 +124,7 @@ public class LocalModelTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testClassificationInferWithDifferentPredictedFieldTypes() throws Exception {
+    public void testClassificationInferWithDifferentPredictionFieldTypes() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
         String modelId = "classification_model";
@@ -150,7 +150,7 @@ public class LocalModelTests extends ESTestCase {
         InferenceResults result = getInferenceResult(
             model,
             fields,
-            new ClassificationConfigUpdate(2, null, null, null, PredictedFieldType.STRING));
+            new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING));
 
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
@@ -160,7 +160,7 @@ public class LocalModelTests extends ESTestCase {
         assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo("not_to_be"));
         assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo("to_be"));
 
-        result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictedFieldType.NUMBER));
+        result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
 
         document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
@@ -170,7 +170,7 @@ public class LocalModelTests extends ESTestCase {
         assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo(0.0));
         assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo(1.0));
 
-        result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictedFieldType.BOOLEAN));
+        result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
 
         document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");

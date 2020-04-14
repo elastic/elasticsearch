@@ -10,7 +10,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictedFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,7 +77,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
             "foo",
             entries,
-            new ClassificationConfig(3, "my_results", "bar", null, PredictedFieldType.STRING));
+            new ClassificationConfig(3, "my_results", "bar", null, PredictionFieldType.STRING));
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
 
@@ -104,7 +104,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "foo",
             Collections.emptyList(),
             importanceList,
-            new ClassificationConfig(0, "predicted_value", "top_classes", 3, PredictedFieldType.STRING));
+            new ClassificationConfig(0, "predicted_value", "top_classes", 3, PredictionFieldType.STRING));
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         result.writeResult(document, "result_field");
 

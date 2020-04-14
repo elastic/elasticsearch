@@ -23,7 +23,7 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10),
-            randomFrom(PredictedFieldType.values())
+            randomFrom(PredictionFieldType.values())
             );
     }
 

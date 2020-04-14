@@ -598,7 +598,7 @@ public class XPackLicenseState {
         return allowForAllLicenses();
     }
 
-    public boolean isDataScienceAllowed() {
+    public boolean isAnalyticsAllowed() {
         return allowForAllLicenses();
     }
 

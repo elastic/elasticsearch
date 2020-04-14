@@ -34,7 +34,6 @@ import java.util.Locale;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction.usageFeatureResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,7 +55,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool,
-                new ActionFilters(Collections.emptySet()), usage);
+            new ActionFilters(Collections.emptySet()), usage);
     }
 
     public void test() throws IOException {
@@ -78,12 +77,12 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {
         AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
         List<AnalyticsStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-                .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request)))
-                .collect(toList());
+            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request)))
+            .collect(toList());
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
-                new ClusterName("cluster_name"), nodeResponses, emptyList());
+            new ClusterName("cluster_name"), nodeResponses, emptyList());
 
-        AnalyticsFeatureSetUsage usage = usageFeatureResponse(true, true, response);
+        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
         try (XContentBuilder builder = jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

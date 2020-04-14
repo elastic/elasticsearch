@@ -59,7 +59,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
         final Setting<List<DiscoveryNodeRole>> nodeRolesSetting = Setting.listSetting(
-            NODE_ROLES_SETTING.getKey(),
+            "node.roles", // this can not refer to the initial setting or it could trigger initialization of the setting prematurely
             role.isEnabledByDefault(settings) ? List.of(role.roleName()) : List.of(),
             DiscoveryNode::getRoleFromRoleName,
             Property.NodeScope);

@@ -260,14 +260,14 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     private static boolean retryableException(Exception e) {
-        // TODO: Probably also generic ConnectTransportException
-        if (e instanceof SendRequestTransportException) {
+        if (e instanceof ConnectTransportException) {
+            return true;
+        } else if (e instanceof SendRequestTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
             return cause instanceof ConnectTransportException;
         } else if (e instanceof RemoteTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof ConnectTransportException ||
-                cause instanceof CircuitBreakingException ||
+            return cause instanceof CircuitBreakingException ||
                 cause instanceof EsRejectedExecutionException;
         }
         return false;

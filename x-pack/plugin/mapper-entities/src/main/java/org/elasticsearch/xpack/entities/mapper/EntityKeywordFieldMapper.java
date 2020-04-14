@@ -6,13 +6,9 @@
 
 package org.elasticsearch.xpack.entities.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
-import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -22,8 +18,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,6 +46,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -192,7 +191,7 @@ public class EntityKeywordFieldMapper extends FieldMapper {
 
         private NamedAnalyzer normalizer = null;
         private boolean splitQueriesOnWhitespace;
-        private SynonymMap synonyms;
+        private EntityMap entities;
 
         public EntityKeywordFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -249,31 +248,8 @@ public class EntityKeywordFieldMapper extends FieldMapper {
             setIndexAnalyzer(normalizer);
         }
 
-        void setSynonymMap(SynonymMap synonyms) {
-            this.synonyms = synonyms;
-        }
-
-        @Override
-        public void setSearchAnalyzer(NamedAnalyzer analyzer) {
-            // wrap with a synonym filter
-            Analyzer wrapped = new AnalyzerWrapper(analyzer.getReuseStrategy()) {
-                @Override
-                protected Analyzer getWrappedAnalyzer(String fieldName) {
-                    return analyzer;
-                }
-
-                @Override
-                protected TokenStream wrapTokenStreamForNormalization(String fieldName, TokenStream in) {
-                    return new SynonymGraphFilter(in, synonyms, true);
-                }
-
-                @Override
-                protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-                    return new TokenStreamComponents(components.getSource(),
-                        new SynonymGraphFilter(components.getTokenStream(), synonyms, true));
-                }
-            };
-            super.setSearchAnalyzer(new NamedAnalyzer("entity", AnalyzerScope.INDEX, wrapped));
+        void setEntityMap(EntityMap entities) {
+            this.entities = entities;
         }
 
         public boolean splitQueriesOnWhitespace() {
@@ -293,6 +269,25 @@ public class EntityKeywordFieldMapper extends FieldMapper {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             } else {
                 return new NormsFieldExistsQuery(name());
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            BytesRef initialTerm = indexedValueForSearch(value);
+            BytesRefIterator synonyms = entities.findSynonyms(initialTerm);
+            if (synonyms == null) {
+                return super.termQuery(value, context);
+            }
+            try {
+                SynonymQuery.Builder builder = new SynonymQuery.Builder(name());
+                BytesRef synonym;
+                while ((synonym = synonyms.next()) != null) {
+                    builder.addTerm(new Term(name(), synonym));
+                }
+                return builder.build();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
 

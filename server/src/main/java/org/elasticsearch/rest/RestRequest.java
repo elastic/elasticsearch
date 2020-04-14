@@ -146,13 +146,50 @@ public class RestRequest implements ToXContent.Params {
 
     private void addCompatibleParameter(boolean headersValidation) {
         if(headersValidation){
-            Version compatible = compatibleWithVersion();
-            if (Version.minimumRestCompatibilityVersion().equals(compatible)) {
-                params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, String.valueOf(compatible.major));
+//            Version compatible = compatibleWithVersion();
+//            if (Version.minimumRestCompatibilityVersion().equals(compatible)) {
+            if(isRequestingCompatibility()) {
+                params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY,
+                    String.valueOf(Version.minimumRestCompatibilityVersion().major));
                 //use it so it won't fail request validation with unused parameter
                 param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
             }
         }
+    }
+    private boolean isRequestingCompatibility() {
+        String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
+        String aVersion = XContentType.parseVersion(acceptHeader);
+        byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
+        String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
+        String cVersion = XContentType.parseVersion(contentTypeHeader);
+        byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
+
+        if(Version.CURRENT.major < acceptVersion || Version.CURRENT.major - acceptVersion > 1 ){
+//            throw new IllegalStateException("something about only 1 major version support");
+            throw new CompatibleApiHeadersCombinationException(
+                String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
+                        "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                    contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+        }
+        if (hasContent()) {
+            if(Version.CURRENT.major < contentTypeVersion || Version.CURRENT.major - contentTypeVersion > 1 ){
+//                throw new IllegalStateException("something about only 1 major version support");
+                throw new CompatibleApiHeadersCombinationException(
+                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
+                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+            }
+
+            if (contentTypeVersion != acceptVersion) {
+//                throw new IllegalStateException("something about needing to match");
+                throw new CompatibleApiHeadersCombinationException(
+                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
+                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+            }
+        }
+
+        return contentTypeVersion < Version.CURRENT.major || acceptVersion < Version.CURRENT.major;
     }
 
     private Version compatibleWithVersion() {
@@ -277,7 +314,9 @@ public class RestRequest implements ToXContent.Params {
     }
 
 
-    public static RestRequest requestNoValidation(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
+    public static RestRequest requestNoValidation(NamedXContentRegistry xContentRegistry,
+                                                  HttpRequest httpRequest,
+                                                  HttpChannel httpChannel) {
         Map<String, String> params = Collections.emptyMap();
         HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
 

@@ -41,14 +41,19 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
 
-//    public void testX(){
-//
-//        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
-//            expect(requestCreated(), isCompatible()));
-////        createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
-////            expect(requestCreated(), isCompatible()));
-//
-//    }
+
+    public void testCombinationsNotSure(){
+        // body not present, so it should either be current or error (mismatch version) - but fails as it considers it compatible
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
+            expect(requestCreated(), not(isCompatible())));
+
+        //this should be an exception - content is not pvodied
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+    }
+
     public void testAcceptAndContentTypeCombinations() {
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
             expect(requestCreated(), isCompatible()));
@@ -65,8 +70,8 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
-        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
-            expect(requestCreated(), not(isCompatible()))); // no body - content-type is ignored
+//        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
+//            expect(requestCreated(), not(isCompatible()))); // no body - content-type is ignored
 
         createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
             expect(requestCreated(), not(isCompatible())));
@@ -75,18 +80,18 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
             expect(requestCreated(), not(isCompatible())));
 
         //tests when body present and one of the headers missing
-        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+//        createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyPresent(),
+//            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
-        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
-            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
+//        createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent(),
+//            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
         // with body present and contentType versioned - default the accept header version to the one from content-type
         createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent(),
             expect(requestCreated(), not(isCompatible())));
 
         createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent(),
-            expect(requestCreated(), isCompatible()));
+            expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
 
         //tests when body NOT present and one of the headers missing
         createRequestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyNotPresent(),
@@ -95,9 +100,9 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         createRequestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
 
-        //body not present - ignoring content-type. Accept header = null defaults to JSON and current version (non compatible)
+        //body not present - if any of headers has a version it will be used
         createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
-            expect(requestCreated(), not(isCompatible())));
+            expect(requestCreated(), isCompatible()));
         createRequestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
         createRequestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent(),
@@ -107,6 +112,8 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
         createRequestWith(acceptHeader("application/json"), contentTypeHeader(null), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
         createRequestWith(acceptHeader("application/json"), contentTypeHeader("application/json"), bodyPresent(),
+            expect(requestCreated(), not(isCompatible())));
+        createRequestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyPresent(),
             expect(requestCreated(), not(isCompatible())));
     }
 
@@ -118,9 +125,11 @@ public class CompatibleHeaderCombinationTests extends ESTestCase {
             expect(exceptionDuringCreation(RestRequest.CompatibleApiHeadersCombinationException.class)));
     }
 
+
     public void testMediaTypeCombinations() {
+        //body not present - ignore content-type
         createRequestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent(),
-            expect(requestCreated(), not(isCompatible())));
+            expect(requestCreated(), isCompatible()));
         createRequestWith(acceptHeader(null), contentTypeHeader("application/json"), bodyNotPresent(),
             expect(requestCreated(), not(isCompatible())));
         createRequestWith(acceptHeader("*/*"), contentTypeHeader("application/json"), bodyNotPresent(),

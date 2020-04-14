@@ -79,11 +79,6 @@ public class DockerTests extends PackagingTestCase {
         assumeTrue("only Docker", distribution().isDocker());
     }
 
-    @AfterClass
-    public static void teardownSuite() {
-        removeContainer();
-    }
-
     @Before
     public void setupTest() throws IOException {
         installation = runContainer(distribution());
@@ -92,6 +87,7 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
+        removeContainer();
         rm(tempDir);
     }
 

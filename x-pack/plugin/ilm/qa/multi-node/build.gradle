@@ -15,6 +15,9 @@ integTest.runner {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath

@@ -1083,6 +1083,7 @@ public final class TokenService {
      */
     void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus, SecurityIndexManager tokensIndex,
                                            ActionListener<Tuple<String, String>> listener) {
+
         final byte[] iv = Base64.getDecoder().decode(refreshTokenStatus.getIv());
         final byte[] salt = Base64.getDecoder().decode(refreshTokenStatus.getSalt());
         final byte[] encryptedSupersedingTokens = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingTokens());
@@ -1099,6 +1100,18 @@ public final class TokenService {
                 final String tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
                 final Consumer<Exception> onFailure = ex ->
                     listener.onFailure(traceLog("decrypt and get superseding token", tokenDocId, ex));
+                final Consumer<ActionListener<GetResponse>> maybeRetryGet = actionListener -> {
+                    if (backoff.hasNext()) {
+                        logger.info("could not get token document [{}] that should have been created, retrying", tokenDocId);
+                        client.threadPool().schedule(
+                            () -> getTokenDocAsync(tokenDocId, tokensIndex, actionListener),
+                            backoff.next(), GENERIC);
+                    } else {
+                        logger.warn("could not get token document [{}] that should have been created after all retries",
+                            tokenDocId);
+                        onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                    }
+                };
                 getTokenDocAsync(tokenDocId, tokensIndex, new ActionListener<>() {
                     @Override
                     public void onResponse(GetResponse response) {
@@ -1112,31 +1125,14 @@ public final class TokenService {
                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
                             }
                         } else {
-                            if (backoff.hasNext()) {
-                                logger.trace("could not get token document [{}] that should have been created, retrying", tokenDocId);
-                                client.threadPool().schedule(
-                                    () -> getTokenDocAsync(tokenDocId, tokensIndex, this),
-                                    backoff.next(), GENERIC);
-                            } else {
-                                logger.warn("could not get token document [{}] that should have been created after all retries",
-                                    tokenDocId);
-                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                            }
+                            maybeRetryGet.accept(this);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         if (isShardNotAvailableException(e)) {
-                            if (backoff.hasNext()) {
-                                logger.info("could not get token document [{}] that should have been created, retrying", tokenDocId);
-                                client.threadPool().schedule(() -> getTokenDocAsync(tokenDocId, tokensIndex, this),
-                                    backoff.next(), GENERIC);
-                            } else {
-                                logger.warn("could not get token document [{}] that should have been created after all retries",
-                                    tokenDocId);
-                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                            }
+                            maybeRetryGet.accept(this);
                         } else {
                             onFailure.accept(e);
                         }

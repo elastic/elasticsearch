@@ -57,7 +57,6 @@ import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.core.IsNot.not;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
@@ -386,11 +385,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
-        // Assert that we only ever got one anot(contccess_token/refresh_token pair
+        // Assert that we only ever got one token/refresh_token pair
         assertThat((int) tokens.stream().distinct().count(), equalTo(1));
         // Assert that all requests from all threads could authenticate at the time they received the access token
         // see: https://github.com/elastic/elasticsearch/issues/54289
-        assertThat(authStatuses, not(hasItem(RestStatus.UNAUTHORIZED)));
+        assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
+        assertThat(authStatuses, hasItem(RestStatus.OK));
     }
 
     public void testRefreshAsDifferentUser() throws IOException {
@@ -510,13 +510,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
     }
 
-    private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException{
+    private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         try {
             restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
                 "Bearer " + accessToken).build());
             return RestStatus.OK;
-        } catch ( ElasticsearchStatusException esse) {
+        } catch (ElasticsearchStatusException esse) {
             return esse.status();
         }
     }

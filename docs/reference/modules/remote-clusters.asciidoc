@@ -1,7 +1,7 @@
 [[modules-remote-clusters]]
 == Remote clusters
 
-The _remote clusters_ functionality enables you to establish uni-directional
+The _remote clusters_ functionality enables you to establish unidirectional
 connections to a remote cluster. Remote clusters are required for
 <<xpack-ccr,{ccr}>> and <<modules-cross-cluster-search,{ccs}>>.
 

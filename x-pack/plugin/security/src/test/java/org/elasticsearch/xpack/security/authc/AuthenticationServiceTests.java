@@ -189,7 +189,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.areAllRealmsAllowed()).thenReturn(true);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);

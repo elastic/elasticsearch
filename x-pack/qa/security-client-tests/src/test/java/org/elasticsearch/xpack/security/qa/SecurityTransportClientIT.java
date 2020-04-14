@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -100,7 +101,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue(nodes.isEmpty() == false);
-        TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
+        TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()

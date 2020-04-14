@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.TransportInfo;
 
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -91,9 +92,9 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
     public void testThatInfosAreExposed() throws Exception {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().addMetric(TRANSPORT.metricName()).get();
         for (NodeInfo nodeInfo : response.getNodes()) {
-            assertThat(nodeInfo.getTransport().getProfileAddresses().keySet(), hasSize(1));
-            assertThat(nodeInfo.getTransport().getProfileAddresses(), hasKey("client1"));
-            BoundTransportAddress boundTransportAddress = nodeInfo.getTransport().getProfileAddresses().get("client1");
+            assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses().keySet(), hasSize(1));
+            assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses(), hasKey("client1"));
+            BoundTransportAddress boundTransportAddress = nodeInfo.getInfo(TransportInfo.class).getProfileAddresses().get("client1");
             for (TransportAddress transportAddress : boundTransportAddress.boundAddresses()) {
                 assertThat(transportAddress, instanceOf(TransportAddress.class));
             }

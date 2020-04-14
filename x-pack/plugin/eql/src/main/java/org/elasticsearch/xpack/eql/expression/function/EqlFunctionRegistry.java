@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.Between;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOf;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Substring;
@@ -37,6 +38,8 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 def(EndsWith.class, EndsWith::new, "endswith"),
                 def(IndexOf.class, IndexOf::new, "indexof"),
                 def(Length.class, Length::new, "length"),
+                def(Match.class, Match::new, "match"),
+                def(Match.class, Match::new, "matchLite"),
                 def(StartsWith.class, StartsWith::new, "startswith"),
                 def(ToString.class, ToString::new, "string"),
                 def(StringContains.class, StringContains::new, "stringcontains"),

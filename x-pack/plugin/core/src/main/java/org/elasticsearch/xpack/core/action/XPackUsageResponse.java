@@ -23,7 +23,14 @@ public class XPackUsageResponse extends ActionResponse {
         int size = in.readVInt();
         usages = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
+            String name = in.readString();
+            if (name.equals("flattened")) {
+                // work-around for removed flattened
+                new XPackFeatureSet.Usage(in) { };
+                in.readInt();
+            } else {
+                usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class, name));
+            }
         }
     }
 

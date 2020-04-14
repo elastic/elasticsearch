@@ -1,0 +1,83 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    1
+          - field: foo
+          - index:
+              _index: docs
+              _id:    2
+          - field: bar
+          - index:
+              _index: docs
+              _id:    3
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.delete_repository:
+        repository: repository-fs
+
+---
+"Tests repository stats":
+  - skip:
+      version: " - 7.99.99"
+      reason:  searchable snapshots introduced in 7.8.0 (8.0.0 currently, but adapt after backport to 7.x)
+
+  - do:
+      snapshot.restore:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      searchable_snapshots.repository_stats:
+        repository: repository-fs
+
+  - is_true: _all
+  - is_true: nodes

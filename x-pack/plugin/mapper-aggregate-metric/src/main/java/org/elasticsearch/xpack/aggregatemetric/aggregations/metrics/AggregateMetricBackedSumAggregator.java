@@ -19,13 +19,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
@@ -42,10 +40,9 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
         DocValueFormat formatter,
         SearchContext context,
         Aggregator parent,
-        List<PipelineAggregator> pipelineAggregators,
-        Map<String, Object> metaData
+        Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         if (valuesSource != null) {

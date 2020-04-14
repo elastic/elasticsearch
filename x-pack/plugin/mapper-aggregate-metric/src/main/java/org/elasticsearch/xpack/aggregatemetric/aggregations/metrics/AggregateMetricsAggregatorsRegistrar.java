@@ -21,22 +21,14 @@ public class AggregateMetricsAggregatorsRegistrar {
         valuesSourceRegistry.register(
             SumAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, metadata) -> new AggregateMetricBackedSumAggregator(
                 name,
-                valuesSource,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 formatter,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedSumAggregator(
-                    name,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter,
-                    context,
-                    parent,
-                    pipelineAggregators,
-                    metaData
-                )
+                metadata
+            )
         );
     }
 
@@ -44,22 +36,14 @@ public class AggregateMetricsAggregatorsRegistrar {
         valuesSourceRegistry.register(
             AvgAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, metadata) -> new AggregateMetricBackedAvgAggregator(
                 name,
-                valuesSource,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 formatter,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedAvgAggregator(
-                    name,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter,
-                    context,
-                    parent,
-                    pipelineAggregators,
-                    metaData
-                )
+                metadata
+            )
         );
     }
 
@@ -73,15 +57,13 @@ public class AggregateMetricsAggregatorsRegistrar {
                 valuesSource,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedMinAggregator(
+                metadata) -> new AggregateMetricBackedMinAggregator(
                     name,
                     valuesSourceConfig,
                     (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                     context,
                     parent,
-                    pipelineAggregators,
-                    metaData
+                    metadata
                 )
         );
     }
@@ -90,22 +72,14 @@ public class AggregateMetricsAggregatorsRegistrar {
         valuesSourceRegistry.register(
             MaxAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MinMaxAggregatorSupplier) (
+            (MinMaxAggregatorSupplier) (name, config, valuesSource, context, parent, metadata) -> new AggregateMetricBackedMaxAggregator(
                 name,
                 config,
-                valuesSource,
+                (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
                 context,
                 parent,
-                pipelineAggregators,
-                metaData) -> new AggregateMetricBackedMaxAggregator(
-                    name,
-                    config,
-                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    context,
-                    parent,
-                    pipelineAggregators,
-                    metaData
-                )
+                metadata
+            )
         );
     }
 }

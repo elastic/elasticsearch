@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -62,7 +61,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
@@ -140,12 +138,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model3);
-            }
-        }));
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
         // It is not referenced, so called eagerly
@@ -193,24 +185,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model2), eq(true), any());
         // Only loaded requested once on the initial load from the change event
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model1);
-            }
-        }));
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model2);
-            }
-        }));
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats)o).getModelId().equals(model3);
-            }
-        }));
 
         // Load model 3, should invalidate 1
         for(int i = 0; i < 10; i++) {

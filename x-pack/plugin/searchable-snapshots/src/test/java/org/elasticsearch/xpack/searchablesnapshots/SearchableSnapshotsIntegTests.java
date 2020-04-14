@@ -277,12 +277,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 nodeIdsWithLargeEnoughCache.add(nodeCursor.value.getId());
             }
         }
+        assertThat("Expecting stats to exist for at least one Lucene file", totalSize, greaterThan(0L));
 
         for (SearchableSnapshotShardStats stats : statsResponse.getStats()) {
             final ShardRouting shardRouting = stats.getShardRouting();
             assertThat(stats.getShardRouting().getIndexName(), equalTo(indexName));
             if (shardRouting.started()) {
-                assertThat("Expecting stats to exist for at least 1 Lucene file", stats.getStats().size(), greaterThan(0));
                 for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
                     final String fileName = indexInputStats.getFileName();
                     assertThat(

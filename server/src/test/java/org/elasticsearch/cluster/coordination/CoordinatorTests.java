@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.util.Arrays;

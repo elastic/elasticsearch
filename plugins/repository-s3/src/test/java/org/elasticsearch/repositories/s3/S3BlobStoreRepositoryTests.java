@@ -119,12 +119,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/bucket", new S3BlobStoreHttpHandler("bucket"));
+        return Collections.singletonMap("/bucket", new S3StatsHttpHandler(new S3BlobStoreHttpHandler("bucket")));
     }
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new S3StatsHttpHandler(new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
     }
 
     @Override
@@ -228,51 +228,38 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             })
             .filter(r -> r != null)
             .map(r -> r.stats())
-            .reduce((s1, s2) -> s1.combine(s2))
+            .reduce((s1, s2) -> s1.merge(s2))
             .get();
         final long sdkGetCalls = repositoryStats.requestCounts.get("GET");
         final long sdkListCalls = repositoryStats.requestCounts.get("LIST");
 
         final long getCalls = handlers.values().stream()
             .mapToLong(h -> {
-                long count = 0;
                 while (h instanceof DelegatingHttpHandler) {
-                    if (h instanceof S3ErroneousHttpHandler) {
-                        count += ((S3ErroneousHttpHandler) h).getCalls.get();
+                    if (h instanceof S3StatsHttpHandler) {
+                        return ((S3StatsHttpHandler) h).getCalls.get();
                     }
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
-                if (h instanceof S3HttpHandler) {
-                    return count + ((S3HttpHandler) h).getCalls.get();
-                } else {
-                    assert false;
-                    return count;
-                }
+                assert false;
+                return 0L;
             })
             .sum();
         final long listCalls = handlers.values().stream()
             .mapToLong(h -> {
-                long count = 0;
                 while (h instanceof DelegatingHttpHandler) {
-                    if (h instanceof S3ErroneousHttpHandler) {
-                        count += ((S3ErroneousHttpHandler) h).listCalls.get();
+                    if (h instanceof S3StatsHttpHandler) {
+                        return ((S3StatsHttpHandler) h).listCalls.get();
                     }
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
-                if (h instanceof S3HttpHandler) {
-                    return count + ((S3HttpHandler) h).listCalls.get();
-                } else {
-                    assert false;
-                    return count;
-                }
+                assert false;
+                return 0L;
             })
             .sum();
 
-        logger.info("SDK sent {} GET calls and handler measured {} GET calls", sdkGetCalls, getCalls);
-        logger.info("SDK sent {} LIST calls and handler measured {} LIST calls", sdkListCalls, listCalls);
-
-        assertEquals(getCalls, sdkGetCalls);
-        assertEquals(listCalls, sdkListCalls);
+        assertEquals("SDK sent " + sdkGetCalls + " GET calls and handler measured " + getCalls + " GET calls", getCalls, sdkGetCalls);
+        assertEquals("SDK sent " + sdkListCalls + " LIST calls and handler measured " + listCalls + " LIST calls", listCalls, sdkListCalls);
     }
 
     /**
@@ -355,28 +342,43 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
-        public final AtomicLong getCalls = new AtomicLong();
-        public final AtomicLong listCalls = new AtomicLong();
-
         S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
-        }
-
-        @Override
-        protected void handleAsError(final HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
-                listCalls.incrementAndGet();
-            } else if (Regex.simpleMatch("GET /*/*", request)) {
-                getCalls.incrementAndGet();
-            }
-            super.handleAsError(exchange);
         }
 
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
             return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+        }
+    }
+
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+    private static class S3StatsHttpHandler implements DelegatingHttpHandler {
+
+        private final HttpHandler delegate;
+
+        public final AtomicLong getCalls = new AtomicLong();
+        public final AtomicLong listCalls = new AtomicLong();
+
+        S3StatsHttpHandler(final HttpHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public HttpHandler getDelegate() {
+            return delegate;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
+                listCalls.incrementAndGet();
+            } else if (Regex.simpleMatch("GET /*/*", request)) {
+                getCalls.incrementAndGet();
+            }
+            delegate.handle(exchange);
         }
     }
 }

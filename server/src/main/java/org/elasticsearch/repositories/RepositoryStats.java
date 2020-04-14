@@ -42,7 +42,7 @@ public class RepositoryStats implements Writeable {
         this.requestCounts = in.readMap(StreamInput::readString, StreamInput::readLong);
     }
 
-    public RepositoryStats combine(RepositoryStats otherStats) {
+    public RepositoryStats merge(RepositoryStats otherStats) {
         final Map<String, Long> result = new HashMap<>();
         result.putAll(requestCounts);
         for (Map.Entry<String, Long> entry : otherStats.requestCounts.entrySet()) {

@@ -36,7 +36,7 @@ public class RepositoryStatsResponse extends BaseNodesResponse<RepositoryStatsNo
         if (nodes.isEmpty()) {
             return RepositoryStats.EMPTY_STATS;
         } else {
-            return nodes.stream().map(RepositoryStatsNodeResponse::getRepositoryStats).reduce(RepositoryStats::combine).get();
+            return nodes.stream().map(RepositoryStatsNodeResponse::getRepositoryStats).reduce(RepositoryStats::merge).get();
         }
     }
 

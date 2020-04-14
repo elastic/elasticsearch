@@ -54,7 +54,7 @@ class S3BlobStore implements BlobStore {
 
     private final RepositoryMetadata repositoryMetadata;
 
-    private final S3Stats stats = new S3Stats();
+    private final Stats stats = new Stats();
 
     final RequestMetricCollector getMetricCollector;
     final RequestMetricCollector listMetricCollector;
@@ -174,7 +174,7 @@ class S3BlobStore implements BlobStore {
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
     }
 
-    static class S3Stats {
+    static class Stats {
 
         final AtomicLong listCount = new AtomicLong();
 

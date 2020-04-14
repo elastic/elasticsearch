@@ -451,13 +451,7 @@ public final class TokenService {
                     listener.onResponse(new Tuple<>(userToken.getAuthentication(), userToken.getMetadata()));
                 }
             },
-            e -> {
-                if (isShardNotAvailableException(e)) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(e);
-                }
-            }
+            listener::onFailure
         ));
     }
 
@@ -599,7 +593,6 @@ public final class TokenService {
         if (Strings.isNullOrEmpty(accessToken)) {
             listener.onFailure(traceLog("invalidate access token", new IllegalArgumentException("access token must be provided")));
         } else {
-            logger.debug("INVALIDATE ACCESS TOKEN");
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
             decodeToken(accessToken, ActionListener.wrap(userToken -> {
@@ -893,26 +886,30 @@ public final class TokenService {
                 findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
             } else {
                 logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
+                final Version refreshTokenVersion;
+                final String unencodedRefreshToken;
+                final Tuple<Version, String> versionAndRefreshTokenTuple;
                 try {
-                    final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                    final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                    final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                    if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                        logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
-                            refreshTokenVersion);
-                        listener.onResponse(SearchHits.empty());
-                    } else {
-                        // TODO Remove this conditional after backporting to 7.x
-                        if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
-                            final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                            findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
-                        } else {
-                            findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
-                        }
-                    }
+                    versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                    refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                    unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
                     logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
                     listener.onResponse(SearchHits.empty());
+                    return;
+                }
+                if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
+                        refreshTokenVersion);
+                    listener.onResponse(SearchHits.empty());
+                } else {
+                    // TODO Remove this conditional after backporting to 7.x
+                    if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    } else {
+                        findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                    }
                 }
             }
         }
@@ -1781,13 +1778,6 @@ public final class TokenService {
             new ElasticsearchSecurityException("token expired", RestStatus.UNAUTHORIZED);
         e.addHeader("WWW-Authenticate", EXPIRED_TOKEN_WWW_AUTH_VALUE);
         return e;
-    }
-
-    /**
-     * Creates an {@link ElasticsearchSecurityException} that indicates that we couldn't find the token document in our tokens index
-     */
-    private static ElasticsearchException tokenNotFoundException() {
-        return new ElasticsearchSecurityException("token not found", RestStatus.NOT_FOUND);
     }
 
     /**

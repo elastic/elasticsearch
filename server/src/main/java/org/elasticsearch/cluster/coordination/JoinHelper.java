@@ -135,7 +135,7 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
-            ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
+            ThreadPool.Names.GENERIC, false, false, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&

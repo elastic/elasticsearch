@@ -337,4 +337,12 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where multi_field_nested.end_date == ''");
         accept(idxr, "foo where multi_field_nested.start_date == 'bar'");
     }
+
+    public void testStringFunctionWithText() {
+        final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
+        assertEquals("1:15: [string(multi_field.english)] cannot operate on field " +
+                "of data type [text]: No keyword/multi-field defined exact matches for [english]; " +
+                "define one or use MATCH/QUERY instead",
+            error(idxr, "process where string(multi_field.english) == 'foo'"));
+    }
 }

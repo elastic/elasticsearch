@@ -31,7 +31,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
     public static final ParseField NODE_ID = new ParseField("node_id");
     public static final ParseField FAILURE_COUNT = new ParseField("failure_count");
     public static final ParseField TYPE = new ParseField("type");
-    public static final ParseField TIMESTAMP = new ParseField("time_stamp");
+    public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
     public static final ConstructingObjectParser<InferenceStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -125,6 +125,10 @@ public class InferenceStats implements ToXContentObject, Writeable {
 
     public Instant getTimeStamp() {
         return timeStamp;
+    }
+
+    public boolean hasStats() {
+        return missingAllFieldsCount > 0 || inferenceCount > 0 || failureCount > 0;
     }
 
     @Override
@@ -221,16 +225,19 @@ public class InferenceStats implements ToXContentObject, Writeable {
             return this;
         }
 
-        public void incMissingFields() {
+        public Accumulator incMissingFields() {
             this.missingFieldsAccumulator.increment();
+            return this;
         }
 
-        public void incInference() {
+        public Accumulator incInference() {
             this.inferenceAccumulator.increment();
+            return this;
         }
 
-        public void incFailure() {
+        public Accumulator incFailure() {
             this.failureCountAccumulator.increment();
+            return this;
         }
 
         public InferenceStats currentStats() {

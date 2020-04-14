@@ -228,8 +228,8 @@ public class NodeJoinTests extends ESTestCase {
         // clone the node before submitting to simulate an incoming join, which is guaranteed to have a new
         // disco node object serialized off the network
         try {
-            final RequestHandlerRegistry<JoinRequest> joinHandler = (RequestHandlerRegistry<JoinRequest>)
-                transport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
+            final RequestHandlerRegistry<JoinRequest> joinHandler = transport.getRequestHandlers()
+                .getHandler(JoinHelper.JOIN_ACTION_NAME);
             final ActionListener<TransportResponse> listener = new ActionListener<>() {
 
                 @Override
@@ -394,8 +394,8 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {
-        final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = (RequestHandlerRegistry<StartJoinRequest>)
-            transport.getRequestHandler(JoinHelper.START_JOIN_ACTION_NAME);
+        final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = transport.getRequestHandlers()
+            .getHandler(JoinHelper.START_JOIN_ACTION_NAME);
         startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(new ActionListener<>() {
             @Override
             public void onResponse(TransportResponse transportResponse) {
@@ -413,9 +413,8 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void handleFollowerCheckFrom(DiscoveryNode node, long term) throws Exception {
-        final RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest> followerCheckHandler =
-            (RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest>)
-            transport.getRequestHandler(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
+        final RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest> followerCheckHandler = transport.getRequestHandlers()
+            .getHandler(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
         final TestTransportChannel channel = new TestTransportChannel(new ActionListener<>() {
             @Override
             public void onResponse(TransportResponse transportResponse) {

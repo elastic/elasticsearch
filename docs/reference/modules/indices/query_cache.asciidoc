@@ -1,5 +1,5 @@
 [[query-cache]]
-=== Node Query Cache
+=== Node query cache settings
 
 The results of queries used in the filter context are cached in the node query 
 cache for fast lookup. There is one queries cache per node that is shared by all 

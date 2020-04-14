@@ -113,6 +113,13 @@ InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
 "params":{"v0":"process_name","v1":"foo"}
 ;
 
+stringFunction
+process where string(pid) == "123";
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"pid","v1":"123"}
+;
+
 indexOfFunction
 process where indexOf(user_name, 'A', 2) > 0
 ;

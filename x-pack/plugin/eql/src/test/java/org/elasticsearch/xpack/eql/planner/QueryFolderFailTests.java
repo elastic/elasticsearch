@@ -93,6 +93,14 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 "line 1:15: argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
     }
 
+    public void testConcatWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where concat(plain_text)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [concat(null, plain_text)] cannot operate on second argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
     public void testEndsWithFunctionWithInexact() {
         VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where endsWith(plain_text, \"foo\") == true"));
@@ -138,7 +146,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [indexOf(plain_text, \"foo\")] cannot operate on first argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
-        
+
         e = expectThrows(VerificationException.class,
                 () -> plan("process where indexOf(\"bla\", plain_text) == 1"));
         msg = e.getMessage();
@@ -187,7 +195,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\n" +
                 "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
     }
-    
+
     public void testSequenceWithBeforeBy() {
         String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
         assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);

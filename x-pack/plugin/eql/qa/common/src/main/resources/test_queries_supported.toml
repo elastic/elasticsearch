@@ -23,7 +23,26 @@ expected_event_ids  = [5]
 
 
 [[queries]]
-query = 'process where string(serial_event_id) = "1"'
+description = "test string concatenation. updated test to avoid case-sensitivity issues"
+query = '''
+process where concat(serial_event_id, '::', null, '::', 3) == '5::::3'
+'''
+expected_event_ids  = [5]
+
+
+[[queries]]
+description = "test string concatenation with null behavior"
+query = '''
+process where concat(serial_event_id, '::', parent_process_path, '::', 3) == '5::::3'
+'''
+expected_event_ids  = [5]
+
+
+[[queries]]
+query = 'process where concat(serial_event_id) = "1"'
 expected_event_ids  = [1]
 
 
+[[queries]]
+query = 'process where string(serial_event_id) = "1"'
+expected_event_ids  = [1]

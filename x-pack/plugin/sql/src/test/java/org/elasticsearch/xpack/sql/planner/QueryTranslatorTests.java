@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 public class QueryTranslatorTests extends ESTestCase {

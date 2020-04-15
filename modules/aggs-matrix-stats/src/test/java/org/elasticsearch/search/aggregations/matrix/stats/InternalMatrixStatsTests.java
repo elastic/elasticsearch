@@ -25,10 +25,12 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -46,6 +48,11 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
     private String[] fields;
     private boolean hasMatrixStatsResults;
+
+    @Override
+    protected Plugin registerPlugin() {
+        return new MatrixAggregationPlugin();
+    }
 
     @Override
     public void setUp() throws Exception {

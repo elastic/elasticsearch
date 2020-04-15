@@ -172,7 +172,7 @@ public enum XContentType {
         if (mediaType != null) {
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find()) {
-                return matcher.group(1) + "/" + matcher.group(3).toLowerCase(Locale.ROOT);
+                return (matcher.group(1) + "/" + matcher.group(3)).toLowerCase(Locale.ROOT);
             }
         }
 

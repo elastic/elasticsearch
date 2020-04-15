@@ -116,10 +116,12 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> map = objectPath.evaluate("error");
         assertThat(map.get("type"), equalTo("compatible_api_headers_combination_exception"));
-        assertThat(map.get("reason"), equalTo("Request with a body and incompatible Accept and Content-Type header values. " +
+        assertThat(map.get("reason"), equalTo("Content-Type and Accept headers have to match when content is present. " +
             "Accept=application/vnd.elasticsearch+json;compatible-with=8 " +
             "Content-Type=application/vnd.elasticsearch+json;compatible-with=7 " +
             "hasContent=true " +
-            "/_cluster/settings {} GET"));
+            "path=/_cluster/settings " +
+            "params={} " +
+            "method=GET"));
     }
 }

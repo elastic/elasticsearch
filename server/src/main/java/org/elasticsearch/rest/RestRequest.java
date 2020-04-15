@@ -146,8 +146,6 @@ public class RestRequest implements ToXContent.Params {
 
     private void addCompatibleParameter(boolean headersValidation) {
         if(headersValidation){
-//            Version compatible = compatibleWithVersion();
-//            if (Version.minimumRestCompatibilityVersion().equals(compatible)) {
             if(isRequestingCompatibility()) {
                 params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY,
                     String.valueOf(Version.minimumRestCompatibilityVersion().major));
@@ -165,104 +163,37 @@ public class RestRequest implements ToXContent.Params {
         byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
 
         if(Version.CURRENT.major < acceptVersion || Version.CURRENT.major - acceptVersion > 1 ){
-//            throw new IllegalStateException("something about only 1 major version support");
             throw new CompatibleApiHeadersCombinationException(
-                String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                        "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                String.format(Locale.ROOT, "Unsupported version provided. " +
+                        "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
                     contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
         }
         if (hasContent()) {
             if(Version.CURRENT.major < contentTypeVersion || Version.CURRENT.major - contentTypeVersion > 1 ){
-//                throw new IllegalStateException("something about only 1 major version support");
                 throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                    String.format(Locale.ROOT, "Unsupported version provided. " +
+                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
                         contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
             }
 
             if (contentTypeVersion != acceptVersion) {
-//                throw new IllegalStateException("something about needing to match");
                 throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
+                    String.format(Locale.ROOT, "Content-Type and Accept headers have to match when content is present. " +
+                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
                         contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
             }
+            // both headers should be versioned or none
+            if ((cVersion == null && aVersion!=null) || (aVersion ==null && cVersion!=null) ){
+                throw new CompatibleApiHeadersCombinationException(
+                    String.format(Locale.ROOT, "Versioning is required on both Content-Type and Accept headers. " +
+                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
+                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+            }
+
+            return contentTypeVersion < Version.CURRENT.major;
         }
 
-        return contentTypeVersion < Version.CURRENT.major || acceptVersion < Version.CURRENT.major;
-    }
-
-    private Version compatibleWithVersion() {
-        String currentVersion = String.valueOf(Version.CURRENT.major);
-        String previousVersion = String.valueOf(Version.CURRENT.major - 1);
-
-        String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
-        String acceptVersion = XContentType.parseVersion(acceptHeader);
-        String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
-        String contentTypeVersion = XContentType.parseVersion(contentTypeHeader);
-
-        //TODO not sure about this one as this does not cover text formats
-        boolean isSupportedMediaTypeAccept = acceptHeader == null || XContentType.parseMediaType(acceptHeader) != null;
-
-        boolean isSupportedMediaTypeContentType = contentTypeHeader == null || XContentType.parseMediaType(contentTypeHeader) != null;
-
-        if (hasContent()) {
-            //both headers versioned
-            if (acceptVersion != null && contentTypeVersion != null) {
-                // both Accept and Content-Type are versioned and set to a previous version
-                if (previousVersion.equals(acceptVersion) && previousVersion.equals(contentTypeVersion)) {
-                    return Version.minimumRestCompatibilityVersion();
-                }
-                // both Accept and Content-Type are versioned to a current version
-                if (currentVersion.equals(acceptVersion) && currentVersion.equals(contentTypeVersion)) {
-                    return Version.CURRENT;
-                }
-                // both headers are versioned but set to incorrect version
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-            // Content-Type is versioned but accept is not present
-            if(previousVersion.equals(contentTypeVersion)
-                && (acceptHeader == null || acceptHeader.equals("*/*") )) {
-                return Version.minimumRestCompatibilityVersion();
-            }
-            // Content type is set (not versioned) but accept is not present. It will be defaulted to JSON
-            if(isSupportedMediaTypeContentType &&
-                (acceptHeader == null || acceptHeader.equals("*/*") )){//TODO when do we default this?
-                return Version.CURRENT;
-            }
-            // both Accept and Content-Type are not a compatible format, but are supported and not empty
-            if (isSupportedMediaTypeContentType && isSupportedMediaTypeAccept &&
-                acceptHeader != null && contentTypeHeader != null) {
-                return Version.CURRENT;
-            }
-        } else {
-            if (acceptVersion != null) {
-                //Accept header is versioned and set to previous
-                if (previousVersion.equals(acceptVersion)) {
-                    return Version.minimumRestCompatibilityVersion();
-                }
-                if (currentVersion.equals(acceptVersion)) {
-                    return Version.CURRENT;
-                }
-                // Accept header is versioned but set to incorrect version
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                            "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-            //Accept header is not versioned but is supported
-            if (isSupportedMediaTypeAccept) {
-                return Version.CURRENT;
-            }
-        }
-
-        throw new CompatibleApiHeadersCombinationException(
-            String.format(Locale.ROOT, "Request with a body and incompatible Accept and Content-Type header values. " +
-                    "Accept=%s Content-Type=%s hasContent=%b %s %s %s", acceptHeader,
-                contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
+        return acceptVersion < Version.CURRENT.major;
     }
 
     private static Map<String, String> params(final String uri) {
@@ -313,7 +244,13 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet(), false);
     }
 
-
+    /**
+     * creates a Rest request when it is not able to pass a validation but a response is needed to be returned.
+     * @param xContentRegistry the content registry
+     * @param httpRequest      the http request
+     * @param httpChannel      the http channel
+     * @return a RestRequest without headers and parameters
+     */
     public static RestRequest requestNoValidation(NamedXContentRegistry xContentRegistry,
                                                   HttpRequest httpRequest,
                                                   HttpChannel httpChannel) {

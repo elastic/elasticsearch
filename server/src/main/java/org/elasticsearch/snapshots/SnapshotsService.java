@@ -432,9 +432,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repository.initializeSnapshot(
                             snapshot.snapshot().getSnapshotId(), snapshot.indices(),
                             metadataForSnapshot(snapshot, clusterState.metadata()));
+                        snapshotCreated = true;
                     }
-
-                    snapshotCreated = true;
 
                     logger.info("snapshot [{}] started", snapshot.snapshot());
                     final Version version =
@@ -505,7 +504,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             logger.warn(() -> new ParameterizedMessage("[{}] failed to create snapshot",
                                 snapshot.snapshot().getSnapshotId()), e);
                             removeSnapshotFromClusterState(snapshot.snapshot(), null, e,
-                                new CleanupAfterErrorListener(snapshot, true, userCreateSnapshotListener, e));
+                                new CleanupAfterErrorListener(snapshot, snapshotCreated, userCreateSnapshotListener, e));
                         }
 
                         @Override
@@ -570,7 +569,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void onFailure(Exception e) {
             e.addSuppressed(this.e);
-            cleanupAfterError(e);
+            if (snapshotCreated) {
+                cleanupAfterError(e);
+            } else {
+                userCreateSnapshotListener.onFailure(e);
+            }
         }
 
         public void onNoLongerMaster() {
@@ -579,29 +582,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         private void cleanupAfterError(Exception exception) {
             threadPool.generic().execute(() -> {
-                if (snapshotCreated) {
-                    final Metadata metadata = clusterService.state().metadata();
-                    repositoriesService.repository(snapshot.snapshot().getRepository())
+                final Metadata metadata = clusterService.state().metadata();
+                repositoriesService.repository(snapshot.snapshot().getRepository())
                         .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                            buildGenerations(snapshot, metadata),
-                            snapshot.startTime(),
-                            ExceptionsHelper.stackTrace(exception),
-                            0,
-                            Collections.emptyList(),
-                            snapshot.repositoryStateId(),
-                            snapshot.includeGlobalState(),
-                            metadataForSnapshot(snapshot, metadata),
-                            snapshot.userMetadata(),
-                            snapshot.version(),
-                            ActionListener.runAfter(ActionListener.wrap(ignored -> {
-                            }, inner -> {
-                                inner.addSuppressed(exception);
-                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot in repository",
-                                    snapshot.snapshot()), inner);
-                            }), () -> userCreateSnapshotListener.onFailure(e)));
-                } else {
-                    userCreateSnapshotListener.onFailure(e);
-                }
+                                buildGenerations(snapshot, metadata),
+                                snapshot.startTime(),
+                                ExceptionsHelper.stackTrace(exception),
+                                0,
+                                Collections.emptyList(),
+                                snapshot.repositoryStateId(),
+                                snapshot.includeGlobalState(),
+                                metadataForSnapshot(snapshot, metadata),
+                                snapshot.userMetadata(),
+                                snapshot.version(),
+                                ActionListener.runAfter(ActionListener.wrap(ignored -> {
+                                }, inner -> {
+                                    inner.addSuppressed(exception);
+                                    logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot in repository",
+                                            snapshot.snapshot()), inner);
+                                }), () -> userCreateSnapshotListener.onFailure(e)));
             });
         }
     }

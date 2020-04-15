@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
@@ -131,7 +132,7 @@ public class TrainedModelStatsService {
     }
 
     void updateStats() {
-        if (clusterState == null || statsQueue.isEmpty()) {
+        if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
         if (verifiedStatsIndexCreated == false) {
@@ -159,8 +160,13 @@ public class TrainedModelStatsService {
                     .get();
                 verifiedStatsIndexCreated = true;
             } catch (Exception e) {
-                logger.error("failure creating ml stats index for storing model stats", e);
-                return;
+                // This exception occurs if, for some reason, the `createStatsIndexAndAliasIfNecessary` fails due to
+                // a concrete index of the alias name already existing. This error is recoverable eventually, but
+                // should NOT cause us to lose statistics.
+                if ((e instanceof InvalidAliasNameException) == false) {
+                    logger.error("failure creating ml stats index for storing model stats", e);
+                    return;
+                }
             }
         }
 
@@ -181,6 +187,9 @@ public class TrainedModelStatsService {
         stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         if (bulkRequest.requests().isEmpty()) {
+            return;
+        }
+        if (stopped) {
             return;
         }
         //TODO debug logging, REMOVE

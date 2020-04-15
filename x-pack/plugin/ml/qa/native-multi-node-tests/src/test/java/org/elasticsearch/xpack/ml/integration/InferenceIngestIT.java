@@ -72,7 +72,6 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        ESRestTestCase.waitForPendingTasks(adminClient());
         client().performRequest(new Request("DELETE", "_ml/inference/test_classification"));
         client().performRequest(new Request("DELETE", "_ml/inference/test_regression"));
         Request loggingSettings = new Request("PUT", "_cluster/settings");
@@ -83,6 +82,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "    }" +
             "}");
         client().performRequest(loggingSettings);
+        ESRestTestCase.waitForPendingTasks(adminClient());
     }
 
     public void testPathologicalPipelineCreationAndDeletion() throws Exception {

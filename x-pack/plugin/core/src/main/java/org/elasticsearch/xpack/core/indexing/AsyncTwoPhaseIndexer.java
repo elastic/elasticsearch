@@ -58,9 +58,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     // throttling
     private volatile float maximumRequestsPerSecond;
-    private long lastSearchStartTimeNanos = 0;
-    private long lastDocCount = 0;
-    private Scheduler.ScheduledCancellable scheduledNextSearch;
+    private volatile long lastSearchStartTimeNanos = 0;
+    private volatile long lastDocCount = 0;
+    private volatile Scheduler.ScheduledCancellable scheduledNextSearch;
 
     protected AsyncTwoPhaseIndexer(ThreadPool threadPool, String executorName, AtomicReference<IndexerState> initialState,
                                    JobPosition initialPosition, JobStats jobStats) {

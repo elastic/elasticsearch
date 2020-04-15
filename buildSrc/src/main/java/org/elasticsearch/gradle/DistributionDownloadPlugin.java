@@ -286,21 +286,19 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     /**
-     * Works out the gradle project name that provides a distribution artifact. The implementation is
-     * complicated by the fact that we're inconsistent regarding where the distribution architecture
-     * appears in the name, and whether a distribution even exists for non-x86 architectures.
+     * Works out the gradle project name that provides a distribution artifact.
      *
      * @param distribution the distribution from which to derive a project name
-     * @return the name of a project. It not the full project path, only the name.
+     * @return the name of a project. It is not the full project path, only the name.
      */
     private static String distributionProjectName(ElasticsearchDistribution distribution) {
+        Platform platform = distribution.getPlatform();
+        Architecture architecture = distribution.getArchitecture();
         String projectName = "";
 
-        if (distribution.getType() == Type.DOCKER) {
-            projectName += distribution.getArchitecture() == Architecture.X64
-                ? ""
-                : distribution.getArchitecture().toString().toLowerCase() + "-";
-        }
+        final String archString = platform == Platform.WINDOWS || architecture == Architecture.X64
+            ? ""
+            : "-" + architecture.toString().toLowerCase();
 
         if (distribution.getFlavor() == Flavor.OSS) {
             projectName += "oss-";
@@ -312,18 +310,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         switch (distribution.getType()) {
             case ARCHIVE:
-                Platform platform = distribution.getPlatform();
-
-                projectName += platform.toString();
-                if (platform != Platform.WINDOWS && distribution.getArchitecture() != Architecture.X64) {
-                    projectName += "-" + distribution.getArchitecture().toString().toLowerCase();
-                }
-
-                projectName += platform == Platform.WINDOWS ? "-zip" : "-tar";
+                projectName += platform.toString() + archString + (platform == Platform.WINDOWS ? "-zip" : "-tar");
                 break;
 
             case DOCKER:
-                projectName += "docker-export";
+                projectName += "docker" + archString + "-export";
                 break;
 
             default:

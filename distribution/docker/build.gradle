@@ -217,7 +217,7 @@ if (tasks.findByName("composePull")) {
  * that they can be easily reloaded, for example into a VM.
  */
 subprojects { Project subProject ->
-  if (subProject.name.contains('docker-export')) {
+  if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
     final String architecture = subProject.name.contains('aarch64-') ? 'aarch64' : 'x64'

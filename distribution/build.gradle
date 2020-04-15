@@ -409,6 +409,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       return copySpec {
         from project.jdks."bundled_${platform}_${architecture}"
         exclude "demo/**"
+        /*
+         * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
+         * it from the build.
+         */
+        if ("darwin".equals(platform)) {
+          exclude "Contents/MacOS"
+        }
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755

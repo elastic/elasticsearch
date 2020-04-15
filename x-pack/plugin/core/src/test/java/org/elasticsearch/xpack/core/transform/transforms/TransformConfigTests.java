@@ -53,6 +53,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            SettingsConfigTests.randomSettingsConfig(),
             null,
             null
         );
@@ -68,6 +69,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomHeaders(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );

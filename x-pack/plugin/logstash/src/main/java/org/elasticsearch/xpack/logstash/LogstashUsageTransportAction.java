@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
 public class LogstashUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final Settings settings;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -46,7 +45,6 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
             actionFilters,
             indexNameExpressionResolver
         );
-        this.settings = settings;
         this.licenseState = licenseState;
     }
 
@@ -58,7 +56,7 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         boolean available = licenseState.isLogstashAllowed();
-        LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available, XPackSettings.LOGSTASH_ENABLED.get(settings));
+        LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available, true);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

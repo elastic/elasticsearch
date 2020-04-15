@@ -33,7 +33,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
             settings,
             null
         );
-        assertThat(featureSet.enabled(), is(enabled));
+        assertThat(featureSet.enabled(), is(true));
 
         LogstashUsageTransportAction usageAction = newUsageAction(settings, false);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -44,8 +44,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(enabled));
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.LOGSTASH_ENABLED });
     }
 
     public void testEnabledDefault() throws Exception {

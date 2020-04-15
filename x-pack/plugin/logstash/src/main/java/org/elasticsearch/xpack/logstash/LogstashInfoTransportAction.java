@@ -11,13 +11,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class LogstashInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -28,7 +26,6 @@ public class LogstashInfoTransportAction extends XPackInfoFeatureTransportAction
         XPackLicenseState licenseState
     ) {
         super(XPackInfoFeatureAction.LOGSTASH.name(), transportService, actionFilters);
-        this.enabled = XPackSettings.LOGSTASH_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -44,7 +41,7 @@ public class LogstashInfoTransportAction extends XPackInfoFeatureTransportAction
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
 }

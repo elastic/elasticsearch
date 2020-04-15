@@ -36,11 +36,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 
 public class EllipticCurveSSLTests extends SecurityIntegTestCase {
+     private static String CURVE;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
-        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
+        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + CURVE + ".pem");
+        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/certificate_" + CURVE + ".pem");
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal)
                 .filter(s -> s.startsWith("xpack.security.transport.ssl") == false || s.equals("xpack.security.transport.ssl.enabled")))
@@ -73,13 +74,13 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
     }
 
     public void testConnection() throws Exception {
-        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-key.pem");
-        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
+        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + CURVE + ".pem");
+        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/certificate_" + CURVE + ".pem");
         PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> null);
         Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
         X509ExtendedKeyManager x509ExtendedKeyManager = CertParsingUtils.keyManager(certs, privateKey, new char[0]);
         SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(new X509ExtendedKeyManager[] { x509ExtendedKeyManager },
+        sslContext.init(new X509ExtendedKeyManager[]{x509ExtendedKeyManager},
             new TrustManager[]{CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(certPath)))},
             new SecureRandom());
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
@@ -112,6 +113,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void assumeECDSACiphersSupported() throws Exception {
+        CURVE = randomFrom("secp256r1", "secp384r1", "secp521r1");
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(null, null, null);
         SSLEngine sslEngine = sslContext.createSSLEngine();

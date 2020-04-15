@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.plugin
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
@@ -144,13 +143,12 @@ class PluginBuildPlugin implements Plugin<Project> {
     private void configurePublishing(Project project, PluginPropertiesExtension extension) {
         // Only configure publishing if applied externally
         if (extension.hasClientJar) {
-            project.plugins.apply(MavenScmPlugin.class)
+            project.pluginManager.apply('nebula.maven-base-publish')
             // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
             project.tasks.withType(Jar) {
                 baseName = baseName + "-client"
             }
             // always configure publishing for client jars
-            project.plugins.apply(MavenScmPlugin.class)
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
             project.tasks.withType(GenerateMavenPom.class).configureEach { GenerateMavenPom generatePOMTask ->
                 generatePOMTask.destination = "${project.buildDir}/distributions/${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"

@@ -33,6 +33,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportSettings;
@@ -106,7 +107,7 @@ public final class ExternalTestCluster extends TestCluster {
             int masterAndDataNodes = 0;
             for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
-                httpAddresses[i] = nodeInfo.getHttp().address().publishAddress().address();
+                httpAddresses[i] = nodeInfo.getInfo(HttpInfo.class).address().publishAddress().address();
                 if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;

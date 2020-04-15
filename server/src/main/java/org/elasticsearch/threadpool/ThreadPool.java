@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,7 +60,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ThreadPool implements Scheduler {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
@@ -260,6 +261,7 @@ public class ThreadPool implements Scheduler {
         return cachedTimeThread.absoluteTimeInMillis();
     }
 
+    @Override
     public ThreadPoolInfo info() {
         return threadPoolInfo;
     }

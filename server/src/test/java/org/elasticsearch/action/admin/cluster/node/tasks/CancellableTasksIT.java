@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -78,6 +79,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55106")
 public class CancellableTasksIT extends ESIntegTestCase {
 
     static int idGenerator = 0;

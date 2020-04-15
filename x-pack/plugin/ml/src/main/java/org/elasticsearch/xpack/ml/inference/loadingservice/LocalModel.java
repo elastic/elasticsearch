@@ -110,14 +110,14 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
             return;
         }
         try {
-            statsAccumulator.get().incInference();
+            statsAccumulator.updateAndGet(InferenceStats.Accumulator::incInference);
             currentInferenceCount.increment();
 
             Model.mapFieldsIfNecessary(fields, defaultFieldMap);
 
             boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
             if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
-                statsAccumulator.get().incMissingFields();
+                statsAccumulator.updateAndGet(InferenceStats.Accumulator::incMissingFields);
                 if (shouldPersistStats) {
                     persistStats();
                 }
@@ -130,7 +130,7 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
             }
             listener.onResponse(inferenceResults);
         } catch (Exception e) {
-            statsAccumulator.get().incFailure();
+            statsAccumulator.updateAndGet(InferenceStats.Accumulator::incFailure);
             listener.onFailure(e);
         }
     }

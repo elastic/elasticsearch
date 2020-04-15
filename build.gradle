@@ -65,6 +65,14 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 }
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
 
+configure(allprojects - project(':distribution:archives:integ-test-zip')) {
+  project.pluginManager.withPlugin('nebula.maven-base-publish') {
+    if (project.pluginManager.hasPlugin('elasticsearch.build') == false) {
+      throw new GradleException("Project ${path} publishes a pom but doesn't apply the build plugin.")
+    }
+  }
+}
+
 subprojects {
   // Default to the apache license
   project.ext.licenseName = 'The Apache Software License, Version 2.0'
@@ -186,8 +194,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/55236" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")

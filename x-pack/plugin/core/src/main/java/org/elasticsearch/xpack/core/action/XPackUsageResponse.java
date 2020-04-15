@@ -19,12 +19,12 @@ public class XPackUsageResponse extends ActionResponse {
 
     private final List<XPackFeatureSet.Usage> usages;
 
-    public XPackUsageResponse(final StreamInput in) throws IOException {
-        usages = in.readNamedWriteableList(XPackFeatureSet.Usage.class);
-    }
-
     public XPackUsageResponse(final List<XPackFeatureSet.Usage> usages) {
         this.usages = Objects.requireNonNull(usages);
+    }
+
+    public XPackUsageResponse(final StreamInput in) throws IOException {
+        usages = in.readNamedWriteableList(XPackFeatureSet.Usage.class);
     }
 
     public List<XPackFeatureSet.Usage> getUsages() {

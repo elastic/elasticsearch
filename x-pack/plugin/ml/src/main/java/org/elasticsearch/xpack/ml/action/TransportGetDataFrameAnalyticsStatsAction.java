@@ -213,6 +213,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             multiSearchResponse -> {
                 for (MultiSearchResponse.Item itemResponse : multiSearchResponse.getResponses()) {
                     if (itemResponse.isFailure()) {
+                        logger.error("Item failure during multi search: " + itemResponse.getFailureMessage(), itemResponse.getFailure());
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
                         return;
                     } else {

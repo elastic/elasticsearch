@@ -76,8 +76,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         for (int i = between(10, 10_000); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
-        // TODO NORELEASE no dummy docs since that includes deletes, yet we always copy the .liv file in peer recovery
-        indexRandom(true, false, indexRequestBuilders);
+        indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
         assertThat(
             client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),

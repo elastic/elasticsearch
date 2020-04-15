@@ -78,7 +78,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
+    public static class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
         public GeoShapeFieldType() {
             super();
         }

@@ -25,6 +25,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ import java.util.Map;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
-public class GeoShapeWithDocValuesFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
+public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     public static final String CONTENT_TYPE = "geo_shape";
 
 
@@ -147,7 +147,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractGeometryFieldMappe
         }
     }
 
-    public static final class GeoShapeWithDocValuesFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
+    public static final class GeoShapeWithDocValuesFieldType extends GeoShapeFieldMapper.GeoShapeFieldType {
         public GeoShapeWithDocValuesFieldType() {
             super();
         }
@@ -171,19 +171,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractGeometryFieldMappe
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
-                + name() + "]");
-        }
-
-        @Override
         public GeoShapeWithDocValuesFieldType clone() {
             return new GeoShapeWithDocValuesFieldType(this);
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
         }
     }
 
@@ -202,8 +191,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractGeometryFieldMappe
         @Override
         @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Map<String, Object> params = new HashMap<>();
             AbstractGeometryFieldMapper.Builder builder = (AbstractGeometryFieldMapper.Builder) super.parse(name, node, parserContext);
+            Map<String, Object> params = new HashMap<>();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -228,17 +217,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractGeometryFieldMappe
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
         this.docValues = docValues;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
-            LegacyGeoShapeFieldMapper legacy = (LegacyGeoShapeFieldMapper) mergeWith;
-            throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
-                "using [BKD] strategy cannot be merged with " + "[" + legacy.fieldType().typeName() + "] with [" +
-                legacy.fieldType().strategy() + "] strategy");
-        }
-        super.doMerge(mergeWith);
     }
 
     public Explicit<Boolean> docValues() {

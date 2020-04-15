@@ -3,18 +3,144 @@
     "_meta": {
       "version" : "${xpack.ml.version}"
     },
+    "dynamic": false,
     "properties" : {
-      "type" : {
-        "type" : "keyword"
+      "iteration": {
+        "type": "integer"
+      },
+      "hyperparameters": {
+        "properties": {
+          "class_assignment_objective": {
+            "type": "keyword"
+          },
+          "downsample_factor": {
+            "type": "double"
+          },
+          "eta": {
+            "type": "double"
+          },
+          "eta_growth_rate_per_tree": {
+            "type": "double"
+          },
+          "feature_bag_fraction": {
+            "type": "double"
+          },
+          "max_attempts_to_add_tree": {
+            "type": "integer"
+          },
+          "max_optimization_rounds_per_hyperparameter": {
+            "type": "integer"
+          },
+          "max_trees": {
+            "type": "integer"
+          },
+          "num_folds": {
+            "type": "integer"
+          },
+          "num_splits_per_feature": {
+            "type": "integer"
+          },
+          "regularization_depth_penalty_multiplier": {
+            "type": "double"
+          },
+          "regularization_leaf_weight_penalty_multiplier": {
+            "type": "double"
+          },
+          "regularization_soft_tree_depth_limit": {
+            "type": "double"
+          },
+          "regularization_soft_tree_depth_tolerance": {
+            "type": "double"
+          },
+          "regularization_tree_size_penalty_multiplier": {
+            "type": "double"
+          }
+        }
       },
       "job_id" : {
         "type" : "keyword"
       },
-      "timestamp" : {
-        "type" : "date"
+      "parameters": {
+        "properties": {
+          "compute_feature_influence": {
+            "type": "boolean"
+          },
+          "feature_influence_threshold": {
+            "type": "double"
+          },
+          "method": {
+            "type": "keyword"
+          },
+          "n_neighbors": {
+            "type": "integer"
+          },
+          "outlier_fraction": {
+            "type": "double"
+          },
+          "standardization_enabled": {
+            "type": "boolean"
+          }
+        }
       },
       "peak_usage_bytes" : {
         "type" : "long"
+      },
+      "model_id": {
+        "type": "keyword"
+      },
+      "node_id": {
+        "type": "keyword"
+      },
+      "inference_count": {
+        "type": "long"
+      },
+      "failure_count": {
+        "type": "long"
+      },
+      "missing_all_fields_count": {
+        "type": "long"
+      },
+      "skipped_docs_count": {
+        "type": "long"
+      },
+      "timestamp" : {
+        "type" : "date"
+      },
+      "timing_stats": {
+        "properties": {
+          "elapsed_time": {
+            "type": "long"
+          },
+          "iteration_time": {
+            "type": "long"
+          }
+        }
+      },
+      "test_docs_count": {
+        "type": "long"
+      },
+      "training_docs_count": {
+        "type": "long"
+      },
+      "type" : {
+        "type" : "keyword"
+      },
+      "validation_loss": {
+        "properties": {
+          "fold_values": {
+            "properties": {
+              "fold": {
+                "type": "integer"
+              },
+              "values": {
+                "type": "double"
+              }
+            }
+          },
+          "loss_type": {
+            "type": "keyword"
+          }
+        }
       }
     }
   }

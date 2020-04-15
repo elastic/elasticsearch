@@ -130,28 +130,6 @@ setup:
         items: ["123", "lmnop"]
 
 ---
-"Test invalid param combinations":
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        size: 1
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-        size: 1
-
----
 "Test create filter given invalid filter_id":
   - do:
       catch: bad_request

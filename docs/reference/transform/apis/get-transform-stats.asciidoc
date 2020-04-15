@@ -28,10 +28,14 @@ Retrieves usage information for {transforms}.
 [[get-transform-stats-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_transform` 
-cluster privileges to use this API. The built-in `transform_user` role has these 
-privileges. For more information, see <<security-privileges>> and 
-<<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* `monitor_transform` 
+
+The built-in `transform_user` role has this privilege. 
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[get-transform-stats-desc]]
@@ -67,6 +71,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 (Optional, integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
+[role="child_attributes"]
 [[get-transform-stats-response]]
 ==== {api-response-body-title}
 
@@ -74,105 +79,176 @@ The API returns an array of statistics objects for {transforms}, which are
 sorted by the `id` value in ascending order. All of these properties are
 informational; you cannot update their values.
 
+//Begin checkpointing
 `checkpointing`::
 (object) Contains statistics about <<transform-checkpoints,checkpoints>>.
-`checkpointing`.`changes_last_detected_at`:::
-(date) The timestamp when changes were last detected in the source indices.
-`checkpointing`.`last`:::
++
+.Properties of `checkpointing`
+[%collapsible%open]
+====
+`changes_last_detected_at`:::
+(date)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
+
+//Begin checkpointing.last
+`last`:::
 (object) Contains statistics about the last completed checkpoint. 
-`checkpointing`.`last`.`checkpoint`::::
++
+.Properties of `last`
+[%collapsible%open]
+=====
+`checkpoint`::::
 (integer) The sequence number for the checkpoint.
-`checkpointing`.`last`.`time_upper_bound_millis`::::
+`time_upper_bound_millis`::::
 (date) When using time-based synchronization, this timestamp indicates the
 upper bound of data that is included in the checkpoint.
-`checkpointing`.`last`.`timestamp_millis`::::
+`timestamp_millis`::::
 (date) The timestamp of the checkpoint, which indicates when the checkpoint
 was created.
-`checkpointing`.`next`:::
+=====
+//End checkpointing.last
+
+//Begin checkpointing.next
+`next`:::
 (object) Contains statistics about the next checkpoint that is currently in
 progress. This object appears only when the {transform} `state` is `indexing`.
-`checkpointing`.`next`.`checkpoint`::::
++
+.Properties of `next`
+[%collapsible%open]
+=====
+`checkpoint`::::
 (integer) The sequence number for the checkpoint.
-`checkpointing`.`next`.`checkpoint_progress`::::
+
+`checkpoint_progress`::::
 (object) Contains statistics about the progress of the checkpoint. For example,
 it lists the `total_docs`, `docs_remaining`, `percent_complete`,
 `docs_processed`, and `docs_indexed`. This information is available only for
 batch {transforms} and the first checkpoint of {ctransforms}.
-`checkpointing`.`next`.`time_upper_bound_millis`::::
+
+`time_upper_bound_millis`::::
 (date) When using time-based synchronization, this timestamp indicates the
 upper bound of data that is included in the checkpoint.
-`checkpointing`.`next`.`timestamp_millis`::::
+
+`timestamp_millis`::::
 (date) The timestamp of the checkpoint, which indicates when the checkpoint was
 created.
+=====
+//End checkpointing.next
+
+`operations_behind`:::
+(integer) The number of operations that have occurred on the source index but
+have not been applied to the destination index yet. A high number can indicate
+that the {transform} is failing to keep up. 
+====
+//End checkpointing
 
 `id`::
 (string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
+//Begin node
 `node`::
 (object) For started {transforms} only, the node upon which the {transform} is
 started.
-`node`.`attributes`:::
++
+.Properties of `node`
+[%collapsible%open]
+====
+`attributes`:::
 (object) A list of attributes for the node.
-`node`.`ephemeral_id`:::
+
+`ephemeral_id`:::
 (string) The node ephemeral ID.
-`node`.`id`:::
+
+`id`:::
 (string) The unique identifier of the node. For example, "0-o0tOoRTwKFZifatTWKNw".
-`node`.`name`:::
+
+`name`:::
 (string) The node name. For example, `0-o0tOo`.
-`node`.`transport_address`:::
+
+`transport_address`:::
 (string) The host and port where transport HTTP connections are accepted. For
 example, `127.0.0.1:9300`.
-`state`::
-(string) The status of the {transform}, which can be one of the following values:
-+
---
-* `aborting`: The {transform} is aborting.
-* `failed`: The {transform} failed. For more information about the failure,
-check the reason field.
-* `indexing`: The {transform} is actively processing data and creating new
-documents.
-* `started`: The {transform} is running but not actively indexing data.
-* `stopped`: The {transform} is stopped.
-* `stopping`: The {transform} is stopping.
---
+====
+//End node
 
+`reason`::
+(string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
+
+`state`::
+(string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
+
+//Begin stats
 `stats`::
 (object) An object that provides statistical information about the {transform}.
-`stats`.`documents_indexed`:::
-(long) The number of documents that have been indexed into the destination index
-for the {transform}.
-`stats`.`documents_processed`:::
-(long) The number of documents that have been processed from the source index of
-the {transform}.
-`stats`.`exponential_avg_checkpoint_duration_ms`:::
-(double) Exponential moving average of the duration of the checkpoint, in milliseconds.
-`stats`.`exponential_avg_documents_indexed`:::
-(double) Exponential moving average of the number of new documents that have been
-indexed.
-`stats`.`exponential_avg_documents_processed`:::
-(double) Exponential moving average of the number of documents that have been
-processed.
-`stats`.`index_failures`:::
-(long) The number of indexing failures.
-`stats`.`index_time_in_ms`:::
-(long) The amount of time spent indexing, in milliseconds.
-`stats`.`index_total`:::
-(long) The number of indices created.
-`stats`.`pages_processed`:::
-(long) The number of search or bulk index operations processed. Documents are
-processed in batches instead of individually.
-`stats`.`search_failures`:::
-(long) The number of search failures. 
-`stats`.`search_time_in_ms`:::
-(long) The amount of time spent searching, in milliseconds.
-`stats`.`search_total`:::
-(long) The number of search operations on the source index for the {transform}. 
-`stats`.`trigger_count`:::
-(long) The number of times the {transform} has been triggered by the scheduler.
-For example, the scheduler triggers the {transform} indexer to check for updates
-or ingest new data at an interval specified in the
-<<put-transform-request-body,`frequency` property>>.
++
+.Properties of `stats`
+[%collapsible%open]
+====
+
+`documents_indexed`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+
+`documents_processed`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]
+
+`exponential_avg_checkpoint_duration_ms`:::
+(double)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
+
+`exponential_avg_documents_indexed`:::
+(double)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
+
+`exponential_avg_documents_processed`:::
+(double)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
+
+`index_failures`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-failures]
+
+`index_time_in_ms`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
+
+`index_total`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
+
+`pages_processed`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
+
+`processing_time_in_ms`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
+
+`processing_total`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-total]
+
+`search_failures`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]
+
+`search_time_in_ms`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
+
+`search_total`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-total]
+
+`trigger_count`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
+====
+//End stats
   
 [[get-transform-stats-response-codes]]
 ==== {api-response-codes-title}
@@ -193,12 +269,11 @@ GET _transform/_stats?from=5&size=10
 --------------------------------------------------
 // TEST[skip:todo]
 
-The following example gets usage information for the `ecommerce_transform`
-{transform}:
+The following example gets usage information for the {transform}:
 
 [source,console]
 --------------------------------------------------
-GET _transform/ecommerce_transform/_stats
+GET _transform/ecommerce-customer-transform/_stats
 --------------------------------------------------
 // TEST[skip:todo]
 
@@ -210,48 +285,39 @@ The API returns the following results:
   "count" : 1,
   "transforms" : [
     {
-      "id" : "ecommerce_transform",
-      "state" : "indexing",
+      "id" : "ecommerce-customer-transform",
+      "state" : "started",
+      "node" : {
+        "id" : "cpTIGMsVQ8Gqwqlxxxxxxx",
+        "name" : "my.home",
+        "ephemeral_id" : "5-L21nFsQxxxxxxxxxx-xx",
+        "transport_address" : "127.0.0.1:9300",
+        "attributes" : { }
+      },
       "stats" : {
-        "pages_processed" : 2,
-        "documents_processed" : 1220,
-        "documents_indexed" : 13,
-        "trigger_count" : 1,
-        "index_time_in_ms" : 19,
-        "index_total" : 1,
+        "pages_processed" : 78,
+        "documents_processed" : 6027,
+        "documents_indexed" : 68,
+        "trigger_count" : 168,
+        "index_time_in_ms" : 412,
+        "index_total" : 20,
         "index_failures" : 0,
-        "search_time_in_ms" : 52,
-        "search_total" : 2,
+        "search_time_in_ms" : 353,
+        "search_total" : 78,
         "search_failures" : 0,
-        "exponential_avg_checkpoint_duration_ms" : 77,
-        "exponential_avg_documents_indexed" : 2,
-        "exponential_avg_documents_processed" : 12
+        "processing_time_in_ms" : 8,
+        "processing_total" : 78,
+        "exponential_avg_checkpoint_duration_ms" : 97.30637923893185,
+        "exponential_avg_documents_indexed" : 2.2064915040974062,
+        "exponential_avg_documents_processed" : 179.89419945785045
       },
       "checkpointing" : {
         "last" : {
-          "checkpoint" : 100,
-          "timestamp_millis" : 1561740252497,
-          "time_upper_bound_millis" : 1561740192497
+          "checkpoint" : 20,
+          "timestamp_millis" : 1585344558220,
+          "time_upper_bound_millis" : 1585344498220
         },
-        "next" : {
-          "checkpoint" : 101,
-          "position" : {
-            "indexer_position" : {
-              "hashtag" : "abcd1234"
-            },
-            "buckets_position" : {
-              "hashtag" : "abcd5678"
-            }
-          },
-          "checkpoint_progress" : {
-            "documents_processed": 100,
-            "documents_indexed": 1
-          },
-          "changes_last_detected_at": 1561740629170,
-          "timestamp_millis" : 1561740629172,
-          "time_upper_bound_millis" : 1561740569172
-        },
-        "operations_behind": 27000
+        "changes_last_detected_at" : 1585344558219
       }
     }
   ]

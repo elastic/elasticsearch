@@ -15,10 +15,10 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -49,10 +49,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_IN_SOURCE_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_SINGLE_INDEX_VALIDATION;
@@ -99,7 +99,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     );
 
     static {
-        IndexMetaData source1 = IndexMetaData.builder(SOURCE_1)
+        IndexMetadata source1 = IndexMetadata.builder(SOURCE_1)
             .settings(
                 Settings.builder()
                     .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -107,10 +107,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             )
-            .putAlias(AliasMetaData.builder(SOURCE_1_ALIAS).build())
-            .putAlias(AliasMetaData.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
+            .putAlias(AliasMetadata.builder(SOURCE_1_ALIAS).build())
+            .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
-        IndexMetaData source2 = IndexMetaData.builder(SOURCE_2)
+        IndexMetadata source2 = IndexMetadata.builder(SOURCE_2)
             .settings(
                 Settings.builder()
                     .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -118,10 +118,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             )
-            .putAlias(AliasMetaData.builder(DEST_ALIAS).build())
-            .putAlias(AliasMetaData.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
+            .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
+            .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
-        IndexMetaData aliasedDest = IndexMetaData.builder(ALIASED_DEST)
+        IndexMetadata aliasedDest = IndexMetadata.builder(ALIASED_DEST)
             .settings(
                 Settings.builder()
                     .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -129,15 +129,15 @@ public class SourceDestValidatorTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             )
-            .putAlias(AliasMetaData.builder(DEST_ALIAS).build())
-            .putAlias(AliasMetaData.builder(ALIAS_READ_WRITE_DEST).build())
+            .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
+            .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).build())
             .build();
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        state.metaData(
-            MetaData.builder()
-                .put(IndexMetaData.builder(source1).build(), false)
-                .put(IndexMetaData.builder(source2).build(), false)
-                .put(IndexMetaData.builder(aliasedDest).build(), false)
+        state.metadata(
+            Metadata.builder()
+                .put(IndexMetadata.builder(source1).build(), false)
+                .put(IndexMetadata.builder(source2).build(), false)
+                .put(IndexMetadata.builder(aliasedDest).build(), false)
         );
         CLUSTER_STATE = state.build();
     }
@@ -598,7 +598,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new IndexNameExpressionResolver(),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true)),
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -628,7 +628,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new IndexNameExpressionResolver(),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true)),
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -649,7 +649,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new IndexNameExpressionResolver(),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true)),
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -671,7 +671,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new IndexNameExpressionResolver(),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithTrialLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true)),
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -695,7 +695,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new IndexNameExpressionResolver(),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true)),
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
@@ -722,7 +722,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new IndexNameExpressionResolver(),
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true)),
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
                 new String[] { "non_existing_remote:" + "SOURCE_1" },
                 "dest",
                 "node_id",

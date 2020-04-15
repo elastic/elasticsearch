@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -46,8 +47,15 @@ public class Classification implements DataFrameAnalysis {
 
     private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
 
+    private static final String NUM_CLASSES = "num_classes";
+
     private static final ConstructingObjectParser<Classification, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Classification, Void> STRICT_PARSER = createParser(false);
+
+    /**
+     * The max number of classes classification supports
+     */
+    public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
 
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Classification, Void> parser = new ConstructingObjectParser<>(
@@ -135,7 +143,7 @@ public class Classification implements DataFrameAnalysis {
         dependentVariable = in.readString();
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
         } else {
             classAssignmentObjective = ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL;
@@ -187,7 +195,7 @@ public class Classification implements DataFrameAnalysis {
         out.writeString(dependentVariable);
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeEnum(classAssignmentObjective);
         }
         out.writeOptionalVInt(numTopClasses);
@@ -218,7 +226,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
+    public Map<String, Object> getParams(FieldInfo fieldInfo) {
         Map<String, Object> params = new HashMap<>();
         params.put(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         params.putAll(boostedTreeParams.getParams());
@@ -227,26 +235,45 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
-        String predictionFieldType = getPredictionFieldType(extractedFields.get(dependentVariable));
+        String predictionFieldType = getPredictionFieldTypeParamString(getPredictionFieldType(fieldInfo.getTypes(dependentVariable)));
         if (predictionFieldType != null) {
             params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
         }
+        params.put(NUM_CLASSES, fieldInfo.getCardinality(dependentVariable));
+        params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         return params;
     }
 
-    private static String getPredictionFieldType(Set<String> dependentVariableTypes) {
+    private static String getPredictionFieldTypeParamString(PredictionFieldType predictionFieldType) {
+        if (predictionFieldType == null) {
+            return null;
+        }
+        switch(predictionFieldType)
+        {
+            case NUMBER:
+                // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
+                return "int";
+            case STRING:
+                return "string";
+            case BOOLEAN:
+                return "bool";
+            default:
+                return null;
+        }
+    }
+
+    public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {
         if (dependentVariableTypes == null) {
             return null;
         }
         if (Types.categorical().containsAll(dependentVariableTypes)) {
-            return "string";
+            return PredictionFieldType.STRING;
         }
         if (Types.bool().containsAll(dependentVariableTypes)) {
-            return "bool";
+            return PredictionFieldType.BOOLEAN;
         }
         if (Types.discreteNumerical().containsAll(dependentVariableTypes)) {
-            // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-            return "int";
+            return PredictionFieldType.NUMBER;
         }
         return null;
     }
@@ -272,15 +299,17 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
         // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
-        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, 2));
+        return Collections.singletonList(FieldCardinalityConstraint.between(dependentVariable, 2, MAX_DEPENDENT_VARIABLE_CARDINALITY));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + ".feature_importance", MapUtils.featureImportanceMapping());
         Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
         if ((dependentVariableMapping instanceof Map) == false) {
-            return Collections.emptyMap();
+            return additionalProperties;
         }
         Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
         // If the source field is an alias, fetch the concrete field that the alias points to.
@@ -291,9 +320,8 @@ public class Classification implements DataFrameAnalysis {
         // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
         // Hence, we need to check the "instanceof" condition again.
         if ((dependentVariableMapping instanceof Map) == false) {
-            return Collections.emptyMap();
+            return additionalProperties;
         }
-        Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
         additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
         return additionalProperties;

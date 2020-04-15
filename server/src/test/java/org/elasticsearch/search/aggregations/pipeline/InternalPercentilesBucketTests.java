@@ -46,30 +46,28 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalPercentilesBucketTests extends InternalAggregationTestCase<InternalPercentilesBucket> {
 
     @Override
-    protected InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, randomPercents(), true);
+    protected InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, randomPercents(), true);
     }
 
-    private static InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, double[] percents, boolean keyed) {
+    private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
+            double[] percents, boolean keyed) {
         final double[] percentiles = new double[percents.length];
         for (int i = 0; i < percents.length; ++i) {
             percentiles[i] = frequently() ? randomDouble() : Double.NaN;
         }
-        return createTestInstance(name, pipelineAggregators, metaData, percents, percentiles, keyed);
+        return createTestInstance(name, metadata, percents, percentiles, keyed);
     }
 
-    private static InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, double[] percents, double[] percentiles, boolean keyed) {
+    private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
+            double[] percents, double[] percentiles, boolean keyed) {
         DocValueFormat format = randomNumericDocValueFormat();
-        return new InternalPercentilesBucket(name, percents, percentiles, keyed, format, pipelineAggregators, metaData);
+        return new InternalPercentilesBucket(name, percents, percentiles, keyed, format, metadata);
     }
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
     }
 
     @Override
@@ -103,8 +101,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
      */
     public void testPercentOrder() {
         final double[] percents =  new double[]{ 0.50, 0.25, 0.01, 0.99, 0.60 };
-        InternalPercentilesBucket aggregation = createTestInstance("test", Collections.emptyList(),
-            Collections.emptyMap(), percents, randomBoolean());
+        InternalPercentilesBucket aggregation = createTestInstance("test", Collections.emptyMap(), percents, randomBoolean());
         Iterator<Percentile> iterator = aggregation.iterator();
         for (double percent : percents) {
             assertTrue(iterator.hasNext());
@@ -118,7 +115,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         final double[] percents =  new double[]{ 0.1, 0.2, 0.3};
         final double[] percentiles =  new double[]{ 0.10, 0.2};
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new InternalPercentilesBucket("test", percents,
-                percentiles, randomBoolean(), DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap()));
+                percentiles, randomBoolean(), DocValueFormat.RAW, Collections.emptyMap()));
         assertEquals("The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
                 e.getMessage());
     }
@@ -141,8 +138,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         }
         boolean keyed = randomBoolean();
 
-        InternalPercentilesBucket agg = createTestInstance("test", Collections.emptyList(), Collections.emptyMap(),
-            percents, percentiles, keyed);
+        InternalPercentilesBucket agg = createTestInstance("test", Collections.emptyMap(), percents, percentiles, keyed);
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -190,8 +186,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         double[] percents = extractPercents(instance);
         double[] percentiles = extractPercentiles(instance);
         DocValueFormat formatter = instance.formatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -205,17 +200,17 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             percentiles[percentiles.length - 1] = randomDouble();
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, pipelineAggregators, metaData);
+        return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, metadata);
     }
 
     private double[] extractPercentiles(InternalPercentilesBucket instance) {

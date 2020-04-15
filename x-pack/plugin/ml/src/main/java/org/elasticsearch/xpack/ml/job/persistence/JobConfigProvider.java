@@ -51,7 +51,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -499,7 +499,7 @@ public class JobConfigProvider {
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param excludeDeleting If true exclude jobs marked as deleting
-     * @param tasksCustomMetaData The current persistent task metadata.
+     * @param tasksCustomMetadata The current persistent task metadata.
      *                            For resolving jobIds that have tasks, but for some reason, don't have configs
      * @param allowMissingConfigs If a job has a task, but is missing a config, allow the ID to be expanded via the existing task
      * @param listener The expanded job Ids listener
@@ -507,7 +507,7 @@ public class JobConfigProvider {
     public void expandJobsIds(String expression,
                               boolean allowNoJobs,
                               boolean excludeDeleting,
-                              @Nullable PersistentTasksCustomMetaData tasksCustomMetaData,
+                              @Nullable PersistentTasksCustomMetadata tasksCustomMetadata,
                               boolean allowMissingConfigs,
                               ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
@@ -524,7 +524,7 @@ public class JobConfigProvider {
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
-        Set<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetaData);
+        Set<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetadata);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -558,10 +558,10 @@ public class JobConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)} but
+     * The same logic as {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
      * the full anomaly detector job configuration is returned.
      *
-     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)}
+     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -619,7 +619,7 @@ public class JobConfigProvider {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)} it is not an error
+     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} it is not an error
      * if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
@@ -743,8 +743,8 @@ public class JobConfigProvider {
         ));
     }
 
-    static Set<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetaData tasksMetaData) {
-        Set<String> openjobs = MlTasks.openJobIds(tasksMetaData);
+    static Set<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+        Set<String> openjobs = MlTasks.openJobIds(tasksMetadata);
         if (openjobs.isEmpty()) {
             return Collections.emptySet();
         }

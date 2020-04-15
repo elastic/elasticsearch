@@ -61,7 +61,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `decompress_definition`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=decompress-definition]
+Specifies whether the included model definition should be returned as a JSON map 
+(`true`) or in a custom compressed format (`false`). Defaults to `true`.
 
 `from`::
 (Optional, integer) 
@@ -69,7 +70,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=from]
 
 `include_model_definition`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=include-model-definition]
+Specifies whether the model definition is returned in the response. Defaults 
+to `false`. When `true`, only a single model must match the ID patterns 
+provided. Otherwise, a bad request is returned.
 
 `size`::
 (Optional, integer) 
@@ -79,13 +82,66 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
 
-
+[role="child_attributes"]
 [[ml-get-inference-results]]
 ==== {api-response-body-title}
 
 `trained_model_configs`::
-(array) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=trained-model-configs]
+(array)
+An array of trained model resources, which are sorted by the `model_id` value in 
+ascending order.
++
+.Properties of trained model resources
+[%collapsible%open]
+====
+`created_by`:::
+(string)
+Information on the creator of the trained model.
+
+`create_time`:::
+(<<time-units,time units>>)
+The time when the trained model was created.
+
+`default_field_map` :::
+(object)
+A string to string object that contains the default field map to use
+when inferring against the model. For example, data frame analytics
+may train the model on a specific multi-field `foo.keyword`.
+The analytics job would then supply a default field map entry for
+`"foo" : "foo.keyword"`.
++
+Any field map described in the inference configuration takes precedence.
+
+`estimated_heap_memory_usage_bytes`:::
+(integer)
+The estimated heap usage in bytes to keep the trained model in memory.
+
+`estimated_operations`:::
+(integer)
+The estimated number of operations to use the trained model.
+
+`license_level`:::
+(string)
+The license level of the trained model.
+
+`metadata`:::
+(object)
+An object containing metadata about the trained model. For example, models 
+created by {dfanalytics} contain `analysis_config` and `input` objects.
+
+`model_id`:::
+(string)
+Identifier for the trained model.
+
+`tags`:::
+(string)
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+
+`version`:::
+(string)
+The {es} version number in which the trained model was created.
+====
+
 
 [[ml-get-inference-response-codes]]
 ==== {api-response-codes-title}

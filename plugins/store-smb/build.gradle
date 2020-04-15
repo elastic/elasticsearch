@@ -21,4 +21,8 @@ esplugin {
   description 'The Store SMB plugin adds support for SMB stores.'
   classname 'org.elasticsearch.plugin.store.smb.SMBStorePlugin'
 }
-
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'index', 'indices', 'get'
+  }
+}

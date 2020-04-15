@@ -34,7 +34,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -54,53 +53,27 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
     };
 
-    private final List<SiblingPipelineAggregator> topLevelPipelineAggregators;
-
     /**
      * Constructs a new aggregation.
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
-        this.topLevelPipelineAggregators = Collections.emptyList();
-    }
-
-    /**
-     * Constructs a new aggregation providing its {@link InternalAggregation}s and {@link SiblingPipelineAggregator}s
-     */
-    public InternalAggregations(List<InternalAggregation> aggregations, List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
-        super(aggregations);
-        this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);
     }
 
     public InternalAggregations(StreamInput in) throws IOException {
         super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        this.topLevelPipelineAggregators = in.readList(
-            stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-        out.writeNamedWriteableList(topLevelPipelineAggregators);
+        out.writeNamedWriteableList(getInternalAggregations());
     }
 
     /**
      * Make a mutable copy of the aggregation results.
-     * <p>
-     * IMPORTANT: The copy doesn't include any pipeline aggregations, if there are any.
      */
     public List<InternalAggregation> copyResults() {
         return new ArrayList<>(getInternalAggregations());
-    }
-
-    /**
-     * Returns the top-level pipeline aggregators.
-     * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
-     * become part of the list of {@link InternalAggregation}s.
-     */
-    public List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
-        return topLevelPipelineAggregators;
     }
 
     @SuppressWarnings("unchecked")
@@ -139,13 +112,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.reducePipelines(agg, context))
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
                 .collect(Collectors.toList());
 
-            List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
-            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
-                InternalAggregation newAgg
-                    = pipelineAggregator.doReduce(new InternalAggregations(reducedInternalAggs), context);
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+                SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+                InternalAggregation newAgg = sib.doReduce(new InternalAggregations(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
             return new InternalAggregations(reducedInternalAggs);
@@ -163,7 +135,6 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (aggregationsList.isEmpty()) {
             return null;
         }
-        List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
 
         // first we collect all aggregations of the same type and list them together
         Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
@@ -186,6 +157,6 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             reducedAggregations.add(first.reduce(aggregations, context));
         }
 
-        return new InternalAggregations(reducedAggregations, topLevelPipelineAggregators);
+        return new InternalAggregations(reducedAggregations);
     }
 }

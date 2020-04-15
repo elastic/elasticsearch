@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 
@@ -53,7 +53,7 @@ public abstract class NameResolver {
      */
     public SortedSet<String> expand(String expression, boolean allowNoMatch) {
         SortedSet<String> result = new TreeSet<>();
-        if (MetaData.ALL.equals(expression) || Regex.isMatchAllPattern(expression)) {
+        if (Metadata.ALL.equals(expression) || Regex.isMatchAllPattern(expression)) {
             result.addAll(nameSet());
         } else {
             String[] tokens = Strings.tokenizeToStringArray(expression, ",");

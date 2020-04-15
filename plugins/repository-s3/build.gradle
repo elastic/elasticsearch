@@ -30,7 +30,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.636'
+  'aws': '1.11.749'
 ]
 
 dependencies {
@@ -43,7 +43,7 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jacksondatabind}"
+  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   compile "joda-time:joda-time:${versions.joda}"
@@ -179,7 +179,7 @@ if (useFixture) {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
     setting 's3.client.integration_test_permanent.endpoint', minioAddress, IGNORE_VALUE
-    plugin file(tasks.bundlePlugin.archiveFile)
+    plugin tasks.bundlePlugin.archiveFile
   }
 
   integTest.runner {
@@ -214,7 +214,12 @@ processTestResources {
   MavenFilteringHack.filter(it, expansions)
 }
 
-testFixtures.useFixture(':test:fixtures:s3-fixture')
+[
+  's3-fixture',
+  's3-fixture-with-session-token',
+  's3-fixture-with-ec2',
+  's3-fixture-with-ecs',
+].forEach { fixture -> testFixtures.useFixture(':test:fixtures:s3-fixture', fixture) }
 
 def fixtureAddress = { fixture ->
   assert useFixture: 'closure should not be used without a fixture'
@@ -264,7 +269,7 @@ if (useFixture) {
 
   testClusters.integTestECS {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture-with-ecs')}" }, IGNORE_VALUE
-    plugin file(tasks.bundlePlugin.archiveFile)
+    plugin tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture-with-ecs')}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 

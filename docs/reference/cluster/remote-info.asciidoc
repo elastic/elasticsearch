@@ -51,13 +51,13 @@ by the configured remote cluster alias.
     Maximum number of connections maintained for the remote cluster when sniff
     mode is configured.
 
-`address`::
+`proxy_address`::
     Address for remote connections when proxy mode is configured.
 
-`num_sockets_connected`::
+`num_proxy_sockets_connected`::
     Number of open socket connections to the remote cluster when proxy mode
     is configured.
 
-`max_socket_connections`::
+`max_proxy_socket_connections`::
     The maximum number of socket connections to the remote cluster when proxy
     mode is configured.

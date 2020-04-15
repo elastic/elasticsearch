@@ -92,7 +92,7 @@ PUT my_index2/_doc/1 <2>
 ------------------------------
 // TEST[catch:bad_request]
 
-<1> Routing is required for `_doc` documents.
+<1> Routing is required for all documents.
 <2> This index request throws a `routing_missing_exception`.
 
 ==== Unique IDs with custom routing

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -144,14 +144,14 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(MetaData.ALL)))).thenReturn(future);
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL)))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
         final long interval = randomNonNegativeLong();
 
         final List<MonitoringDoc> monitoringDocs = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 

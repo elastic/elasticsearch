@@ -27,12 +27,14 @@ import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -60,6 +62,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -89,6 +92,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             "_first",
             Integer.toString(randomInt()),
             randomInt());
+
+
 
 
     public FieldSortBuilder randomFieldSortBuilder() {
@@ -560,6 +565,55 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
                     assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
                     assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                }
+            }
+        }
+    }
+
+    public void testIsBottomSortShardDisjoint() throws Exception {
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(5, 10);
+            long maxValue = -1;
+            long minValue = Integer.MAX_VALUE;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, new KeywordAnalyzer())) {
+                FieldSortBuilder fieldSort = SortBuilders.fieldSort("custom-date");
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { 0L }, new DocValueFormat[] { DocValueFormat.RAW })));
+                }
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    long value = randomLongBetween(1, Integer.MAX_VALUE);
+                    doc.add(new LongPoint("custom-date", value));
+                    doc.add(new SortedNumericDocValuesField("custom-date", value));
+                    writer.addDocument(doc);
+                    maxValue = Math.max(maxValue, value);
+                    minValue = Math.min(minValue, value);
+                }
+                try (DirectoryReader reader = writer.getReader()) {
+                    QueryShardContext context = createMockShardContext(new IndexSearcher(reader));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    fieldSort.order(SortOrder.DESC);
+                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { maxValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    fieldSort.setNestedSort(new NestedSortBuilder("empty"));
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, new DocValueFormat[] { DocValueFormat.RAW })));
+                    fieldSort.setNestedSort(null);
+                    fieldSort.missing("100");
+                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
+                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, new DocValueFormat[] { DocValueFormat.RAW })));
                 }
             }
         }

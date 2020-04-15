@@ -49,7 +49,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void onNewScrollContext(SearchContext searchContext) {
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
         }
     }
@@ -60,7 +60,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void validateSearchContext(SearchContext searchContext, TransportRequest request) {
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             if (searchContext.scrollContext() != null) {
                 final Authentication originalAuth = searchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
                 final Authentication current = securityContext.getAuthentication();
@@ -99,7 +99,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
         final boolean sameUser = samePrincipal && sameRealmType;
         if (sameUser == false) {
-            auditTrailService.accessDenied(requestId, current, action, request, authorizationInfo);
+            auditTrailService.get().accessDenied(requestId, current, action, request, authorizationInfo);
             throw new SearchContextMissingException(id);
         }
     }

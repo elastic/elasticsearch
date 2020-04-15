@@ -28,57 +28,41 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Implements a field who's value is null if the prefix is null rather than throwing an NPE.
  */
-public class PSubNullSafeField extends AStoreable {
-    private AStoreable guarded;
+public class PSubNullSafeField extends AExpression {
 
-    public PSubNullSafeField(Location location, AStoreable guarded) {
+    protected final AExpression guarded;
+
+    public PSubNullSafeField(Location location, AExpression guarded) {
         super(location);
         this.guarded = guarded;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         if (input.write) {
-            throw createError(new IllegalArgumentException("Can't write to null safe reference"));
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a null safe operation [?.]"));
         }
+
         Input guardedInput = new Input();
         guardedInput.read = input.read;
-        Output guardedOutput = guarded.analyze(scriptRoot, scope, guardedInput);
+        Output guardedOutput = guarded.analyze(classNode, scriptRoot, scope, guardedInput);
         output.actual = guardedOutput.actual;
+
         if (output.actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
 
-        return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return guarded.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        guarded.updateActual(actual);
-    }
-
-    @Override
-    NullSafeSubNode write(ClassNode classNode) {
         NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
 
-        nullSafeSubNode.setChildNode(guarded.write(classNode));
+        nullSafeSubNode.setChildNode(guardedOutput.expressionNode);
 
         nullSafeSubNode.setLocation(location);
         nullSafeSubNode.setExpressionType(output.actual);
 
-        return nullSafeSubNode;
-    }
+        output.expressionNode = nullSafeSubNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(guarded);
+        return output;
     }
 }

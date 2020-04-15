@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
+public class AsyncSearchSecurityIT extends ESRestTestCase {
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
      */
@@ -126,16 +127,16 @@ public class AsyncSearchSecurityIT extends AsyncSearchRestTestCase {
         final Request request = new Request("POST", indexName + "/_async_search");
         setRunAsHeader(request, user);
         request.addParameter("q", query);
-        request.addParameter("wait_for_completion", waitForCompletion.toString());
+        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
         // we do the cleanup explicitly
-        request.addParameter("clean_on_completion", "false");
+        request.addParameter("keep_on_completion", "true");
         return client().performRequest(request);
     }
 
     static Response getAsyncSearch(String id, String user) throws IOException {
         final Request request = new Request("GET",  "/_async_search/" + id);
         setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion", "0ms");
+        request.addParameter("wait_for_completion_timeout", "0ms");
         return client().performRequest(request);
     }
 

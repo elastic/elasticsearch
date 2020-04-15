@@ -1,6 +1,5 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
@@ -44,3 +43,8 @@ dependencyLicenses {
 shadowJar {
   relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'com.fasterxml.jackson.databind.ObjectMapper',
+  'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+)

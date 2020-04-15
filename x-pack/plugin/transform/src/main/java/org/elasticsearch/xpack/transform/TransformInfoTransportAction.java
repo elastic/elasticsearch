@@ -51,8 +51,10 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
         TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(),
         TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(),
         TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName(),
+        TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(),
         TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
         TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
+        TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(),
         TransformIndexerStats.INDEX_FAILURES.getPreferredName(),
         TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
         TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
@@ -105,13 +107,15 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
             statisticsList.get(3).longValue(),  // numInvocations
             statisticsList.get(4).longValue(),  // indexTime
             statisticsList.get(5).longValue(),  // searchTime
-            statisticsList.get(6).longValue(),  // indexTotal
-            statisticsList.get(7).longValue(),  // searchTotal
-            statisticsList.get(8).longValue(),  // indexFailures
-            statisticsList.get(9).longValue(), // searchFailures
-            statisticsList.get(10), // exponential_avg_checkpoint_duration_ms
-            statisticsList.get(11), // exponential_avg_documents_indexed
-            statisticsList.get(12)  // exponential_avg_documents_processed
+            statisticsList.get(6).longValue(),  // processingTime
+            statisticsList.get(7).longValue(),  // indexTotal
+            statisticsList.get(8).longValue(),  // searchTotal
+            statisticsList.get(9).longValue(),  // processingTotal
+            statisticsList.get(10).longValue(),  // indexFailures
+            statisticsList.get(11).longValue(), // searchFailures
+            statisticsList.get(12), // exponential_avg_checkpoint_duration_ms
+            statisticsList.get(13), // exponential_avg_documents_indexed
+            statisticsList.get(14)  // exponential_avg_documents_processed
         );
     }
 

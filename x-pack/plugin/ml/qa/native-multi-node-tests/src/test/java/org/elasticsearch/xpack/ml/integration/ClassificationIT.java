@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.google.common.collect.Ordering;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -39,8 +39,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -48,7 +50,10 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
@@ -56,6 +61,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final String BOOLEAN_FIELD = "boolean-field";
     private static final String NUMERICAL_FIELD = "numerical-field";
     private static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
+    private static final String TEXT_FIELD = "text-field";
     private static final String KEYWORD_FIELD = "keyword-field";
     private static final String NESTED_FIELD = "outer-field.inner-field";
     private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
@@ -75,7 +81,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -107,7 +112,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
-            assertThat(resultsObject.keySet().stream().filter(k -> k.startsWith("feature_importance.")).findAny().isPresent(), is(true));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -154,6 +161,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(getFieldValue(resultsObject, "is_training"), is(true));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), equalTo(300L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
@@ -222,6 +235,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(trainingRowsCount, greaterThan(0));
         assertThat(nonTrainingRowsCount, greaterThan(0));
 
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), lessThan(300L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(300L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
+
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
@@ -258,6 +279,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             () -> testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
                 "classification_training_percent_is_50_double", NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES, null));
         assertThat(e.getMessage(), startsWith("invalid types [double] for required field [numerical-field];"));
+    }
+
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsText() throws Exception {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
+                "classification_training_percent_is_50_text", TEXT_FIELD, KEYWORD_FIELD_VALUES, null));
+        assertThat(e.getMessage(), startsWith("field [text-field] of type [text] is non-aggregatable"));
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean() throws Exception {
@@ -325,11 +354,17 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testDependentVariableCardinalityTooHighError() throws Exception {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
-        // Index one more document with a class different than the two already used.
-        client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
-            .source(KEYWORD_FIELD, "fox")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
-            .actionGet();
+
+        // Index enough documents to have more classes than the allowed limit
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
         registerAnalytics(config);
@@ -337,7 +372,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(jobId));
         assertThat(e.status().getStatus(), equalTo(400));
-        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [2] distinct values but there were at least [3]"));
+        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
     }
 
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
@@ -466,6 +501,60 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55221")
+    public void testSetUpgradeMode_ExistingTaskGetsUnassigned() throws Exception {
+        initialize("classification_set_upgrade_mode");
+        indexData(sourceIndex, 300, 0, KEYWORD_FIELD);
+
+        assertThat(upgradeMode(), is(false));
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        registerAnalytics(config);
+        putAnalytics(config);
+        startAnalytics(jobId);
+        assertThat(analyticsTaskList(), hasSize(1));
+        assertThat(analyticsAssignedTaskList(), hasSize(1));
+
+        setUpgradeModeTo(true);
+        assertThat(analyticsTaskList(), hasSize(1));
+        assertThat(analyticsAssignedTaskList(), is(empty()));
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
+        assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
+        assertThat(analyticsStats.getNode(), is(nullValue()));
+
+        setUpgradeModeTo(false);
+        assertThat(analyticsTaskList(), hasSize(1));
+        assertBusy(() -> assertThat(analyticsAssignedTaskList(), hasSize(1)));
+
+        analyticsStats = getAnalyticsStats(jobId);
+        assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+
+        waitUntilAnalyticsIsStopped(jobId);
+    }
+
+    public void testSetUpgradeMode_NewTaskDoesNotStart() throws Exception {
+        initialize("classification_set_upgrade_mode_task_should_not_start");
+        indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
+
+        assertThat(upgradeMode(), is(false));
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        setUpgradeModeTo(true);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(config.getId()));
+        assertThat(e.status(), is(equalTo(RestStatus.TOO_MANY_REQUESTS)));
+        assertThat(
+            e.getMessage(),
+            is(equalTo("Cannot perform cluster:admin/xpack/ml/data_frame/analytics/start action while upgrade mode is enabled")));
+
+        assertThat(analyticsTaskList(), is(empty()));
+        assertThat(analyticsAssignedTaskList(), is(empty()));
+    }
+
     public void testDeleteExpiredData_RemovesUnusedState() throws Exception {
         initialize("classification_delete_expired_data");
         indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
@@ -515,6 +604,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 BOOLEAN_FIELD, "type=boolean",
                 NUMERICAL_FIELD, "type=double",
                 DISCRETE_NUMERICAL_FIELD, "type=integer",
+                TEXT_FIELD, "type=text",
                 KEYWORD_FIELD, "type=keyword",
                 NESTED_FIELD, "type=keyword",
                 ALIAS_TO_KEYWORD_FIELD, "type=alias,path=" + KEYWORD_FIELD,
@@ -530,6 +620,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
                 DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
+                TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
                 KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
                 NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
@@ -546,6 +637,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             if (DISCRETE_NUMERICAL_FIELD.equals(dependentVariable) == false) {
                 source.addAll(
                     List.of(DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
+            }
+            if (TEXT_FIELD.equals(dependentVariable) == false) {
+                source.addAll(List.of(TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
@@ -595,7 +689,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Assert that all the class probabilities lie within [0, 1] interval.
         classProbabilities.forEach(p -> assertThat(p, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
         // Assert that the top classes are listed in the order of decreasing scores.
-        assertThat(Ordering.natural().reverse().isOrdered(classScores), is(true));
+        double prevScore = classScores.get(0);
+        for (int i = 1; i < classScores.size(); ++i) {
+            double score = classScores.get(i);
+            assertThat("class " + i, score, lessThanOrEqualTo(prevScore));
+        }
     }
 
     private <T> void assertEvaluation(String dependentVariable, List<T> dependentVariableValues, String predictedClassField) {

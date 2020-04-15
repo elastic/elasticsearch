@@ -96,6 +96,7 @@ import org.junit.BeforeClass;
 
 public class QueryTranslatorTests extends ESTestCase {
 
+    private static SqlFunctionRegistry sqlFunctionRegistry;
     private static SqlParser parser;
     private static Analyzer analyzer;
     private static Optimizer optimizer;
@@ -104,19 +105,14 @@ public class QueryTranslatorTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         parser = new SqlParser();
+        sqlFunctionRegistry = new SqlFunctionRegistry();
 
         Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
-    }
-
-    @AfterClass
-    public static void destroy() {
-        parser = null;
-        analyzer = null;
     }
 
     private LogicalPlan plan(String sql) {
@@ -1827,7 +1823,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testErrorMessageForMatrixStatsWithScalars() {
-        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
             String aggFunction = fd.name();
             if (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
                 SqlIllegalArgumentException siae = expectThrows(
@@ -1843,7 +1839,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testScriptsInsideAggregateFunctions() {
-        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
             if (AggregateFunction.class.isAssignableFrom(fd.clazz()) && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)) {
                 String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1";
                 if (fd.clazz() == Percentile.class || fd.clazz() == PercentileRank.class) {
@@ -1881,7 +1877,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testScriptsInsideAggregateFunctions_WithHaving() {
-        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
             if (AggregateFunction.class.isAssignableFrom(fd.clazz())
                     && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)
                     // First/Last don't support having: https://github.com/elastic/elasticsearch/issues/37938
@@ -1934,7 +1930,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testScriptsInsideAggregateFunctions_ExtendedStats() {
-        for (FunctionDefinition fd : new SqlFunctionRegistry().listFunctions()) {
+        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
             if (ExtendedStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
                 String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1)";
                 PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunction + " FROM test");

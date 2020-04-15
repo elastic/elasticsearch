@@ -673,6 +673,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
 
+        assertAcked(
+            client().admin().indices().prepareAliases()
+                .addAlias("index", "alias", new MatchNoneQueryBuilder())
+                .get()
+        );
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
+            new AliasFilter(new MatchNoneQueryBuilder(), "alias"), 1f, -1, null, null)).canMatch());
+
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         service.executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {

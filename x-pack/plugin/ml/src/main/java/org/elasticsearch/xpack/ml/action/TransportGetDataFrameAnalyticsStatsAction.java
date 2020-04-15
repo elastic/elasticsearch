@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -213,7 +214,10 @@ public class TransportGetDataFrameAnalyticsStatsAction
             multiSearchResponse -> {
                 for (MultiSearchResponse.Item itemResponse : multiSearchResponse.getResponses()) {
                     if (itemResponse.isFailure()) {
-                        logger.error("Item failure during multi search: " + itemResponse.getFailureMessage(), itemResponse.getFailure());
+                        logger.error(
+                            new ParameterizedMessage(
+                                "[{}] Item failure encountered during multi search: {}", configId, itemResponse.getFailureMessage()),
+                            itemResponse.getFailure());
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
                         return;
                     } else {

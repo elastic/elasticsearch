@@ -128,12 +128,15 @@ task copyKeystore(type: Sync) {
 }
 
 elasticsearch_distributions {
-  Flavor.values().each { distroFlavor ->
-    "docker_$distroFlavor" {
-      flavor = distroFlavor
-      type = 'docker'
-      version = VersionProperties.getElasticsearch()
-      failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
+  Architecture.values().each { eachArchitecture ->
+    Flavor.values().each { distroFlavor ->
+      "docker_$distroFlavor${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
+        architecture = eachArchitecture
+        flavor = distroFlavor
+        type = 'docker'
+        version = VersionProperties.getElasticsearch()
+        failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
+      }
     }
   }
 }
@@ -214,7 +217,7 @@ if (tasks.findByName("composePull")) {
  * that they can be easily reloaded, for example into a VM.
  */
 subprojects { Project subProject ->
-  if (subProject.name.contains('docker-export')) {
+  if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
     final String architecture = subProject.name.contains('aarch64-') ? 'aarch64' : 'x64'
@@ -235,6 +238,8 @@ subprojects { Project subProject ->
     }
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
+
+    exportDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
 
     artifacts.add('default', file(tarFile)) {
       type 'tar'

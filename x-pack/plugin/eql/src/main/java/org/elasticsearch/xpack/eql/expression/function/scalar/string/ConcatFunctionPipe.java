@@ -33,7 +33,7 @@ public class ConcatFunctionPipe extends Pipe {
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
         List<Pipe> newValues = new ArrayList<>(values.size());
-        for (Pipe v: values) {
+        for (Pipe v : values) {
             newValues.add(v.resolveAttributes(resolver));
         }
 
@@ -46,7 +46,7 @@ public class ConcatFunctionPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        for (Pipe p: values) {
+        for (Pipe p : values) {
             if (p.supportedByAggsOnlyQuery() == false) {
                 return false;
             }
@@ -56,7 +56,7 @@ public class ConcatFunctionPipe extends Pipe {
 
     @Override
     public boolean resolved() {
-        for (Pipe p: values) {
+        for (Pipe p : values) {
             if (p.resolved() == false) {
                 return false;
             }
@@ -66,7 +66,7 @@ public class ConcatFunctionPipe extends Pipe {
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        for (Pipe v: values) {
+        for (Pipe v : values) {
             v.collectFields(sourceBuilder);
         }
     }

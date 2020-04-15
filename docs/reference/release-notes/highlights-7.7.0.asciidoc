@@ -8,6 +8,17 @@
 //Installation and Upgrade Guide
 
 // tag::notable-highlights[]
+[float]
+=== Significant reduction of heap usage of segments
+
+This release of Elasticsearch significantly reduces the amount of heap memory
+that is needed to keep Lucene segments open. In addition to helping with cluster
+stability, this helps reduce costs by storing much more data per node before
+hitting memory limits.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
 [discrete]
 === {transforms-cap}
 

@@ -34,7 +34,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;

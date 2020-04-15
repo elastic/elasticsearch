@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
@@ -33,7 +33,6 @@ import org.elasticsearch.painless.ir.ListSubShortcutNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.ir.StaticNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -217,26 +216,21 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            Output indexOutput;
-                            PainlessCast indexCast;
-
                             if ((input.read || input.write)
                                     && (input.read == false || getter != null) && (input.write == false || setter != null)) {
-                                Input indexInput = new Input();
-                                indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                                EString index = new EString(location, value);
-                                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
-                                indexCast = AnalyzerCaster.getLegalCast(index.location,
-                                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
-
                                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
                                         "Illegal map shortcut for type [" + targetCanonicalTypeName + "]."));
                             }
 
+                            ConstantNode constantNode = new ConstantNode();
+                            constantNode.setLocation(location);
+                            constantNode.setExpressionType(String.class);
+                            constantNode.setConstant(value);
+
                             MapSubShortcutNode mapSubShortcutNode = new MapSubShortcutNode();
-                            mapSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
+                            mapSubShortcutNode.setChildNode(constantNode);
                             mapSubShortcutNode.setLocation(location);
                             mapSubShortcutNode.setExpressionType(output.actual);
                             mapSubShortcutNode.setGetter(getter);
@@ -245,6 +239,14 @@ public class EDot extends AExpression {
                         }
 
                         if (List.class.isAssignableFrom(prefixOutput.actual)) {
+                            int index;
+
+                            try {
+                                index = Integer.parseInt(value);
+                            } catch (NumberFormatException nfe) {
+                                throw createError(new IllegalArgumentException("invalid list index [" + value + "]"));
+                            }
+
                             getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
                             setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "set", 2);
 
@@ -264,26 +266,21 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            Output indexOutput;
-                            PainlessCast indexCast;
-
                             if ((input.read || input.write)
                                     && (input.read == false || getter != null) && (input.write == false || setter != null)) {
-                                ENumeric index = new ENumeric(location, value, 10);
-                                Input indexInput = new Input();
-                                indexInput.expected = int.class;
-                                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
-                                indexCast = AnalyzerCaster.getLegalCast(index.location,
-                                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
-
                                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
                                         "Illegal list shortcut for type [" + targetCanonicalTypeName + "]."));
                             }
 
+                            ConstantNode constantNode = new ConstantNode();
+                            constantNode.setLocation(location);
+                            constantNode.setExpressionType(int.class);
+                            constantNode.setConstant(index);
+
                             ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
-                            listSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
+                            listSubShortcutNode.setChildNode(constantNode);
                             listSubShortcutNode.setLocation(location);
                             listSubShortcutNode.setExpressionType(output.actual);
                             listSubShortcutNode.setGetter(getter);

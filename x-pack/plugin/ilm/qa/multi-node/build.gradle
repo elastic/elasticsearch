@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -15,6 +17,9 @@ integTest.runner {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath

@@ -92,11 +92,11 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 13 is required to build Elasticsearch. You must have a JDK 13 installation
+JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 13 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 13 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
@@ -121,9 +121,9 @@ You can access Elasticsearch with:
 
 ### Importing the project into IntelliJ IDEA
 
-Elasticsearch builds using Java 13. When importing into IntelliJ you will need
+Elasticsearch builds using Java 14. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"13"** so that the project import will detect it automatically. For more details
+"14"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will

@@ -10,6 +10,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -114,6 +116,11 @@ public class CCRFeatureSet implements XPackFeatureSet {
             } else {
                 lastFollowTimeInMillis = null;
             }
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_6_7_0;
         }
 
         public int getNumberOfFollowerIndices() {

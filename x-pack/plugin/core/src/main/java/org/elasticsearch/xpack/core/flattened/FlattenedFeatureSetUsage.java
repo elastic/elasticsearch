@@ -29,6 +29,11 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
         this.fieldCount = fieldCount;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
+    }
+
     int fieldCount() {
         return fieldCount;
     }

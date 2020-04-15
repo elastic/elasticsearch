@@ -1,0 +1,14 @@
+#!/bin/sh
+
+cat <<'EOF'
+
+'curl' is not provided in this image. You can use 'wget' to fetch resources.
+
+If you need to provide HTTP basic authentication, you can do the following:
+
+    AUTH="$(echo username:password | base64)"
+    wget --header "Authentication: Basic $AUTH" http://localhost:9200/
+
+EOF
+
+exit 1

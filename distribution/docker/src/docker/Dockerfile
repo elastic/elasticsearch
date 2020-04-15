@@ -11,14 +11,15 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM --platform=${platform} scratch AS builder
-
-ADD ${base_image_tar} /
+# We could use `scratch` and `ADD ${base_image_tar} /` like we do for the
+# final image, but we need `curl` if the source line is fetching a remote
+# artifact, and that isn't include in the final image.
+FROM ${builder_image} AS builder
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-RUN addgroup -g 1000 elasticsearch && \
-    adduser -D -u 1000 -G elasticsearch -h /usr/share/elasticsearch elasticsearch
+RUN groupadd -g 1000 elasticsearch && \
+    adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
 
 WORKDIR /usr/share/elasticsearch
 
@@ -39,10 +40,13 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 FROM --platform=${platform} scratch
 
+# Setup the initial filesystem.
 ADD ${base_image_tar} /
 
 ENV ELASTIC_CONTAINER true
 
+# Most of the utilities are provided with Busybox, hence the different user
+# management commands here compared to the builder image.
 RUN addgroup -g 1000 elasticsearch && \
     adduser -D -u 1000 -G elasticsearch -h /usr/share/elasticsearch elasticsearch && \
     addgroup elasticsearch root && \
@@ -60,8 +64,9 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY bin/curl /usr/bin/curl
 
-# 1. Sync the user and group of /etc/passwd
+# 1. Sync the user and group permissions of /etc/passwd
 # 2. Set correct permissions of the entrypoint
 # 3. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
 RUN chmod g=u /etc/passwd && \
@@ -93,7 +98,7 @@ LABEL org.label-schema.build-date="${build_date}" \
 USER elasticsearch:root
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
-# calls the actual entrypoint for us, and correctly forwards signals.
+# calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 
 # Dummy overridable parameter parsed by entrypoint

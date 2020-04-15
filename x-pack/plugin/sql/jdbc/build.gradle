@@ -5,7 +5,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 description = 'JDBC driver for Elasticsearch'
 archivesBaseName = "x-pack-sql-jdbc"
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // does not depend on core, so only jdk and http signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -678,10 +678,12 @@ public class TokenServiceTests extends ESTestCase {
             tokensIndex = securityMainIndex;
             when(securityTokensIndex.isAvailable()).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
+            when(securityTokensIndex.freeze()).thenReturn(securityTokensIndex);
         } else {
             tokensIndex = securityTokensIndex;
             when(securityMainIndex.isAvailable()).thenReturn(false);
             when(securityMainIndex.indexExists()).thenReturn(false);
+            when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();

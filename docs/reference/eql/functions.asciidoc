@@ -278,8 +278,10 @@ field datatypes:
 Substring to search for.
 
 If this argument is `null` or the `<source>` string does not contain this
-substring, the function returns `null`. Empty strings (`""`) return the
-`<start_pos>`, which defaults to `0`.
+substring, the function returns `null`.
+
+If the `<start_pos>` is positive, empty strings (`""`) return the `<start_pos>`.
+Otherwise, empty strings return `0`.
 
 If using a field as the argument, this parameter supports only the following
 field datatypes:
@@ -297,7 +299,7 @@ field datatypes:
 Starting position for matching. The function will not return positions before
 this one. Defaults to `0`.
 
-Positions are zero-indexed. Negative offsets are supported.
+Positions are zero-indexed. Negative offsets are treated as zero (`0`).
 
 If this argument is `null` or higher than the length of the `<source>` string,
 the function returns `null`.

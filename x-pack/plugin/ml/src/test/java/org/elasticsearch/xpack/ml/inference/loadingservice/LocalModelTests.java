@@ -141,7 +141,7 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             modelStatsService);
-        Map<String, Object> fields = new HashMap<>() {{
+        Map<String, Object> fields = new HashMap<String, Object>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
             put("categorical", "dog");

@@ -10,6 +10,7 @@ experimental::[]
 
 * <<eql-fn-between>>
 * <<eql-fn-endswith>>
+* <<eql-fn-indexof>>
 * <<eql-fn-length>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
@@ -204,6 +205,114 @@ field datatypes:
 --
 
 *Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-indexof]]
+=== `indexOf`
+
+Returns the first position of a provided substring in a source string.
+
+If an optional start position is provided, this function returns the first
+occurrence of the substring at or after the start position.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// url.domain = "subdomain.example.com"
+indexOf(url.domain, ".")        // returns 9
+indexOf(url.domain, ".", 9)     // returns 9
+indexOf(url.domain, ".", 10)    // returns 17
+indexOf(url.domain, ".", -6)    // returns 9
+
+// empty strings
+indexOf("", "")                 // returns 0
+indexOf(url.domain, "")         // returns 0
+indexOf(url.domain, "", 9)      // returns 9
+indexOf(url.domain, "", 10)     // returns 10
+indexOf(url.domain, "", -6)     // returns 0
+
+// missing substrings
+indexOf(url.domain, "z")        // returns null
+indexOf(url.domain, "z", 9)     // returns null
+
+// start position is higher than string length
+indexOf(url.domain, ".", 30)    // returns null
+
+// null handling
+indexOf(null, ".", 9)           // returns null
+indexOf(url.domain, null, 9)    // returns null
+indexOf(url.domain, ".", null)  // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+indexOf(<source>, <substring>[, <start_pos>])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for.
+
+If this argument is `null` or the `<source>` string does not contain this
+substring, the function returns `null`.
+
+If the `<start_pos>` is positive, empty strings (`""`) return the `<start_pos>`.
+Otherwise, empty strings return `0`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<start_pos>`::
++
+--
+(Optional, integer or `null`)
+Starting position for matching. The function will not return positions before
+this one. Defaults to `0`.
+
+Positions are zero-indexed. Negative offsets are treated as `0`.
+
+If this argument is `null` or higher than the length of the `<source>` string,
+the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+<<number,numeric>> field datatypes:
+
+* `long`
+* `integer`
+* `short`
+* `byte`
+--
+
+*Returns:* integer or `null`
 ====
 
 [discrete]

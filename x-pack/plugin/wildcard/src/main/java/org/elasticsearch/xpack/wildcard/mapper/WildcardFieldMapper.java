@@ -246,23 +246,25 @@ public class WildcardFieldMapper extends FieldMapper {
                         ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
             }
             failIfNotIndexed();
+            //Unlike the doc values, ngram index has extra string-start and end characters. 
+            String ngramPattern = TOKEN_START_OR_END_CHAR + value 
+                    + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;            
             RegExp regex =new RegExp(value, flags);
             try {
-                Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
                 // TODO always lower case the ngram index and value? Could help with 
                 // a) speed (less ngram variations to explore on disk) and 
                 // b) use less disk space
-                if(value.startsWith(".*")){
+                String openStart = TOKEN_START_OR_END_CHAR + ".*";
+                if(ngramPattern.startsWith(openStart)){
                     //".*" causes too many imagined beginnings in the Automaton to trace through.
                     //Rewrite to cut to the concrete path after .* to extract required ngrams
                     // TODO ideally we would trim the automaton paths rather than the regex string
-                    String ngramValue = value.substring(2);
-                    RegExp ngramRegex =new RegExp(ngramValue, flags);
-                    Automaton ngramAutomaton = ngramRegex.toAutomaton(maxDeterminizedStates);
-                    return automatonToQuery(ngramValue, value, ngramAutomaton, automaton);
-                } else {
-                    return automatonToQuery(value, automaton);
+                    ngramPattern = ngramPattern.substring(openStart.length());
                 }
+                Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
+                RegExp ngramRegex =new RegExp(ngramPattern, flags);
+                Automaton ngramAutomaton = ngramRegex.toAutomaton(maxDeterminizedStates);
+                return automatonToQuery(ngramPattern, value, ngramAutomaton, automaton);
             } catch (AutomatonTooComplexException e) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,
                         "Regex /%s/ too complex for maxStatesTraced setting [%s].  Use a simpler regex or raise maxStatesTraced.", regex,
@@ -300,10 +302,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 builder.add(ngramQuery, Occur.SHOULD);                                
             }
             return builder.build();
-        }
-
-        protected Query automatonToQuery(String value, Automaton automaton) {
-            return automatonToQuery(value,  value, automaton, automaton);
         }
 
         // The ngram and dv values can differ - null chars added to string beginning and ends in ngram index and used by

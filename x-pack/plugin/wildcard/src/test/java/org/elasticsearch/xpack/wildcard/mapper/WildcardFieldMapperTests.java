@@ -264,7 +264,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             ".*ietcipasswd.*", ".*jetcjpasswd.*"};
         for (String regex : regexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, 0, 20000, null, MOCK_QSC);
-            assertTrue(wildcardFieldQuery instanceof BooleanQuery);
+            assertTrue(regex+" pattern not accelerated", wildcardFieldQuery instanceof BooleanQuery);
         }
     }    
     

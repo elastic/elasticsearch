@@ -238,24 +238,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
                                                IndexNameExpressionResolver expressionResolver) {
         List<Object> components = new ArrayList<>();
 
-        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
-        final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
-            try {
-                final SSLService sslService = sslServiceFuture.get();
-                logger.debug("reloading ssl configuration [{}]", sslConfiguration);
-                sslService.reloadSSLContext(sslConfiguration);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException e) {
-                throw new ElasticsearchException("failed to obtain ssl service", e);
-            }
-        };
-        SSLConfigurationReloader.startWatching(environment, reloadConsumer, resourceWatcherService, sslConfigurations.values());
-        final SSLService sslService = new SSLService(environment, sslConfigurations);
-        sslServiceFuture.complete(sslService);
-        setSslService(sslService);
-
+        final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
 
@@ -358,5 +341,38 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
         return settings;
+    }
+
+    /**
+     * Handles the creation of the SSLService along with the necessary actions to enable reloading
+     * of SSLContexts when configuration files change on disk.
+     */
+    private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
+        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+
+        // In order to avoid missing any updates to the configuration files that back an
+        // SSLConfiguration, we start watching the files prior to reading them during the
+        // construction of the SSLService. Since we need the SSLService to reload, a future is used
+        // to provide access. Blocking access is used to obtain the SSLService but this will
+        // only block if a file is changed during the construction of the SSLService during node
+        // startup.
+        final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                final SSLService sslService = sslServiceFuture.get();
+                logger.debug("reloading ssl configuration [{}]", sslConfiguration);
+                sslService.reloadSSLContext(sslConfiguration);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException e) {
+                throw new ElasticsearchException("failed to obtain ssl service", e);
+            }
+        };
+
+        SSLConfigurationReloader.startWatching(environment, reloadConsumer, resourceWatcherService, sslConfigurations.values());
+        final SSLService sslService = new SSLService(environment, sslConfigurations);
+        sslServiceFuture.complete(sslService);
+        setSslService(sslService);
+        return sslService;
     }
 }

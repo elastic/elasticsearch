@@ -42,14 +42,13 @@ public class RollupInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
     }
 
-    public void testEnabledSetting() {
+    public void testEnabledSettingIsANoOp() {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.rollup.enabled", enabled);
         RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ROLLUP_ENABLED } );
+        assertThat(featureSet.enabled(), is(true));
     }
 
     public void testEnabledDefault() {

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final Settings settings;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -34,7 +33,6 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
                                       Settings settings, XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.ROLLUP.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.settings = settings;
         this.licenseState = licenseState;
     }
 
@@ -44,7 +42,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         boolean available = licenseState.isRollupAllowed();
         // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
         RollupFeatureSetUsage usage =
-            new RollupFeatureSetUsage(available, XPackSettings.ROLLUP_ENABLED.get(settings));
+            new RollupFeatureSetUsage(available, true);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

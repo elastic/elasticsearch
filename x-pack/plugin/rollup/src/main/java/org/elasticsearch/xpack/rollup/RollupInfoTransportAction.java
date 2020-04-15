@@ -17,14 +17,12 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class RollupInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
     public RollupInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
                                      Settings settings, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.ROLLUP.name(), transportService, actionFilters);
-        this.enabled = XPackSettings.ROLLUP_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -40,7 +38,7 @@ public class RollupInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
 }

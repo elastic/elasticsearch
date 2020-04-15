@@ -56,7 +56,7 @@ if (!isEclipse) {
     targetCompatibility = 12
   }
 
-  forbiddenApisJava12 {
+  tasks.named('forbiddenApisJava12').configure {
     doFirst {
       if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_12) {
         targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()

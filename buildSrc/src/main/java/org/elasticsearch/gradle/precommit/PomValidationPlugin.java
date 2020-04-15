@@ -38,9 +38,7 @@ public class PomValidationPlugin implements Plugin<Project> {
                 task.dependsOn(generateMavenPom);
                 task.getPomFile().fileValue(generateMavenPom.getDestination());
             });
-            project.getTasks().named("precommit").configure(precommit -> {
-                precommit.dependsOn(validateTask);
-            });
+            project.getTasks().named("precommit").configure(precommit -> { precommit.dependsOn(validateTask); });
         });
     }
 }

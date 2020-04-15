@@ -65,9 +65,7 @@ public class PomValidationTask extends DefaultTask {
             validateString("developers.url", v.getUrl());
         });
 
-        validateNonNull("scm", model.getScm(), () ->
-            validateString("scm.url", model.getScm().getUrl())
-        );
+        validateNonNull("scm", model.getScm(), () -> validateString("scm.url", model.getScm().getUrl()));
 
         if (foundError) {
             throw new GradleException("Pom file [" + pomFile.getAsFile().get() + "] failed validation");
@@ -94,9 +92,7 @@ public class PomValidationTask extends DefaultTask {
     }
 
     private void validateString(String element, String value) {
-        validateNonNull(element, value, () ->
-            validateNonEmpty(element, value, String::isBlank)
-        );
+        validateNonNull(element, value, () -> validateNonEmpty(element, value, String::isBlank));
     }
 
     private <T> void validateCollection(String element, Collection<T> value, Consumer<T> validator) {

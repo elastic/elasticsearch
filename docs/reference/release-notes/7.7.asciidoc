@@ -20,3 +20,11 @@ Search::
   500s/Internal Server Errors now return 400/Bad Request {pull}53669[#53669].
   As a bonus we now return a list of validation errors rather than returning
   the first one we encounter.
+
+[[bug-7.7.0]]
+[float]
+=== Bug fixes
+
+* Fixed an index corruption bug that would occur when applying deletes or
+updates on an index after it has been shrunk. More details can be found on the
+https://issues.apache.org/jira/browse/LUCENE-9300[corresponding issue].

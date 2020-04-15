@@ -639,8 +639,8 @@ final class PemUtils {
             case "1.3.132.0.39":
                 return "sect571r1";
         }
-        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not " +
-            "supported");
+        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString 
+            + " is not supported");
     }
 
 }

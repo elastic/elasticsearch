@@ -140,7 +140,6 @@ import org.elasticsearch.painless.node.ENewArrayFunctionRef;
 import org.elasticsearch.painless.node.ENewObj;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
-import org.elasticsearch.painless.node.EPrecedence;
 import org.elasticsearch.painless.node.ERegex;
 import org.elasticsearch.painless.node.EString;
 import org.elasticsearch.painless.node.EUnary;
@@ -870,7 +869,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitPrecedence(PrecedenceContext ctx) {
-        return new EPrecedence(location(ctx), (AExpression)visit(ctx.expression()));
+        return visit(ctx.expression());
     }
 
     @Override

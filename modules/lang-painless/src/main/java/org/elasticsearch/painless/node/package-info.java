@@ -59,7 +59,6 @@
  * {@link org.elasticsearch.painless.node.EBrace} - Represents an array load/store and defers to a child subnode.
  * {@link org.elasticsearch.painless.node.ECall} - Represents a method call and defers to a child subnode.
  * {@link org.elasticsearch.painless.node.EDot} - Represents a field load/store and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.EPrecedence} - Represents precedence within the tree.
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.
  * {@link org.elasticsearch.painless.node.SBreak} - Represents a break statement.
  * {@link org.elasticsearch.painless.node.SCatch} - Represents a catch block as part of a try-catch block.

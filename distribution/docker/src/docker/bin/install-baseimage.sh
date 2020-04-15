@@ -94,11 +94,10 @@ for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
 done
 set -x
 
-# Copy in our mostly-static curl build
-# TODO
-# cp /build/curl "$target"/usr/bin/curl
+# Copy in our mostly-static curl build, that we bind-mounted in
+cp /curl "$target"/usr/bin/curl
 
-# Curl needs files under here. More importantly, e.g. we change Elasticsearch's
+# Curl needs files under here. More importantly, we change Elasticsearch's
 # bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
 # the bundled cacerts.
 tar cf - /etc/pki | (cd "$target" && tar xf -)
@@ -137,7 +136,7 @@ rm -rf \
   "$target"/var/lib/yum \
   "$target"/var/log/yum.log
 
-#  ldconfig
+# ldconfig
 rm -rf "$target"/etc/ld.so.cache "$target"/var/cache/ldconfig
 mkdir -p --mode=0755 "$target"/var/cache/ldconfig
 

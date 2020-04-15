@@ -39,6 +39,11 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
         this.collectionEnabled = collectionEnabled;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
+    }
+
     public Map<String, Object> getExporters() {
         return exporters == null ? Collections.emptyMap() : Collections.unmodifiableMap(exporters);
     }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.enrich;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -63,5 +64,11 @@ public class EnrichFeatureSet implements XPackFeatureSet {
         public Usage(StreamInput input) throws IOException {
             super(input);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_5_0;
+        }
+
     }
 }

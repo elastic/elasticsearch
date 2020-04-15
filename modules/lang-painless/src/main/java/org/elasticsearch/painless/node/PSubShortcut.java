@@ -29,7 +29,7 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a field load/store shortcut.  (Internal only.)
  */
-public class PSubShortcut extends AStoreable {
+public class PSubShortcut extends AExpression {
 
     protected final String value;
     protected final String type;
@@ -46,7 +46,7 @@ public class PSubShortcut extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
@@ -79,10 +79,5 @@ public class PSubShortcut extends AStoreable {
         output.expressionNode = dotSubShortcutNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
     }
 }

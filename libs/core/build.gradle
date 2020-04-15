@@ -19,7 +19,6 @@
 
 apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools

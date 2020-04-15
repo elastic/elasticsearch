@@ -156,6 +156,12 @@ public interface Repository extends LifecycleComponent {
      */
     long getRestoreThrottleTimeInNanos();
 
+    /**
+     * Returns stats on the repository usage
+     */
+    default RepositoryStats stats() {
+        return RepositoryStats.EMPTY_STATS;
+    }
 
     /**
      * Verifies repository on the master node and returns the verification token.

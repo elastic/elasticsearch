@@ -21,14 +21,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.emptyList;
 
 public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
@@ -39,7 +36,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         Arrays.stream(values).forEach(state::add);
 
         assertEquals(state.centroidCount(), values.length);
-        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, emptyList(), metadata);
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
     }
 
     @Override
@@ -82,7 +79,6 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         TDigestState state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
         case 0:
@@ -115,6 +111,6 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTDigestPercentileRanks(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, formatter, metadata);
     }
 }

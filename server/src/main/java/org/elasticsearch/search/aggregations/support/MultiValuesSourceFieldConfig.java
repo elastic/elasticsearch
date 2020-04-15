@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,24 +31,27 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.function.BiFunction;
 
 public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject {
-    private String fieldName;
-    private Object missing;
-    private Script script;
-    private ZoneId timeZone;
+    private final String fieldName;
+    private final Object missing;
+    private final Script script;
+    private final ZoneId timeZone;
+    private final QueryBuilder filter;
 
     private static final String NAME = "field_config";
+    public static final ParseField FILTER = new ParseField("filter");
 
-    public static final BiFunction<Boolean, Boolean, ObjectParser<MultiValuesSourceFieldConfig.Builder, Void>> PARSER
-        = (scriptable, timezoneAware) -> {
+    public static final TriFunction<Boolean, Boolean, Boolean, ObjectParser<Builder, Void>> PARSER
+        = (scriptable, timezoneAware, filtered) -> {
 
         ObjectParser<MultiValuesSourceFieldConfig.Builder, Void> parser
             = new ObjectParser<>(MultiValuesSourceFieldConfig.NAME, MultiValuesSourceFieldConfig.Builder::new);
@@ -71,14 +75,21 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
                 }
             }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
         }
+
+        if (filtered) {
+            parser.declareField(MultiValuesSourceFieldConfig.Builder::setFilter,
+                (p, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                FILTER, ObjectParser.ValueType.OBJECT);
+        }
         return parser;
     };
 
-    private MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, ZoneId timeZone) {
+    protected MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, ZoneId timeZone, QueryBuilder filter) {
         this.fieldName = fieldName;
         this.missing = missing;
         this.script = script;
         this.timeZone = timeZone;
+        this.filter = filter;
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
@@ -93,6 +104,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
         } else {
             this.timeZone = in.readOptionalZoneId();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        } else {
+            this.filter = null;
         }
     }
 
@@ -112,6 +128,10 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         return fieldName;
     }
 
+    public QueryBuilder getFilter() {
+        return filter;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
@@ -125,6 +145,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
         } else {
             out.writeOptionalZoneId(timeZone);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalNamedWriteable(filter);
         }
     }
 
@@ -143,6 +166,10 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         if (timeZone != null) {
             builder.field(ParseField.CommonFields.TIME_ZONE.getPreferredName(), timeZone.getId());
         }
+        if (filter != null) {
+            builder.field(FILTER.getPreferredName());
+            filter.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -155,12 +182,13 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(missing, that.missing)
             && Objects.equals(script, that.script)
-            && Objects.equals(timeZone, that.timeZone);
+            && Objects.equals(timeZone, that.timeZone)
+            && Objects.equals(filter, that.filter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, missing, script, timeZone);
+        return Objects.hash(fieldName, missing, script, timeZone, filter);
     }
 
     @Override
@@ -173,6 +201,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         private Object missing = null;
         private Script script = null;
         private ZoneId timeZone = null;
+        private QueryBuilder filter = null;
 
         public String getFieldName() {
             return fieldName;
@@ -210,6 +239,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
+        public Builder setFilter(QueryBuilder filter) {
+            this.filter = filter;
+            return this;
+        }
+
         public MultiValuesSourceFieldConfig build() {
             if (Strings.isNullOrEmpty(fieldName) && script == null) {
                 throw new IllegalArgumentException("[" +  ParseField.CommonFields.FIELD.getPreferredName()
@@ -223,7 +257,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
                     "Please specify one or the other.");
             }
 
-            return new MultiValuesSourceFieldConfig(fieldName, missing, script, timeZone);
+            return new MultiValuesSourceFieldConfig(fieldName, missing, script, timeZone, filter);
         }
     }
 }

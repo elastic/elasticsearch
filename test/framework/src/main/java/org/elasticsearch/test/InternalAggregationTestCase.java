@@ -163,6 +163,7 @@ import static org.elasticsearch.search.aggregations.InternalMultiBucketAggregati
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
@@ -298,7 +299,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
-        List<T> inputs = randomResultsToReduce(name, between(1, 200));
+        int size = between(1, 200);
+        List<T> inputs = randomResultsToReduce(name, size);
+        assertThat(inputs, hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
         toReduce.addAll(inputs);
         // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()

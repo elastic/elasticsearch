@@ -40,7 +40,10 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,8 +55,12 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
+import static org.elasticsearch.xpack.core.ml.MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME;
 
 public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<SetUpgradeModeAction.Request, AcknowledgedResponse> {
+
+    private static final Set<String> ML_TASK_NAMES =
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList(JOB_TASK_NAME, DATAFEED_TASK_NAME, DATA_FRAME_ANALYTICS_TASK_NAME)));
 
     private static final Logger logger = LogManager.getLogger(TransportSetUpgradeModeAction.class);
 
@@ -124,12 +131,12 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
 
         // <4> We have unassigned the tasks, respond to the listener.
         ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
-            unassigndPersistentTasks -> {
+            unassignedPersistentTasks -> {
                 // Wait for our tasks to all stop
                 client.admin()
                     .cluster()
                     .prepareListTasks()
-                    .setActions(DATAFEED_TASK_NAME + "[c]", JOB_TASK_NAME + "[c]")
+                    .setActions(ML_TASK_NAMES.stream().map(taskName -> taskName + "[c]").toArray(String[]::new))
                     // There is a chance that we failed un-allocating a task due to allocation_id being changed
                     // This call will timeout in that case and return an error
                     .setWaitForCompletion(true)
@@ -161,8 +168,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
               If we are enabling the option, we need to isolate the datafeeds so we can unassign the ML Jobs
           </.1>
           <.2>
-              If we are disabling the option, we need to wait to make sure all the job and datafeed tasks no longer have the upgrade mode
-              assignment
+              If we are disabling the option, we need to wait to make sure all the job, datafeed and analytics tasks no longer have the
+              upgrade mode assignment
 
 
               We make no guarantees around which tasks will be running again once upgrade_mode is disabled.
@@ -198,16 +205,10 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                     isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
                 } else {
                     persistentTasksService.waitForPersistentTasksCondition(
-                        (persistentTasksCustomMetadata) ->
-                            // Wait for jobs to not be "Awaiting upgrade"
-                            persistentTasksCustomMetadata.findTasks(JOB_TASK_NAME,
-                                (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
-                                .isEmpty() &&
-
-                            // Wait for datafeeds to not be "Awaiting upgrade"
-                            persistentTasksCustomMetadata.findTasks(DATAFEED_TASK_NAME,
-                                (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
-                                .isEmpty(),
+                        // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
+                        persistentTasksCustomMetadata ->
+                            persistentTasksCustomMetadata.tasks().stream()
+                                .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
                         request.timeout(),
                         ActionListener.wrap(r -> wrappedListener.onResponse(new AcknowledgedResponse(true)), wrappedListener::onFailure)
                     );
@@ -242,9 +243,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     }
 
     /**
-     * Unassigns all Job and Datafeed tasks.
+     * Unassigns all Job, Datafeed and Data Frame Analytics tasks.
      * <p>
-     * The reason for unassigning both types is that we want the Datafeed to attempt re-assignment once `upgrade_mode` is
+     * The reason for unassigning both Job and Datafeed is that we want the Datafeed to attempt re-assignment once `upgrade_mode` is
      * disabled.
      * <p>
      * If we do not force an allocation change for the Datafeed tasks, they will never start again, since they were isolated.
@@ -256,18 +257,17 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
      */
     private void unassignPersistentTasks(PersistentTasksCustomMetadata tasksCustomMetadata,
                                          ActionListener<List<PersistentTask<?>>> listener) {
-        List<PersistentTask<?>> datafeedAndJobTasks = tasksCustomMetadata
+        List<PersistentTask<?>> mlTasks = tasksCustomMetadata
             .tasks()
             .stream()
-            .filter(persistentTask -> (persistentTask.getTaskName().equals(MlTasks.JOB_TASK_NAME) ||
-                persistentTask.getTaskName().equals(MlTasks.DATAFEED_TASK_NAME)))
+            .filter(persistentTask -> ML_TASK_NAMES.contains(persistentTask.getTaskName()))
             // We want to always have the same ordering of which tasks we un-allocate first.
             // However, the order in which the distributed tasks handle the un-allocation event is not guaranteed.
             .sorted(Comparator.comparing(PersistentTask::getTaskName))
             .collect(Collectors.toList());
 
         logger.info("Un-assigning persistent tasks : " +
-            datafeedAndJobTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]")));
+            mlTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]")));
 
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor =
             new TypedChainTaskExecutor<>(client.threadPool().executor(executor()),
@@ -278,7 +278,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                 // Consequently, if the exception is ResourceNotFoundException, continue execution; circuit break otherwise.
                 ex -> ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException == false);
 
-        for (PersistentTask<?> task : datafeedAndJobTasks) {
+        for (PersistentTask<?> task : mlTasks) {
             chainTaskExecutor.add(
                 chainedTask -> persistentTasksClusterService.unassignPersistentTask(task.getId(),
                     task.getAllocationId(),

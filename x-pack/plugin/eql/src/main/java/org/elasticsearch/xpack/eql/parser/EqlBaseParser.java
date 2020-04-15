@@ -393,6 +393,7 @@ class EqlBaseParser extends Parser {
 
   public static class SequenceContext extends ParserRuleContext {
     public JoinKeysContext by;
+    public JoinKeysContext disallowed;
     public SequenceTermContext until;
     public TerminalNode SEQUENCE() { return getToken(EqlBaseParser.SEQUENCE, 0); }
     public List<SequenceTermContext> sequenceTerm() {
@@ -462,7 +463,7 @@ class EqlBaseParser extends Parser {
         if (_la==BY) {
           {
           setState(83);
-          ((SequenceContext)_localctx).by = joinKeys();
+          ((SequenceContext)_localctx).disallowed = joinKeys();
           }
         }
 

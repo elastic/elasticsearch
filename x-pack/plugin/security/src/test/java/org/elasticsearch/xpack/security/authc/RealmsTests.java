@@ -74,7 +74,7 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowAllRealms();
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
         when(reservedRealm.name()).thenReturn("reserved");
@@ -550,7 +550,7 @@ public class RealmsTests extends ESTestCase {
 
         assertThat(realms.iterator().hasNext(), is(true));
 
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         assertThat(realms.iterator().hasNext(), is(false));
     }
 
@@ -590,7 +590,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         // check standard realms include native
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowOnlyStandardRealms();
         future = new PlainActionFuture<>();
         realms.usageStats(future);

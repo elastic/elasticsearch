@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.node.Node;
 
 import java.util.Objects;
 import java.util.Set;
@@ -117,7 +117,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return Node.NODE_DATA_SETTING;
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -129,7 +130,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return Node.NODE_INGEST_SETTING;
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -141,7 +143,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return Node.NODE_MASTER_SETTING;
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -150,7 +153,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return Node.NODE_REMOTE_CLUSTER_CLIENT;
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.remote_cluster_client", true, Property.Deprecated, Property.NodeScope);
         }
 
     };

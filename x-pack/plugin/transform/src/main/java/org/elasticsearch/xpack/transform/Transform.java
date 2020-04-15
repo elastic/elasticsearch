@@ -152,7 +152,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
      * respects xpack.transform.enabled (for the whole plugin) as fallback
      */
-    public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
+    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
         settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings)),
         Property.Deprecated,

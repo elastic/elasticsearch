@@ -708,7 +708,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         if (settings.hasValue("node.roles")
             && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
-            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false) {
+            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) == false) {
             suffix = suffix + "c";
         }
         return suffix;

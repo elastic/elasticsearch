@@ -57,7 +57,7 @@ import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
-    public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
+    private static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
         = Setting.boolSetting("node.voting_only", false, Property.Deprecated, Property.NodeScope);
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";

@@ -195,13 +195,13 @@ import static java.util.stream.Collectors.toList;
 public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
-    public static final Setting<Boolean> NODE_DATA_SETTING =
+    private static final Setting<Boolean> NODE_DATA_SETTING =
         Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
-    public static final Setting<Boolean> NODE_MASTER_SETTING =
+    private static final Setting<Boolean> NODE_MASTER_SETTING =
         Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
-    public static final Setting<Boolean> NODE_INGEST_SETTING =
+    private static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
-    public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
+    private static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
         Setting.boolSetting("node.remote_cluster_client", true, Property.Deprecated, Property.NodeScope);
 
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
@@ -335,7 +335,13 @@ public class Node implements Closeable {
             DeprecationLogger.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
 
-            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
+            final List<Setting<?>> additionalSettings = new ArrayList<>();
+            // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
+            additionalSettings.add(NODE_DATA_SETTING);
+            additionalSettings.add(NODE_INGEST_SETTING);
+            additionalSettings.add(NODE_MASTER_SETTING);
+            additionalSettings.add(NODE_REMOTE_CLUSTER_CLIENT);
+            additionalSettings.addAll(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());

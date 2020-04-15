@@ -112,7 +112,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start master_node (2)");
-        Client master2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(dataOnlyNode()));
+        Client master2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(masterOnlyNode()));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master1).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, master2).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data1).isEmpty(), equalTo(true));
@@ -122,7 +122,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
     public void testRecoverAfterDataNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master_node (1)");
-        Client master1 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(dataOnlyNode()));
+        Client master1 = startNode(Settings.builder().put("gateway.recover_after_data_nodes", 2).put(masterOnlyNode()));
         assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                 .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));

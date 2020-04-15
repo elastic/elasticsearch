@@ -320,7 +320,7 @@ public class ModelLoadingService implements ClusterStateListener {
             // Remove all that are still referenced, i.e. the intersection of allReferencedModelKeys and referencedModels
             allReferencedModelKeys.removeAll(referencedModels);
             referencedModels.addAll(allReferencedModelKeys);
-            
+
             // Populate loadingListeners key so we know that we are currently loading the model
             for (String modelId : allReferencedModelKeys) {
                 loadingListeners.put(modelId, new ArrayDeque<>());
@@ -353,9 +353,9 @@ public class ModelLoadingService implements ClusterStateListener {
             logger.trace(() -> new ParameterizedMessage("[{}] {}", modelId, msg.get().getFormattedMessage()));
             return;
         }
-        auditor.warning(modelId, msg.get().getFormattedMessage());
+        auditor.info(modelId, msg.get().getFormattedMessage());
         shouldNotAudit.add(modelId);
-        logger.warn("[{}] {}", modelId, msg.get().getFormattedMessage());
+        logger.info("[{}] {}", modelId, msg.get().getFormattedMessage());
     }
 
     private void loadModels(Set<String> modelIds) {

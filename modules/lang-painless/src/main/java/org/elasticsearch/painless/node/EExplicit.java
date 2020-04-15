@@ -43,9 +43,14 @@ public class EExplicit extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + type + "]"));
+        }
+
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                "not a statement: result not used from explicit cast with target type [" + type + "]"));
+                    "not a statement: result not used from explicit cast with target type [" + type + "]"));
         }
 
         Output output = new Output();

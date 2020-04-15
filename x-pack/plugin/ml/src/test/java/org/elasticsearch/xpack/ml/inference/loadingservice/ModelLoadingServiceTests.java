@@ -189,7 +189,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
 
         // model 3 has been loaded and evicted exactly once
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model3);
@@ -204,13 +204,13 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
         verify(trainedModelProvider, times(2)).getTrainedModel(eq(model3), eq(true), any());
 
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model1);
             }
         }));
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model2);
@@ -224,7 +224,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future1.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelStatsService, times(2)).queueStats(argThat(new ArgumentMatcher<>() {
+        verify(trainedModelStatsService, times(2)).queueStats(argThat(new ArgumentMatcher<InferenceStats>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model3);

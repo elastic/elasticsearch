@@ -267,10 +267,6 @@ public class AnalyticsProcessManager {
         process.writeRecord(headerRecord);
     }
 
-    private void indexDataCounts(DataCounts dataCounts) {
-        IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias());
-    }
-
     private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, @Nullable BytesReference state,
                               AnalyticsProcess<AnalyticsResult> process) {
         if (config.getAnalysis().persistsState() == false) {

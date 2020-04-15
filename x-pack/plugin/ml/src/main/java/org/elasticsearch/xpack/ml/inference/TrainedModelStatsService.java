@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -136,9 +139,24 @@ public class TrainedModelStatsService {
                 PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
                 MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
                 listener.actionGet();
-                // Sometimes another call occurred on a different node to create the index + alias combo
-                // We exit here seeing that it already created, but that does not mean it actually has?
-                client.admin().cluster().prepareHealth().setWaitForYellowStatus().setIndices(MlStatsIndex.writeAlias()).get();
+                listener = new PlainActionFuture<>();
+                ElasticsearchMappings.addDocMappingIfMissing(
+                    MlStatsIndex.writeAlias(),
+                    MlStatsIndex::mapping,
+                    client,
+                    clusterState,
+                    listener);
+                listener.actionGet();
+                // Make sure that we expand to indices and that they are available
+                client.admin()
+                    .cluster()
+                    .prepareHealth()
+                    .setWaitForYellowStatus()
+                    .setIndicesOptions(new IndicesOptions(
+                        EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),
+                        EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.HIDDEN)))
+                    .setIndices(MlStatsIndex.indexPattern())
+                    .get();
                 verifiedStatsIndexCreated = true;
             } catch (Exception e) {
                 logger.error("failure creating ml stats index for storing model stats", e);

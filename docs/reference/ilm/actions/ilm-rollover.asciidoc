@@ -17,8 +17,8 @@ follower index into a regular index as if <<ilm-unfollow-action,the Unfollow
 action>> had been used instead of rolling over.
 
 For example, if an index to be managed has an alias `my_data`. The managed
-index "my_index-000001" must be the write index for the alias. For more information, read
-<<indices-rollover-is-write-index,Write Index Alias Behavior>>.
+index "my_index-000001" must be the write index for the alias. See
+<<indices-rollover-is-write-index>>.
 
 [source,console]
 --------------------------------------------------
@@ -36,7 +36,7 @@ PUT my_index-000001
 }
 --------------------------------------------------
 
-The Rollover Action rolls an alias over to a new index when the
+Rolls an alias over to a new index when the
 existing index meets one of the rollover conditions.
 
 

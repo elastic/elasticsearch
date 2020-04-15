@@ -3,8 +3,8 @@
 
 Phases allowed: cold.
 
-This action will <<frozen-indices, freeze>> the index
-by calling the <<freeze-index-api, Freeze Index API>>.
+<<frozen-indices, freezes>> an index
+using the <<freeze-index-api, Freeze Index API>>.
 
 [source,console]
 --------------------------------------------------

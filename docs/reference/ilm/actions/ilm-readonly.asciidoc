@@ -3,8 +3,7 @@
 
 Phases allowed: warm.
 
-This action will set the index to be read-only
-(see: <<dynamic-index-settings,index.blocks.write>>)
+Sets an index as read-only. See <<dynamic-index-settings,`index.blocks.write`>>.
 
 This action does not have any options associated with it.
 

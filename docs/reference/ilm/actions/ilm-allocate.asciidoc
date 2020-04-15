@@ -3,9 +3,10 @@
 
 Phases allowed: warm, cold.
 
-The Allocate action allows you to specify which nodes are allowed to host the
-shards of the index and set the number of replicas.
-Behind the scenes, it is modifying the index settings
+Specifies which nodes are allowed to host the
+shards of an index and set the number of replicas.
+
+Behind the scenes, the allocate action modifies the index settings
 for shard filtering and/or replica counts. When updating the number of replicas,
 configuring allocation rules is optional. When configuring allocation rules,
 setting number of replicas is optional. Although this action can be treated as
@@ -13,10 +14,10 @@ two separate index settings updates, both can be configured at once.
 
 For more information about how {es} uses replicas for scaling, see
 <<scalability>>. See <<shard-allocation-filtering>> for more information about
-controlling where Elasticsearch allocates shards of a particular index.
+controlling where {es} allocates shards of a particular index.
 
 --
-NOTE: As allocate action is not allowed in `hot` phase, the initial allocation for the index should be done manually or via index templates, as ILM won't take care of index allocation during `hot` phase.
+NOTE: As allocate action is not allowed in `hot` phase, the initial allocation for the index should be done manually or via index templates, as {ilm-init} won't take care of index allocation during `hot` phase.
 --
 
 [[ilm-allocate-options]]
@@ -35,7 +36,7 @@ NOTE: As allocate action is not allowed in `hot` phase, the initial allocation f
 |======
 
 If `number_of_replicas` is not configured, then at least one of `include`,
-`exclude`, and `require` is required. An empty Allocate Action with no configuration
+`exclude`, and `require` is required. An empty allocate action with no configuration
 is invalid.
 
 [float]

@@ -9,7 +9,7 @@
 ++++
 
 This tutorial demonstrates how to use {ilm} 
-({ilm-init})  to manage indices that contain time-series data. 
+({ilm-init}) to manage indices that contain time-series data.
 
 When you continuously index timestamped documents into {es} using
 Filebeat, Logstash, or some other mechanism,
@@ -32,8 +32,8 @@ For an introduction to rolling indices, see <<index-rollover>>.
 NOTE: {fb} includes a default ILM policy that initiates the rollover action when
 the index size reaches 50GB or becomes 30 days old. 
 You can use this policy as a starting point, or replace it with a custom policy.
-For more information, see 
-{kib}/example-using-index-lifecycle-policy.html[Use ILM to manage Filebeat time-based indices].
+See 
+{kib}/example-using-index-lifecycle-policy.html[Use {ilm-init} to manage Filebeat time-based indices].
 
 
 [float]
@@ -94,7 +94,7 @@ For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
 [[ilm-gs-apply-policy]]
 === Create an index template to apply the lifecycle policy
 
-To automatically apply a lifecycle policy to the new write index on rollover, 
+To automatically apply a lifecycle policy to the new write index on rollover,
 specify the policy in the index template used to create new indices.
 
 For example, you might create a `timeseries_template` that is applied to new indices
@@ -103,8 +103,8 @@ whose names match the `timeseries-*` index pattern.
 To enable automatic rollover, the template configures two {ilm-init} settings:
 
 * `index.lifecycle.name` specifies the name of the lifecycle policy to apply to new indices
-that match the index pattern.  
-* `index.lifecycle.rollover_alias` specifies the index alias to be rolled over 
+that match the index pattern.
+* `index.lifecycle.rollover_alias` specifies the index alias to be rolled over
 when the rollover action is triggered for an index.
 
 You can use the {kib} Create template wizard to add the template. 

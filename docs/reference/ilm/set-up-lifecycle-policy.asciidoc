@@ -16,10 +16,10 @@ you can specify the policy directly when you create it.
 [[ilm-create-policy]]
 === Create lifecycle policy
 
-You use the Create policy API to define a new lifecycle policy. 
-For example, the following request creates `my_policy`, a simple
+You use the <<ilm-put-lifecycle,create policy API>> to define a new lifecycle policy. 
+For example, the following request creates `my_policy`, a
 policy that defines a hot and and delete phase.
-When the index gets to 25GB, it rolls over directly to the delete phase.
+When the index reaches 25GB, it rolls over directly to the delete phase.
 The index is deleted 30 days after rollover.
 
 [source,console]
@@ -123,7 +123,7 @@ PUT test-000001
 Now you can start indexing data to the rollover alias specified in the lifecycle policy. 
 With the sample `my_policy` policy, the rollover action is triggered once the initial
 index exceeds 25GB. 
-{ilm} then creates a new index that becomes the write index for the `test-alias`.
+{ilm-init} then creates a new index that becomes the write index for the `test-alias`.
 
 [float]
 [[apply-policy-manually]]
@@ -131,7 +131,7 @@ index exceeds 25GB.
 
 When you create an index directly, you can apply a lifecycle policy 
 by specifying the `index.lifecycle.name` setting.
-This causes {ilm} to immediately start managing the index.
+This causes {ilm-init} to immediately start managing the index.
 
 [source,console]
 -----------------------

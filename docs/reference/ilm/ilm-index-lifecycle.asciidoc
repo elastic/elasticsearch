@@ -20,8 +20,9 @@ are applicable, what actions are performed in each phase,
 and when it transitions between phases. 
 
 To automatically apply a lifecycle policy to new time-series indices when they roll over, 
-you associate the policy with the index template. 
-To manage indices that don't roll over, you can manually apply a lifecycle policy when creating the index.
+associate the policy with the index template. 
+To manage indices that don't roll over, you can manually apply a lifecycle
+policy when creating the index.
 
 [float]
 [[ilm-phase-transitions]]
@@ -43,7 +44,7 @@ as soon as all actions in the current phase complete.
 what _steps_ are executed to perform the necessary index operations for each action.
 
 When an index enters a phase, {ilm-init} caches the phase definition in the index metadata.
-This ensures that policy updates don't put the index into a state where  it can never exit the phase.
+This ensures that policy updates don't put the index into a state where it can never exit the phase.
 If changes can be safely applied, {ilm-init} updates the cached phase definition.
 If they cannot, phase execution continues using the cached definition. 
 
@@ -71,6 +72,6 @@ If they cannot, phase execution continues using the cached definition.
   - <<ilm-freeze,Freeze>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
-  - <<ilm-delete,Wait For Snapshot>>
+  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete,Delete>>
   

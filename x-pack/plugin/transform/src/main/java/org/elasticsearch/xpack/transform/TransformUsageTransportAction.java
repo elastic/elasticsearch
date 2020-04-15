@@ -26,7 +26,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -49,7 +48,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
 
     private static final Logger logger = LogManager.getLogger(TransformUsageTransportAction.class);
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
 
@@ -72,7 +70,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             actionFilters,
             indexNameExpressionResolver
         );
-        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
@@ -85,11 +82,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         boolean available = licenseState.isTransformAllowed();
-        if (enabled == false) {
-            var usage = new TransformFeatureSetUsage(available, enabled, Collections.emptyMap(), new TransformIndexerStats());
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-            return;
-        }
 
         PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null
@@ -106,7 +98,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         }
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(statSummations -> {
-            var usage = new TransformFeatureSetUsage(available, enabled, transformsCountByState, statSummations);
+            var usage = new TransformFeatureSetUsage(available, true, transformsCountByState, statSummations);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }, listener::onFailure);
 
@@ -119,7 +111,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
-                var usage = new TransformFeatureSetUsage(available, enabled, transformsCountByState, new TransformIndexerStats());
+                var usage = new TransformFeatureSetUsage(available, true, transformsCountByState, new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }

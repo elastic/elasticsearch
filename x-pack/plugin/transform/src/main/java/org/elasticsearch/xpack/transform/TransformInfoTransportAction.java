@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -39,7 +38,6 @@ import java.util.List;
 
 public class TransformInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     private static final Logger logger = LogManager.getLogger(TransformInfoTransportAction.class);
@@ -69,7 +67,6 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
         XPackLicenseState licenseState
     ) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);
-        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -85,7 +82,7 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     static TransformIndexerStats parseSearchAggs(SearchResponse searchResponse) {

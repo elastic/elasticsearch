@@ -62,12 +62,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 [[ml-get-dfanalytics-stats-response-body]]
 ==== {api-response-body-title}
 
-The API returns the following information:
-
-`data_frame_analytics`::
-(array)
-An array of statistics objects for {dfanalytics-jobs}, which are
-sorted by the `id` value in ascending order.
+The API returns an array of {dfanalytics-job} resources which are sorted by
+their `id` value and have the following properties:
 
 //Begin analysis_stats
 `analysis_stats`::
@@ -391,13 +387,13 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
 ====
 //End analysis_stats
 
-`assignment_explanation`:::
+`assignment_explanation`::
 (string)
 For running jobs only, contains messages relating to the selection of a node to 
 run the job.
 
 //Begin data_counts
-`data_counts`:::
+`data_counts`::
 (object)
 An object containing statistical data about the documents in the analysis.
 +
@@ -423,61 +419,73 @@ The number of documents that are used for training the model.
 ====
 //End data_counts
 
-`id`:::
+`id`::
 (string)
 The unique identifier of the {dfanalytics-job}.
 
-`memory_usage`:::
+`memory_usage`::
 (Optional, object)
 An object describing memory usage of the analytics. It is present only after the 
 job is started and memory usage is reported.
-
-`memory_usage`.`peak_usage_bytes`:::
++
+.Properties of `memory_usage`
+[%collapsible%open]
+====
+`peak_usage_bytes`:::
 (long)
 The number of bytes used at the highest peak of memory usage.
 
-`memory_usage`.`timestamp`:::
+`timestamp`:::
 (date)
 The timestamp when memory usage was calculated.
+====
 
-`node`:::
+`node`::
 (object)
 Contains properties for the node that runs the job. This information is 
 available only for running jobs.
-
-`node`.`attributes`:::
++
+.Properties of `node`
+[%collapsible%open]
+====
+`attributes`:::
 (object)
 Lists node attributes such as `ml.machine_memory`, `ml.max_open_jobs`, and 
 `xpack.installed`.
 
-`node`.`ephemeral_id`:::
+`ephemeral_id`:::
 (string)
 The ephemeral id of the node.
 
-`node`.`id`:::
+`id`:::
 (string)
 The unique identifier of the node.
 
-`node`.`name`:::
+`name`:::
 (string)
 The node name.
 
-`node`.`transport_address`:::
+`transport_address`:::
 (string)
 The host and port where transport HTTP connections are accepted.
+====
 
-`progress`:::
+`progress`::
 (array) The progress report of the {dfanalytics-job} by phase.
-  
-`progress`.`phase`:::
++
+.Properties of phase objects
+[%collapsible%open]
+====
+`phase`:::
 (string) Defines the phase of the {dfanalytics-job}. Possible phases: 
 `reindexing`, `loading_data`, `analyzing`, and `writing_results`.
     
-`progress`.`progress_percent`:::
+`progress_percent`:::
 (integer) The progress that the {dfanalytics-job} has made expressed in 
 percentage.
+====
 
-`state`:::
+`state`::
 (string) Current state of the {dfanalytics-job}.
 
 
@@ -493,42 +501,67 @@ percentage.
 [[ml-get-dfanalytics-stats-example]]
 ==== {api-examples-title}
 
+The following API retrieves usage information for the
+{ml-docs}/ecommerce-outliers.html[{oldetection} {dfanalytics-job} example]:
+
 [source,console]
 --------------------------------------------------
-GET _ml/data_frame/analytics/loganalytics/_stats
+GET _ml/data_frame/analytics/ecommerce/_stats
 --------------------------------------------------
-// TEST[skip:TBD]
-
-
-The API returns the following results:
+// TEST[skip:Kibana sample data]
 
 [source,console-result]
 ----
 {
-    "count": 1,
-    "data_frame_analytics": [
+  "count" : 1,
+  "data_frame_analytics" : [
+    {
+      "id" : "ecommerce",
+      "state" : "stopped",
+      "progress" : [
         {
-            "id": "loganalytics",
-            "state": "stopped",
-            "progress": [
-              {
-                "phase": "reindexing",
-                "progress_percent": 0
-              },
-              {
-                "phase": "loading_data",
-                "progress_percent": 0
-              },
-              {
-                "phase": "analyzing",
-                "progress_percent": 0
-              },
-              {
-                "phase": "writing_results",
-                "progress_percent": 0
-              }
-            ]
+          "phase" : "reindexing",
+          "progress_percent" : 100
+        },
+        {
+          "phase" : "loading_data",
+          "progress_percent" : 100
+        },
+        {
+          "phase" : "analyzing",
+          "progress_percent" : 100
+        },
+        {
+          "phase" : "writing_results",
+          "progress_percent" : 100
         }
-    ]
+      ],
+      "data_counts" : {
+        "training_docs_count" : 3321,
+        "test_docs_count" : 0,
+        "skipped_docs_count" : 0
+      },
+      "memory_usage" : {
+        "timestamp" : 1586905058000,
+        "peak_usage_bytes" : 279484
+      },
+      "analysis_stats" : {
+        "outlier_detection_stats" : {
+          "timestamp" : 1586905058000,
+          "parameters" : {
+            "n_neighbors" : 0,
+            "method" : "ensemble",
+            "compute_feature_influence" : true,
+            "feature_influence_threshold" : 0.1,
+            "outlier_fraction" : 0.05,
+            "standardization_enabled" : true
+          },
+          "timing_stats" : {
+            "elapsed_time" : 245
+          }
+        }
+      }
+    }
+  ]
 }
 ----

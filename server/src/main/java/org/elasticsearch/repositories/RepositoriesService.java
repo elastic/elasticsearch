@@ -30,6 +30,10 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -42,8 +46,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -358,6 +360,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /**
+     * Gets the {@link RepositoryData} for the given repository.
+     *
+     * @param repositoryName repository name
+     * @param listener       listener to pass {@link RepositoryData} to
+     */
+    public void getRepositoryData(final String repositoryName, final ActionListener<RepositoryData> listener) {
+        try {
+            Repository repository = repository(repositoryName);
+            assert repository != null; // should only be called once we've validated the repository exists
+            repository.getRepositoryData(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Returns registered repository
      * <p>
      * This method is called only on the master node
@@ -445,10 +463,54 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
-        if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
+        if (isRepositoryInUse(clusterState, repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used ");
         }
     }
+
+    /**
+     * Checks if a repository is currently in use by one of the snapshots
+     *
+     * @param clusterState cluster state
+     * @param repository   repository id
+     * @return true if repository is currently in use by one of the running snapshots
+     */
+    private static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
+        SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
+        if (snapshots != null) {
+            for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
+                if (repository.equals(snapshot.snapshot().getRepository())) {
+                    return true;
+                }
+            }
+        }
+        SnapshotDeletionsInProgress deletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null) {
+            for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
+                if (entry.getSnapshot().getRepository().equals(repository)) {
+                    return true;
+                }
+            }
+        }
+        final RepositoryCleanupInProgress repositoryCleanupInProgress = clusterState.custom(RepositoryCleanupInProgress.TYPE);
+        if (repositoryCleanupInProgress != null) {
+            for (RepositoryCleanupInProgress.Entry entry : repositoryCleanupInProgress.entries()) {
+                if (entry.repository().equals(repository)) {
+                    return true;
+                }
+            }
+        }
+        RestoreInProgress restoreInProgress = clusterState.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            for (RestoreInProgress.Entry entry: restoreInProgress) {
+                if (repository.equals(entry.snapshot().getRepository())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 
     @Override
     protected void doStart() {

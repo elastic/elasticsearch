@@ -18,7 +18,6 @@ the master, but this API requests information from each selected node
 regardless of the `?local` parameter which means this API does not run in a
 fully node-local fashion.
 
-
 [float]
 ==== Deprecated `local` parameter removed from get field mapping API
 

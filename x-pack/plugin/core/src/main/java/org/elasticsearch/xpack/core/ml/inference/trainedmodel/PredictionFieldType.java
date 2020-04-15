@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * The type of the predicted field.
+ * The type of the prediction field.
  * This modifies how the predicted class values are written for classification models
  */
 public enum PredictionFieldType implements Writeable {
@@ -55,7 +55,7 @@ public enum PredictionFieldType implements Writeable {
                     throw new IllegalArgumentException(
                         "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]");
                 }
-                return (1.0D - value) <= EPS;
+                return areClose(value, 1.0D);
             case NUMBER:
             default:
                 return value;

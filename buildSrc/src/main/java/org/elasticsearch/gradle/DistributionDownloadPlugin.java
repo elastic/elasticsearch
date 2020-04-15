@@ -300,27 +300,47 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return projectPath;
     }
 
+    /**
+     * Works out the gradle project name that provides a distribution artifact.
+     *
+     * @param distribution the distribution from which to derive a project name
+     * @return the name of a project. It is not the full project path, only the name.
+     */
     private static String distributionProjectName(ElasticsearchDistribution distribution) {
+        Platform platform = distribution.getPlatform();
+        Architecture architecture = distribution.getArchitecture();
         String projectName = "";
+
+        final String archString = platform == Platform.WINDOWS || architecture == Architecture.X64
+            ? ""
+            : "-" + architecture.toString().toLowerCase();
+
         if (distribution.getFlavor() == Flavor.OSS) {
             projectName += "oss-";
         }
+
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
 
-        if (distribution.getType() == Type.ARCHIVE) {
-            if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
-                Platform platform = distribution.getPlatform();
-                projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
-            } else {
-                projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ? "zip" : "oss-zip";
-            }
-        } else if (distribution.getType() == Type.DOCKER) {
-            projectName += "docker-export";
-        } else {
-            projectName += distribution.getType();
+        switch (distribution.getType()) {
+            case ARCHIVE:
+                if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
+                    projectName += platform.toString() + archString + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+                } else {
+                    projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ? "zip" : "oss-zip";
+                }
+                break;
+
+            case DOCKER:
+                projectName += "docker" + archString + "-export";
+                break;
+
+            default:
+                projectName += distribution.getType();
+                break;
         }
+
         return projectName;
     }
 

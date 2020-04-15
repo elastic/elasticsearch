@@ -299,7 +299,7 @@ field datatypes:
 Starting position for matching. The function will not return positions before
 this one. Defaults to `0`.
 
-Positions are zero-indexed. Negative offsets are treated as zero (`0`).
+Positions are zero-indexed. Negative offsets are treated as `0`.
 
 If this argument is `null` or higher than the length of the `<source>` string,
 the function returns `null`.

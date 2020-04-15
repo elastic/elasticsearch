@@ -54,6 +54,11 @@ public class ECallLocal extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to function call [" + name + "/" + arguments.size() + "]"));
+        }
+
         FunctionTable.LocalFunction localFunction = null;
         PainlessMethod importedMethod = null;
         PainlessClassBinding classBinding = null;

@@ -45,7 +45,7 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isDataScienceAllowed();
+        boolean available = licenseState.isAnalyticsAllowed();
         if (available) {
             AnalyticsStatsAction.Request statsRequest = new AnalyticsStatsAction.Request();
             statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());

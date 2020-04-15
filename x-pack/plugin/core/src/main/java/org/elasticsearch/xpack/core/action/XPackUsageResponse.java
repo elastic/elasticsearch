@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,12 +19,7 @@ public class XPackUsageResponse extends ActionResponse {
     private List<XPackFeatureSet.Usage> usages;
 
     public XPackUsageResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        usages = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
-        }
+        usages = in.readNamedWriteableList(XPackFeatureSet.Usage.class);
     }
 
     public XPackUsageResponse(List<XPackFeatureSet.Usage> usages) {
@@ -41,10 +35,11 @@ public class XPackUsageResponse extends ActionResponse {
         // we can only wrote the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
         final List<XPackFeatureSet.Usage> usagesToWrite =
             usages.stream().filter(usage -> out.getVersion().onOrAfter(usage.version())).collect(Collectors.toUnmodifiableList());
-        out.writeVInt(usagesToWrite.size());
-        for (XPackFeatureSet.Usage usageToWrite : usagesToWrite) {
-            out.writeNamedWriteable(usageToWrite);
-        }
+        writeTo(out, usages);
+    }
+
+    private static void writeTo(final StreamOutput out, final List<XPackFeatureSet.Usage> usages) throws IOException {
+        out.writeNamedWriteableList(usages);
     }
 
 }

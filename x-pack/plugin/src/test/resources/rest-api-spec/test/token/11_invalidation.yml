@@ -42,7 +42,7 @@ teardown:
 "Test invalidate access token return statuses":
 
   - do:
-      catch: unavailable
+      catch: bad_request
       security.invalidate_token:
         body:
           token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
@@ -94,7 +94,7 @@ teardown:
 "Test invalidate refresh token return statuses":
 
   - do:
-      catch: unavailable
+      catch: bad_request
       security.invalidate_token:
         body:
           refresh_token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB

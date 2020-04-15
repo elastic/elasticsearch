@@ -270,7 +270,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> restClient.security()
             .invalidateToken(new InvalidateTokenRequest(generateAccessToken(Version.CURRENT), null, null, null),
                 SECURITY_REQUEST_OPTIONS));
-        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
         restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
@@ -312,7 +312,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .invalidateToken(new InvalidateTokenRequest(null,
                     TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()), null, null),
                 SECURITY_REQUEST_OPTIONS));
-        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
         restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);

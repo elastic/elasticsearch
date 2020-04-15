@@ -70,10 +70,12 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -461,7 +463,7 @@ public final class TokenService {
      */
     private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        final SecurityIndexManager frozenTokensIndex = getTokensIndexForVersion(tokenVersion).freeze();
+        final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
         if (frozenTokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onFailure(frozenTokensIndex.getUnavailableReason());
@@ -605,7 +607,13 @@ public final class TokenService {
                 } else {
                     indexInvalidation(Collections.singleton(userToken), backoff, "access_token", null, listener);
                 }
-            }, e -> listener.onFailure(unableToPerformAction(e))));
+            }, e -> {
+                if (e instanceof IndexNotFoundException || e instanceof IndexClosedException) {
+                    listener.onFailure(new ElasticsearchSecurityException("failed to invalidate token", RestStatus.BAD_REQUEST));
+                } else {
+                    listener.onFailure(unableToPerformAction(e));
+                }
+            }));
         }
     }
 
@@ -651,7 +659,13 @@ public final class TokenService {
                             parseTokensFromDocument(searchHits.getAt(0).getSourceAsMap(), null);
                         indexInvalidation(Collections.singletonList(parsedTokens.v1()), backoff, "refresh_token", null, listener);
                     }
-                }, e -> listener.onFailure(unableToPerformAction(e))));
+                }, e -> {
+                    if (e instanceof IndexNotFoundException || e instanceof IndexClosedException) {
+                        listener.onFailure(new ElasticsearchSecurityException("failed to invalidate token", RestStatus.BAD_REQUEST));
+                    } else {
+                        listener.onFailure(unableToPerformAction(e));
+                    }
+                }));
         }
     }
 

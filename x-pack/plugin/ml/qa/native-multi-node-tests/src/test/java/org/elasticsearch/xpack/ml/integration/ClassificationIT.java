@@ -501,6 +501,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55221")
     public void testSetUpgradeMode_ExistingTaskGetsUnassigned() throws Exception {
         initialize("classification_set_upgrade_mode");
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);

@@ -48,6 +48,11 @@ public class Concat extends ScalarFunction {
         int index = 0;
         for (Expression value : values) {
             resolution = isExact(value, sourceText(), ParamOrdinal.fromIndex(index));
+
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
             index++;
         }
 

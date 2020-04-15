@@ -710,8 +710,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             .size(numTerms)
                             .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .field("field"));
-                        result = ((Filter) searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType, filterFieldType))
-                            .getAggregations().get("_name2");
+                        result = ((Filter) searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder,
+                            fieldType, filterFieldType)).getAggregations().get("_name2");
                         int expectedFilteredCounts = 0;
                         for (Integer count : filteredCounts.values()) {
                             if (count > 0) {

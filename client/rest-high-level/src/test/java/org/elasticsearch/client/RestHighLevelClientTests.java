@@ -861,7 +861,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.create_data_stream",
             "indices.get_data_streams",
             "indices.delete_data_stream",
-            "clear_reader"
+            "clear_reader",
+            "open_reader"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportOpenReaderAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
@@ -278,7 +279,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so we can skip security here.
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (action.equals(ClearReaderAction.NAME)) {
+            } else if (action.equals(ClearReaderAction.NAME) || action.equals(TransportOpenReaderAction.NAME)) {
                 // NORELEASE: ensure security works correctly
                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {

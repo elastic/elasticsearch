@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.expression.Expressions.id;
-import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.search.sort.SortOrder;
@@ -86,6 +78,14 @@ import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.expression.Expressions.id;
+import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
 
 final class QueryTranslator {
 

@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing.LAST;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -23,6 +16,13 @@ import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing.LAST;
 
 public class TopHitsAgg extends LeafAgg {
 

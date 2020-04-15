@@ -12,18 +12,19 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class XPackUsageResponse extends ActionResponse {
 
-    private List<XPackFeatureSet.Usage> usages;
+    private final List<XPackFeatureSet.Usage> usages;
 
-    public XPackUsageResponse(StreamInput in) throws IOException {
+    public XPackUsageResponse(final StreamInput in) throws IOException {
         usages = in.readNamedWriteableList(XPackFeatureSet.Usage.class);
     }
 
-    public XPackUsageResponse(List<XPackFeatureSet.Usage> usages) {
-        this.usages = usages;
+    public XPackUsageResponse(final List<XPackFeatureSet.Usage> usages) {
+        this.usages = Objects.requireNonNull(usages);
     }
 
     public List<XPackFeatureSet.Usage> getUsages() {
@@ -31,7 +32,7 @@ public class XPackUsageResponse extends ActionResponse {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         // we can only wrote the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
         final List<XPackFeatureSet.Usage> usagesToWrite =
             usages.stream().filter(usage -> out.getVersion().onOrAfter(usage.version())).collect(Collectors.toUnmodifiableList());

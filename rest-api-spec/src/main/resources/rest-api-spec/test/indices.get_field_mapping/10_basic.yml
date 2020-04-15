@@ -52,18 +52,15 @@ setup:
   - match: {test_index.mappings.text.mapping.text.analyzer: default}
 
 ---
-"Get field mapping with local is deprecated":
+"Get field mapping with local parameter should fail":
 
   - skip:
       features: ["warnings", "node_selector"]
 
   - do:
+      catch: bad_request
       node_selector:
         version: "8.0.0 - "
-      warnings:
-        - "Use [local] in get field mapping requests is deprecated. The parameter will be removed in the next major version"
       indices.get_field_mapping:
         fields: text
         local: true
-
-  - match: {test_index.mappings.text.mapping.text.type:     text}

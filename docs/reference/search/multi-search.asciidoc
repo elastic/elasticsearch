@@ -78,7 +78,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_searches`::
 (Optional, integer)
-Maximum number of concurrent searches the multi search API can execute.
+Maximum number of concurrent searches the multi search API can execute. Defaults
+to +max(1, (# of <<data-node,data nodes>> * min(<<search-threadpool,search thread pool size>>, 10)))+.
 
 `max_concurrent_shard_requests`::
 +

@@ -158,7 +158,7 @@ public class NGramAutomaton {
         int statesTraced = 0;
         Transition transition = new Transition();
         int currentTransitions = 0;
-        while (!leftToProcess.isEmpty()) {
+        while (false == leftToProcess.isEmpty()) {
             if (statesTraced >= maxStatesTraced) {
                 throw new AutomatonTooComplexException();
             }

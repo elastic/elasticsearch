@@ -255,8 +255,27 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-
-
+    
+    public void testRegexAcceleration() throws IOException {
+        // All of these regexes should be accelerated. Previously we kept the ".*" prefix while creating
+        // automatons and this would cause many transitions. Some of the expressions below would just throw 
+        // in the towel and revert to "match all".
+        String regexes[] = { ".*/etc/passw.*", ".*etc/passwd HTTP.*", ".*/etc/passwd.*", "/etc/passwd.*", 
+            ".*ietcipasswd.*", ".*jetcjpasswd.*"};
+        for (String regex : regexes) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, 0, 20000, null, MOCK_QSC);
+            assertTrue(wildcardFieldQuery instanceof BooleanQuery);
+        }
+    }    
+    
+    public void testWildcardAcceleration() throws IOException {
+        // All of these patterns should be accelerated. 
+        String patterns[] = { "*foobar", "foobar*", "foo*bar", "foo?bar", "?foo*bar?"};
+        for (String pattern : patterns) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            assertTrue(wildcardFieldQuery instanceof BooleanQuery);
+        }
+    }      
 
     private String getRandomRegexPattern(HashSet<String> values) {
         // Pick one of the indexed document values to focus our queries on.

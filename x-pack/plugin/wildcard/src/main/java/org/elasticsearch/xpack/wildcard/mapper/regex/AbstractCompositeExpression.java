@@ -112,6 +112,7 @@ public abstract class AbstractCompositeExpression<T> implements Expression<T> {
         case 1:
             return newComponentsBuilder.get(0);
         default:
+            // intentional fall-through
         }
         Expression<T> commonExtracted = extractCommon(changed ? newComponentsBuilder : components);
         if (commonExtracted != null) {

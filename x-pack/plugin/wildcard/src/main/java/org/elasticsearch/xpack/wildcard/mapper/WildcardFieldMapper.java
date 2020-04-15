@@ -248,11 +248,21 @@ public class WildcardFieldMapper extends FieldMapper {
             failIfNotIndexed();
             RegExp regex =new RegExp(value, flags);
             try {
+                Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
                 // TODO always lower case the ngram index and value? Could help with 
                 // a) speed (less ngram variations to explore on disk) and 
                 // b) use less disk space
-                Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
-                return automatonToQuery(value, automaton);
+                if(value.startsWith(".*")){
+                    //".*" causes too many imagined beginnings in the Automaton to trace through.
+                    //Rewrite to cut to the concrete path after .* to extract required ngrams
+                    // TODO ideally we would trim the automaton paths rather than the regex string
+                    String ngramValue = value.substring(2);
+                    RegExp ngramRegex =new RegExp(ngramValue, flags);
+                    Automaton ngramAutomaton = ngramRegex.toAutomaton(maxDeterminizedStates);
+                    return automatonToQuery(ngramValue, value, ngramAutomaton, automaton);
+                } else {
+                    return automatonToQuery(value, automaton);
+                }
             } catch (AutomatonTooComplexException e) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,
                         "Regex /%s/ too complex for maxStatesTraced setting [%s].  Use a simpler regex or raise maxStatesTraced.", regex,
@@ -278,7 +288,7 @@ public class WildcardFieldMapper extends FieldMapper {
             String ngramFuzzyPattern = TOKEN_START_OR_END_CHAR + searchTerm + TOKEN_START_OR_END_CHAR + TOKEN_START_OR_END_CHAR;            
             
             FuzzyQuery ngramFq = new FuzzyQuery(new Term(name(), ngramFuzzyPattern),
-                    fuzziness.asDistance(searchTerm), prefixLength + 1, maxExpansions, transpositions);
+                    fuzziness.asDistance(ngramFuzzyPattern), prefixLength + 1, maxExpansions, transpositions);
 
             // I'm assuming (perhaps incorrectly) that these are logically ORed...
             CompiledAutomaton[] ngramAutomata = ngramFq.getAutomata();

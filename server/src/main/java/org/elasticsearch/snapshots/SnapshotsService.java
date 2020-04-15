@@ -567,12 +567,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         @Override
-        public void onFailure(Exception e) {
-            e.addSuppressed(this.e);
+        public void onFailure(@Nullable Exception e) {
             if (snapshotCreated) {
-                cleanupAfterError(e);
+                cleanupAfterError(ExceptionsHelper.useOrSuppress(e, this.e));
             } else {
-                userCreateSnapshotListener.onFailure(e);
+                userCreateSnapshotListener.onFailure(ExceptionsHelper.useOrSuppress(e, this.e));
             }
         }
 
@@ -1179,7 +1178,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     endingSnapshots.remove(snapshot);
                 }
                 if (listener != null) {
-                    listener.onResponse(snapshotInfo);
+                    listener.onFailure(null);
                 }
             }
         });

@@ -27,7 +27,7 @@ import java.util.Properties;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -91,7 +91,7 @@ public final class CsvTestUtils {
 
             String sch = schema;
             if (header.contains(":")) {
-                assertThat("Cannot declare schema both individually and inside the header", sch, isEmptyOrNullString());
+                assertThat("Cannot declare schema both individually and inside the header", sch, is(emptyOrNullString()));
                 sch = header;
             }
 

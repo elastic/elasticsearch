@@ -75,15 +75,15 @@ import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class MonitoringIT extends ESSingleNodeTestCase {
 
@@ -264,15 +264,15 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
-        assertThat((String) document.get("_id"), not(isEmptyOrNullString()));
+        assertThat((String) document.get("_id"), is(not(emptyOrNullString())));
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertThat(source, notNullValue());
-        assertThat((String) source.get("cluster_uuid"), not(isEmptyOrNullString()));
+        assertThat((String) source.get("cluster_uuid"), is(not(emptyOrNullString())));
         assertThat(source.get("type"), equalTo(expectedType));
 
         final String timestamp = (String) source.get("timestamp");
-        assertThat(timestamp, not(isEmptyOrNullString()));
+        assertThat(timestamp, is(not(emptyOrNullString())));
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
@@ -305,7 +305,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(sourceNode.get("transport_address"),equalTo(node.getAddress().toString()));
         assertThat(sourceNode.get("ip"), equalTo(node.getAddress().getAddress()));
         assertThat(sourceNode.get("name"), equalTo(node.getName()));
-        assertThat((String) sourceNode.get("timestamp"), not(isEmptyOrNullString()));
+        assertThat((String) sourceNode.get("timestamp"), is(not(emptyOrNullString())));
     }
 
     /**
@@ -317,24 +317,24 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertEquals(12, source.size());
 
-        assertThat((String) source.get("cluster_name"), not(isEmptyOrNullString()));
+        assertThat((String) source.get("cluster_name"), is(not(emptyOrNullString())));
         assertThat(source.get("version"), equalTo(Version.CURRENT.toString()));
 
         final Map<String, Object> license = (Map<String, Object>) source.get("license");
         assertThat(license, notNullValue());
-        assertThat((String) license.get(License.Fields.ISSUER), not(isEmptyOrNullString()));
-        assertThat((String) license.get(License.Fields.ISSUED_TO), not(isEmptyOrNullString()));
+        assertThat((String) license.get(License.Fields.ISSUER), is(not(emptyOrNullString())));
+        assertThat((String) license.get(License.Fields.ISSUED_TO), is(not(emptyOrNullString())));
         assertThat((Long) license.get(License.Fields.ISSUE_DATE_IN_MILLIS), greaterThan(0L));
         assertThat((Integer) license.get(License.Fields.MAX_NODES), greaterThan(0));
 
         String uid = (String) license.get("uid");
-        assertThat(uid, not(isEmptyOrNullString()));
+        assertThat(uid, is(not(emptyOrNullString())));
 
         String type = (String) license.get("type");
-        assertThat(type, not(isEmptyOrNullString()));
+        assertThat(type, is(not(emptyOrNullString())));
 
         String status = (String) license.get(License.Fields.STATUS);
-        assertThat(status, not(isEmptyOrNullString()));
+        assertThat(status, is(not(emptyOrNullString())));
 
         if ("basic".equals(license.get("type")) == false) {
             Long expiryDate = (Long) license.get(License.Fields.EXPIRY_DATE_IN_MILLIS);
@@ -342,7 +342,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         }
 
         Boolean clusterNeedsTLS = (Boolean) license.get("cluster_needs_tls");
-        assertThat(clusterNeedsTLS, isOneOf(true, null));
+        assertThat(clusterNeedsTLS, is(oneOf(true, null)));
 
         final Map<String, Object> clusterStats = (Map<String, Object>) source.get("cluster_stats");
         assertThat(clusterStats, notNullValue());
@@ -427,10 +427,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         // particular field values checked in the index stats tests
         final Map<String, Object> indexStats = (Map<String, Object>) source.get(IndexStatsMonitoringDoc.TYPE);
         assertEquals(7, indexStats.size());
-        assertThat((String) indexStats.get("index"), not(isEmptyOrNullString()));
-        assertThat((String) indexStats.get("uuid"), not(isEmptyOrNullString()));
+        assertThat((String) indexStats.get("index"), is(not(emptyOrNullString())));
+        assertThat((String) indexStats.get("uuid"), is(not(emptyOrNullString())));
         assertThat(indexStats.get("created"), notNullValue());
-        assertThat((String) indexStats.get("status"), not(isEmptyOrNullString()));
+        assertThat((String) indexStats.get("status"), is(not(emptyOrNullString())));
         assertThat(indexStats.get("shards"), notNullValue());
         final Map<String, Object> shards = (Map<String, Object>) indexStats.get("shards");
         assertEquals(11, shards.size());

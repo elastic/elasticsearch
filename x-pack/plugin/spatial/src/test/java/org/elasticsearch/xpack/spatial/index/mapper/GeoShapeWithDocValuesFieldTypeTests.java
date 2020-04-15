@@ -11,11 +11,11 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Before;
 
-public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
+public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldMapper.GeoShapeFieldType();
+        return new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
     }
 
     @Before
@@ -23,7 +23,7 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         addModifier(new FieldTypeTestCase.Modifier("orientation", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
+                ((GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
             }
         });
     }

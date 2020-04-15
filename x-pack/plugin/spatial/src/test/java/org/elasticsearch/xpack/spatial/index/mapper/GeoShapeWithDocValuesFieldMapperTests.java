@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
+public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -75,9 +75,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(org.elasticsearch.index.mapper.GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
         assertFalse(geoShapeFieldMapper.docValues().explicit());
@@ -96,9 +96,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertFalse(geoShapeFieldMapper.docValues().explicit());
         assertFalse(geoShapeFieldMapper.docValues().value());
         assertFalse(geoShapeFieldMapper.fieldType().hasDocValues());
@@ -118,9 +118,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        ShapeBuilder.Orientation orientation = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
@@ -136,9 +136,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         defaultMapper = createIndex("test2").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        orientation = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
@@ -158,9 +158,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        boolean coerce = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).coerce().value();
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
@@ -174,9 +174,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         defaultMapper = createIndex("test2").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        coerce = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).coerce().value();
         assertThat(coerce, equalTo(false));
         assertFieldWarnings("tree");
     }
@@ -196,9 +196,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
@@ -212,9 +212,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         defaultMapper = createIndex("test2").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -232,9 +232,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        Explicit<Boolean> ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
+        Explicit<Boolean> ignoreMalformed = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed.value(), equalTo(true));
 
         // explicit false ignore_malformed test
@@ -248,9 +248,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         defaultMapper = createIndex("test2").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
+        ignoreMalformed = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed.explicit(), equalTo(true));
         assertThat(ignoreMalformed.value(), equalTo(false));
     }
@@ -269,11 +269,11 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        assertTrue(((GeoShapeFieldMapper)fieldMapper).docValues().explicit());
-        assertTrue(((GeoShapeFieldMapper)fieldMapper).docValues().value());
-        boolean hasDocValues = ((GeoShapeFieldMapper)fieldMapper).fieldType().hasDocValues();
+        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().explicit());
+        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().value());
+        boolean hasDocValues = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertTrue(hasDocValues);
 
         // explicit false doc_values
@@ -287,11 +287,11 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         defaultMapper = createIndex("test2").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        assertTrue(((GeoShapeFieldMapper)fieldMapper).docValues().explicit());
-        assertFalse(((GeoShapeFieldMapper)fieldMapper).docValues().value());
-        hasDocValues = ((GeoShapeFieldMapper)fieldMapper).fieldType().hasDocValues();
+        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().explicit());
+        assertFalse(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().value());
+        hasDocValues = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
     }
 
@@ -318,9 +318,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         // verify nothing changed
         Mapper fieldMapper = docMapper.mappers().getMapper("shape");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
 
         // change mapping; orientation
@@ -330,9 +330,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         fieldMapper = docMapper.mappers().getMapper("shape");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
     }
 
@@ -360,7 +360,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+            String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
                 AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
             assertTrue(serialized, serialized.contains("\"doc_values\":true"));
@@ -377,13 +377,13 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
         DocumentMapper mapper = parser.parse("type1", new CompressedXContent(mapping));
-        String serialized = toXContentString((GeoShapeFieldMapper) mapper.mappers().getMapper("location"));
+        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper("location"));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
             AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
 
-    public String toXContentString(GeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
+    public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper, boolean includeDefaults) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         ToXContent.Params params;
         if (includeDefaults) {
@@ -395,7 +395,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         return Strings.toString(builder.endObject());
     }
 
-    public String toXContentString(GeoShapeFieldMapper mapper) throws IOException {
+    public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
     }
 

@@ -64,7 +64,7 @@ import java.util.Map;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
-public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
+public class GeoShapeWithDocValuesFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
 
@@ -79,15 +79,15 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     }
 
     @SuppressWarnings("rawtypes")
-    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
+    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeWithDocValuesFieldMapper> {
         public Builder(String name) {
-            super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            super (name, new GeoShapeWithDocValuesFieldType(), new GeoShapeWithDocValuesFieldType());
         }
 
         @Override
-        public GeoShapeFieldMapper build(BuilderContext context) {
+        public GeoShapeWithDocValuesFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+            return new GeoShapeWithDocValuesFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), docValues(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -109,7 +109,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
-            GeoShapeFieldType fieldType = (GeoShapeFieldType)fieldType();
+            GeoShapeWithDocValuesFieldType fieldType = (GeoShapeWithDocValuesFieldType)fieldType();
             boolean orientation = fieldType.orientation() == ShapeBuilder.Orientation.RIGHT;
 
             GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
@@ -146,12 +146,12 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
-        public GeoShapeFieldType() {
+    public static final class GeoShapeWithDocValuesFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
+        public GeoShapeWithDocValuesFieldType() {
             super();
         }
 
-        protected GeoShapeFieldType(GeoShapeFieldType ref) {
+        protected GeoShapeWithDocValuesFieldType(GeoShapeWithDocValuesFieldType ref) {
             super(ref);
         }
 
@@ -176,8 +176,8 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
 
         @Override
-        public GeoShapeFieldType clone() {
-            return new GeoShapeFieldType(this);
+        public GeoShapeWithDocValuesFieldType clone() {
+            return new GeoShapeWithDocValuesFieldType(this);
         }
 
         @Override
@@ -195,7 +195,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
                 return new LegacyGeoShapeFieldMapper.Builder(name,
                     (LegacyGeoShapeFieldMapper.DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
             }
-            return new GeoShapeFieldMapper.Builder(name);
+            return new GeoShapeWithDocValuesFieldMapper.Builder(name);
         }
 
         @Override
@@ -220,10 +220,10 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
-                               MultiFields multiFields, CopyTo copyTo) {
+    public GeoShapeWithDocValuesFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                                            Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
+                                            MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
         this.docValues = docValues;
@@ -245,8 +245,8 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     }
 
     @Override
-    public GeoShapeFieldType fieldType() {
-        return (GeoShapeFieldType) super.fieldType();
+    public GeoShapeWithDocValuesFieldType fieldType() {
+        return (GeoShapeWithDocValuesFieldType) super.fieldType();
     }
 
     @Override

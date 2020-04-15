@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.RetryableAction;
@@ -72,8 +73,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final TransportRequestOptions fileChunkRequestOptions;
 
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
+    private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
 
     private final Consumer<Long> onSourceThrottle;
+    private final boolean retriesSupported;
     private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
@@ -93,6 +96,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
+        // TODO: Change after backport
+        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_8_0_0);
 
     }
 
@@ -133,6 +138,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final TimeValue initialDelay = TimeValue.timeValueMillis(50);
         final TimeValue timeout = translogOpsRequestOptions.timeout();
         final Object key = new Object();
@@ -143,6 +149,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             public void tryAction(ActionListener<Long> listener) {
                 final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
                     recoveryId,
+                    requestSeqNo,
                     shardId,
                     operations,
                     totalTranslogOps,
@@ -157,7 +164,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return retryableException(e);
+                return retriesSupported && retryableException(e);
             }
         };
 
@@ -210,6 +217,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             throttleTimeInNanos = 0;
         }
 
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final TimeValue initialDelay = TimeValue.timeValueMillis(50);
         final TimeValue timeout = fileChunkRequestOptions.timeout();
         final Object key = new Object();
@@ -222,8 +230,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * see how many translog ops we accumulate while copying files across the network. A future optimization
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
-                final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(recoveryId, shardId, fileMetadata, position, content,
-                    lastChunk, totalTranslogOps, throttleTimeInNanos);
+                final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(recoveryId, requestSeqNo, shardId, fileMetadata,
+                    position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
                 transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
                     request, fileChunkRequestOptions, new ActionListenerResponseHandler<>(
                         ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
@@ -231,7 +239,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return retryableException(e);
+                return retriesSupported && retryableException(e);
             }
         };
 

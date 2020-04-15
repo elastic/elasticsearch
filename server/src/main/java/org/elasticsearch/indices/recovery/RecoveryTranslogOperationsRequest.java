@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.TransportRequest;
@@ -33,6 +34,7 @@ import java.util.List;
 public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     private final long recoveryId;
+    private final long requestSeqNo;
     private final ShardId shardId;
     private final List<Translog.Operation> operations;
     private final int totalTranslogOps;
@@ -43,6 +45,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     RecoveryTranslogOperationsRequest(
             final long recoveryId,
+            final long requestSeqNo,
             final ShardId shardId,
             final List<Translog.Operation> operations,
             final int totalTranslogOps,
@@ -51,6 +54,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary) {
         this.recoveryId = recoveryId;
+        this.requestSeqNo = requestSeqNo;
         this.shardId = shardId;
         this.operations = operations;
         this.totalTranslogOps = totalTranslogOps;
@@ -62,6 +66,10 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     public long recoveryId() {
         return this.recoveryId;
+    }
+
+    public long requestSeqNo() {
+        return requestSeqNo;
     }
 
     public ShardId shardId() {
@@ -100,6 +108,12 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
         super(in);
         recoveryId = in.readLong();
+        // TODO: Change after backport
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            requestSeqNo = in.readLong();
+        } else {
+            requestSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
         shardId = new ShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
@@ -117,6 +131,10 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
+        // TODO: Change after backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeLong(requestSeqNo);
+        }
         shardId.writeTo(out);
         Translog.writeOperations(out, operations);
         out.writeVInt(totalTranslogOps);
@@ -127,5 +145,5 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             out.writeVLong(mappingVersionOnPrimary);
         }
     }
-    
+
     }

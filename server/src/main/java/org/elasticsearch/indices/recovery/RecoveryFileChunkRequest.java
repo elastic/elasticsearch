@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.transport.TransportRequest;
@@ -31,19 +32,26 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 
 public final class RecoveryFileChunkRequest extends TransportRequest {
-    private boolean lastChunk;
-    private long recoveryId;
-    private ShardId shardId;
-    private long position;
-    private BytesReference content;
-    private StoreFileMetadata metadata;
-    private long sourceThrottleTimeInNanos;
+    private final boolean lastChunk;
+    private final long requestSeqNo;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final long position;
+    private final BytesReference content;
+    private final StoreFileMetadata metadata;
+    private final long sourceThrottleTimeInNanos;
 
-    private int totalTranslogOps;
+    private final int totalTranslogOps;
 
     public RecoveryFileChunkRequest(StreamInput in) throws IOException {
         super(in);
         recoveryId = in.readLong();
+        // TODO: Change after backport
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+            requestSeqNo = in.readLong();
+        } else {
+            requestSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
         shardId = new ShardId(in);
         String name = in.readString();
         position = in.readVLong();
@@ -58,9 +66,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         sourceThrottleTimeInNanos = in.readLong();
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetadata metadata, long position, BytesReference content,
-                                    boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
+    public RecoveryFileChunkRequest(long recoveryId, final long requestSeqNo, ShardId shardId, StoreFileMetadata metadata, long position,
+                                    BytesReference content, boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
         this.recoveryId = recoveryId;
+        this.requestSeqNo = requestSeqNo;
         this.shardId = shardId;
         this.metadata = metadata;
         this.position = position;
@@ -72,6 +81,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
 
     public long recoveryId() {
         return this.recoveryId;
+    }
+
+    public long requestSeqNo() {
+        return requestSeqNo;
     }
 
     public ShardId shardId() {
@@ -106,6 +119,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
+        // TODO: Change after backport
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
+            out.writeLong(requestSeqNo);
+        }
         shardId.writeTo(out);
         out.writeString(metadata.name());
         out.writeVLong(position);

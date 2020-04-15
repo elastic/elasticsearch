@@ -860,7 +860,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, numDocs);
 
         String[] recoveryActions = new String[]{
-//            PeerRecoveryTargetService.Actions.FILE_CHUNK
+            PeerRecoveryTargetService.Actions.FILE_CHUNK,
             PeerRecoveryTargetService.Actions.TRANSLOG_OPS
         };
         final String recoveryActionToBlock = randomFrom(recoveryActions);
@@ -888,13 +888,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
             logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
             redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
-//            handler.messageReceived(request, channel, task);
+            handler.messageReceived(request, channel, task);
             disrupted.countDown();
         });
         redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
             logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
             blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
-//            handler.messageReceived(request, channel, task);
+            handler.messageReceived(request, channel, task);
             disrupted.countDown();
         });
 

@@ -71,6 +71,24 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
+    public void testMatchWithNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where match(process_name, parent_process_name)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: second argument of [match(process_name, parent_process_name)] " +
+            "must be a constant, received [parent_process_name]", msg);
+    }
+
+    public void testMatchWithNonRegex() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where match(process_name, 1)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: second argument of [match(process_name, 1)] " +
+            "must be [string], found value [1] type [integer]", msg);
+    }
+
     public void testLengthFunctionWithInexact() {
         VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where length(plain_text) > 0"));

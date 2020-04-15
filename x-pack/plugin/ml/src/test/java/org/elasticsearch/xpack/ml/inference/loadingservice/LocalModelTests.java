@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -74,13 +76,13 @@ public class LocalModelTests extends ESTestCase {
             put("categorical", "dog");
         }};
 
-        SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
+        SingleValueInferenceResults result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
         ClassificationInferenceResults classificationResult =
-            (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfigUpdate(1, null, null, null));
+            (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfigUpdate(1, null, null, null, null));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
@@ -97,28 +99,86 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             modelStatsService);
-        result = getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
+        result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
-            new ClassificationConfigUpdate(1, null, null, null));
+            new ClassificationConfigUpdate(1, null, null, null, null));
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
-            new ClassificationConfigUpdate(2, null, null, null));
+            new ClassificationConfigUpdate(2, null, null, null, null));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
         classificationResult = (ClassificationInferenceResults)getSingleValue(model,
             fields,
-            new ClassificationConfigUpdate(-1, null, null, null));
+            new ClassificationConfigUpdate(-1, null, null, null, null));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testClassificationInferWithDifferentPredictionFieldTypes() throws Exception {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        String modelId = "classification_model";
+        List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
+        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setTrainedModel(buildClassification(true))
+            .build();
+
+        Model<ClassificationConfig> model = new LocalModel<>(modelId,
+            "test-node",
+            definition,
+            new TrainedModelInput(inputFields),
+            Collections.singletonMap("field.foo", "field.foo.keyword"),
+            ClassificationConfig.EMPTY_PARAMS,
+            modelStatsService);
+        Map<String, Object> fields = new HashMap<>() {{
+            put("field.foo", 1.0);
+            put("field.bar", 0.5);
+            put("categorical", "dog");
+        }};
+
+        InferenceResults result = getInferenceResult(
+            model,
+            fields,
+            new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING));
+
+        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        result.writeResult(document, "result_field");
+        assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("not_to_be"));
+        List<?> list = document.getFieldValue("result_field.top_classes", List.class);
+        assertThat(list.size(), equalTo(2));
+        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo("not_to_be"));
+        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo("to_be"));
+
+        result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
+
+        document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        result.writeResult(document, "result_field");
+        assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.0));
+        list = document.getFieldValue("result_field.top_classes", List.class);
+        assertThat(list.size(), equalTo(2));
+        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo(0.0));
+        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo(1.0));
+
+        result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
+
+        document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        result.writeResult(document, "result_field");
+        assertThat(document.getFieldValue("result_field.predicted_value", Boolean.class), equalTo(false));
+        list = document.getFieldValue("result_field.top_classes", List.class);
+        assertThat(list.size(), equalTo(2));
+        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo(false));
+        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo(true));
     }
 
     public void testRegression() throws Exception {
@@ -201,9 +261,9 @@ public class LocalModelTests extends ESTestCase {
         }};
 
         for(int i = 0; i < 100; i++) {
-            getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
+            getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         }
-        SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfigUpdate(0, null, null, null));
+        SingleValueInferenceResults result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0"));
         // Should have reset after persistence, so only 2 docs have been seen since last persistence

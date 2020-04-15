@@ -97,6 +97,8 @@ public class XPackSettings {
 
     /**
      * Setting for enabling or disabling the snapshot lifecycle extension. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
     public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
         Property.NodeScope, Property.Deprecated);

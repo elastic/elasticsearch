@@ -348,7 +348,7 @@ public class RefreshListenersTests extends ESTestCase {
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =
                                     getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
-                            assertEquals(new String[] {testFieldValue}, document.getValues("test"));
+                            assertArrayEquals(new String[] {testFieldValue}, document.getValues("test"));
                         }
                     } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);

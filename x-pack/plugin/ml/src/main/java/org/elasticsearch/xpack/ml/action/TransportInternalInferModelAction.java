@@ -48,7 +48,6 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
         Response.Builder responseBuilder = Response.builder();
@@ -63,8 +62,6 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     ex -> true);
                 request.getObjectsToInfer().forEach(stringObjectMap ->
                     typedChainTaskExecutor.add(chainedTask ->
-                        // The InferenceConfigUpdate here is unchecked, initially.
-                        // It gets checked when it is appliedTransportInternalInferModelAction.java
                         model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(

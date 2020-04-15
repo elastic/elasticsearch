@@ -9,7 +9,7 @@
 {ilm-init} splits the index lifecycle into four _phases_: 
 
 * Hot--the index is actively being updated and queried.
-* Warm--the index is no longer being updated, but is still being queried.
+* Warm--the index is no longer being updated but is still being queried.
 * Cold--the index is no longer being updated and is seldom queried. The
 information still needs to be searchable, but it's okay if those queries are
 slower.

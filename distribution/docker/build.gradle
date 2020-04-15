@@ -27,6 +27,10 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
+private static String baseImageFilename(final String architecture) {
+  return "elasticsearch-baseimage-${architecture}.tar"
+}
+
 ext.expansions = { architecture, oss, local ->
   switch (architecture) {
     case "aarch64":
@@ -39,7 +43,7 @@ ext.expansions = { architecture, oss, local ->
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
     'platform'            : "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64',
-    'base_image_tar'      : "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar",
+    'base_image_tar'      : baseImageFilename(architecture),
     'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
     'git_revision'        : BuildParams.gitRevision,
@@ -81,7 +85,7 @@ project.ext {
       }
 
       from("${projectDir}/build") {
-        include "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar"
+        include baseImageFilename(architecture)
       }
     }
   }
@@ -181,11 +185,12 @@ check.dependsOn integTest
 
 void addBuildDockerBaseImage(final String architecture, final boolean oss) {
   def installer = "${projectDir}/src/docker/bin/install-baseimage.sh"
-  def outputFile = "elasticsearch-baseimage${"aarch64".equals(architecture) ? '-aarch64' : ''}.docker.tar"
+  def outputFile = baseImageFilename(architecture)
   def outputPath = "${projectDir}/build/${outputFile}"
   def archArg = "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64'
 
   final Task buildDockerBaseImageTask = task(taskName("build", architecture, oss, "DockerBaseImage"), type: LoggedExec) {
+    inputs.file(installer)
     outputs.file(outputPath)
     executable 'bash'
     args '-c', "docker run --rm -t " +

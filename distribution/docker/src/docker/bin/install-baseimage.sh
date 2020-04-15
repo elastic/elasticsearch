@@ -27,6 +27,9 @@ if [[ -z "$output_file" ]]; then
     usage
 fi
 
+# Start off with an up-to-date system
+yum update --setopt=tsflags=nodocs -y
+
 # Create a temporary directory into which we will install files
 target=$(mktemp -d --tmpdir $(basename $0).XXXXXX)
 
@@ -45,11 +48,6 @@ mknod -m 666 "$target"/dev/tty0 c 4 0
 mknod -m 666 "$target"/dev/urandom c 1 9
 mknod -m 666 "$target"/dev/zero c 1 5
 
-TINI_URL=""
-if [[ "$platform" == "linux/amd64" ]]; then
-  TINI_URL="https://github.com/krallin/tini/releases/download/v0.18.0/tini_0.18.0-amd64.rpm"
-fi
-
 # Install files. We attempt to install a headless Java distro, and exclude a
 # number of unnecessary dependencies. In so doing, we also filter out Java itself,
 # but since Elasticsearch ships its own JDK, with its own libs, that isn't a problem
@@ -62,8 +60,10 @@ fi
 #
 # We also include some utilities that we ship with the image.
 #
-#    * `pigz` is used for compressing large heaps dumps, and is considerably faster than `gzip` for this task.
-#    * `tini` is a tiny but valid init for containers. This is used to cleanly control how ES and any child processes are shut down.
+#   * `nc` is useful for checking network issues
+#   * `zip` and `unzip` are for working with bundles
+#   * `pigz` is used for compressing large heaps dumps, and is considerably faster than `gzip` for this task.
+#   * `tini` is a tiny but valid init for containers. This is used to cleanly control how ES and any child processes are shut down.
 #
 yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --setopt=group_package_types=mandatory -y  \
@@ -72,16 +72,14 @@ yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --skip-broken \
   install \
     java-latest-openjdk-headless \
-    bash zip pigz \
-    $TINI_URL
+    bash nc zip upzip pigz
 
-if [[ "$platform" == "linux/arm64" ]]; then
-  curl --retry 10 -L -o "$target"/bin/tini https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-arm64
-  chmod +x "$target"/bin/tini
-fi
+curl --retry 10 -L -o "$target"/bin/tini \
+  "https://github.com/krallin/tini/releases/download/v0.18.0/tini-static-$(basename $platform)"
+chmod +x "$target"/bin/tini
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
-# stuff we don't want. Unforunately, there's no RPM for busybox available for CentOS.
+# stuff we don't want. There's no RPM for busybox available for CentOS.
 BUSYBOX_URL="https://busybox.net/downloads/binaries/1.31.0-i686-uclibc/busybox"
 if [[ "$platform" == "linux/arm64" ]]; then
   BUSYBOX_URL="https://www.busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-armv8l"
@@ -107,49 +105,41 @@ tar cf - /etc/pki | (cd "$target" && tar xf -)
 
 yum --installroot="$target" -y clean all
 
-# effectively: febootstrap-minimize --keep-zoneinfo --keep-rpmdb --keep-services "$target".
-#  locales
-rm -rf "$target"/usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive}
-#  docs and man pages
-rm -rf "$target"/usr/share/{awk,man,doc,info,games,gdb,ghostscript,gnome,groff,icons}
-#  cracklib
-rm -rf "$target"/usr/share/cracklib
-#  i18n
-rm -rf "$target"/usr/share/i18n
-#  yum cache
-rm -rf "$target"/var/cache/yum
-#  sln
-rm -rf "$target"/sbin/sln
-#  ldconfig
-rm -rf "$target"/etc/ld.so.cache "$target"/var/cache/ldconfig
-mkdir -p --mode=0755 "$target"/var/cache/ldconfig
-
-# Remove a bunch of other stuff that isn't required
 rm -rf \
-  "$target"/etc/yum* \
-  "$target"/etc/csh* \
+  "$target"/etc/X11 \
   "$target"/etc/centos-release* \
+  "$target"/etc/csh* \
+  "$target"/etc/groff \
   "$target"/etc/profile* \
   "$target"/etc/skel* \
-  "$target"/etc/X11 \
-  "$target"/usr/share/awk \
-  "$target"/usr/lib/systemd \
+  "$target"/etc/yum* \
+  "$target"/sbin/sln \
+  "$target"/usr/bin/rpm \
+  "$target"/usr/bin/tini-static \
   "$target"/usr/lib/dracut \
-  "$target"/var/log/yum.log \
-  "$target"/var/lib/yum \
-  "$target"/var/lib/rpm \
+  "$target"/usr/lib/systemd \
   "$target"/usr/lib/udev \
+  "${target}/usr/local" \
+  "$target"/usr/share/awk \
   "$target"/usr/share/centos-release \
+  "$target"/usr/share/cracklib \
   "$target"/usr/share/desktop-directories \
   "$target"/usr/share/gcc-* \
+  "$target"/usr/share/i18n \
   "$target"/usr/share/icons \
   "$target"/usr/share/licenses \
   "$target"/usr/share/xsessions \
   "$target"/usr/share/zoneinfo \
-  "$target"/etc/groff \
-  "$target"/usr/bin/rpm \
-  "$target"/usr/bin/tini-static \
-  "$target"/usr/local
+  "$target"/usr/share/{awk,man,doc,info,games,gdb,ghostscript,gnome,groff,icons} \
+  "$target"/usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive} \
+  "$target"/var/cache/yum \
+  "$target"/var/lib/rpm \
+  "$target"/var/lib/yum \
+  "$target"/var/log/yum.log
+
+#  ldconfig
+rm -rf "$target"/etc/ld.so.cache "$target"/var/cache/ldconfig
+mkdir -p --mode=0755 "$target"/var/cache/ldconfig
 
 # Write out the base filesystem. The command changes directory to $target,
 # so '.' refers to that directory

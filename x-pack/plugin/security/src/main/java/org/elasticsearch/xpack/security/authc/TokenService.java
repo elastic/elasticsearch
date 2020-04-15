@@ -461,17 +461,18 @@ public final class TokenService {
      */
     private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        if (tokensIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenTokensIndex = getTokensIndexForVersion(tokenVersion).freeze();
+        if (frozenTokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
-            listener.onFailure(tokensIndex.getUnavailableReason());
+            listener.onFailure(frozenTokensIndex.getUnavailableReason());
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(),
-                    getTokenDocumentId(userTokenId)).request();
+                getTokenDocumentId(userTokenId)).request();
             final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
-                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
+                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", userTokenId, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
-                        ActionListener.<GetResponse>wrap(response -> {
+                    ActionListener.<GetResponse>wrap(response -> {
                             if (response.isExists()) {
                                 Map<String, Object> accessTokenSource =
                                     (Map<String, Object>) response.getSource().get("access_token");

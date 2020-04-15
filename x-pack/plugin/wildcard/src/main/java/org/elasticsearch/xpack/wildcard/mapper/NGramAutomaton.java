@@ -135,8 +135,8 @@ public class NGramAutomaton {
             int min, max;
             if (transition.max - transition.min >= maxExpand) {
                 // Consider this transition useless.
-                min = 0;
-                max = 0;
+                min = NGramState.INVALID_CHAR;
+                max = NGramState.INVALID_CHAR;
             } else {
                 min = transition.min;
                 max = transition.max;
@@ -179,8 +179,8 @@ public class NGramAutomaton {
                 int min, max;
                 if (transition.max - transition.min >= maxExpand) {
                     // Consider this transition useless.
-                    min = 0;
-                    max = 0;
+                    min = NGramState.INVALID_CHAR;
+                    max = NGramState.INVALID_CHAR;
                 } else {
                     min = transition.min;
                     max = transition.max;
@@ -191,7 +191,7 @@ public class NGramAutomaton {
                     NGramState next = buildOrFind(leftToProcess, transition.dest, ngram.substring(1));
                     // Transitions containing an invalid character contain no
                     // prefix.
-                    if (ngram.indexOf(0) >= 0) {
+                    if (ngram.indexOf(NGramState.INVALID_CHAR) >= 0) {
                         ngram = null;
                     }
                     if (currentTransitions >= maxTransitions) {
@@ -226,10 +226,14 @@ public class NGramAutomaton {
      * and prefix.
      */
     private static class NGramState implements ExpressionSource<String> {
+        
         /**
-         * We use the 0 char to stand in for code points we can't match.
+         * We use the 1 char to stand in for code points we can't match.
+         * We don't use 0 because that is reserved in the NGram index for 
+         * denoting value starts and ends.
          */
-        private static final String INVALID_CHAR = new String(new int[] { 0 }, 0, 1);
+        public static final char INVALID_CHAR = 1;
+        private static final String INVALID_CHAR_STRING = new String(new int[] { INVALID_CHAR }, 0, 1);
         /**
          * We print code points we can't match as double underscores.
          */
@@ -286,7 +290,7 @@ public class NGramAutomaton {
         }
 
         public String prettyPrefix() {
-            return prefix.replace(INVALID_CHAR, INVALID_PRINT_CHAR);
+            return prefix.replace(INVALID_CHAR_STRING, INVALID_PRINT_CHAR);
         }
 
         @Override

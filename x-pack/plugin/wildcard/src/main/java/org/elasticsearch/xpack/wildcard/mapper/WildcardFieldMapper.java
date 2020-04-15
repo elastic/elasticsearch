@@ -255,7 +255,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 // a) speed (less ngram variations to explore on disk) and 
                 // b) use less disk space
                 String openStart = TOKEN_START_OR_END_CHAR + ".*";
-                if(ngramPattern.startsWith(openStart)){
+                if (ngramPattern.startsWith(openStart)) {
                     //".*" causes too many imagined beginnings in the Automaton to trace through.
                     //Rewrite to cut to the concrete path after .* to extract required ngrams
                     // TODO ideally we would trim the automaton paths rather than the regex string

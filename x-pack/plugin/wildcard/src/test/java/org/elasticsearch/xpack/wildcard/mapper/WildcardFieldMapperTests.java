@@ -261,7 +261,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         // automatons and this would cause many transitions. Some of the expressions below would just throw 
         // in the towel and revert to "match all".
         String regexes[] = { ".*/etc/passw.*", ".*etc/passwd HTTP.*", ".*/etc/passwd.*", "/etc/passwd.*", 
-            ".*ietcipasswd.*", ".*jetcjpasswd.*"};
+            ".*ietcipasswd.*", ".*jetcjpasswd.*", ".*\\.c", ".a", "b"};
         for (String regex : regexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, 0, 20000, null, MOCK_QSC);
             assertTrue(regex+" pattern not accelerated", wildcardFieldQuery instanceof BooleanQuery);
@@ -270,7 +270,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
     
     public void testWildcardAcceleration() throws IOException {
         // All of these patterns should be accelerated. 
-        String patterns[] = { "*foobar", "foobar*", "foo*bar", "foo?bar", "?foo*bar?"};
+        String patterns[] = { "*foobar", "foobar*", "foo*bar", "foo?bar", "?foo*bar?", "*c"};
         for (String pattern : patterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
             assertTrue(wildcardFieldQuery instanceof BooleanQuery);

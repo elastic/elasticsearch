@@ -37,6 +37,7 @@ import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.SourceSet
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
 
 import java.util.regex.Matcher
@@ -94,7 +95,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             if (extension1.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
-            Copy buildProperties = project.tasks.getByName('pluginProperties')
+
             Map<String, String> properties = [
                 'name'                : extension1.name,
                 'description'         : extension1.description,
@@ -106,8 +107,10 @@ class PluginBuildPlugin implements Plugin<Project> {
                 'hasNativeController' : extension1.hasNativeController,
                 'requiresKeystore'    : extension1.requiresKeystore
             ]
-            buildProperties.expand(properties)
-            buildProperties.inputs.properties(properties)
+            project.tasks.named('pluginProperties').configure {
+                expand(properties)
+                inputs.properties(properties)
+            }
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project, extension1)
             }
@@ -177,7 +180,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         File templateFile = new File(project.buildDir, "templates/plugin-descriptor.properties")
 
         // create tasks to build the properties file for this plugin
-        Task copyPluginPropertiesTemplate = project.tasks.create('copyPluginPropertiesTemplate') {
+        TaskProvider<Task> copyPluginPropertiesTemplate = project.tasks.register('copyPluginPropertiesTemplate') {
             outputs.file(templateFile)
             doLast {
                 InputStream resourceTemplate = PluginBuildPlugin.getResourceAsStream("/${templateFile.name}")
@@ -185,7 +188,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
 
-        Copy buildProperties = project.tasks.create('pluginProperties', Copy) {
+        TaskProvider<Copy> buildProperties = project.tasks.register('pluginProperties', Copy) {
             dependsOn(copyPluginPropertiesTemplate)
             from(templateFile)
             into("${project.buildDir}/generated-resources")
@@ -194,11 +197,11 @@ class PluginBuildPlugin implements Plugin<Project> {
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         SourceSet testSourceSet = project.sourceSets.test
-        testSourceSet.output.dir(buildProperties.destinationDir, builtBy: buildProperties)
+        testSourceSet.output.dir("${project.buildDir}/generated-resources", builtBy: buildProperties)
         testSourceSet.resources.srcDir(pluginMetadata)
 
         // create the actual bundle task, which zips up all the files for the plugin
-        Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip) {
+        TaskProvider<Zip> bundle = project.tasks.register('bundlePlugin', Zip) {
             from buildProperties
             from pluginMetadata // metadata (eg custom security policy)
             /*
@@ -246,16 +249,21 @@ class PluginBuildPlugin implements Plugin<Project> {
     protected static void addNoticeGeneration(Project project, PluginPropertiesExtension extension) {
         File licenseFile = extension.licenseFile
         if (licenseFile != null) {
-            project.tasks.bundlePlugin.from(licenseFile.parentFile) {
-                include(licenseFile.name)
-                rename { 'LICENSE.txt' }
+            project.tasks.named('bundlePlugin').configure {
+                from(licenseFile.parentFile) {
+                    include(licenseFile.name)
+                    rename { 'LICENSE.txt' }
+                }
             }
         }
         File noticeFile = extension.noticeFile
         if (noticeFile != null) {
-            NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
-            generateNotice.inputFile = noticeFile
-            project.tasks.bundlePlugin.from(generateNotice)
+            TaskProvider<NoticeTask> generateNotice = project.tasks.register('generateNotice', NoticeTask) {
+                inputFile = noticeFile
+            }
+            project.tasks.named('bundlePlugin').configure {
+                from(generateNotice)
+            }
         }
     }
 }

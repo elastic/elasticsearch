@@ -166,7 +166,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
+public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
     /**
      * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
      */
@@ -283,6 +283,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     /**
+     * The NamedWriteable class for agg tests _should_ be InternalAggregation so this is being set by default,
+     * but implementors can change if necessary
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    protected Class<T> categoryClass() {
+        return (Class<T>) InternalAggregation.class;
+    }
+
+    /**
      * Generate a list of inputs to reduce. Defaults to calling
      * {@link #createTestInstance(String)} and
      * {@link #createUnmappedInstance(String)} but should be overridden
@@ -330,7 +340,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * partial reduce. And to simulate cross cluster search.
              */
             if (randomBoolean()) {
-                reduced = copyInstance(reduced);
+                reduced =  copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
             }
             toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);

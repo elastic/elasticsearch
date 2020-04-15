@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
@@ -62,11 +61,6 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     private TTestStats randomStats(long maxCount) {
         return new TTestStats(randomLongBetween(0, maxCount), randomDouble(), randomDouble());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalTTest> instanceReader() {
-        return InternalTTest::new;
     }
 
     @Override

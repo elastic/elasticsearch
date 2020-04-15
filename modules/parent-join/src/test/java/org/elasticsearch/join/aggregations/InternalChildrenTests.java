@@ -20,7 +20,6 @@
 package org.elasticsearch.join.aggregations;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -51,11 +50,6 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
     @Override
     protected void extraAssertReduced(InternalChildren reduced, List<InternalChildren> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Reader<InternalChildren> instanceReader() {
-        return InternalChildren::new;
     }
 
     @Override

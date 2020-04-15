@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -101,11 +100,6 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
                 DocValueFormat.RAW, instance.getMetadata());
-    }
-
-    @Override
-    protected Reader<InternalStringStats> instanceReader() {
-        return InternalStringStats::new;
     }
 
     @Override

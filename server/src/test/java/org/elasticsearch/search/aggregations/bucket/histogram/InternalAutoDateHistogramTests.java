@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -229,11 +228,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             bucketCount++;
         }
         return bucketCount;
-    }
-
-    @Override
-    protected Writeable.Reader<InternalAutoDateHistogram> instanceReader() {
-        return InternalAutoDateHistogram::new;
     }
 
     @Override

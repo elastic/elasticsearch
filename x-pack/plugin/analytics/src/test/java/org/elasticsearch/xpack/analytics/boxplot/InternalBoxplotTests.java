@@ -10,7 +10,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -35,11 +34,6 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         DocValueFormat formatter = randomNumericDocValueFormat();
 
         return new InternalBoxplot(name, state, formatter, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalBoxplot> instanceReader() {
-        return InternalBoxplot::new;
     }
 
     @Override

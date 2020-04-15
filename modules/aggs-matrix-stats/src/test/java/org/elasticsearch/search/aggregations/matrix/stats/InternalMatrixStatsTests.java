@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -78,11 +77,6 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
         return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalMatrixStats> instanceReader() {
-        return InternalMatrixStats::new;
     }
 
     @Override

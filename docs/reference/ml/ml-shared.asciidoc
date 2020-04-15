@@ -259,10 +259,6 @@ add them here as
 <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 end::char-filter[]
 
-tag::compute-feature-influence[]
-If `true`, the feature influence calculation is enabled. Defaults to `true`.
-end::compute-feature-influence[]
-
 tag::chunking-config[]
 {dfeeds-cap} might be required to search over long time periods, for several 
 months or years. This search is split into time chunks in order to ensure the 
@@ -374,95 +370,6 @@ for {anomaly-detect} are retained.
 include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
-
-tag::data-frame-analytics[]
-An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
-ascending order.
-+
-.Properties of {dfanalytics-job} resources
-[%collapsible%open]
-====
-`analysis`:::
-(object) The type of analysis that is performed on the `source`.
-
-//Begin analyzed_fields
-`analyzed_fields`:::
-(object) Contains `includes` and/or `excludes` patterns that select which fields 
-are included in the analysis.
-+
-.Properties of `analyzed_fields`
-[%collapsible%open]
-=====
-`excludes`:::
-(Optional, array) An array of strings that defines the fields that are excluded 
-from the analysis.
-    
-`includes`:::
-(Optional, array) An array of strings that defines the fields that are included 
-in the analysis.
-=====
-//End analyzed_fields
-//Begin dest
-`dest`:::
-(string) The destination configuration of the analysis.
-+
-.Properties of `dest`
-[%collapsible%open]
-=====
-`index`:::
-(string) The _destination index_ that stores the results of the 
-{dfanalytics-job}.
-
-`results_field`:::
-(string) The name of the field that stores the results of the analysis. Defaults 
-to `ml`.
-=====
-//End dest
-
-`id`:::
-(string) The unique identifier of the {dfanalytics-job}.
-
-`model_memory_limit`:::
-(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
-
-`source`:::
-(object) The configuration of how the analysis data is sourced. It has an 
-`index` parameter and optionally a `query` and a `_source`.
-+
-.Properties of `source`
-[%collapsible%open]
-=====
-`index`:::
-(array) Index or indices on which to perform the analysis. It can be a single 
-index or index pattern as well as an array of indices or patterns.
-    
-`query`:::
-(object) The query that has been specified for the {dfanalytics-job}. The {es} 
-query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
-the query object in an {es} search POST body. By default, this property has the 
-following value: `{"match_all": {}}`.
-
-`_source`:::
-(object) Contains the specified `includes` and/or `excludes` patterns that 
-select which fields are present in the destination. Fields that are excluded 
-cannot be included in the analysis.
-+
-.Properties of `_source`
-[%collapsible%open]
-======
-`excludes`:::
-(array) An array of strings that defines the fields that are excluded from the 
-destination.
-        
-`includes`:::
-(array) An array of strings that defines the fields that are included in the 
-destination.
-======
-//End of _source
-=====
-//End source
-====
-end::data-frame-analytics[]
 
 tag::data-frame-analytics-stats[]
 An array of statistics objects for {dfanalytics-jobs}, which are
@@ -906,11 +813,6 @@ category. (Dead categories are a side effect of the way categorization has no
 prior training.)
 end::dead-category-count[]
 
-tag::decompress-definition[]
-Specifies whether the included model definition should be returned as a JSON map 
-(`true`) or in a custom compressed format (`false`). Defaults to `true`.
-end::decompress-definition[]
-
 tag::delayed-data-check-config[]
 Specifies whether the {dfeed} checks for missing data and the size of the
 window. For example: `{"enabled": true, "check_window": "1h"}`.
@@ -992,6 +894,106 @@ A unique identifier for the detector. This identifier is based on the order of
 the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
 
+tag::dfas-alpha[]
+Regularization factor to penalize deeper trees when training decision trees.
+end::dfas-alpha[]
+
+tag::dfas-downsample-factor[]
+The value of the downsample factor.
+end::dfas-downsample-factor[]
+
+tag::dfas-eta[]
+The value of the eta hyperparameter.
+end::dfas-eta[]
+
+tag::dfas-eta-growth[]
+Specifies the rate at which the `eta` increases for each new tree that is added
+to the forest. For example, a rate of `1.05` increases `eta` by 5%.
+end::dfas-eta-growth[]
+
+tag::dfas-feature-bag-fraction[]
+The fraction of features that is used when selecting a random bag for each 
+candidate split.
+end::dfas-feature-bag-fraction[]
+
+tag::dfas-gamma[]
+Regularization factor to penalize trees with large numbers of nodes.
+end::dfas-gamma[]
+
+tag::dfas-lambda[]
+Regularization factor to penalize large leaf weights.
+end::dfas-lambda[]
+
+tag::dfas-max-attempts[]
+If the algorithm fails to determine a non-trivial tree (more than a single 
+leaf), this parameter determines how many of such consecutive failures are 
+tolerated. Once the number of attempts exceeds the threshold, the forest 
+training stops.
+end::dfas-max-attempts[]
+
+tag::dfas-max-optimization-rounds[]
+A multiplier responsible for determining the maximum number of 
+hyperparameter optimization steps in the Bayesian optimization procedure. 
+The maximum number of steps is determined based on the number of undefined 
+hyperparameters times the maximum optimization rounds per hyperparameter.
+end::dfas-max-optimization-rounds[]
+
+tag::dfas-max-trees[]
+The maximum number of trees in the forest.
+end::dfas-max-trees[]
+
+tag::dfas-num-folds[]
+The maximum number of folds for the cross-validation procedure.
+end::dfas-num-folds[]
+
+tag::dfas-num-splits[]
+Determines the maximum number of splits for every feature that can occur in a 
+decision tree when the tree is trained.
+end::dfas-num-splits[]
+
+tag::dfas-soft-limit[]
+Tree depth limit is used for calculating the tree depth penalty. This is a soft 
+limit, it can be exceeded.
+end::dfas-soft-limit[]
+
+tag::dfas-soft-tolerance[]
+Tree depth tolerance is used for calculating the tree depth penalty. This is a 
+soft limit, it can be exceeded.
+end::dfas-soft-tolerance[]
+
+tag::dfas-iteration[]
+The number of iterations on the analysis.
+end::dfas-iteration[]
+
+tag::dfas-timestamp[]
+The timestamp when the statistics were reported in milliseconds since the epoch.
+end::dfas-timestamp[]
+
+tag::dfas-timing-stats[]
+An object containing time statistics about the {dfanalytics-job}.
+end::dfas-timing-stats[]
+
+tag::dfas-timing-stats-elapsed[]
+Runtime of the analysis in milliseconds.
+end::dfas-timing-stats-elapsed[]
+
+tag::dfas-timing-stats-iteration[]
+Runtime of the latest iteration of the analysis in milliseconds.
+end::dfas-timing-stats-iteration[]
+
+tag::dfas-validation-loss[]
+An object containing information about validation loss.
+end::dfas-validation-loss[]
+
+tag::dfas-validation-loss-fold[]
+Validation loss values for every added decision tree during the forest growing 
+procedure.
+end::dfas-validation-loss-fold[]
+
+tag::dfas-validation-loss-type[]
+The type of the loss metric. For example, `binomial_logistic`.
+end::dfas-validation-loss-type[]
+
 tag::earliest-record-timestamp[]
 The timestamp of the earliest chronologically input document.
 end::earliest-record-timestamp[]
@@ -1028,39 +1030,6 @@ tag::feature-bag-fraction[]
 Advanced configuration option. Defines the fraction of features that will be
 used when selecting a random bag for each candidate split. 
 end::feature-bag-fraction[]
-
-tag::feature-influence-threshold[]
-The minimum {olscore} that a document needs to have in order to calculate its 
-{fiscore}. Value range: 0-1 (`0.1` by default).
-end::feature-influence-threshold[]
-
-tag::field-selection[]
-An array of objects that explain selection for each field, sorted by 
-the field names.
-+
-.Properties of `field_selection` objects
-[%collapsible%open]
-====
-`is_included`:::
-(boolean) Whether the field is selected to be included in the analysis.
-
-`is_required`:::
-(boolean) Whether the field is required.
-
-`feature_type`:::
-(string) The feature type of this field for the analysis. May be `categorical` 
-or `numerical`.
-
-`mapping_types`:::
-(string) The mapping types of the field.
-
-`name`:::
-(string) The field name.
-
-`reason`:::
-(string) The reason a field is not selected to be included in the analysis.
-====
-end::field-selection[]
 
 tag::filter[]
 One or more <<analysis-tokenfilters,token filters>>. In addition to the built-in 
@@ -1113,12 +1082,6 @@ end::gamma[]
 tag::groups[]
 A list of job groups. A job can belong to no groups or many.
 end::groups[]
-
-tag::include-model-definition[]
-Specifies if the model definition should be returned in the response. Defaults 
-to `false`. When `true`, only a single model must match the ID patterns 
-provided, otherwise a bad request is returned.
-end::include-model-definition[]
 
 tag::indices[]
 An array of index names. Wildcards are supported. For example:
@@ -1314,32 +1277,6 @@ Advanced configuration option. Defines the maximum number of trees the forest is
 allowed to contain. The maximum value is 2000.
 end::max-trees[]
 
-tag::memory-estimation[]
-An object containing the memory estimates.
-+
-.Properties of `memory_estimation`
-[%collapsible%open]
-====
-`expected_memory_with_disk`:::
-(string) Estimated memory usage under the assumption that overflowing to disk is 
-allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
-than `expected_memory_without_disk` as using disk allows to limit the main 
-memory needed to perform {dfanalytics}.
-
-`expected_memory_without_disk`:::
-(string) Estimated memory usage under the assumption that the whole 
-{dfanalytics} should happen in memory (i.e. without overflowing to disk).
-====
-end::memory-estimation[]
-
-tag::method[]
-Sets the method that {oldetection} uses. If the method is not set {oldetection} 
-uses an ensemble of different methods and normalises and combines their 
-individual {olscores} to obtain the overall {olscore}. We recommend to use the 
-ensemble method. Available methods are `lof`, `ldof`, `distance_kth_nn`, 
-`distance_knn`.
-end::method[]
-
 tag::missing-field-count[]
 The number of input documents that are missing a field that the {anomaly-job} is
 configured to analyze. Input documents with missing fields are still processed
@@ -1405,15 +1342,6 @@ end::model-memory-limit[]
 tag::model-memory-limit-anomaly-jobs[]
 The upper limit for model memory usage, checked on increasing values.
 end::model-memory-limit-anomaly-jobs[]
-
-tag::model-memory-limit-dfa[]
-The approximate maximum amount of memory resources that are permitted for 
-analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If 
-your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit` 
-setting, an error occurs when you try to create {dfanalytics-jobs} that have 
-`model_memory_limit` values greater than that setting. For more information, see 
-<<ml-settings>>.
-end::model-memory-limit-dfa[]
 
 tag::model-memory-status[]
 The status of the mathematical models, which can have one of the following
@@ -1496,14 +1424,6 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify
 --
 end::multivariate-by-fields[]
 
-tag::n-neighbors[]
-Defines the value for how many nearest neighbors each method of 
-{oldetection} will use to calculate its {olscore}. When the value is not set, 
-different values will be used for different ensemble members. This helps 
-improve diversity in the ensemble. Therefore, only override this if you are 
-confident that the value you choose is appropriate for the data set.
-end::n-neighbors[]
-
 tag::node-address[]
 The network address of the node.
 end::node-address[]
@@ -1537,12 +1457,6 @@ to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
 order documents are  discarded, since jobs require time series data to be in
 ascending chronological order.
 end::out-of-order-timestamp-count[]
-
-tag::outlier-fraction[]
-Sets the proportion of the data set that is assumed to be outlying prior to 
-{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
-outliers and 95% are inliers.
-end::outlier-fraction[]
 
 tag::over-field-name[]
 The field used to split the data. In particular, this property is used for 
@@ -1666,59 +1580,11 @@ tag::snapshot-id[]
 Identifier for the model snapshot.
 end::snapshot-id[]
 
-tag::source-put-dfa[]
-The configuration of how to source the analysis data. It requires an `index`.
-Optionally, `query` and `_source` may be specified.
-+
-.Properties of `source`
-[%collapsible%open]
-====
-`index`:::
-(Required, string or array) Index or indices on which to perform the analysis.
-It can be a single index or index pattern as well as an array of indices or
-patterns.
-+
-WARNING: If your source indices contain documents with the same IDs, only the 
-document that is indexed last appears in the destination index.
-
-`query`:::
-(Optional, object) The {es} query domain-specific language (<<query-dsl,DSL>>).
-This value corresponds to the query object in an {es} search POST body. All the
-options that are supported by {es} can be used, as this object is passed
-verbatim to {es}. By default, this property has the following value:
-`{"match_all": {}}`.
-
-`_source`:::
-(Optional, object) Specify `includes` and/or `excludes` patterns to select which
-fields will be present in the destination. Fields that are excluded cannot be
-included in the analysis.
-+
-.Properties of `_source`
-[%collapsible%open]
-=====
-`includes`::::
-(array) An array of strings that defines the fields that will be included in the
-destination.
-        
-`excludes`::::
-(array) An array of strings that defines the fields that will be excluded from
-the destination.
-=====
-====
-end::source-put-dfa[]
-
 tag::sparse-bucket-count[]
 The number of buckets that contained few data points compared to the expected
 number of data points. If your data contains many sparse buckets, consider using
 a longer `bucket_span`.
 end::sparse-bucket-count[]
-
-tag::standardization-enabled[]
-If `true`, then the following operation is performed on the columns before 
-computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
-more information, see 
-https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[this wiki page about standardization].
-end::standardization-enabled[]
 
 tag::state-anomaly-job[]
 The status of the {anomaly-job}, which can be one of the following values:
@@ -1832,62 +1698,6 @@ tag::total-partition-field-count[]
 The number of `partition` field values that were analyzed by the models. This
 value is cumulative for all detectors in the job.
 end::total-partition-field-count[]
-
-tag::trained-model-configs[]
-An array of trained model resources, which are sorted by the `model_id` value in 
-ascending order.
-+
-.Properties of trained model resources
-[%collapsible%open]
-====
-`created_by`:::
-(string)
-Information on the creator of the trained model.
-
-`create_time`:::
-(<<time-units,time units>>)
-The time when the trained model was created.
-
-`default_field_map` :::
-(object)
-A string to string object that contains the default field map to use
-when inferring against the model. For example, data frame analytics
-may train the model on a specific multi-field `foo.keyword`.
-The analytics job would then supply a default field map entry for
-`"foo" : "foo.keyword"`.
-+
-Any field map described in the inference configuration takes precedence.
-
-`estimated_heap_memory_usage_bytes`:::
-(integer)
-The estimated heap usage in bytes to keep the trained model in memory.
-
-`estimated_operations`:::
-(integer)
-The estimated number of operations to use the trained model.
-
-`license_level`:::
-(string)
-The license level of the trained model.
-
-`metadata`:::
-(object)
-An object containing metadata about the trained model. For example, models 
-created by {dfanalytics} contain `analysis_config` and `input` objects.
-
-`model_id`:::
-(string)
-Idetifier for the trained model.
-
-`tags`:::
-(string)
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-
-`version`:::
-(string)
-The {es} version number in which the trained model was created.
-====
-end::trained-model-configs[]
 
 tag::training-percent[]
 Defines what percentage of the eligible documents that will 

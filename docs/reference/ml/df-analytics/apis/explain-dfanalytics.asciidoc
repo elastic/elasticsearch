@@ -72,11 +72,42 @@ The API returns a response that contains the following:
 
 `field_selection`::
 (array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=field-selection]
+An array of objects that explain selection for each field, sorted by 
+the field names. Each object in the array has the following properties:
+
+`name`:::
+(string) The field name.
+
+`mapping_types`:::
+(string) The mapping types of the field.
+
+`is_included`:::
+(boolean) Whether the field is selected to be included in the analysis.
+
+`is_required`:::
+(boolean) Whether the field is required.
+
+`feature_type`:::
+(string) The feature type of this field for the analysis. May be `categorical` 
+or `numerical`.
+
+`reason`:::
+(string) The reason a field is not selected to be included in the analysis.
 
 `memory_estimation`::
-(object) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=memory-estimation]
+(object)
+An object containing the memory estimates. The object has the 
+following properties:
+
+`expected_memory_without_disk`:::
+(string) Estimated memory usage under the assumption that the whole 
+{dfanalytics} should happen in memory (i.e. without overflowing to disk).
+
+`expected_memory_with_disk`:::
+(string) Estimated memory usage under the assumption that overflowing to disk is 
+allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
+than `expected_memory_without_disk` as using disk allows to limit the main 
+memory needed to perform {dfanalytics}.
 
 
 [[ml-explain-dfanalytics-example]]

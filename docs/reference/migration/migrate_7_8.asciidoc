@@ -19,6 +19,16 @@ coming[7.8.0]
 //end::notable-breaking-changes[]
 
 [discrete]
+[[breaking_78_api_changes]]
+=== API changes
+
+[discrete]
+==== Deprecation of `local` parameter for get field mapping API
+
+The `local` parameter is a no-op and field mappings are always retrieved locally.
+As of 7.8, this parameter is deprecated and will be removed in next major version.
+
+[discrete]
 [[breaking_78_mappings_changes]]
 === Mappings changes
 

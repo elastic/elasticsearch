@@ -62,43 +62,13 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 error("process where between(process_name, \"s\", \"e\", false, 2)"));
     }
 
-    public void testCIDRMatchNonIPField() {
+    public void testMatchWithText() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where cidrMatch(hostname, \"10.0.0.0/8\")"));
+                () -> plan("process where match(plain_text, 'foo.*')"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: first argument of [cidrMatch(hostname, \"10.0.0.0/8\")] must be [ip], found value [hostname] type [text]", msg);
-    }
-
-    public void testCIDRMatchMissingValue() {
-        ParsingException e = expectThrows(ParsingException.class,
-                () -> plan("process where cidrMatch(source_address)"));
-        String msg = e.getMessage();
-        assertEquals("line 1:16: error building [cidrmatch]: expects at least two arguments", msg);
-    }
-
-    public void testCIDRMatchAgainstField() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where cidrMatch(source_address, hostname)"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\n" +
-                "line 1:15: second argument of [cidrMatch(source_address, hostname)] must be a constant, received [hostname]", msg);
-    }
-
-    public void testCIDRMatchNonString() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where cidrMatch(source_address, 12345)"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\n" +
-                "line 1:15: argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
-    }
-
-    public void testEndsWithFunctionWithInexact() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where endsWith(plain_text, \"foo\") == true"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:15: [endsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
-                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+            "line 1:15: [match(plain_text, 'foo.*')] cannot operate on first argument field of data type [text]: No keyword/multi-field " +
+            "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
     public void testLengthFunctionWithInexact() {

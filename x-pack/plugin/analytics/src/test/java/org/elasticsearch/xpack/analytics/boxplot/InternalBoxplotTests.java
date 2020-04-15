@@ -11,11 +11,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +26,12 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBoxplot> {
+
+    @Override
+    protected Plugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
+
     @Override
     protected InternalBoxplot createTestInstance(String name, Map<String, Object> metadata) {
         int numValues = frequently() ? randomInt(100) : 0;

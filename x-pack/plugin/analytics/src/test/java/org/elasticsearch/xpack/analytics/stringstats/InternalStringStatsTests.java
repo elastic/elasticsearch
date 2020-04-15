@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.analytics.stringstats;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,6 +31,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
+
+    @Override
+    protected Plugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
+
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());

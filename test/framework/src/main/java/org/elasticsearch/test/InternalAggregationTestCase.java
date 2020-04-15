@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,11 +36,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -166,6 +170,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * Implementors of this test case should be aware that the aggregation under test needs to be registered
+ * in the test's namedWriteableRegistry.  Core aggregations are registered already, but non-core
+ * aggs should override {@link InternalAggregationTestCase#registerPlugin()} so that the NamedWriteables
+ * can be extracted from the AggregatorSpecs in the plugin (as well as any other custom NamedWriteables)
+ */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
     /**
      * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
@@ -205,8 +215,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
-    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
@@ -274,6 +283,58 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return namedXContents;
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return namedXContentRegistry;
+    }
+
+    @Override
+    protected final NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    /**
+     * Implementors can override this if they want to provide a custom list of namedWriteables.  If the implementor
+     * _just_ wants to register in namedWriteables provided by a plugin, prefer overriding
+     * {@link InternalAggregationTestCase#registerPlugin()} instead because that route handles the automatic
+     * conversion of AggSpecs into namedWriteables.
+     */
+    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries
+            = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+
+        Plugin plugin = registerPlugin();
+
+        if (plugin == null) {
+            return entries;
+        }
+
+        entries.addAll(plugin.getNamedWriteables());
+
+        if (plugin instanceof SearchPlugin) {
+            for (SearchPlugin.AggregationSpec spec : ((SearchPlugin)plugin).getAggregations()) {
+                entries.add(new NamedWriteableRegistry.Entry(AggregationBuilder.class,
+                    spec.getName().getPreferredName(), spec.getReader()));
+
+                for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.getResultReaders().entrySet()) {
+                    String writeableName = t.getKey();
+                    Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
+                    entries.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
+                }
+            }
+        }
+
+        return entries;
+    }
+
+    /**
+     * If a test needs to register additional aggregation specs for namedWriteable, etc, this method
+     * can be overridden by the implementor.
+     */
+    protected Plugin registerPlugin() {
+        return null;
+    }
+
     protected abstract T createTestInstance(String name, Map<String, Object> metadata);
 
     /** Return an instance on an unmapped field. */
@@ -282,13 +343,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, metadata);
     }
 
-    /**
-     * The NamedWriteable class for agg tests _should_ be InternalAggregation so this is being set by default,
-     * but implementors can change if necessary
-     */
     @Override
-    @SuppressWarnings("unchecked")
-    protected Class<T> categoryClass() {
+
+    protected final Class<T> categoryClass() {
         return (Class<T>) InternalAggregation.class;
     }
 
@@ -340,7 +397,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * partial reduce. And to simulate cross cluster search.
              */
             if (randomBoolean()) {
-                reduced =  copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
+                reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
             }
             toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
@@ -389,16 +446,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createUnmappedInstance(name, metadata);
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return namedXContentRegistry;
     }
 
     public final void testFromXContent() throws IOException {

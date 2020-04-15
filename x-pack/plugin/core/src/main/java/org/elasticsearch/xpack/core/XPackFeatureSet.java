@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,8 @@ public interface XPackFeatureSet {
             this.available = available;
             this.enabled = enabled;
         }
+
+        public abstract Version version();
 
         public String name() {
             return name;

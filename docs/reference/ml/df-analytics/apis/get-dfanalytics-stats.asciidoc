@@ -455,16 +455,15 @@ available only for running jobs.
 =====
 `attributes`::::
 (object)
-Lists node attributes such as `ml.machine_memory`, `ml.max_open_jobs`, and 
-`xpack.installed`.
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`::::
 (string)
-The ephemeral id of the node.
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `id`::::
 (string)
-The unique identifier of the node.
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `name`::::
 (string)
@@ -472,7 +471,7 @@ The node name.
 
 `transport_address`::::
 (string)
-The host and port where transport HTTP connections are accepted.
+include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 =====
 
 `progress`:::
@@ -491,7 +490,9 @@ percentage.
 =====
 
 `state`:::
-(string) Current state of the {dfanalytics-job}.
+(string) The status of the {dfanalytics-job}, which can be one of the following
+values: `analyzing`, `failed`, `reindexing`, `started`, `starting`,`stopping`, 
+`stopped`.
 ====
 //End of data_frame_analytics
 

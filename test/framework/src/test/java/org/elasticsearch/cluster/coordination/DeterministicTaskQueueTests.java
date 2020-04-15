@@ -39,9 +39,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.Is.is;
 
 public class DeterministicTaskQueueTests extends ESTestCase {
@@ -57,7 +57,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
-        assertThat(strings, contains(isOneOf("foo", "bar")));
+        assertThat(strings, contains(oneOf("foo", "bar")));
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();

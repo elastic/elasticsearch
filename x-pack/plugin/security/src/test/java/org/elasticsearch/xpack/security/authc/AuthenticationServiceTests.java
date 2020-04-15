@@ -109,9 +109,9 @@ import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTo
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1515,7 +1515,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private String expectAuditRequestId() {
         String reqId = AuditUtil.extractRequestId(threadContext);
-        assertThat(reqId, not(isEmptyOrNullString()));
+        assertThat(reqId, is(not(emptyOrNullString())));
         return reqId;
     }
 

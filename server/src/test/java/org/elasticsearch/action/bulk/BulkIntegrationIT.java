@@ -58,7 +58,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
     @Override
@@ -183,7 +184,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                         IndexResponse response = client().prepareIndex(index, "_doc").setId(id)
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()),
                                 XContentType.JSON).get();
-                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                     } catch (ElasticsearchException ignore) {
                         logger.info("--> fail to index id={}", id);

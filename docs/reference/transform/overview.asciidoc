@@ -66,8 +66,7 @@ creates a new index that is dedicated to the transformed data.
 
 {transforms-cap} perform search aggregations on the source indices then index
 the results into the destination index. Therefore, a {transform} never takes
-less time than the cumulated duration of the aggregation and the indexing
-process. 
+less time or uses less resources than the aggregation and indexing processes. 
 
 If your {transform} must process a lot of historic data, it has high resource
 usage initially--particularly during the first checkpoint.

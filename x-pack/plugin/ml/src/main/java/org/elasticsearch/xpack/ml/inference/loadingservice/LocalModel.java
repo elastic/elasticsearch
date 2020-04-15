@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
-public class LocalModel<T extends InferenceConfig> implements Model<T> {
+public class LocalModel<T extends InferenceConfig> implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
@@ -100,7 +100,7 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
     }
 
     @Override
-    public void infer(Map<String, Object> fields, InferenceConfigUpdate<T> update, ActionListener<InferenceResults> listener) {
+    public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",

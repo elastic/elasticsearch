@@ -88,7 +88,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private final TrainedModelStatsService modelStatsService;
     private final Cache<String, LocalModel<? extends InferenceConfig>> localModelCache;
     private final Set<String> referencedModels = new HashSet<>();
-    private final Map<String, Queue<ActionListener<Model<? extends InferenceConfig>>>> loadingListeners = new HashMap<>();
+    private final Map<String, Queue<ActionListener<Model>>> loadingListeners = new HashMap<>();
     private final TrainedModelProvider provider;
     private final Set<String> shouldNotAudit;
     private final ThreadPool threadPool;
@@ -140,7 +140,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
-    public void getModel(String modelId, ActionListener<Model<? extends InferenceConfig>> modelActionListener) {
+    public void getModel(String modelId, ActionListener<Model> modelActionListener) {
         LocalModel<? extends InferenceConfig> cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             modelActionListener.onResponse(cachedModel);
@@ -178,9 +178,9 @@ public class ModelLoadingService implements ClusterStateListener {
      * Returns true if the model is CURRENTLY being loaded and the listener was added to be notified when it is loaded
      * Returns false if the model is not loaded or actively being loaded
      */
-    private boolean loadModelIfNecessary(String modelId, ActionListener<Model<? extends InferenceConfig>> modelActionListener) {
+    private boolean loadModelIfNecessary(String modelId, ActionListener<Model> modelActionListener) {
         synchronized (loadingListeners) {
-            Model<? extends InferenceConfig> cachedModel = localModelCache.get(modelId);
+            Model cachedModel = localModelCache.get(modelId);
             if (cachedModel != null) {
                 modelActionListener.onResponse(cachedModel);
                 return true;
@@ -219,7 +219,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) throws IOException {
-        Queue<ActionListener<Model<? extends InferenceConfig>>> listeners;
+        Queue<ActionListener<Model>> listeners;
         trainedModelConfig.ensureParsedDefinition(namedXContentRegistry);
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
             inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
@@ -242,13 +242,13 @@ public class ModelLoadingService implements ClusterStateListener {
             localModelCache.put(modelId, loadedModel);
             shouldNotAudit.remove(modelId);
         } // synchronized (loadingListeners)
-        for (ActionListener<Model<? extends InferenceConfig>> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+        for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
             listener.onResponse(loadedModel);
         }
     }
 
     private void handleLoadFailure(String modelId, Exception failure) {
-        Queue<ActionListener<Model<? extends InferenceConfig>>> listeners;
+        Queue<ActionListener<Model>> listeners;
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             if (listeners == null) {
@@ -257,7 +257,7 @@ public class ModelLoadingService implements ClusterStateListener {
         } // synchronized (loadingListeners)
         // If we failed to load and there were listeners present, that means that this model is referenced by a processor
         // Alert the listeners to the failure
-        for (ActionListener<Model<? extends InferenceConfig>> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+        for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
             listener.onFailure(failure);
         }
     }
@@ -293,7 +293,7 @@ public class ModelLoadingService implements ClusterStateListener {
             return;
         }
         // The listeners still waiting for a model and we are canceling the load?
-        List<Tuple<String, List<ActionListener<Model<? extends InferenceConfig>>>>> drainWithFailure = new ArrayList<>();
+        List<Tuple<String, List<ActionListener<Model>>>> drainWithFailure = new ArrayList<>();
         Set<String> referencedModelsBeforeClusterState = null;
         Set<String> loadingModelBeforeClusterState = null;
         Set<String> removedModels = null;
@@ -336,11 +336,11 @@ public class ModelLoadingService implements ClusterStateListener {
                     referencedModels);
             }
         }
-        for (Tuple<String, List<ActionListener<Model<? extends InferenceConfig>>>> modelAndListeners : drainWithFailure) {
+        for (Tuple<String, List<ActionListener<Model>>> modelAndListeners : drainWithFailure) {
             final String msg = new ParameterizedMessage(
                 "Cancelling load of model [{}] as it is no longer referenced by a pipeline",
                 modelAndListeners.v1()).getFormat();
-            for (ActionListener<Model<? extends InferenceConfig>> listener : modelAndListeners.v2()) {
+            for (ActionListener<Model> listener : modelAndListeners.v2()) {
                 listener.onFailure(new ElasticsearchException(msg));
             }
         }

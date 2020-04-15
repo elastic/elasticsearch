@@ -97,7 +97,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where concat(plain_text)"));
         String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:15: [concat(null, plain_text)] cannot operate on second argument field of data type "
+        assertEquals("Found 1 problem\nline 1:15: [concat(plain_text)] cannot operate on first argument field of data type "
             + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 

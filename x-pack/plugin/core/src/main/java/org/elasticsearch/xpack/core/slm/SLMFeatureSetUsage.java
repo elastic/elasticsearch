@@ -39,7 +39,7 @@ public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version version() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_5_0;
     }
 

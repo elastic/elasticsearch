@@ -37,7 +37,7 @@ public class AnalyticsFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version version() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_4_0;
     }
 

@@ -22,7 +22,7 @@ public class VotingOnlyNodeFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version version() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_3_0;
     }
 

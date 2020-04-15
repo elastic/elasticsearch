@@ -78,7 +78,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version version() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_0_0;
     }
 

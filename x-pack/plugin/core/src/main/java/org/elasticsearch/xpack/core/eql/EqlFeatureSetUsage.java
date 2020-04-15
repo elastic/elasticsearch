@@ -51,7 +51,7 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version version() {
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_7_0;
     }
 

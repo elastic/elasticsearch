@@ -52,7 +52,7 @@ public class XPackUsageResponseTests extends ESTestCase {
         }
 
         @Override
-        public Version version() {
+        public Version getMinimalSupportedVersion() {
             return oldVersion;
         }
 
@@ -69,7 +69,7 @@ public class XPackUsageResponseTests extends ESTestCase {
         }
 
         @Override
-        public Version version() {
+        public Version getMinimalSupportedVersion() {
             return newVersion;
         }
 

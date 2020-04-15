@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -22,7 +22,7 @@ public interface XPackFeatureSet {
 
     boolean enabled();
 
-    abstract class Usage implements ToXContentObject, NamedWriteable {
+    abstract class Usage implements ToXContentObject, VersionedNamedWriteable {
 
         private static final String AVAILABLE_XFIELD = "available";
         private static final String ENABLED_XFIELD = "enabled";
@@ -41,7 +41,7 @@ public interface XPackFeatureSet {
             this.enabled = enabled;
         }
 
-        public abstract Version version();
+        public abstract Version getMinimalSupportedVersion();
 
         public String name() {
             return name;

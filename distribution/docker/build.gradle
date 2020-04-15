@@ -187,6 +187,7 @@ void addBuildStaticCurl(final String architecture) {
   def installer = "${projectDir}/src/docker/bin/build-curl.sh"
   def workDir = "${projectDir}/build/static-curl-${architecture}"
   def outputPath = "${workDir}/build/bin/curl"
+  def image = "aarch64".equals(architecture) ? 'arm64v8/centos:7' : 'centos:7'
 
   final Task buildDockerBaseImageTask = task(taskName("build", architecture, false, "StaticCurl"), type: LoggedExec) {
     inputs.file(installer)
@@ -195,7 +196,7 @@ void addBuildStaticCurl(final String architecture) {
     args 'run', '--rm', '-t',
       '-v', "${workDir}:/work",
       '-v', "${installer}:/build-curl.sh",
-      'centos:7', '/build-curl.sh'
+      image, '/build-curl.sh'
   }
 
   buildDockerBaseImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
@@ -205,7 +206,8 @@ void addBuildDockerBaseImage(final String architecture, final boolean oss) {
   def installer = "${projectDir}/src/docker/bin/install-baseimage.sh"
   def outputFile = baseImageFilename(architecture)
   def outputPath = "${projectDir}/build/${outputFile}"
-  def archArg = "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64'
+  def platform = "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64'
+  def image = "aarch64".equals(architecture) ? 'arm64v8/centos:7' : 'centos:7'
   def curlPath = "${projectDir}/build/static-curl-${architecture}/build/bin/curl"
 
   final Task buildDockerBaseImageTask = task(taskName("build", architecture, oss, "DockerBaseImage"), type: LoggedExec) {
@@ -219,7 +221,7 @@ void addBuildDockerBaseImage(final String architecture, final boolean oss) {
       '-v', "${projectDir}/build:/build",
       '-v', "${installer}:/tmp/install-baseimage.sh",
       '-v', "${curlPath}:/curl",
-      'centos:7', '/tmp/install-baseimage.sh', archArg, "/build/${outputFile}"
+      image, '/tmp/install-baseimage.sh', platform, "/build/${outputFile}"
   }
 
   buildDockerBaseImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
@@ -246,7 +248,9 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
       ]
     }
   }
-  buildDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
+  buildDockerImageTask.onlyIf {
+    Architecture.current().name().toLowerCase().equals(architecture)
+  }
   assemble.dependsOn(buildDockerImageTask)
 }
 

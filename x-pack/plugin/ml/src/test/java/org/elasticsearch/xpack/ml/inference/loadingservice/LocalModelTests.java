@@ -63,7 +63,7 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model model = new LocalModel<>(modelId,
+        Model model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -92,7 +92,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(true))
             .build();
-        model = new LocalModel<>(modelId,
+        model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -134,7 +134,7 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(true))
             .build();
 
-        Model model = new LocalModel<>(modelId,
+        Model model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -189,7 +189,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel<>("regression_model",
+        Model model = new LocalModel("regression_model",
             "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
@@ -215,7 +215,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel<>(
+        Model model = new LocalModel(
             "regression_model",
             "test-node",
             trainedModelDefinition,
@@ -246,7 +246,7 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model model = new LocalModel<>(modelId,
+        Model model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),

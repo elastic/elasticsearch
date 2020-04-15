@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
-public class LocalModel<T extends InferenceConfig> implements Model {
+public class LocalModel implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
@@ -40,14 +40,14 @@ public class LocalModel<T extends InferenceConfig> implements Model {
     private final TrainedModelStatsService trainedModelStatsService;
     private volatile long persistenceQuotient = 100;
     private final LongAdder currentInferenceCount;
-    private final T inferenceConfig;
+    private final InferenceConfig inferenceConfig;
 
     public LocalModel(String modelId,
                       String nodeId,
                       TrainedModelDefinition trainedModelDefinition,
                       TrainedModelInput input,
                       Map<String, String> defaultFieldMap,
-                      T modelInferenceConfig,
+                      InferenceConfig modelInferenceConfig,
                       TrainedModelStatsService trainedModelStatsService ) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;

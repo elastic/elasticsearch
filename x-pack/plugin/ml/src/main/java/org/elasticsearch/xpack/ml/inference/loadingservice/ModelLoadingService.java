@@ -86,7 +86,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ModelLoadingService.class);
     private final TrainedModelStatsService modelStatsService;
-    private final Cache<String, LocalModel<? extends InferenceConfig>> localModelCache;
+    private final Cache<String, LocalModel> localModelCache;
     private final Set<String> referencedModels = new HashSet<>();
     private final Map<String, Queue<ActionListener<Model>>> loadingListeners = new HashMap<>();
     private final TrainedModelProvider provider;
@@ -112,7 +112,7 @@ public class ModelLoadingService implements ClusterStateListener {
         this.modelStatsService = modelStatsService;
         this.shouldNotAudit = new HashSet<>();
         this.namedXContentRegistry = namedXContentRegistry;
-        this.localModelCache = CacheBuilder.<String, LocalModel<? extends InferenceConfig>>builder()
+        this.localModelCache = CacheBuilder.<String, LocalModel>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, localModel) -> localModel.ramBytesUsed())
             // explicit declaration of the listener lambda necessary for Eclipse IDE 4.14
@@ -141,7 +141,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
     public void getModel(String modelId, ActionListener<Model> modelActionListener) {
-        LocalModel<? extends InferenceConfig> cachedModel = localModelCache.get(modelId);
+        LocalModel cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             modelActionListener.onResponse(cachedModel);
             logger.trace(() -> new ParameterizedMessage("[{}] loaded from cache", modelId));
@@ -157,7 +157,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
                         inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
                         trainedModelConfig.getInferenceConfig();
-                    modelActionListener.onResponse(new LocalModel<>(
+                    modelActionListener.onResponse(new LocalModel(
                         trainedModelConfig.getModelId(),
                         localNode,
                         trainedModelConfig.getModelDefinition(),
@@ -224,7 +224,7 @@ public class ModelLoadingService implements ClusterStateListener {
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
             inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
             trainedModelConfig.getInferenceConfig();
-        LocalModel<? extends InferenceConfig> loadedModel = new LocalModel<>(
+        LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
             localNode,
             trainedModelConfig.getModelDefinition(),
@@ -262,7 +262,7 @@ public class ModelLoadingService implements ClusterStateListener {
         }
     }
 
-    private void cacheEvictionListener(RemovalNotification<String, LocalModel<? extends InferenceConfig>> notification) {
+    private void cacheEvictionListener(RemovalNotification<String, LocalModel> notification) {
         if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
             MessageSupplier msg = () -> new ParameterizedMessage(
                 "model cache entry evicted." +

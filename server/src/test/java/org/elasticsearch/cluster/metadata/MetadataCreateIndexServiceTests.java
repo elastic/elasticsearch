@@ -825,14 +825,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         // adds alias from new index to existing index
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransaction = (builder, indexMetadata) -> {
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
             AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
 
         ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata,
-            (clusterState, y) -> clusterState, metadataTransaction);
+            (clusterState, y) -> clusterState, metadataTransformer);
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).containsKey("my-index"));
         assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index"));
         assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index").get(0).alias(),

@@ -66,128 +66,110 @@ public class EBinary extends AExpression {
         Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
         boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast
 
-        Output output;
-
         Input leftInput = new Input();
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
 
-        if (leftOutput.partialCanonicalTypeName != null) {
-            throw createError(new IllegalArgumentException("cannot resolve symbol [" + leftOutput.partialCanonicalTypeName + "]"));
-        }
+        Output output = new Output();
+        Input rightInput = new Input();
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
 
-        if (leftOutput.isStaticType) {
-            if (left instanceof EPrecedence && (operation == Operation.ADD || operation == Operation.SUB)) {
-                output = new EExplicit(left.location,
-                        new DResolvedType(left.location, leftOutput.actual, false),
-                        new EUnary(right.location, operation, right))
-                        .analyze(classNode, scriptRoot, scope, new Input());
-            } else {
-                throw createError(new IllegalArgumentException("value required: " +
-                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "]"));
-            }
+        if (operation == Operation.FIND || operation == Operation.MATCH) {
+            leftInput.expected = String.class;
+            rightInput.expected = Pattern.class;
+            promote = boolean.class;
+            output.actual = boolean.class;
         } else {
-            output = new Output();
-            Input rightInput = new Input();
-            Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
+            if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+            } else if (operation == Operation.ADD) {
+                promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
+            } else if (operation == Operation.SUB) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+            } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
 
-            if (operation == Operation.FIND || operation == Operation.MATCH) {
-                leftInput.expected = String.class;
-                rightInput.expected = Pattern.class;
-                promote = boolean.class;
-                output.actual = boolean.class;
+                if (shiftDistance == null) {
+                    promote = null;
+                }
+            } else if (operation == Operation.BWOR || operation == Operation.BWAND) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, false);
+            } else if (operation == Operation.XOR) {
+                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
             } else {
-                if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM) {
-                    promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-                } else if (operation == Operation.ADD) {
-                    promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
-                } else if (operation == Operation.SUB) {
-                    promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-                } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-                    promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                    shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
-
-                    if (shiftDistance == null) {
-                        promote = null;
-                    }
-                } else if (operation == Operation.BWOR || operation == Operation.BWAND) {
-                    promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, false);
-                } else if (operation == Operation.XOR) {
-                    promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
-                } else {
-                    throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
-                }
-
-                if (promote == null) {
-                    throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                            "[" + operation.symbol + "] to the types " +
-                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
-                }
-
-                output.actual = promote;
-
-                if (operation == Operation.ADD && promote == String.class) {
-                    leftInput.expected = leftOutput.actual;
-                    rightInput.expected = rightOutput.actual;
-
-                    if (leftOutput.expressionNode instanceof BinaryMathNode) {
-                        BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
-
-                        if (binaryMathNode.getOperation() == Operation.ADD && leftOutput.actual == String.class) {
-                            ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
-                        }
-                    }
-                    
-                    if (rightOutput.expressionNode instanceof BinaryMathNode) {
-                        BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
-
-                        if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
-                            ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
-                        }
-                    }
-                } else if (promote == def.class || shiftDistance == def.class) {
-                    leftInput.expected = leftOutput.actual;
-                    rightInput.expected = rightOutput.actual;
-
-                    if (input.expected != null) {
-                        output.actual = input.expected;
-                    }
-                } else {
-                    leftInput.expected = promote;
-
-                    if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-                        if (shiftDistance == long.class) {
-                            rightInput.expected = int.class;
-                            rightInput.explicit = true;
-                        } else {
-                            rightInput.expected = shiftDistance;
-                        }
-                    } else {
-                        rightInput.expected = promote;
-                    }
-                }
+                throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
             }
 
-            PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
-                    leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
-            PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
-                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+            if (promote == null) {
+                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                        "[" + operation.symbol + "] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
+            }
 
-            BinaryMathNode binaryMathNode = new BinaryMathNode();
+            output.actual = promote;
 
-            binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-            binaryMathNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
+            if (operation == Operation.ADD && promote == String.class) {
+                leftInput.expected = leftOutput.actual;
+                rightInput.expected = rightOutput.actual;
 
-            binaryMathNode.setLocation(location);
-            binaryMathNode.setExpressionType(output.actual);
-            binaryMathNode.setBinaryType(promote);
-            binaryMathNode.setShiftType(shiftDistance);
-            binaryMathNode.setOperation(operation);
-            binaryMathNode.setCat(false);
-            binaryMathNode.setOriginallExplicit(originallyExplicit);
+                if (leftOutput.expressionNode instanceof BinaryMathNode) {
+                    BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
 
-            output.expressionNode = binaryMathNode;
+                    if (binaryMathNode.getOperation() == Operation.ADD && leftOutput.actual == String.class) {
+                        ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
+                    }
+                }
+
+                if (rightOutput.expressionNode instanceof BinaryMathNode) {
+                    BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
+
+                    if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
+                        ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
+                    }
+                }
+            } else if (promote == def.class || shiftDistance == def.class) {
+                leftInput.expected = leftOutput.actual;
+                rightInput.expected = rightOutput.actual;
+
+                if (input.expected != null) {
+                    output.actual = input.expected;
+                }
+            } else {
+                leftInput.expected = promote;
+
+                if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
+                    if (shiftDistance == long.class) {
+                        rightInput.expected = int.class;
+                        rightInput.explicit = true;
+                    } else {
+                        rightInput.expected = shiftDistance;
+                    }
+                } else {
+                    rightInput.expected = promote;
+                }
+            }
         }
+
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+
+        BinaryMathNode binaryMathNode = new BinaryMathNode();
+
+        binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        binaryMathNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
+
+        binaryMathNode.setLocation(location);
+        binaryMathNode.setExpressionType(output.actual);
+        binaryMathNode.setBinaryType(promote);
+        binaryMathNode.setShiftType(shiftDistance);
+        binaryMathNode.setOperation(operation);
+        binaryMathNode.setCat(false);
+        binaryMathNode.setOriginallExplicit(originallyExplicit);
+
+        output.expressionNode = binaryMathNode;
 
         return output;
     }

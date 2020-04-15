@@ -298,6 +298,32 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitCast(PainlessParser.CastContext ctx);
   /**
+   * Visit a parse tree produced by the {@code primordefcast}
+   * labeled alternative in {@link PainlessParser#castexpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPrimordefcast(PainlessParser.PrimordefcastContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code refcast}
+   * labeled alternative in {@link PainlessParser#castexpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRefcast(PainlessParser.RefcastContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#primordefcasttype}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPrimordefcasttype(PainlessParser.PrimordefcasttypeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#refcasttype}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRefcasttype(PainlessParser.RefcasttypeContext ctx);
+  /**
    * Visit a parse tree produced by the {@code dynamic}
    * labeled alternative in {@link PainlessParser#chain}.
    * @param ctx the parse tree

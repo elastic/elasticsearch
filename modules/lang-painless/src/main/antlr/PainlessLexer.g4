@@ -116,6 +116,9 @@ FALSE: 'false';
 
 NULL: 'null';
 
+PRIMITIVE: 'boolean' | 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double';
+DEF: 'def';
+
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;

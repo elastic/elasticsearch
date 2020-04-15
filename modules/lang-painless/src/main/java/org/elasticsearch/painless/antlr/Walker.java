@@ -827,10 +827,33 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitCast(CastContext ctx) {
-        String type = ctx.decltype().getText();
+        return visit(ctx.castexpression());
+    }
+
+    @Override
+    public ANode visitPrimordefcast(PainlessParser.PrimordefcastContext ctx) {
+        String type = ctx.primordefcasttype().getText();
+        AExpression child = (AExpression)visit(ctx.unary());
+
+        return new EExplicit(location(ctx), new DUnresolvedType(location(ctx.primordefcasttype()), type), child);
+    }
+
+    @Override
+    public ANode visitRefcast(PainlessParser.RefcastContext ctx) {
+        String type = ctx.refcasttype().getText();
         AExpression child = (AExpression)visit(ctx.unarynotaddsub());
 
-        return new EExplicit(location(ctx), new DUnresolvedType(location(ctx.decltype()), type), child);
+        return new EExplicit(location(ctx), new DUnresolvedType(location(ctx.refcasttype()), type), child);
+    }
+
+    @Override
+    public ANode visitPrimordefcasttype(PainlessParser.PrimordefcasttypeContext ctx) {
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
+    }
+
+    @Override
+    public ANode visitRefcasttype(PainlessParser.RefcasttypeContext ctx) {
+        throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

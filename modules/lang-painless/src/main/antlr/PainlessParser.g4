@@ -91,7 +91,9 @@ decltype
     ;
 
 type
-    : ID (DOT DOTID)*
+    : DEF
+    | PRIMITIVE
+    | ID (DOT DOTID)*
     ;
 
 declvar
@@ -103,20 +105,20 @@ trap
     ;
 
 noncondexpression
-    :               unary                                                               # single
-    |               noncondexpression ( MUL | DIV | REM ) noncondexpression             # binary
-    |               noncondexpression ( ADD | SUB ) noncondexpression                   # binary
-    |               noncondexpression ( FIND | MATCH ) noncondexpression                # binary
-    |               noncondexpression ( LSH | RSH | USH ) noncondexpression             # binary
-    |               noncondexpression ( LT | LTE | GT | GTE ) noncondexpression         # comp
-    |               noncondexpression INSTANCEOF decltype                               # instanceof
-    |               noncondexpression ( EQ | EQR | NE | NER ) noncondexpression         # comp
-    |               noncondexpression BWAND noncondexpression                           # binary
-    |               noncondexpression XOR noncondexpression                             # binary
-    |               noncondexpression BWOR noncondexpression                            # binary
-    |               noncondexpression BOOLAND noncondexpression                         # bool
-    |               noncondexpression BOOLOR noncondexpression                          # bool
-    | <assoc=right> noncondexpression ELVIS noncondexpression                           # elvis
+    :               unary                                                       # single
+    |               noncondexpression ( MUL | DIV | REM ) noncondexpression     # binary
+    |               noncondexpression ( ADD | SUB ) noncondexpression           # binary
+    |               noncondexpression ( FIND | MATCH ) noncondexpression        # binary
+    |               noncondexpression ( LSH | RSH | USH ) noncondexpression     # binary
+    |               noncondexpression ( LT | LTE | GT | GTE ) noncondexpression # comp
+    |               noncondexpression INSTANCEOF decltype                       # instanceof
+    |               noncondexpression ( EQ | EQR | NE | NER ) noncondexpression # comp
+    |               noncondexpression BWAND noncondexpression                   # binary
+    |               noncondexpression XOR noncondexpression                     # binary
+    |               noncondexpression BWOR noncondexpression                    # binary
+    |               noncondexpression BOOLAND noncondexpression                 # bool
+    |               noncondexpression BOOLOR noncondexpression                  # bool
+    | <assoc=right> noncondexpression ELVIS noncondexpression                   # elvis
     ;
 
 expression
@@ -128,21 +130,37 @@ expression
     ;
 
 unary
-    : ( INCR | DECR ) chain                  # pre
-    | ( ADD | SUB ) unary                    # addsub
-    | unarynotaddsub                         # notaddsub
+    : ( INCR | DECR ) chain # pre
+    | ( ADD | SUB ) unary   # addsub
+    | unarynotaddsub        # notaddsub
     ;
 
 unarynotaddsub
-    : chain                                  # read
-    | chain (INCR | DECR )                   # post
-    | ( BOOLNOT | BWNOT ) unary              # not
-    | LP decltype RP unarynotaddsub          # cast
+    : chain                     # read
+    | chain (INCR | DECR )      # post
+    | ( BOOLNOT | BWNOT ) unary # not
+    | castexpression            # cast
+    ;
+
+castexpression
+    : LP primordefcasttype RP unary    # primordefcast
+    | LP refcasttype RP unarynotaddsub # refcast
+    ;
+
+primordefcasttype
+    : DEF
+    | PRIMITIVE
+    ;
+
+refcasttype
+    : DEF (LBRACE RBRACE)+
+    | PRIMITIVE (LBRACE RBRACE)+
+    | ID (DOT DOTID)* (LBRACE RBRACE)*
     ;
 
 chain
-    : primary postfix*          # dynamic
-    | arrayinitializer          # newarray
+    : primary postfix* # dynamic
+    | arrayinitializer # newarray
     ;
 
 primary

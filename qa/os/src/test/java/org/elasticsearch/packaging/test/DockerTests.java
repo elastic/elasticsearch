@@ -27,7 +27,6 @@ import org.elasticsearch.packaging.util.ProcessInfo;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -76,11 +75,6 @@ public class DockerTests extends PackagingTestCase {
         assumeTrue("only Docker", distribution().isDocker());
     }
 
-    @AfterClass
-    public static void teardownSuite() {
-        removeContainer();
-    }
-
     @Before
     public void setupTest() throws IOException {
         installation = runContainer(distribution());
@@ -89,6 +83,7 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
+        removeContainer();
         rm(tempDir);
     }
 

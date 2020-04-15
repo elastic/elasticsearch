@@ -20,7 +20,6 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  */
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8

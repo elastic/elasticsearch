@@ -23,7 +23,6 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
 

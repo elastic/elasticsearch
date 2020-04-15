@@ -111,8 +111,6 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
-        assertEquals("1:15: Unknown function [matchLite], did you mean any of [matchLite, match]?",
-                error("process where matchLite(command_line, ?'.*?net1\\s+localgroup\\s+.*?')"));
         assertEquals("1:15: Unknown function [safe]",
                 error("network where safe(process_name)"));
     }

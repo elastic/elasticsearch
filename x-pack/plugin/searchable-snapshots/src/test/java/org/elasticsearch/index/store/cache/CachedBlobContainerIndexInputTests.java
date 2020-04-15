@@ -87,7 +87,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
                         () -> 0L,
                         cacheService,
-                        cacheDir
+                        cacheDir,
+                        null
                     )
                 ) {
                     final boolean loaded = directory.loadSnapshot();
@@ -156,7 +157,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     Settings.EMPTY,
                     () -> 0L,
                     cacheService,
-                    cacheDir
+                    cacheDir,
+                    null
                 )
             ) {
                 final boolean loaded = searchableSnapshotDirectory.loadSnapshot();

@@ -112,7 +112,7 @@ public class CacheService extends AbstractLifecycleComponent {
             final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(key.toString(), fileLength, path, getRangeSize());
+            return new CacheFile(key.toString(), fileLength, path);
         });
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
@@ -51,7 +52,6 @@ public class CacheFile {
     private final ReleasableLock readLock;
 
     private final SparseFileTracker tracker;
-    private final int rangeSize;
     private final String description;
     private final Path file;
 
@@ -61,12 +61,11 @@ public class CacheFile {
     @Nullable // if evicted, or there are no listeners
     private volatile FileChannel channel;
 
-    public CacheFile(String description, long length, Path file, int rangeSize) {
+    public CacheFile(String description, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
         this.listeners = new HashSet<>();
-        this.rangeSize = rangeSize;
         this.evicted = false;
 
         final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
@@ -245,41 +244,39 @@ public class CacheFile {
     }
 
     CompletableFuture<Integer> fetchRange(
-        long position,
+        Tuple<Long, Long> range,
         CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
         CheckedBiConsumer<Long, Long, IOException> onRangeMissing
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            if (position < 0 || position > tracker.getLength()) {
-                throw new IllegalArgumentException("Wrong read position [" + position + "]");
+            if (range.v1() < 0 || range.v1() > tracker.getLength() || range.v2() < 0 || range.v2() > tracker.getLength()) {
+                throw new IllegalArgumentException(
+                    "Invalid range [start=" + range.v1() + ", end=" + range.v2() + "] for length [" + tracker.getLength() + ']'
+                );
             }
-
             ensureOpen();
-            final long rangeStart = (position / rangeSize) * rangeSize;
-            final long rangeEnd = Math.min(rangeStart + rangeSize, tracker.getLength());
-
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                rangeStart,
-                rangeEnd,
+                range.v1(),
+                range.v2(),
                 ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(rangeStart, rangeEnd)),
+                    rangeReady -> future.complete(onRangeAvailable.apply(range.v1(), range.v2())),
                     rangeFailure -> future.completeExceptionally(rangeFailure)
                 )
             );
 
             if (gaps.size() > 0) {
-                final SparseFileTracker.Gap range = gaps.get(0);
+                final SparseFileTracker.Gap gap = gaps.get(0);
                 assert gaps.size() == 1 : "expected 1 range to fetch but got " + gaps.size();
-                assert range.start == rangeStart : "range/gap start mismatch (" + range.start + ',' + rangeStart + ')';
-                assert range.end == rangeEnd : "range/gap end mismatch (" + range.end + ',' + rangeEnd + ')';
+                assert gap.start == range.v1() : "range/gap start mismatch (" + gap.start + ',' + range.v1() + ')';
+                assert gap.end == range.v2() : "range/gap end mismatch (" + gap.end + ',' + range.v2() + ')';
 
                 try {
                     ensureOpen();
-                    onRangeMissing.accept(rangeStart, rangeEnd);
-                    range.onResponse(null);
+                    onRangeMissing.accept(range.v1(), range.v2());
+                    gap.onResponse(null);
                 } catch (Exception e) {
-                    range.onFailure(e);
+                    gap.onFailure(e);
                 }
             }
         } catch (Exception e) {

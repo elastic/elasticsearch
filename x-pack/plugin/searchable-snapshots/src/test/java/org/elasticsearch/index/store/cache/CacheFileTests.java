@@ -6,8 +6,8 @@
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -27,7 +27,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testAcquireAndRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, randomIntBetween(1, 100));
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
@@ -70,7 +70,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileNotAcquired() throws IOException {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, randomIntBetween(1, 100));
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
         assertThat(Files.exists(file), is(false));
         assertThat(cacheFile.getChannel(), nullValue());
@@ -94,7 +94,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testDeleteOnCloseAfterLastRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, randomIntBetween(1, 100));
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {

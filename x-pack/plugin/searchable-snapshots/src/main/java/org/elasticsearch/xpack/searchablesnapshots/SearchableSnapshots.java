@@ -116,6 +116,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         true,
         Setting.Property.IndexScope
     );
+    public static final Setting<Boolean> SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING = Setting.boolSetting(
+        "index.store.snapshot.cache.load.eagerly",
+        false,
+        Setting.Property.IndexScope
+    );
     // The file extensions that are excluded from the cache
     public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
         "index.store.snapshot.cache.excluded_file_types",
@@ -135,6 +140,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final Settings settings;
 
     public SearchableSnapshots(final Settings settings) {
@@ -156,6 +162,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 SNAPSHOT_SNAPSHOT_ID_SETTING,
                 SNAPSHOT_INDEX_ID_SETTING,
                 SNAPSHOT_CACHE_ENABLED_SETTING,
+                SNAPSHOT_CACHE_LOAD_EAGERLY_SETTING,
                 SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
                 SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
@@ -184,6 +191,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final CacheService cacheService = new CacheService(settings);
             this.cacheService.set(cacheService);
             this.repositoriesServiceSupplier = repositoriesServiceSupplier;
+            this.threadPool.set(threadPool);
             return List.of(cacheService);
         } else {
             this.repositoriesServiceSupplier = () -> {
@@ -209,7 +217,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 assert repositories != null;
                 final CacheService cache = cacheService.get();
                 assert cache != null;
-                return SearchableSnapshotDirectory.create(repositories, cache, indexSettings, shardPath, System::nanoTime);
+                final ThreadPool threadPool = this.threadPool.get();
+                assert threadPool != null;
+                return SearchableSnapshotDirectory.create(repositories, cache, indexSettings, shardPath, System::nanoTime, threadPool);
             });
         } else {
             return Map.of();

@@ -226,12 +226,14 @@ occurrence of the substring at or after the start position.
 indexOf(url.domain, ".")        // returns 9
 indexOf(url.domain, ".", 9)     // returns 9
 indexOf(url.domain, ".", 10)    // returns 17
+indexOf(url.domain, ".", -6)    // returns 9
 
 // empty strings
 indexOf("", "")                 // returns 0
 indexOf(url.domain, "")         // returns 0
 indexOf(url.domain, "", 9)      // returns 9
 indexOf(url.domain, "", 10)     // returns 10
+indexOf(url.domain, "", -6)     // returns 0
 
 // missing substrings
 indexOf(url.domain, "z")        // returns null

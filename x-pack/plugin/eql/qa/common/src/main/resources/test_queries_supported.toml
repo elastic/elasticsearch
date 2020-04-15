@@ -15,5 +15,15 @@ file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
 '''
 
 [[queries]]
+description = "test string concatenation. update test to avoid case-sensitivity issues"
+query = '''
+process where concat(serial_event_id, '::', process_name, '::', opcode) == '5::wininit.exe::3'
+'''
+expected_event_ids  = [5]
+
+
+[[queries]]
 query = 'process where string(serial_event_id) = "1"'
 expected_event_ids  = [1]
+
+

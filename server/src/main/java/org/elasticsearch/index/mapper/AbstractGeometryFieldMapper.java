@@ -185,7 +185,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public abstract static class TypeParser implements Mapper.TypeParser {
+        protected abstract Builder newBuilder(String name, Map<String, Object> params);
+
         protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry, Map<String, Object> params)
                 throws MapperParsingException {
             if (DeprecatedParameters.parse(name, entry.getKey(), entry.getValue(),
@@ -193,13 +195,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 return true;
             }
             return false;
-        }
-
-        protected Builder newBuilder(String name, Map<String, Object> params) {
-            if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
-                return new LegacyGeoShapeFieldMapper.Builder(name, (DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
-            }
-            return new GeoShapeFieldMapper.Builder(name);
         }
 
         @Override

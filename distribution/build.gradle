@@ -317,6 +317,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           excludePlatforms = []
         }
         from(buildModules) {
+          // geo registers the geo_shape mapper that is overridden by
+          // the geo_shape mapper registered in the x-pack-spatial plugin
+          if (oss == false) {
+            exclude "**/geo/**"
+          }
+
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}/**"
           }

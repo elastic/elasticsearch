@@ -396,7 +396,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             logger.warn(() -> new ParameterizedMessage("[{}] failed to create snapshot",
                                 snapshot.snapshot().getSnapshotId()), e);
                             removeSnapshotFromClusterState(snapshot.snapshot(), e,
-                                    new CleanupAfterErrorListener(userCreateSnapshotListener, e));
+                                new CleanupAfterErrorListener(userCreateSnapshotListener, e));
                         }
 
                         @Override

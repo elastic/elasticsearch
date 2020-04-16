@@ -92,7 +92,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         try {
             super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
                 includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
-                    stateFilter, listener);
+                stateFilter, listener);
         } catch (IOException ex) {
             listener.onFailure(ex);
         }

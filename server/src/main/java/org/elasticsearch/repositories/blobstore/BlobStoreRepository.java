@@ -797,7 +797,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // write new index-N blob to ensure concurrent operations will fail
                 writeIndexGen(repositoryData, repositoryStateId, SnapshotsService.useShardGenerations(repositoryMetaVersion),
                         Function.identity(), ActionListener.wrap(v -> cleanupStaleBlobs(foundIndices, rootBlobs, repositoryData,
-                                ActionListener.map(listener, RepositoryCleanupResult::new)), listener::onFailure));
+                        ActionListener.map(listener, RepositoryCleanupResult::new)), listener::onFailure));
             }
         } catch (Exception e) {
             listener.onFailure(e);

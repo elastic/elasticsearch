@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.HalfFloatPoint;
@@ -59,6 +60,10 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
@@ -123,6 +128,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -148,7 +155,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<String> blacklist = new ArrayList<>();
         blacklist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
         blacklist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
-        blacklist.add(TextFieldMapper.CONTENT_TYPE); // TODO Does not support doc values, but does support FD, needs a lot of mocking
         blacklist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
         blacklist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         blacklist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
@@ -610,6 +616,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
+     * A method that allows implementors to specifically blacklist particular field types (based on their content_name).
+     * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
+     * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
+     *
+     * This is a blacklist instead of a whitelist because there are vastly more field types than ValuesSourceTypes,
+     * and it's expected that these unsupported cases are exceptional rather than common
+     */
+    protected List<String> unsupportedMappedFieldTypes() {
+        return Collections.emptyList();
+    }
+
+    /**
      * This test will validate that an aggregator succeeds or fails to run against all the field types
      * that are registered in {@link IndicesModule} (e.g. all the core field types).  An aggregator
      * is provided by the implementor class, and it is executed against each field type in turn.  If
@@ -618,11 +636,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
-    public void testSupportedFieldTypes() throws IOException {
+    public final void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
         String fieldName = "typeTestFieldName";
         List<ValuesSourceType> supportedVSTypes = getSupportedValuesSourceTypes();
+        List<String> unsupportedMappedFieldTypes = unsupportedMappedFieldTypes();
 
         if (supportedVSTypes.isEmpty()) {
             // If the test says it doesn't support any VStypes, it has not been converted yet so skip
@@ -638,7 +657,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             Map<String, Object> source = new HashMap<>();
             source.put("type", mappedType.getKey());
-            source.put("doc_values", "true");
+
+            // Text is the only field that doesn't support DVs, instead FD
+            if (mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false) {
+                source.put("doc_values", "true");
+            }
 
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
             FieldMapper mapper = (FieldMapper) builder.build(new BuilderContext(settings, new ContentPath()));
@@ -659,15 +682,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
+                    ValuesSourceType vst = fieldType.getValuesSourceType();
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
                     try {
                         searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                        if (supportedVSTypes.contains(fieldType.getValuesSourceType()) == false) {
+                        if (supportedVSTypes.contains(vst) == false || unsupportedMappedFieldTypes.contains(fieldType.typeName())) {
                             fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
-                                + fieldType.typeName() + "] but executing against the field did not throw an excetion");
+                                + fieldType.typeName() + "] but executing against the field did not throw an exception");
                         }
                     } catch (Exception e) {
-                        if (supportedVSTypes.contains(fieldType.getValuesSourceType())) {
+                        if (supportedVSTypes.contains(vst) && unsupportedMappedFieldTypes.contains(fieldType.typeName()) == false) {
                             fail("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
                                 + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]");
                         }
@@ -701,7 +725,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 v = NumericUtils.floatToSortableInt(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
-                float f = Math.abs(randomFloat());
+                // Respect half float range
+                float f = Math.abs((randomFloat() * 2 - 1) * 70000);
                 v = HalfFloatPoint.halfFloatToSortableShort(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {
@@ -739,33 +764,33 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Object end;
             RangeType rangeType;
 
-            if (fieldType.typeName().equals(RangeType.DOUBLE.typeName())) {
+            if (typeName.equals(RangeType.DOUBLE.typeName())) {
                 start = randomDouble();
                 end = RangeType.DOUBLE.nextUp(start);
                 rangeType = RangeType.DOUBLE;
-            } else if (fieldType.typeName().equals(RangeType.FLOAT.typeName())) {
+            } else if (typeName.equals(RangeType.FLOAT.typeName())) {
                 start = randomFloat();
                 end = RangeType.FLOAT.nextUp(start);
                 rangeType = RangeType.DOUBLE;
-            } else if (fieldType.typeName().equals(RangeType.IP.typeName())) {
+            } else if (typeName.equals(RangeType.IP.typeName())) {
                 boolean v4 = randomBoolean();
                 start = randomIp(v4);
                 end = RangeType.IP.nextUp(start);
                 rangeType = RangeType.IP;
-            } else if (fieldType.typeName().equals(RangeType.LONG.typeName())) {
+            } else if (typeName.equals(RangeType.LONG.typeName())) {
                 start = randomLong();
                 end = RangeType.LONG.nextUp(start);
                 rangeType = RangeType.LONG;
-            } else if (fieldType.typeName().equals(RangeType.INTEGER.typeName())) {
+            } else if (typeName.equals(RangeType.INTEGER.typeName())) {
                 start = randomInt();
                 end = RangeType.INTEGER.nextUp(start);
                 rangeType = RangeType.INTEGER;
-            } else if (fieldType.typeName().equals(RangeType.DATE.typeName())) {
+            } else if (typeName.equals(RangeType.DATE.typeName())) {
                 start = randomNonNegativeLong();
                 end = RangeType.DATE.nextUp(start);
                 rangeType = RangeType.DATE;
             } else {
-                throw new IllegalStateException("Unknown type of range [" + fieldType.typeName() + "]");
+                throw new IllegalStateException("Unknown type of range [" + typeName + "]");
             }
 
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
@@ -781,7 +806,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             doc.add(new LatLonDocValuesField(fieldName, lat, lon));
             json = "{ \"" + fieldName + "\" : \"[" + lon + "," + lat + "]\" }";
         } else {
-            throw new IllegalStateException("Unknown field type [" + fieldType.typeName() + "]");
+            throw new IllegalStateException("Unknown field type [" + typeName + "]");
         }
         doc.add(new StoredField("_source", new BytesRef(json)));
         iw.addDocument(doc);
@@ -790,6 +815,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
             super(null, null, null, null, null);
+        }
+
+        @Override
+        public IndexAnalyzers getIndexAnalyzers() {
+            NamedAnalyzer defaultAnalyzer = new NamedAnalyzer(AnalysisRegistry.DEFAULT_ANALYZER_NAME,
+                AnalyzerScope.GLOBAL, new StandardAnalyzer());
+            return new IndexAnalyzers(singletonMap(AnalysisRegistry.DEFAULT_ANALYZER_NAME, defaultAnalyzer), emptyMap(), emptyMap());
         }
     }
 

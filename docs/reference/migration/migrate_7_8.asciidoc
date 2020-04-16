@@ -42,6 +42,15 @@ request didn't throw an error. As of 7.8, requests that attempt to change
 `enabled` on the root mapping will fail.
 
 [discrete]
+[[prevent-include-in-root-change]]
+==== `include_in_root` and `include_in_parent` cannot be changed
+
+Elasticsearch previously accepted mapping updates that changed the
+`include_in_root` and `include_in_parent` settings. The update was not
+applied, but the request didn't throw an error. As of 7.8, requests that
+attempt to change these settings will fail.
+
+[discrete]
 [[breaking_78_settings_changes]]
 === Settings changes
 

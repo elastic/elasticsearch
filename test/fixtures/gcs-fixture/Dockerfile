@@ -1,4 +1,4 @@
-FROM ubuntu:19.04
+FROM ubuntu:18.04
 
 RUN apt-get update -qqy
 RUN apt-get install -qqy openjdk-12-jre-headless

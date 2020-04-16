@@ -107,7 +107,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     // this setting is intentionally not registered, it is only used in tests
     public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS =
-        Setting.intSetting("cluster.remote.max_pending_connection_listeners", 100, Setting.Property.NodeScope);
+        Setting.intSetting("cluster.remote.max_pending_connection_listeners", 1000, Setting.Property.NodeScope);
 
     private final int maxPendingConnectionListeners;
 

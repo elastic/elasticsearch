@@ -89,7 +89,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
                 final String fieldName = declaredField.getName();
-                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY") || fieldName.equals("PREVIOUS")) {
+                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
                     continue;
                 }
                 assert fieldName.matches("V_\\d+_\\d+_\\d+")
@@ -406,7 +406,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             }
             switch (field.getName()) {
                 case "CURRENT":
-                case "PREVIOUS":
                 case "V_EMPTY":
                     continue;
             }

@@ -29,6 +29,6 @@ public class CompatibleConstants {
     public static final String COMPATIBLE_ACCEPT_HEADER = "Accept";
     public static final String COMPATIBLE_CONTENT_TYPE_HEADER = "Content-Type";
     public static final String COMPATIBLE_PARAMS_KEY = "Compatible-With";
-    public static final String COMPATIBLE_VERSION = String.valueOf(Version.CURRENT.major - 1);
+    public static final String COMPATIBLE_VERSION = String.valueOf(Version.minimumRestCompatibilityVersion().major);
 
 }

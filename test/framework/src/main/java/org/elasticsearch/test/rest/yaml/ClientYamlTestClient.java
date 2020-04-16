@@ -180,7 +180,9 @@ public class ClientYamlTestClient implements Closeable {
         for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
-        if(entity!=null && entity.getContentType() != null){
+        // that means content type was set based on Content-Type from entity.
+        // Setting content-type on both entity and headers will result in exception in server
+        if (entity != null && entity.getContentType() != null) {
             headers.remove(HTTP.CONTENT_TYPE);
         }
         request.setEntity(entity);

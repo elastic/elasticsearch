@@ -63,8 +63,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
          */
         if (settings.hasValue("node.roles")) {
             return settings.getAsList("node.roles").contains(role.roleName());
+        } else if (role.legacySetting() != null && settings.hasValue(role.legacySetting().getKey())) {
+            return role.legacySetting().get(settings);
         } else {
-            return role.legacySetting() != null && role.legacySetting().get(settings);
+            return role.isEnabledByDefault(settings);
         }
     }
 

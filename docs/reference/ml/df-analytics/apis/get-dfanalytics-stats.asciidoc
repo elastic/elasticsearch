@@ -281,7 +281,7 @@ An object containing information about the {reganalysis} job.
 //Begin reg_hyperparameters
 `hyperparameters`::::
 (object)
-An object containing the parameters of the {reganalysis}.
+An object containing the parameters of the {reganalysis} job.
 +
 .Properties of `hyperparameters`
 [%collapsible%open]

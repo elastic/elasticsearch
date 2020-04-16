@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
@@ -1819,22 +1818,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"));
-    }
-
-    public void testErrorMessageForMatrixStatsWithScalars() {
-        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
-            String aggFunction = fd.name();
-            if (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
-                SqlIllegalArgumentException siae = expectThrows(
-                    SqlIllegalArgumentException.class,
-                    () -> optimizeAndPlan("SELECT " + aggFunction + "(int * 10.123) FROM test")
-                );
-                assertEquals(
-                    "Cannot use scalar functions or operators: [int * 10.123] in aggregate functions " +
-                    "[KURTOSIS] and [SKEWNESS]", siae.getMessage()
-                );
-            }
-        }
     }
 
     public void testScriptsInsideAggregateFunctions() {

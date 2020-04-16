@@ -124,7 +124,7 @@ class S3Service implements Closeable {
                 }
                 final S3ClientSettings newSettings = staticSettings.refine(repositoryMetadata);
                 derivedClientSettings =
-                        Maps.copyMayWithAddedOrReplacedEntry(
+                        Maps.copyMapWithAddedOrReplacedEntry(
                                 derivedClientSettings,
                                 staticSettings,
                                 Maps.copyMapWithAddedEntry(derivedSettings, repositoryMetadata, newSettings));

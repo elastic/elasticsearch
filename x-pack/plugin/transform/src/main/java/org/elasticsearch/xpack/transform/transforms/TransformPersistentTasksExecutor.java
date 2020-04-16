@@ -186,9 +186,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-
         final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setAuditor(auditor)
-            .setClient(client)
+            .setClient(buildTask.getParentTaskClient())
             .setTransformsCheckpointService(transformServices.getCheckpointService())
             .setTransformsConfigManager(transformServices.getConfigManager());
 
@@ -306,7 +305,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
             if (config.isValid()) {
                 indexerBuilder.setTransformConfig(config);
-                SchemaUtil.getDestinationFieldMappings(client, config.getDestination().getIndex(), getFieldMappingsListener);
+                SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
+                        getFieldMappingsListener);
             } else {
                 markAsFailed(buildTask, TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
             }
@@ -328,7 +328,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the index templates are installed
-        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, client, templateCheckListener);
+        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, buildTask.getParentTaskClient(),
+                templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {
@@ -400,6 +401,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             type,
             action,
             parentTaskId,
+            client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
             transformServices.getSchedulerEngine(),

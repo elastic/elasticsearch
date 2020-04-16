@@ -13,13 +13,13 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.analytics.EnumCounters;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,6 +31,17 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
     private AnalyticsStatsAction() {
         super(NAME, Response::new);
+    }
+
+    /**
+     * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
+     */
+    public enum Item {
+        BOXPLOT,
+        CUMULATIVE_CARDINALITY,
+        STRING_STATS,
+        TOP_METRICS,
+        T_TEST;
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
@@ -78,7 +89,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         }
     }
 
-    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable {
         public Response(StreamInput in) throws IOException {
             super(in);
         }
@@ -96,110 +107,66 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
             out.writeList(nodes);
         }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray("stats");
-            for (NodeResponse node : getNodes()) {
-                node.toXContent(builder, params);
-            }
-            builder.endArray();
-
-            return builder;
-        }
     }
 
-    public static class NodeResponse extends BaseNodeResponse implements ToXContentObject {
-        static final ParseField BOXPLOT_USAGE = new ParseField("boxplot_usage");
-        static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
-        static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
-        static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
-        static final ParseField T_TEST_USAGE = new ParseField("t_test_usage");
+    public static class NodeResponse extends BaseNodeResponse {
+        private final EnumCounters<Item> counters;
 
-        private final long boxplotUsage;
-        private final long cumulativeCardinalityUsage;
-        private final long stringStatsUsage;
-        private final long topMetricsUsage;
-        private final long ttestUsage;
-
-        public NodeResponse(DiscoveryNode node, long boxplotUsage, long cumulativeCardinalityUsage, long stringStatsUsage,
-                long topMetricsUsage, long ttestUsage) {
+        public NodeResponse(DiscoveryNode node, EnumCounters<Item> counters) {
             super(node);
-            this.boxplotUsage = boxplotUsage;
-            this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
-            this.stringStatsUsage = stringStatsUsage;
-            this.topMetricsUsage = topMetricsUsage;
-            this.ttestUsage = ttestUsage;
+            this.counters = counters;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                boxplotUsage = in.readVLong();
-            } else {
-                boxplotUsage = 0;
-            }
-            cumulativeCardinalityUsage = in.readZLong();
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                stringStatsUsage = in.readVLong();
-                topMetricsUsage = in.readVLong();
-            } else {
-                stringStatsUsage = 0;
-                topMetricsUsage = 0;
-            }
             if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                ttestUsage = in.readVLong();
+                counters = new EnumCounters<>(in, Item.class);
             } else {
-                ttestUsage = 0;
+                counters = new EnumCounters<>(Item.class);
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    counters.inc(Item.BOXPLOT, in.readVLong());
+                }
+                counters.inc(Item.CUMULATIVE_CARDINALITY, in.readZLong());
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    counters.inc(Item.STRING_STATS, in.readVLong());
+                    counters.inc(Item.TOP_METRICS, in.readVLong());
+                }
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                out.writeVLong(boxplotUsage);
-            }
-            out.writeVLong(cumulativeCardinalityUsage);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                out.writeVLong(stringStatsUsage);
-                out.writeVLong(topMetricsUsage);
-            }
             if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                out.writeVLong(ttestUsage);
+                counters.writeTo(out);
+            } else {
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    out.writeVLong(counters.get(Item.BOXPLOT));
+                }
+                out.writeZLong(counters.get(Item.CUMULATIVE_CARDINALITY));
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    out.writeVLong(counters.get(Item.STRING_STATS));
+                    out.writeVLong(counters.get(Item.TOP_METRICS));
+                }
             }
+        }
+
+        public EnumCounters<Item> getStats() {
+            return counters;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(BOXPLOT_USAGE.getPreferredName(), boxplotUsage);
-            builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
-            builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
-            builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
-            builder.field(T_TEST_USAGE.getPreferredName(), ttestUsage);
-            builder.endObject();
-            return builder;
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeResponse that = (NodeResponse) o;
+            return counters.equals(that.counters) &&
+                getNode().equals(that.getNode());
         }
 
-        public long getBoxplotUsage() {
-            return boxplotUsage;
-        }
-
-        public long getCumulativeCardinalityUsage() {
-            return cumulativeCardinalityUsage;
-        }
-
-        public long getStringStatsUsage() {
-            return stringStatsUsage;
-        }
-
-        public long getTopMetricsUsage() {
-            return topMetricsUsage;
-        }
-
-        public long getTTestUsage() {
-            return topMetricsUsage;
+        @Override
+        public int hashCode() {
+            return Objects.hash(counters, getNode());
         }
     }
 }

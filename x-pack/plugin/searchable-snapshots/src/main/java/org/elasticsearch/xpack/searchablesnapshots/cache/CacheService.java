@@ -33,7 +33,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "size",
-        new ByteSizeValue(1, ByteSizeUnit.GB),                  // TODO: size the default value according to disk space
+        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // TODO: size the default value according to disk space
         new ByteSizeValue(0, ByteSizeUnit.BYTES),               // min
         new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
         Setting.Property.NodeScope

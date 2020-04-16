@@ -405,6 +405,14 @@ class Run extends DefaultTask {
   public void setDataDir(String dataDirStr) {
     project.project(':distribution').run.dataDir = dataDirStr
   }
+
+  @Option(
+    option = "keystore-password",
+    description = "Set the elasticsearch keystore password"
+  )
+  public void setKeystorePassword(String password) {
+    project.project(':distribution').run.keystorePassword = password
+  }
 }
 
 task run(type: Run) {
@@ -515,6 +523,14 @@ subprojects {
         systemProperty 'es.itv2_feature_enabled', 'true'
         systemProperty 'es.datastreams_feature_enabled', 'true'
       }
+    }
+  }
+}
+
+subprojects {
+  project.ext.disableTasks = { String... tasknames ->
+    for (String taskname : tasknames) {
+      project.tasks.named(taskname).configure { onlyIf { false } }
     }
   }
 }

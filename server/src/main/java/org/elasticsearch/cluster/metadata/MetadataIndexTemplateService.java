@@ -305,7 +305,23 @@ public class MetadataIndexTemplateService {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
-        Map<String, List<String>> overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
+        Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, name, template.indexPatterns(), true,
+            template.priority());
+        if (overlaps.size() > 0) {
+            String error = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
+                    "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not " +
+                    "match during index creation, please use a different priority",
+                name,
+                template.indexPatterns(),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream()
+                    .map(e -> e.getKey() + " => " + e.getValue())
+                    .collect(Collectors.joining(",")),
+                template.priority());
+            throw new IllegalArgumentException(error);
+        }
+
+        overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
         if (overlaps.size() > 0) {
             String warning = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
                     "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
@@ -385,6 +401,15 @@ public class MetadataIndexTemplateService {
      */
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                 final List<String> indexPatterns) {
+        return findConflictingV2Templates(state, candidateName, indexPatterns, false, null);
+    }
+
+    /**
+     * Return a map of v2 template names to their index patterns for v2 templates that would overlap
+     * with the given template's index patterns.
+     */
+    static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
+                                                                final List<String> indexPatterns, boolean checkPriority, Long priority) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : state.metadata().templatesV2().entrySet()) {
@@ -392,9 +417,11 @@ public class MetadataIndexTemplateService {
             IndexTemplateV2 template = entry.getValue();
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
-                logger.debug("old template {} and index template {} would overlap: {} <=> {}",
-                    candidateName, name, indexPatterns, template.indexPatterns());
-                overlappingTemplates.put(name, template.indexPatterns());
+                if (checkPriority == false || Objects.equals(priority, template.priority())) {
+                    logger.debug("old template {} and index template {} would overlap: {} <=> {}",
+                        candidateName, name, indexPatterns, template.indexPatterns());
+                    overlappingTemplates.put(name, template.indexPatterns());
+                }
             }
         }
         return overlappingTemplates;

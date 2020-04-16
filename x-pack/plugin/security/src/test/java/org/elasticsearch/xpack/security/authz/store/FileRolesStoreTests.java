@@ -352,8 +352,6 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(descriptors, notNullValue());
             assertTrue(descriptors.isEmpty());
 
-            watcherService.start();
-
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("\n");
             }
@@ -438,7 +436,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, descriptors.size());
         } finally {
             if (watcherService != null) {
-                watcherService.stop();
+                watcherService.close();
             }
             terminate(threadPool);
         }

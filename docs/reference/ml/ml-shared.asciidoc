@@ -1127,6 +1127,12 @@ Specifies the field to which the top classes are written. Defaults to
 `top_classes`.
 end::inference-config-classification-top-classes-results-field[]
 
+tag::inference-config-classification-prediction-field-type[]
+Specifies the type of the predicted field to write.
+Acceptable values are: `string`, `number`, `boolean`. When `boolean` is provided
+`1.0` is transformed to `true` and `0.0` to `false`.
+end::inference-config-classification-prediction-field-type[]
+
 tag::inference-config-regression-num-top-feature-importance-values[]
 Specifies the maximum number of
 {ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature

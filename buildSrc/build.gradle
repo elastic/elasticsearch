@@ -165,9 +165,7 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
-  forbiddenApisMain.enabled = false
-  forbiddenApisMinimumRuntime.enabled = false
-  forbiddenApisTest.enabled = false
+  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime', 'forbiddenApisTest')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
   if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){

@@ -123,25 +123,25 @@ tasks.register('buildIntegTestZip', Zip) {
 tasks.register('buildWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows'), 'zip', 'windows', 'x64', false, true)
+  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
 }
 
 tasks.register('buildOssWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows'), 'zip', 'windows', 'x64', true, true)
+  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
 }
 
 tasks.register('buildNoJdkWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows'), 'zip', 'windows', 'x64', false, false)
+  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
 }
 
 tasks.register('buildOssNoJdkWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows'), 'zip', 'windows', 'x64', true, false)
+  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
 }
 
 Closure commonTarConfig = {
@@ -154,61 +154,61 @@ Closure commonTarConfig = {
 tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', 'x64', false, true)
+  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
 }
 
 tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', 'x64', true, true)
+  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
 }
 
 tasks.register('buildNoJdkDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', 'x64', false, false)
+  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
 }
 
 tasks.register('buildOssNoJdkDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', 'x64', true, false)
+  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
 }
 
 tasks.register('buildLinuxAarch64Tar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-aarch64'
-  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', 'aarch64', false, true)
+  with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
 }
 
 tasks.register('buildLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', 'x64', false, true)
+  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
 }
 
 tasks.register('buildOssLinuxAarch64Tar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-aarch64'
-  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', 'aarch64', true, true)
+  with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
 }
 
 tasks.register('buildOssLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', 'x64', true, true)
+  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
 }
 
 tasks.register('buildNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', 'x64', false, false)
+  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
 }
 
 tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', 'x64', true, false)
+  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
 }
 
 Closure tarExists = { it -> new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }

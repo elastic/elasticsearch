@@ -996,6 +996,34 @@ GROUP BY gender HAVING max > 152000 or min > 24000 ORDER BY gender;
 151745.40000000002|24110.25       |M
 ;
 
+aggregateFunctionsWithScalarsAndGroupByAndHaving_ComplexExpressions
+schema::max:d|min:d|gender:s
+SELECT ABS((MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) + 123) / -100) AS "max",
+cos(MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) % 100) AS "min",
+gender
+FROM test_emp
+GROUP BY gender HAVING (max / 10) + 10 > 165  OR ABS(min * -100) > 60 ORDER BY gender;
+
+       max        |        min        |    gender
+------------------+-------------------+---------------
+1555.323          |0.1887687166044111 |F
+1518.6840000000002|-0.6783938504738453|M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving_CombinedFields
+schema::min:d|max:d|gender:s
+SELECT MIN(ABS(salary * (languages / - 20.0))) AS "min",
+MAX(salary / ((languages / 3.0) + 1)) AS "max",
+gender
+FROM test_emp
+GROUP BY gender HAVING (min::long) / 120 > 12 OR ROUND(max) / 10 > 5200 ORDER BY gender;
+
+      min      |      max      |    gender
+---------------+---------------+---------------
+2436.75        |55287.75       |null
+1401.75        |52508.25       |M
+;
+
 aggregateFunctionsWithScalarsAndGroupByAndHavingConvertedToStats
 schema::max:d|min:d|gender:s
 SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",

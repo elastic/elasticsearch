@@ -7,9 +7,14 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Locale;
+
+import static java.lang.String.format;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.xpack.ql.expression.gen.script.Scripts.formatTemplate;
 
 /**
  * Aggregation builder for a "filter" aggregation encapsulating an "exists" query.
@@ -25,7 +30,14 @@ public class FilterExistsAgg extends LeafAgg {
         if (fieldName() != null) {
             return filter(id(), QueryBuilders.existsQuery(fieldName()));
         } else {
-            return filter(id(), QueryBuilders.scriptQuery(Scripts.isNotNullCardinality(scriptTemplate()).toPainless()));
+            return filter(id(), QueryBuilders.scriptQuery(wrapWithIsNotNull(scriptTemplate()).toPainless()));
         }
+    }
+
+    private static ScriptTemplate wrapWithIsNotNull(ScriptTemplate script) {
+        return new ScriptTemplate(formatTemplate(
+                format(Locale.ROOT, "{ql}.isNotNull(%s)", script.template())),
+                script.params(),
+                DataTypes.BOOLEAN);
     }
 }

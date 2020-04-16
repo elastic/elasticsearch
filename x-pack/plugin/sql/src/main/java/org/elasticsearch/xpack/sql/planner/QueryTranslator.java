@@ -11,7 +11,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Foldables;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -236,15 +235,14 @@ final class QueryTranslator {
         }
     }
 
-    static String field(AggregateFunction af) {
-        Expression arg = af.field();
+    static String field(AggregateFunction af, Expression arg) {
         if (arg.foldable()) {
-            return String.valueOf(((Literal) arg).value());
+            return String.valueOf(arg.fold());
         }
         if (arg instanceof FieldAttribute) {
             FieldAttribute field = (FieldAttribute) arg;
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
-            if (af instanceof Count && ((Count) af).distinct()) {
+            if ((af instanceof Count && ((Count) af).distinct()) || af instanceof TopHits) {
                 // use the `keyword` version of the field, if there is one
                 return field.exactAttribute().name();
             }
@@ -254,29 +252,19 @@ final class QueryTranslator {
                                               af.nodeString());
     }
 
-    private static Object topAggsFieldOrScript(AggregateFunction af, Expression e) {
+    private static boolean isFieldOrLiteral(Expression e) {
+        return e.foldable() || e instanceof FieldAttribute;
+    }
+
+    private static Object asFieldOrLiteralOrScript(AggregateFunction af) {
+        return asFieldOrLiteralOrScript(af, af.field());
+    }
+
+    private static Object asFieldOrLiteralOrScript(AggregateFunction af, Expression e) {
         if (e == null) {
             return null;
         }
-        if (e instanceof FieldAttribute) {
-            return ((FieldAttribute) e).exactAttribute().name();
-        }
-        if (e instanceof ScalarFunction) {
-            return ((ScalarFunction) e).asScript();
-        }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", e.nodeString(), af.nodeString());
-    }
-
-    private static boolean isFieldOrLiteral(AggregateFunction af) {
-        return af.field().foldable() || af.field() instanceof FieldAttribute;
-    }
-
-    private static Object getFieldOrLiteralOrScript(AggregateFunction af) {
-        if (isFieldOrLiteral(af)) {
-            return field(af);
-        } else {
-            return ((ScalarFunction) af.field()).asScript();
-        }
+        return isFieldOrLiteral(e) ? field(af, e) : ((ScalarFunction) e).asScript();
     }
 
     // TODO: see whether escaping is needed
@@ -528,9 +516,9 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Count c) {
             if (c.distinct()) {
-                return new CardinalityAgg(id, getFieldOrLiteralOrScript(c));
+                return new CardinalityAgg(id, asFieldOrLiteralOrScript(c));
             } else {
-                return new FilterExistsAgg(id, getFieldOrLiteralOrScript(c));
+                return new FilterExistsAgg(id, asFieldOrLiteralOrScript(c));
             }
         }
     }
@@ -539,7 +527,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Sum s) {
-            return new SumAgg(id, getFieldOrLiteralOrScript(s));
+            return new SumAgg(id, asFieldOrLiteralOrScript(s));
         }
     }
 
@@ -547,7 +535,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Avg a) {
-            return new AvgAgg(id, getFieldOrLiteralOrScript(a));
+            return new AvgAgg(id, asFieldOrLiteralOrScript(a));
         }
     }
 
@@ -555,7 +543,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Max m) {
-            return new MaxAgg(id, getFieldOrLiteralOrScript(m));
+            return new MaxAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
@@ -563,14 +551,14 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Min m) {
-            return new MinAgg(id, getFieldOrLiteralOrScript(m));
+            return new MinAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
     static class MADs extends SingleValueAggTranslator<MedianAbsoluteDeviation> {
         @Override
         protected LeafAgg toAgg(String id, MedianAbsoluteDeviation m) {
-            return new MedianAbsoluteDeviationAgg(id, getFieldOrLiteralOrScript(m));
+            return new MedianAbsoluteDeviationAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
@@ -580,9 +568,9 @@ final class QueryTranslator {
         protected LeafAgg toAgg(String id, First f) {
             return new TopHitsAgg(
                 id,
-                topAggsFieldOrScript(f, f.field()),
+                asFieldOrLiteralOrScript(f, f.field()),
                 f.dataType(),
-                topAggsFieldOrScript(f, f.orderField()),
+                asFieldOrLiteralOrScript(f, f.orderField()),
                 f.orderField() == null ? null : f.orderField().dataType(),
                 SortOrder.ASC
             );
@@ -595,9 +583,9 @@ final class QueryTranslator {
         protected LeafAgg toAgg(String id, Last l) {
             return new TopHitsAgg(
                 id,
-                topAggsFieldOrScript(l, l.field()),
+                asFieldOrLiteralOrScript(l, l.field()),
                 l.dataType(),
-                topAggsFieldOrScript(l, l.orderField()),
+                asFieldOrLiteralOrScript(l, l.orderField()),
                 l.orderField() == null ? null : l.orderField().dataType(),
                 SortOrder.DESC
             );
@@ -608,7 +596,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Stats s) {
-            return new StatsAgg(id, getFieldOrLiteralOrScript(s));
+            return new StatsAgg(id, asFieldOrLiteralOrScript(s));
         }
     }
 
@@ -616,7 +604,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, ExtendedStats e) {
-            return new ExtendedStatsAgg(id, getFieldOrLiteralOrScript(e));
+            return new ExtendedStatsAgg(id, asFieldOrLiteralOrScript(e));
         }
     }
 
@@ -625,7 +613,7 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, MatrixStats m) {
             if (isFieldOrLiteral(m)) {
-                return new MatrixStatsAgg(id, singletonList(field(m)));
+                return new MatrixStatsAgg(id, singletonList(field(m, m.field())));
             }
             throw new SqlIllegalArgumentException(
                 "Cannot use scalar functions or operators: [{}] in matrix stats " + "aggregate functions [KURTOSIS] and [SKEWNESS]",
@@ -638,7 +626,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Percentiles p) {
-            return new PercentilesAgg(id, getFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()));
+            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()));
         }
     }
 
@@ -646,7 +634,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, PercentileRanks p) {
-            return new PercentileRanksAgg(id, getFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()));
+            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()));
         }
     }
 
@@ -654,11 +642,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Min m) {
-            if (m.field() instanceof FieldAttribute) {
-                return new MinAgg(id, field(m));
-            } else {
-                return new MinAgg(id, ((ScalarFunction) m.field()).asScript());
-            }
+            return new MinAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 

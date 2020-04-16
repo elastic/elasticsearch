@@ -66,13 +66,6 @@ public final class Scripts {
                 DataTypes.BOOLEAN);
     }
 
-    public static ScriptTemplate isNotNullCardinality(ScriptTemplate script) {
-        return new ScriptTemplate(formatTemplate(
-                format(Locale.ROOT, "{ql}.isNotNull(%s)", script.template())),
-                script.params(),
-                DataTypes.BOOLEAN);
-    }
-
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
         String methodName = script.outputType().isNumeric() ? "nullSafeSortNumeric" : "nullSafeSortString";
         return new ScriptTemplate(formatTemplate(

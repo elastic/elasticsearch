@@ -765,7 +765,7 @@ public final class SecurityClient {
      */
     public InvalidateTokenResponse invalidateToken(InvalidateTokenRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
-            InvalidateTokenResponse::fromXContent, emptySet());
+            InvalidateTokenResponse::fromXContent, singleton(404));
     }
 
     /**
@@ -780,7 +780,7 @@ public final class SecurityClient {
     public Cancellable invalidateTokenAsync(InvalidateTokenRequest request, RequestOptions options,
                                             ActionListener<InvalidateTokenResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
-            InvalidateTokenResponse::fromXContent, listener, emptySet());
+            InvalidateTokenResponse::fromXContent, listener, singleton(404));
     }
 
     /**

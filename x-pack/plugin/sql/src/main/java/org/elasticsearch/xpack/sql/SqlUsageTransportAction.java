@@ -18,7 +18,6 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -28,13 +27,11 @@ import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsResponse;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
 
@@ -44,7 +41,6 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                                    Settings settings, XPackLicenseState licenseState, Client client) {
         super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.enabled = XPackSettings.SQL_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
@@ -53,23 +49,18 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isSqlAllowed();
-        if (enabled) {
-            SqlStatsRequest sqlRequest = new SqlStatsRequest();
-            sqlRequest.includeStats(true);
-            sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-            client.execute(SqlStatsAction.INSTANCE, sqlRequest, ActionListener.wrap(r -> {
-                List<Counters> countersPerNode = r.getNodes()
-                    .stream()
-                    .map(SqlStatsResponse.NodeStatsResponse::getStats)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                Counters mergedCounters = Counters.merge(countersPerNode);
-                SqlFeatureSetUsage usage = new SqlFeatureSetUsage(available, enabled, mergedCounters.toNestedMap());
-                listener.onResponse(new XPackUsageFeatureResponse(usage));
-            }, listener::onFailure));
-        } else {
-            SqlFeatureSetUsage usage = new SqlFeatureSetUsage(available, enabled, Collections.emptyMap());
+        SqlStatsRequest sqlRequest = new SqlStatsRequest();
+        sqlRequest.includeStats(true);
+        sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(SqlStatsAction.INSTANCE, sqlRequest, ActionListener.wrap(r -> {
+            List<Counters> countersPerNode = r.getNodes()
+                .stream()
+                .map(SqlStatsResponse.NodeStatsResponse::getStats)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            Counters mergedCounters = Counters.merge(countersPerNode);
+            SqlFeatureSetUsage usage = new SqlFeatureSetUsage(available, true, mergedCounters.toNestedMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+        }, listener::onFailure));
     }
 }

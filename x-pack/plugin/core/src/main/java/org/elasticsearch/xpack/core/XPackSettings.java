@@ -139,7 +139,12 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
-    /** Setting for enabling or disabling sql. Defaults to true. */
+    /**
+     * Setting for enabling or disabling sql. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true,
         Property.NodeScope, Property.Deprecated);
 

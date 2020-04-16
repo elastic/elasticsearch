@@ -131,13 +131,17 @@ public class Authentication implements ToXContentObject {
     }
 
     public Authentication withJobOriginAndId(String jobOrigin, String jobId) {
+        Objects.requireNonNull(jobOrigin);
+        Objects.requireNonNull(jobId);
         Map<String, Object> metadata = new HashMap<>(this.metadata.size() + 2);
         metadata.putAll(this.metadata);
-        if (metadata.putIfAbsent(JOB_AUTHN_ORIGIN_METADATA_KEY, jobOrigin) != null) {
-            throw new IllegalArgumentException("Authentication already has a job origin " + metadata.get(JOB_AUTHN_ORIGIN_METADATA_KEY));
+        Object existingJobOrigin = metadata.put(JOB_AUTHN_ORIGIN_METADATA_KEY, jobOrigin);
+        if (existingJobOrigin != null && false == jobOrigin.equals(existingJobOrigin)) {
+            throw new IllegalArgumentException("Authentication already has a job origin " + existingJobOrigin);
         }
-        if (metadata.putIfAbsent(JOB_AUTHN_ID_METADATA_KEY, jobId) != null) {
-            throw new IllegalArgumentException("Authentication already has a job id " + metadata.get(JOB_AUTHN_ID_METADATA_KEY));
+        Object existingJobId = metadata.put(JOB_AUTHN_ID_METADATA_KEY, jobId);
+        if (existingJobId != null && false == jobId.equals(existingJobId)) {
+            throw new IllegalArgumentException("Authentication already has a job id " + existingJobId);
         }
         return new Authentication(this.user, this.authenticatedBy, this.lookedUpBy, this.version, this.type, metadata);
     }

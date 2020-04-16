@@ -47,6 +47,9 @@ public class SecurityContext {
 
     public Map<String, String> extractSecurityHeadersForJob(String jobOrigin, String jobId) {
         Authentication currentAuthentication = getAuthentication();
+        if (currentAuthentication == null) {
+            return Map.of();
+        }
         Authentication authenticationWithJobId = currentAuthentication.withJobOriginAndId(jobOrigin, jobId);
         try {
             String encodedJobAuthenticationHeader = authenticationWithJobId.encode();

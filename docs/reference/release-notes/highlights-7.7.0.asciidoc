@@ -119,7 +119,7 @@ third quartiles of a given data set.
 [float]
 === AArch64 support
 
-{es} now provides aarch64 packaging, including bundling an aarch64 JDK
+{es} now provides AArch64 packaging, including bundling an AArch64 JDK
 distribution. There are some restrictions in place, namely no {ml} support and
 depending on underlying page sizes, class data sharing is disabled.
 

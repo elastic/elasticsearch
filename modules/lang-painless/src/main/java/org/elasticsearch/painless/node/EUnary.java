@@ -77,15 +77,13 @@ public class EUnary extends AExpression {
 
             if (numeric != null) {
                 if (operation == Operation.SUB) {
-                    childOutput = new ENumeric(numeric.location, "-" + numeric.value, numeric.radix)
-                            .analyze(classNode, scriptRoot, scope, childInput);
+                    childOutput = numeric.analyze(classNode, scriptRoot, scope, childInput, numeric.value.charAt(0) != '-');
                 } else {
                     childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
                 }
             } else if (decimal != null) {
                 if (operation == Operation.SUB) {
-                    childOutput = new EDecimal(decimal.location, "-" + decimal.value)
-                            .analyze(classNode, scriptRoot, scope, childInput);
+                    childOutput = decimal.analyze(classNode, scriptRoot, scope, childInput, decimal.value.charAt(0) != '-');
                 } else {
                     childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
                 }

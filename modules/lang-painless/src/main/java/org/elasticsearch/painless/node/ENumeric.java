@@ -44,6 +44,10 @@ public class ENumeric extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        return analyze(classNode, scriptRoot, scope, input, false);
+    }
+
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input, boolean negate) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + value + "]"));
@@ -55,6 +59,8 @@ public class ENumeric extends AExpression {
 
         Output output = new Output();
         Object constant;
+
+        String value = negate ? "-" + this.value : this.value;
 
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {

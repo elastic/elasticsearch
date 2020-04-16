@@ -19,8 +19,11 @@
 
 package org.elasticsearch.gradle.precommit;
 
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.publish.PublishingExtension;
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -31,14 +34,20 @@ public class PomValidationPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getTasks().withType(GenerateMavenPom.class, generateMavenPom -> {
-            String taskname = "validate" + generateMavenPom.getName().substring("generate".length());
-            TaskProvider<PomValidationTask> validateTask = project.getTasks().register(taskname, PomValidationTask.class);
-            validateTask.configure(task -> {
-                task.dependsOn(generateMavenPom);
-                task.getPomFile().fileValue(generateMavenPom.getDestination());
+        project.getPlugins().withType(MavenPublishPlugin.class).whenPluginAdded(p -> {
+            PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
+            publishing.getPublications().all(publication -> {
+                String publicationName = Util.capitalize(publication.getName());
+                TaskProvider<PomValidationTask> validateTask =
+                    project.getTasks().register("validate" + publicationName + "Pom", PomValidationTask.class);
+                validateTask.configure(task -> {
+                    GenerateMavenPom generateMavenPom = project.getTasks().withType(GenerateMavenPom.class)
+                        .getByName("generatePomFileFor" + publicationName + "Publication");
+                    task.dependsOn(generateMavenPom);
+                    task.getPomFile().fileValue(generateMavenPom.getDestination());
+                });
+                project.getTasks().named("precommit").configure(precommit -> { precommit.dependsOn(validateTask); });
             });
-            project.getTasks().named("precommit").configure(precommit -> { precommit.dependsOn(validateTask); });
         });
     }
 }

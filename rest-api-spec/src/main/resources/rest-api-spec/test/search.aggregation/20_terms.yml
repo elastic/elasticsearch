@@ -712,6 +712,9 @@ setup:
 
 ---
 "No field or script":
+  - skip:
+      version: "all" # TODO change this after backport
+      reason:  "Exception was a deep, server exception before 7.8"
   - do:
       catch: /Required one of fields \[field, script\], but none were specified/
       search:

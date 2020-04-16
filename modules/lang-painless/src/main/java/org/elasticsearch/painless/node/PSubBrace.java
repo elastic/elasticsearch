@@ -30,7 +30,7 @@ import java.util.Objects;
 /**
  * Represents an array load/store.
  */
-public class PSubBrace extends AStoreable {
+public class PSubBrace extends AExpression {
 
     protected final Class<?> clazz;
     protected final AExpression index;
@@ -43,7 +43,7 @@ public class PSubBrace extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         Input indexInput = new Input();
@@ -63,10 +63,5 @@ public class PSubBrace extends AStoreable {
         output.expressionNode = braceSubNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
     }
 }

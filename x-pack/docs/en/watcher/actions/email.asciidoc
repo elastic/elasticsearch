@@ -252,16 +252,13 @@ messages can contain basic HTML tags. You can control which groups of tags are
 allowed by <<email-html-sanitization, Configuring HTML Sanitization Options>>.
 
 You configure the accounts {watcher} can use to send email in the
-`xpack.notification.email` namespace in `elasticsearch.yml`.
+`xpack.notification.email` namespace in `elasticsearch.yml`. 
+The password for the specified SMTP user is stored securely in the
+<<secure-settings, {es} keystore>>.
 
 If your email account is configured to require two step verification, you need
 to generate and use a unique App Password to send email from {watcher}.
 Authentication will fail if you use your primary password.
-
-IMPORTANT: Currently, neither Watcher nor Shield provide a mechanism to encrypt
-settings in `elasticsearch.yml`. Because the email account credentials appear
-in plain text, you should limit access to `elasticsearch.yml` to the user that
-you use to run Elasticsearch.
 
 [[email-profile]]
 {watcher} provides three email profiles that control how MIME messages are
@@ -314,7 +311,7 @@ xpack.notification.email.account:
             user: <username>
 --------------------------------------------------
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
@@ -352,7 +349,7 @@ xpack.notification.email.account:
             user: <email.address>
 --------------------------------------------------
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
@@ -389,7 +386,7 @@ xpack.notification.email.account:
 --------------------------------------------------
 <1> `smtp.host` varies depending on the region
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]
@@ -432,7 +429,7 @@ xpack.notification.email.account:
     it is a good idea to check with your system administrator if you receive
     authentication-related failures.
 
-In order to store the account SMTP password, use the keystore command
+To store the account SMTP password, use the keystore command
 (see {ref}/secure-settings.html[secure settings])
 
 [source,yaml]

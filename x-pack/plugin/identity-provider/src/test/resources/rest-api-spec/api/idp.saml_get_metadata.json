@@ -21,7 +21,10 @@
       ]
     },
     "params": {
-      "acs": { ... }
+      "acs": {
+        "type": "string",
+        "description": "The assertion consumer service URL of the Service Provider that will consume the metadata"
+      }
     }
   }
 }

@@ -47,7 +47,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 
 `entity_id`::
 (Optional, string) The SAML entity Id of the service provider. If not set, it will be populated with the value from the URL parameter.
-If set, it musth match the value that is passed in the URL parameter.
+If set, it must match the value that is passed in the URL parameter.
 
 `acs`::
 (Required, string) The assertion consumer service URL of the service provider.

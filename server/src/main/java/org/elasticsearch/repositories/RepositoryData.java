@@ -266,14 +266,15 @@ public final class RepositoryData {
             List<SnapshotId> remaining;
             List<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
             assert snapshotIds != null;
-            if (snapshotIds.contains(snapshotId)) {
+            final int listIndex = snapshotIds.indexOf(snapshotId);
+            if (listIndex > -1) {
                 if (snapshotIds.size() == 1) {
                     // removing the snapshot will mean no more snapshots
                     // have this index, so just skip over it
                     continue;
                 }
                 remaining = new ArrayList<>(snapshotIds);
-                remaining.remove(snapshotId);
+                remaining.remove(listIndex);
                 remaining = List.copyOf(remaining);
             } else {
                 remaining = snapshotIds;

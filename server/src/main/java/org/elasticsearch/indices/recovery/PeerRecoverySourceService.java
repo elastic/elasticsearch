@@ -22,6 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -59,6 +60,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
+        public static final String REESTABLISH_RECOVERY = "internal:index/shard/recovery/reestablish_recovery";
     }
 
     private final TransportService transportService;
@@ -75,6 +77,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.recoverySettings = recoverySettings;
         transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, StartRecoveryRequest::new,
             new StartRecoveryTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.REESTABLISH_RECOVERY, ThreadPool.Names.GENERIC, ReestablishRecoveryRequest::new,
+            new ReestablishRecoveryTransportRequestHandler());
     }
 
     @Override
@@ -121,10 +125,26 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
     }
 
+    private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        final IndexShard shard = indexService.getShard(request.shardId().id());
+
+        logger.trace("[{}][{}] reestablishing recovery {}", request.shardId().getIndex().getName(), request.shardId().id(),
+            request.recoveryId());
+        ongoingRecoveries.reestablishRecovery(request, shard, listener);
+    }
+
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
             recover(request, new ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
+        }
+    }
+
+    class ReestablishRecoveryTransportRequestHandler implements TransportRequestHandler<ReestablishRecoveryRequest> {
+        @Override
+        public void messageReceived(final ReestablishRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
+            reestablish(request, new ChannelActionListener<>(channel, Actions.REESTABLISH_RECOVERY, request));
         }
     }
 
@@ -146,6 +166,17 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             RecoverySourceHandler handler = shardContext.addNewRecovery(request, shard);
             shard.recoveryStats().incCurrentAsSource();
             return handler;
+        }
+
+        synchronized void reestablishRecovery(ReestablishRecoveryRequest request, IndexShard shard,
+                                              ActionListener<RecoveryResponse> listener) {
+            assert lifecycle.started();
+            final ShardRecoveryContext shardContext = ongoingRecoveries.get(shard);
+            if (shardContext == null) {
+                throw new ResourceNotFoundException("Cannot reestablish recovery, recovery id [" + request.recoveryId()
+                    + "] not found.");
+            }
+            shardContext.reestablishRecovery(request, listener);
         }
 
         synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
@@ -217,6 +248,24 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 RecoverySourceHandler handler = createRecoverySourceHandler(request, shard);
                 recoveryHandlers.add(handler);
                 return handler;
+            }
+
+            /**
+             * Adds recovery source handler.
+             */
+            synchronized void reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+                RecoverySourceHandler handler = null;
+                for (RecoverySourceHandler existingHandler : recoveryHandlers) {
+                    if (existingHandler.getRequest().recoveryId() == request.recoveryId()) {
+                        handler = existingHandler;
+                        break;
+                    }
+                }
+                if (handler == null) {
+                    throw new ResourceNotFoundException("Cannot reestablish recovery, recovery id [" + request.recoveryId()
+                        + "] not found.");
+                }
+                handler.addListener(listener);
             }
 
             private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, IndexShard shard) {

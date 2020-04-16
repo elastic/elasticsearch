@@ -1170,24 +1170,28 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
                                     TransportRequestOptions options) throws IOException {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
-                if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
-                    // ensures that it's considered as valid recovery attempt by source
-                    try {
-                        assertBusy(() -> assertThat(
-                            "Expected there to be some initializing shards",
-                            client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
-                                .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards(), not(empty())));
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
+                    if (count.incrementAndGet() == 1) {
+                        // ensures that it's considered as valid recovery attempt by source
+                        try {
+                            assertBusy(() -> assertThat(
+                                "Expected there to be some initializing shards",
+                                client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
+                                    .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards(), not(empty())));
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                        connection.sendRequest(requestId, action, request, options);
+                        try {
+                            Thread.sleep(disconnectAfterDelay.millis());
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        throw new ConnectTransportException(connection.getNode(),
+                            "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
+                    } else {
+                        throw new IllegalStateException("Expected only a single START_RECOVERY request");
                     }
-                    connection.sendRequest(requestId, action, request, options);
-                    try {
-                        Thread.sleep(disconnectAfterDelay.millis());
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                    throw new ConnectTransportException(connection.getNode(),
-                        "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
                 } else {
                     connection.sendRequest(requestId, action, request, options);
                 }

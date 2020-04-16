@@ -76,7 +76,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
 
     private final Consumer<Long> onSourceThrottle;
-    private final boolean retriesSupported;
     private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
@@ -96,9 +95,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
-        // TODO: Change after backport
-        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_8_0_0);
-
     }
 
     @Override
@@ -268,12 +264,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     private static boolean retryableException(Exception e) {
-        if (e instanceof ConnectTransportException) {
-            return true;
-        } else if (e instanceof SendRequestTransportException) {
-            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof ConnectTransportException;
-        } else if (e instanceof RemoteTransportException) {
+        if (e instanceof RemoteTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
             return cause instanceof CircuitBreakingException ||
                 cause instanceof EsRejectedExecutionException;

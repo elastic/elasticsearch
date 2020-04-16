@@ -273,7 +273,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
 //Begin regression_stats
 `regression_stats`::::
 (object)
-An object containing statistical data about the {reganalysis}.
+An object containing information about the {reganalysis} job.
 +
 .Properties of `regression_stats`
 [%collapsible%open]

@@ -64,16 +64,16 @@ public class ToNumberFunctionProcessor implements Processor {
         return parsed;
     }
 
-    public static Object doProcess(Object source, Object base) {
-        if (source == null) {
+    public static Object doProcess(Object value, Object base) {
+        if (value == null) {
             return null;
         }
 
-        if (!(source instanceof String || source instanceof Character)) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (!(value instanceof String || value instanceof Character)) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", value);
         }
 
-        boolean detectedHexPrefix = source.toString().startsWith("0x");
+        boolean detectedHexPrefix = value.toString().startsWith("0x");
 
         if (base == null) {
             base = detectedHexPrefix ? 16 : 10;
@@ -84,17 +84,17 @@ public class ToNumberFunctionProcessor implements Processor {
         int radix = (Integer) base;
 
         if (detectedHexPrefix && radix == 16) {
-            source = source.toString().substring(2);
+            value = value.toString().substring(2);
         }
 
         try {
             if (radix == 10) {
-                return parseDecimal(source.toString());
+                return parseDecimal(value.toString());
             } else {
-                return Integer.parseInt(source.toString(), radix);
+                return Integer.parseInt(value.toString(), radix);
             }
         } catch (NumberFormatException e) {
-            throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", source, radix);
+            throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", value, radix);
         }
 
     }

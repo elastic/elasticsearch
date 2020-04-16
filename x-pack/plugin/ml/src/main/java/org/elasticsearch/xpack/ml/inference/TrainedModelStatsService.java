@@ -17,6 +17,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.unit.TimeValue;
@@ -135,31 +136,10 @@ public class TrainedModelStatsService {
         if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
-        if (verifiedStatsIndexCreated == false) {
+        if (verifyIndicesPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
-                PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-                MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
-                listener.actionGet();
-                listener = new PlainActionFuture<>();
-                ElasticsearchMappings.addDocMappingIfMissing(
-                    MlStatsIndex.writeAlias(),
-                    MlStatsIndex::mapping,
-                    client,
-                    clusterState,
-                    listener);
-                listener.actionGet();
-                // Make sure that we expand to indices and that they are available
-                client.admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setWaitForYellowStatus()
-                    .setIndicesOptions(new IndicesOptions(
-                        EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),
-                        EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.HIDDEN)))
-                    .setIndices(MlStatsIndex.indexPattern())
-                    .get();
-                verifiedStatsIndexCreated = true;
-            } catch (Exception e) {
+                createStatsIndexIfNecessary();
+            } catch(Exception e){
                 // This exception occurs if, for some reason, the `createStatsIndexAndAliasIfNecessary` fails due to
                 // a concrete index of the alias name already existing. This error is recoverable eventually, but
                 // should NOT cause us to lose statistics.
@@ -201,6 +181,38 @@ public class TrainedModelStatsService {
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
             () -> stopped == false,
             (msg) -> {});
+    }
+
+    private static boolean verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
+        String[] indices = expressionResolver.concreteIndexNames(clusterState,
+            new IndicesOptions(
+                EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE, IndicesOptions.Option.ALLOW_NO_INDICES),
+                EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.HIDDEN)),
+            MlStatsIndex.writeAlias());
+        for (String index : indices) {
+            if (clusterState.metadata().hasIndex(index) == false) {
+                return false;
+            }
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void createStatsIndexIfNecessary() {
+        PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
+        listener.actionGet();
+        listener = new PlainActionFuture<>();
+        ElasticsearchMappings.addDocMappingIfMissing(
+            MlStatsIndex.writeAlias(),
+            MlStatsIndex::mapping,
+            client,
+            clusterState,
+            listener);
+        listener.actionGet();
     }
 
     static UpdateRequest buildUpdateRequest(InferenceStats stats) {

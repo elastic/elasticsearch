@@ -227,11 +227,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 metricFieldType,
                 defaultFieldType,
                 context.indexSettings(),
-                multiFieldsBuilder.build(this, context),
                 ignoreMalformed(context),
                 metrics(context),
                 defaultMetric,
-                copyTo,
                 metricMappers
             );
         }
@@ -280,8 +278,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     builder.ignoreMalformed(
                         XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED.getPreferredName())
                     );
-                    iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -519,14 +515,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         MappedFieldType fieldType,
         MappedFieldType defaultFieldType,
         Settings indexSettings,
-        MultiFields multiFields,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Set<Metric>> metrics,
         Explicit<Metric> defaultMetric,
-        CopyTo copyTo,
         EnumMap<Metric, NumberFieldMapper> metricFieldMappers
     ) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         this.ignoreMalformed = ignoreMalformed;
         this.metrics = metrics;
         this.defaultMetric = defaultMetric;
@@ -601,6 +595,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             + "] does not support indexing multiple values for the same field in the same document"
                     );
                 }
+                // Delegate parsing the field to a numeric field mapper
                 delegateFieldMapper.parseCreateField(context, metricSubfields);
 
                 // Ensure a value_count metric does not have a negative value

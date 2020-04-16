@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -609,7 +610,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             if (cause instanceof ConnectTransportException) {
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
                     recoverySettings.retryDelayNetwork(), cause.getMessage());
-                reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
+                // TODO: Change after backport
+                if (request.sourceNode().getVersion().onOrAfter(Version.V_8_0_0)) {
+                    reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
+                } else {
+                    retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),
+                        recoverySettings.activityTimeout());
+                }
                 return;
             }
 

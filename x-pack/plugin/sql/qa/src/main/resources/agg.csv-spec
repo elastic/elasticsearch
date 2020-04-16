@@ -435,6 +435,17 @@ null        |5.1415926535
 null        |4.1415926535
 ;
 
+aggregateWithStringScalars
+schema::gender:s|avg:s
+SELECT gender, REPLACE(CONVERT(AVG(salary), text), '.', ',') as "avg"
+FROM test_emp WHERE languages IS NOT NULL AND birth_date IS NOT NULL GROUP BY gender ORDER BY gender LIMIT 2;
+
+    gender     |      avg
+---------------+---------------
+null           |48760,5
+F              |51130,48
+;
+
 //
 // Grouping functions
 //

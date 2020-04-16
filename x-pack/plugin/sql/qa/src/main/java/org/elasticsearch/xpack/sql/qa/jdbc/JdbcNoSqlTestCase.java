@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+import static org.hamcrest.Matchers.startsWith;
+
 public class JdbcNoSqlTestCase extends JdbcIntegrationTestCase {
-    
+
     public void testJdbcExceptionMessage() throws SQLException {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM bla").executeQuery());
-            assertTrue(e.getMessage().startsWith("X-Pack/SQL does not seem to be available on the Elasticsearch"
-                    + " node using the access path"));
+            assertThat(e.getMessage(), startsWith("Found 1 problem\nline 1:15: Unknown index [bla]"));
         }
     }
 }

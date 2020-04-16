@@ -58,7 +58,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             settings.build(),
             licenseState
         );
-        assertThat(featureSet.enabled(), is(enabled));
+        assertThat(featureSet.enabled(), is(true));
     }
 
     public void testEnabledDefault() {

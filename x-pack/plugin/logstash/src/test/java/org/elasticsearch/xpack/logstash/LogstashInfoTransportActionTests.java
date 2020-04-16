@@ -40,7 +40,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(enabled));
+        assertThat(serializedUsage.enabled(), is(true));
     }
 
     public void testEnabledDefault() throws Exception {

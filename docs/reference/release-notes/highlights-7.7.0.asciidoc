@@ -91,13 +91,14 @@ is often faster.
 [float]
 === Query speed-up for sorted queries on time-based indices
 
-Sorted queries run on time-based indices and interested in top documents only
-can be optimized by considering that the ranges of (document) timestamps in the
-shards don't overlap. This optimisation will rewrite the shard search requests
-based on the results available already from other shards when it can be
-determined that the query will not yield any result from the current shard;
-i.e. we know in advance that the bottom entry of the (sorted) result set after
-a partial merge is better than the values contained in this current shard.
+We've optimized sorted, top-documents-only queries run on time-based indices.
+The optimization stems from the fact that the ranges of (document) timestamps
+in the shards don't overlap. It is implemented by rewriting the shard search
+requests based on the partial results already available from other shards, if
+it can be determined that the query will not yield any result from the current
+shard; i.e. we know in advance that the bottom entry of the (sorted) result set
+after a partial merge is better than the values contained in this current
+shard.
 
 // end::notable-highlights[]
 

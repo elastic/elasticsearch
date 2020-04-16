@@ -1761,7 +1761,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    public void testDataSteams() {
+    public void testDataStreams() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata index1 = createBackingIndex(dataStreamName, 1).build();
         IndexMetadata index2 = createBackingIndex(dataStreamName, 2).build();

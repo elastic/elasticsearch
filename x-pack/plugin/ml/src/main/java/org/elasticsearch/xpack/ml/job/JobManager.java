@@ -246,7 +246,8 @@ public class JobManager {
         Job job = request.getJobBuilder().build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
+            deprecationLogger.deprecatedAndMaybeLog("ml_create_job_delimited_data",
+                "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
         // Check for the job in the cluster state first

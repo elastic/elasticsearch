@@ -166,7 +166,7 @@ public class DeprecationLoggerTests extends ESTestCase {
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         DeprecationLogger.setThreadContext(threadContext);
-        logger.deprecated(expected);
+        logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key1", expected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -178,7 +178,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         }
 
         DeprecationLogger.removeThreadContext(threadContext);
-        logger.deprecated(unexpected);
+        logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key2", unexpected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -340,7 +340,7 @@ public class DeprecationLoggerTests extends ESTestCase {
                 new ProtectionDomain[]{new ProtectionDomain(null, new Permissions())}
             );
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                deprecationLogger.deprecated("foo", "bar");
+                deprecationLogger.deprecatedAndMaybeLog("testLogPermissions_key", "foo", "bar");
                 return null;
             }, noPermissionsAcc);
             assertThat("supplier called", supplierCalled.get(), is(true));

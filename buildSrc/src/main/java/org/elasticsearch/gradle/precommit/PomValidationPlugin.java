@@ -38,10 +38,11 @@ public class PomValidationPlugin implements Plugin<Project> {
             PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
             publishing.getPublications().all(publication -> {
                 String publicationName = Util.capitalize(publication.getName());
-                TaskProvider<PomValidationTask> validateTask =
-                    project.getTasks().register("validate" + publicationName + "Pom", PomValidationTask.class);
+                TaskProvider<PomValidationTask> validateTask = project.getTasks()
+                    .register("validate" + publicationName + "Pom", PomValidationTask.class);
                 validateTask.configure(task -> {
-                    GenerateMavenPom generateMavenPom = project.getTasks().withType(GenerateMavenPom.class)
+                    GenerateMavenPom generateMavenPom = project.getTasks()
+                        .withType(GenerateMavenPom.class)
                         .getByName("generatePomFileFor" + publicationName + "Publication");
                     task.dependsOn(generateMavenPom);
                     task.getPomFile().fileValue(generateMavenPom.getDestination());

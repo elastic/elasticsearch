@@ -57,6 +57,14 @@ class org.elasticsearch.painless.api.Debug {
   void explain(Object)
 }
 
+#### Painless Json API
+
+class org.elasticsearch.painless.api.Json {
+  def load(String)
+  String dump(Object)
+  String dump(Object, boolean)
+}
+
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint {

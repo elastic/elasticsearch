@@ -118,7 +118,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     resolver,
                     null,
-                    expected::get) {
+                    expected::get,
+                    new BulkIndexingMemoryLimits(clusterService.getSettings())) {
 
                 @Override
                 void executeBulk(
@@ -141,7 +142,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     resolver,
                     null,
-                    System::nanoTime) {
+                    System::nanoTime,
+                    new BulkIndexingMemoryLimits(clusterService.getSettings())) {
 
                 @Override
                 void executeBulk(
@@ -217,7 +219,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 AutoCreateIndex autoCreateIndex,
-                LongSupplier relativeTimeProvider) {
+                LongSupplier relativeTimeProvider,
+                BulkIndexingMemoryLimits indexingMemoryLimits) {
             super(
                     threadPool,
                     transportService,
@@ -227,7 +230,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
-                    relativeTimeProvider);
+                    relativeTimeProvider,
+                    indexingMemoryLimits);
         }
 
         @Override

@@ -51,8 +51,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -89,15 +91,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final BulkIndexingMemoryLimits indexingMemoryLimits;
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
+                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
+                                    BulkIndexingMemoryLimits indexingMemoryLimits) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.indexingMemoryLimits = indexingMemoryLimits;
     }
 
     @Override
@@ -111,17 +116,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
-            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
-        long operationSizeInBytes;
+    protected Releasable checkPrimaryLimits(BulkShardRequest request) throws EsRejectedExecutionException {
+        super.checkPrimaryLimits(request);
         final String localNodeId = clusterService.localNode().getId();
+        long operationSizeInBytes;
         if (localNodeId.equals(request.getParentTask().getNodeId())) {
-            // If we are still on the coordinating node, we have already accounted for the bytes
+            // If we are on the TransportBulkAction coordinating node, we have already accounted for the bytes
             operationSizeInBytes = 0;
         } else {
             operationSizeInBytes = operationSizeInBytes(request.items());
         }
+        indexingMemoryLimits.markPrimaryOperationStarted(operationSizeInBytes);
+        return () -> indexingMemoryLimits.markPrimaryOperationFinished(operationSizeInBytes);
+    }
 
+    @Override
+    protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, mappingListener) -> {
@@ -414,16 +425,22 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-        long operationSizeInBytes;
+    protected Releasable checkReplicaLimits(BulkShardRequest request) throws EsRejectedExecutionException {
+        super.checkReplicaLimits(request);
         final String localNodeId = clusterService.localNode().getId();
+        long operationSizeInBytes;
         if (localNodeId.equals(request.getParentTask().getNodeId())) {
-            // If we are still on the coordinating node, we have already accounted for the bytes
+            // If we are on the TransportBulkAction coordinating node, we have already accounted for the bytes
             operationSizeInBytes = 0;
         } else {
             operationSizeInBytes = operationSizeInBytes(request.items());
         }
+        indexingMemoryLimits.markReplicaOperationStarted(operationSizeInBytes);
+        return () -> indexingMemoryLimits.markReplicaOperationFinished(operationSizeInBytes);
+    }
 
+    @Override
+    public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         final Translog.Location location = performOnReplica(request, replica);
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }

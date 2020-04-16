@@ -251,8 +251,13 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        new AsyncPrimaryAction(
-            request, new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
+        final Releasable releasable = checkPrimaryLimits(request.request);
+        final ActionListener<Response> channelListener = new ChannelActionListener<>(channel, transportPrimaryAction, request);
+        new AsyncPrimaryAction(request, ActionListener.runAfter(channelListener, releasable::close), (ReplicationTask) task).run();
+    }
+
+    protected Releasable checkPrimaryLimits(final Request request) {
+        return () -> {};
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {
@@ -464,10 +469,15 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected void handleReplicaRequest(final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
+    protected void handleReplicaRequest(final ConcreteReplicaRequest<ReplicaRequest> request,
                                         final TransportChannel channel, final Task task) {
-        new AsyncReplicaAction(
-            replicaRequest, new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), (ReplicationTask) task).run();
+        final Releasable releasable = checkReplicaLimits(request.getRequest());
+        final ActionListener<ReplicaResponse> channelListener = new ChannelActionListener<>(channel, transportReplicaAction, request);
+        new AsyncReplicaAction(request, ActionListener.runAfter(channelListener, releasable::close), (ReplicationTask) task).run();
+    }
+
+    protected Releasable checkReplicaLimits(final ReplicaRequest request) {
+        return () -> {};
     }
 
     public static class RetryOnReplicaException extends ElasticsearchException {

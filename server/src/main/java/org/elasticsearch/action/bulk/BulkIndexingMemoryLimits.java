@@ -19,29 +19,38 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class BulkIndexingBreaker {
+public class BulkIndexingMemoryLimits {
 
-    // TODO: Configurable? Allow dedicating coordinating nodes to have a higher value?
-    private static final long FORTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6);
-    private static final long THIRTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3);
+    public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
+        Setting.memorySizeSetting("indices.memory.queued_indexing_bytes.limit", "25%", Setting.Property.NodeScope);
+
+    private final long primaryIndexingLimits;
+    private final long replicaIndexingLimits;
 
     private final AtomicLong pendingBytes = new AtomicLong(0);
+
+    public BulkIndexingMemoryLimits(Settings settings) {
+        this.primaryIndexingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
+        this.replicaIndexingLimits = Math.round(primaryIndexingLimits * 2);
+    }
 
     public void markCoordinatingOperationStarted(long bytes) {
         long pendingWithOperation = pendingBytes.addAndGet(bytes);
 
-        if (pendingWithOperation > FORTY_PER_HEAP_SIZE) {
+        if (pendingWithOperation > replicaIndexingLimits) {
             decrementPendingBytes(bytes);
             long pendingPreOperation = pendingWithOperation - bytes;
             throw new EsRejectedExecutionException("rejected execution of coordinating indexing operation [" +
                 "pending_bytes=" + pendingPreOperation + ", " +
                 "operation_bytes=" + bytes + "," +
-                "max_pending_bytes=" + FORTY_PER_HEAP_SIZE + "]", false);
+                "max_pending_bytes=" + primaryIndexingLimits + "]", false);
         }
     }
 
@@ -52,13 +61,13 @@ public class BulkIndexingBreaker {
     public void markPrimaryOperationStarted(long bytes) {
         long pendingWithOperation = pendingBytes.addAndGet(bytes);
 
-        if (pendingWithOperation > THIRTY_PER_HEAP_SIZE) {
+        if (pendingWithOperation > replicaIndexingLimits) {
             decrementPendingBytes(bytes);
             long pendingPreOperation = pendingWithOperation - bytes;
             throw new EsRejectedExecutionException("rejected execution of primary shard operation [" +
                 "pending_bytes=" + pendingPreOperation + ", " +
                 "operation_bytes=" + bytes + "," +
-                "max_pending_bytes=" + THIRTY_PER_HEAP_SIZE + "]", false);
+                "max_pending_bytes=" + replicaIndexingLimits + "]", false);
         }
     }
 
@@ -69,13 +78,13 @@ public class BulkIndexingBreaker {
     public void markReplicaOperationStarted(long bytes) {
         long pendingWithOperation = pendingBytes.addAndGet(bytes);
 
-        if (pendingWithOperation > FORTY_PER_HEAP_SIZE) {
+        if (pendingWithOperation > primaryIndexingLimits) {
             decrementPendingBytes(bytes);
             long pendingPreOperation = pendingWithOperation - bytes;
             throw new EsRejectedExecutionException("rejected execution of replica shard operation [" +
                 "pending_bytes=" + pendingPreOperation + ", " +
                 "operation_bytes=" + bytes + "," +
-                "max_pending_bytes=" + FORTY_PER_HEAP_SIZE + "]", false);
+                "max_pending_bytes=" + primaryIndexingLimits + "]", false);
         }
     }
 

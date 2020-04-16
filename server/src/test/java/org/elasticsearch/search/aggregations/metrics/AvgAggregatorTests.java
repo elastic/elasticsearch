@@ -69,7 +69,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 public class AvgAggregatorTests extends AggregatorTestCase {

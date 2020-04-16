@@ -958,6 +958,7 @@ FROM test_emp GROUP BY gender ORDER BY gender;
 ;
 
 aggregatesWithScalarsAndGroupByOrderByAgg
+schema::max:d|gender:s
 SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
 gender
 FROM test_emp GROUP BY gender ORDER BY max DESC;
@@ -967,6 +968,17 @@ FROM test_emp GROUP BY gender ORDER BY max DESC;
 155409.30000000002|F
 151745.40000000002|M
 132335.1          |null
+;
+
+aggregatesWithScalarsAndGroupByOrderByAggWithoutProjection
+schema::gender:s
+SELECT gender FROM test_emp GROUP BY gender ORDER BY MAX(salary % 100) DESC;
+
+    gender
+---------------
+M
+null
+F
 ;
 
 topHitsWithScalars

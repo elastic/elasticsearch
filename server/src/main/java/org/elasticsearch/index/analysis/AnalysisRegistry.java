@@ -387,7 +387,9 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();
+            // forbid to use the names of built-in components for custom components
             if (settings.getIndexVersionCreated().onOrAfter(Version.V_8_0_0) && defaultInstance.containsKey(name)) {
+                // but allow to override default analyzers for index
                 boolean defaultAnalyzerSetting = (component == Component.ANALYZER) && (name.equals(DEFAULT_ANALYZER_NAME) ||
                     name.equals(DEFAULT_SEARCH_ANALYZER_NAME) || name.equals(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME));
                 if (defaultAnalyzerSetting == false) {

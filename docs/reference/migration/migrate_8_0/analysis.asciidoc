@@ -20,8 +20,8 @@ alternative names `ngram` and `edge_ngram` since version 7.0.
 [float]
 [[custom-analysis-components-names-limitations]]
 ==== Limitations on the names for custom analysis components
-Custom analysis components are not allowed to have the same name
-as built-in analysis components.
+Custom analysis components are no longer allowed to have the same name
+as built-in analysis components for new indexes.
 
 [float]
 [[nGram-edgeNGram-tokenizer-dreprecation]]

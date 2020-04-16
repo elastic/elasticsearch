@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentil
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
-import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
@@ -74,7 +73,6 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new PipelineAggregationSpec(
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
-                CumulativeCardinalityPipelineAggregator::new,
                 usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
                         checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
         );
@@ -150,7 +148,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isDataScienceAllowed() == false) {
+            if (getLicenseState().isAnalyticsAllowed() == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

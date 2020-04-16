@@ -42,6 +42,11 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeVInt(avgDenseVectorDims);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
+    }
+
     public VectorsFeatureSetUsage(boolean available, boolean enabled, int numDenseVectorFields, int avgDenseVectorDims) {
         super(XPackField.VECTORS, available, enabled);
         this.numDenseVectorFields = numDenseVectorFields;

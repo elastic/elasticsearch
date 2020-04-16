@@ -54,7 +54,6 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
@@ -278,11 +277,11 @@ public class MockNioTransport extends TcpTransport {
             this.channel = channel;
             final ThreadPool threadPool = transport.getThreadPool();
             final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
-            final InboundHandler inboundHandler = transport.getInboundHandler();
+            final RequestHandlers requestHandlers = transport.getRequestHandlers();
             final Version version = transport.getVersion();
             final StatsTracker statsTracker = transport.getStatsTracker();
             this.pipeline = new InboundPipeline(version, statsTracker, recycler, threadPool::relativeTimeInMillis, breaker,
-                inboundHandler::getRequestHandler, transport::inboundMessage);
+                requestHandlers::getHandler, transport::inboundMessage);
         }
 
         @Override

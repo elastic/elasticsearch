@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -42,6 +43,7 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     private Task task;
     private ClusterService clusterService;
     private ClusterName clusterName;
+    private ClusterState clusterState;
 
     @Before
     public void init() {
@@ -52,7 +54,9 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         DiscoveryNode discoveryNode = mock(DiscoveryNode.class);
         when(discoveryNode.getId()).thenReturn(randomAlphaOfLength(10));
         when(clusterService.localNode()).thenReturn(discoveryNode);
-        clusterName = mock(ClusterName.class);
+        clusterName = new ClusterName(randomAlphaOfLength(10));
+        clusterState = mock(ClusterState.class);
+        when(clusterState.getClusterName()).thenReturn(clusterName);
     }
 
     public void testAvailable() throws Exception {
@@ -65,7 +69,7 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService, null,
             mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(task, null, null, future);
+        usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -90,7 +94,7 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class),
             clusterService, null, mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(task, null, null, future);
+        usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertTrue(usage.enabled());
 

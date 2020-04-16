@@ -81,9 +81,18 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return executor;
     }
 
+    public TransportRequestHandler<Request> getHandler() {
+        return handler;
+    }
+
     @Override
     public String toString() {
         return handler.toString();
     }
 
+    public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(RequestHandlerRegistry<R> registry,
+                                                                                        TransportRequestHandler<R> handler) {
+        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.taskManager, handler,
+            registry.executor, registry.forceExecution, registry.canTripCircuitBreaker);
+    }
 }

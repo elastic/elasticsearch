@@ -53,6 +53,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -268,7 +269,7 @@ public class RestNodesAction extends AbstractCatAction {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
-            JvmInfo jvmInfo = info == null ? null : info.getJvm();
+            JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
             FsInfo fsInfo = stats == null ? null : stats.getFs();
             OsStats osStats = stats == null ? null : stats.getOs();
@@ -278,10 +279,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.startRow();
 
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
-            table.addCell(info == null ? null : info.getProcess().getId());
+            table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
             table.addCell(node.getHostAddress());
             table.addCell(node.getAddress().address().getPort());
-            final HttpInfo httpInfo = info == null ? null : info.getHttp();
+            final HttpInfo httpInfo = info == null ? null : info.getInfo(HttpInfo.class);
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 table.addCell(NetworkAddress.format(transportAddress.address()));

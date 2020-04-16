@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -47,12 +48,17 @@ public class TrainedModelStatsService {
     private static final Logger logger = LogManager.getLogger(TrainedModelStatsService.class);
     private static final TimeValue PERSISTENCE_INTERVAL = TimeValue.timeValueSeconds(1);
 
+    private static final String STATS_UPDATE_SCRIPT_TEMPLATE = "" +
+        "    ctx._source.{0} += params.{0};\n" +
+        "    ctx._source.{1} += params.{1};\n" +
+        "    ctx._source.{2} += params.{2};\n" +
+        "    ctx._source.{3} = params.{3};";
     // Script to only update if stats have increased since last persistence
-    private static final String STATS_UPDATE_SCRIPT = "" +
-        "    ctx._source.missing_all_fields_count += params.missing_all_fields_count;\n" +
-        "    ctx._source.inference_count += params.inference_count;\n" +
-        "    ctx._source.failure_count += params.failure_count;\n" +
-        "    ctx._source.time_stamp = params.time_stamp;";
+    private static final String STATS_UPDATE_SCRIPT = Messages.getMessage(STATS_UPDATE_SCRIPT_TEMPLATE,
+        InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName(),
+        InferenceStats.INFERENCE_COUNT.getPreferredName(),
+        InferenceStats.FAILURE_COUNT.getPreferredName(),
+        InferenceStats.TIMESTAMP.getPreferredName());
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS =
         new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
@@ -134,7 +140,7 @@ public class TrainedModelStatsService {
         List<InferenceStats> stats = new ArrayList<>(statsQueue.size());
         for(String k : statsQueue.keySet()) {
             InferenceStats inferenceStats = statsQueue.remove(k);
-            if (inferenceStats != null) {
+            if (inferenceStats != null && inferenceStats.hasStats()) {
                 stats.add(inferenceStats);
             }
         }

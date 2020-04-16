@@ -50,7 +50,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPA
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 public class AutoExpandReplicasTests extends ESTestCase {
 
@@ -168,7 +169,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
 
                 assertTrue("not all shards started in " + state.toString(), postTable.allShardsStarted());
-                assertThat(postTable.toString(), postTable.getAllAllocationIds(), everyItem(isIn(preTable.getAllAllocationIds())));
+                assertThat(postTable.toString(), postTable.getAllAllocationIds(), everyItem(is(in(preTable.getAllAllocationIds()))));
             } else {
                 // fake an election where conflicting nodes are removed and readded
                 state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
@@ -193,7 +194,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
             Set<String> unchangedAllocationIds = preTable.getShards().stream().filter(shr -> unchangedNodeIds.contains(shr.currentNodeId()))
                 .map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
 
-            assertThat(postTable.toString(), unchangedAllocationIds, everyItem(isIn(postTable.getAllAllocationIds())));
+            assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
 
             postTable.getShards().forEach(
                 shardRouting -> {

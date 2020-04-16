@@ -33,7 +33,6 @@
  * {@link org.elasticsearch.painless.node.AExpression} - The superclass for all E* (expression) and P* (postfix) nodes.
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
- * {@link org.elasticsearch.painless.node.AStoreable} - The super class for an expression that can store a value in local memory.
  * {@link org.elasticsearch.painless.node.EAssignment} - Represents an assignment with the lhs and rhs as child nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
  * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.

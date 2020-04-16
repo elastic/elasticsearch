@@ -1,6 +1,5 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 apply plugin: 'elasticsearch.rest-resources'
 
 test.enabled = false

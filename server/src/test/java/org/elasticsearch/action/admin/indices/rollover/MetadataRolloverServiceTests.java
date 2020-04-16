@@ -28,13 +28,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -53,8 +56,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -271,12 +276,90 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
+    public void testRejectDuplicateAliasV2() {
+        Map<String, AliasMetadata> aliases = new HashMap<>();
+        aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
+        aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
+        final IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("foo-*", "bar-*"), new Template(null, null, aliases),
+            null, null, null, null);
+
+        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put("test-template", template).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testRejectDuplicateAliasV2UsingComponentTemplates() {
+        Map<String, AliasMetadata> aliases = new HashMap<>();
+        aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
+        aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
+        final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
+        final IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("foo-*", "bar-*"), null,
+            Collections.singletonList("ct"), null, null, null);
+
+        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put("ct", ct)
+            .put("test-template", template)
+            .build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
     public void testHiddenAffectsResolvedTemplates() {
         final IndexTemplateMetadata template = IndexTemplateMetadata.builder("test-template")
             .patterns(Collections.singletonList("*"))
             .putAlias(AliasMetadata.builder("foo-write")).putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
             .build();
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+
+        // hidden shouldn't throw
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        // not hidden will throw
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testHiddenAffectsResolvedV2Templates() {
+        Map<String, AliasMetadata> aliases = new HashMap<>();
+        aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
+        aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
+        final IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("*"), new Template(null, null, aliases),
+            null, null, null, null);
+
+        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put("test-template", template).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+
+        // hidden shouldn't throw
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        // not hidden will throw
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
+        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testHiddenAffectsResolvedV2ComponentTemplates() {
+        Map<String, AliasMetadata> aliases = new HashMap<>();
+        aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
+        aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
+        final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
+        final IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("*"), null,
+            Collections.singletonList("ct"), null, null, null);
+
+        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put("ct", ct)
+            .put("test-template", template)
+            .build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
 

@@ -39,7 +39,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
 
 public class ReloadAnalyzersResponseTests
         extends AbstractResponseTestCase<org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse, ReloadAnalyzersResponse> {
@@ -94,7 +94,7 @@ public class ReloadAnalyzersResponseTests
         if (clientInstance.shards().failed() > 0) {
             final DefaultShardOperationFailedException groupedFailure = clientInstance.shards().failures().iterator().next();
             assertThat(groupedFailure.index(), equalTo(index));
-            assertThat(groupedFailure.shardId(), isIn(shardIds));
+            assertThat(groupedFailure.shardId(), in(shardIds));
             assertThat(groupedFailure.reason(), containsString("reason=retention lease with ID [" + id + "] not found"));
         }
         Map<String, ReloadDetails> serverDetails = serverTestInstance.getReloadDetails();

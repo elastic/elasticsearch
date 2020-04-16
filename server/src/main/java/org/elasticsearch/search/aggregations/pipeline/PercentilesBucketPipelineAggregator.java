@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,26 +39,6 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.percents = percents;
         this.keyed = keyed;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public PercentilesBucketPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        percents = in.readDoubleArray();
-        keyed = in.readBoolean();
-    }
-
-    @Override
-    public void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(percents);
-        out.writeBoolean(keyed);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return PercentilesBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override

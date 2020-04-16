@@ -19,20 +19,20 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,10 +49,8 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     LongArray counts;
 
     ValueCountAggregator(String name, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata)
-            throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metadata);
+            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
@@ -66,6 +64,34 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
+
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            final SortedNumericDocValues values = ((ValuesSource.Numeric)valuesSource).longValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    if (values.advanceExact(doc)) {
+                        counts.increment(bucket, values.docValueCount());
+                    }
+                }
+            };
+        }
+        if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
+            MultiGeoPointValues values = ((ValuesSource.GeoPoint)valuesSource).geoPointValues(ctx);
+            return new LeafBucketCollectorBase(sub, null) {
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    if (values.advanceExact(doc)) {
+                        counts.increment(bucket, values.docValueCount());
+                    }
+                }
+            };
+        }
+        // The following is default collector. Including the keyword FieldType
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
 

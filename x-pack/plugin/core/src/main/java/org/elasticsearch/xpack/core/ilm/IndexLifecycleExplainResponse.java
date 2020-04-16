@@ -194,7 +194,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 isAutoRetryableError = null;
                 failedStepRetryCount = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                repositoryName = in.readOptionalString();
                snapshotName = in.readOptionalString();
             } else {
@@ -240,7 +240,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 out.writeOptionalBoolean(isAutoRetryableError);
                 out.writeOptionalVInt(failedStepRetryCount);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeOptionalString(repositoryName);
                 out.writeOptionalString(snapshotName);
             }

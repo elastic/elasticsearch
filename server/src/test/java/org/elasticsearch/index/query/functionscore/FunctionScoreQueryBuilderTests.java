@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -54,6 +55,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -77,7 +79,6 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -254,7 +255,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FunctionScoreQuery.class)));
+        Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
+        if (wrappedQuery instanceof MatchNoDocsQuery) {
+            assertThat(query, CoreMatchers.instanceOf(MatchNoDocsQuery.class));
+        } else {
+            assertThat(query, CoreMatchers.instanceOf(FunctionScoreQuery.class));
+        }
     }
 
     public void testIllegalArguments() {
@@ -674,11 +680,23 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
     }
 
+    public void testRewriteToMatchNone() throws IOException {
+        FunctionScoreQueryBuilder functionScoreQueryBuilder =
+            new FunctionScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "value"))
+                .boostMode(CombineFunction.REPLACE)
+                .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
+                .setMinScore(1)
+                .maxBoost(100);
+
+        QueryBuilder rewrite = functionScoreQueryBuilder.rewrite(createShardContext());
+        assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
     /**
      * Please see https://github.com/elastic/elasticsearch/issues/35123 for context.
      */
     public void testSingleScriptFunction() throws IOException {
-        QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
+        QueryBuilder queryBuilder = termQuery(KEYWORD_FIELD_NAME, "value");
         ScoreFunctionBuilder<ScriptScoreFunctionBuilder> functionBuilder = new ScriptScoreFunctionBuilder(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
 

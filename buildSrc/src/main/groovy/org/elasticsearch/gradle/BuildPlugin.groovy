@@ -28,6 +28,7 @@ import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.info.JavaHome
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
@@ -42,6 +43,7 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
@@ -373,6 +375,7 @@ class BuildPlugin implements Plugin<Project> {
                 shadow.component(publication)
                 // Workaround for https://github.com/johnrengelman/shadow/issues/334
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+                publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
                     Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
                     project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
@@ -388,6 +391,20 @@ class BuildPlugin implements Plugin<Project> {
                 generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
             }
         }
+
+        // Add git origin info to generated POM files
+        project.pluginManager.withPlugin('nebula.maven-base-publish') {
+            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+            MavenPublication nebulaPublication = (MavenPublication) publishing.publications.getByName('nebula')
+            nebulaPublication.pom.withXml(this.&addScmInfo)
+        }
+    }
+
+    private static void addScmInfo(XmlProvider xml) {
+        Node root = xml.asNode()
+        root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
+        Node scmNode = root.appendNode('scm')
+        scmNode.appendNode('url', BuildParams.gitOrigin)
     }
 
     /**

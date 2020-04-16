@@ -39,7 +39,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     protected Settings followerClusterSettings() {
         final Settings.Builder settings = Settings.builder().put(super.followerClusterSettings());
         if (randomBoolean()) {
-            settings.put(RemoteConnectionStrategy.REMOTE_MAX_CONNECTION_QUEUE_SIZE.getKey(), 1);
+            settings.put(RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1);
         }
         return settings.build();
     }

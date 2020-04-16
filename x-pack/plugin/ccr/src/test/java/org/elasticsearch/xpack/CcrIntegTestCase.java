@@ -136,7 +136,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected Settings followerClusterSettings() {
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            builder.put(RemoteConnectionStrategy.REMOTE_MAX_CONNECTION_QUEUE_SIZE.getKey(), randomIntBetween(1, 100));
+            builder.put(RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), randomIntBetween(1, 100));
         }
         return builder.build();
     }

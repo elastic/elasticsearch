@@ -106,10 +106,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             Setting.Property.Dynamic));
 
     // this setting is intentionally not registered, it is only used in tests
-    public static final Setting<Integer> REMOTE_MAX_CONNECTION_QUEUE_SIZE =
-        Setting.intSetting("cluster.remote.max_connection_queue_size", 100, Setting.Property.NodeScope);
+    public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS =
+        Setting.intSetting("cluster.remote.max_pending_connection_listeners", 100, Setting.Property.NodeScope);
 
-    private final int maxConnectionQueueSize;
+    private final int maxPendingConnectionListeners;
 
     private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
@@ -126,7 +126,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;
-        this.maxConnectionQueueSize = REMOTE_MAX_CONNECTION_QUEUE_SIZE.get(settings);
+        this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         connectionManager.addListener(this);
     }
 
@@ -243,8 +243,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             if (closed) {
                 assert listeners.isEmpty();
             } else {
-                if (listeners.size() >= maxConnectionQueueSize) {
-                    assert listeners.size() == maxConnectionQueueSize;
+                if (listeners.size() >= maxPendingConnectionListeners) {
+                    assert listeners.size() == maxPendingConnectionListeners;
                     listener.onFailure(new EsRejectedExecutionException("connect listener queue is full"));
                     return;
                 } else {

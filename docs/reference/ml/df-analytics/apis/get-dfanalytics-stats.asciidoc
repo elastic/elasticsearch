@@ -89,7 +89,7 @@ An object containing information about the {classanalysis} job.
 //Begin class_hyperparameters
 `hyperparameters`::::
 (object)
-An object containing the parameters of the {classanalysis}.
+An object containing the parameters of the {classanalysis} job.
 +
 .Properties of `hyperparameters`
 [%collapsible%open]

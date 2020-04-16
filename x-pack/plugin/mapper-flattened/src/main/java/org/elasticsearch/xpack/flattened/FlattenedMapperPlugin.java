@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.flattened;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;

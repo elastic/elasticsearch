@@ -28,7 +28,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-                null
+            null
         );
         assertThat(featureSet.enabled(), is(true));
 
@@ -48,7 +48,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-                null
+            null
         );
         assertThat(featureSet.enabled(), is(true));
     }
@@ -58,7 +58,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-                licenseState
+            licenseState
         );
         boolean available = randomBoolean();
         when(licenseState.isLogstashAllowed()).thenReturn(available);
@@ -79,13 +79,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
     private LogstashUsageTransportAction newUsageAction(boolean available) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isLogstashAllowed()).thenReturn(available);
-        return new LogstashUsageTransportAction(
-            mock(TransportService.class),
-            null,
-            null,
-            mock(ActionFilters.class),
-            null,
-            licenseState
-        );
+        return new LogstashUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null, licenseState);
     }
 }

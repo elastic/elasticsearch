@@ -13,7 +13,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
@@ -25,14 +24,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-
 public class Vectors extends Plugin implements MapperPlugin, ActionPlugin {
 
-    protected final boolean enabled;
-
     public Vectors(Settings settings) {
-        this.enabled = XPackSettings.VECTORS_ENABLED.get(settings);
     }
 
     @Override
@@ -44,9 +38,6 @@ public class Vectors extends Plugin implements MapperPlugin, ActionPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (enabled == false) {
-            return emptyMap();
-        }
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, new DenseVectorFieldMapper.TypeParser());
         mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, new SparseVectorFieldMapper.TypeParser());

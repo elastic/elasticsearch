@@ -48,12 +48,11 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         boolean vectorsAvailable = licenseState.isVectorsAllowed();
-        boolean vectorsEnabled = XPackSettings.VECTORS_ENABLED.get(settings);
         int numDenseVectorFields = 0;
         int numSparseVectorFields = 0;
         int avgDenseVectorDims = 0;
 
-        if (vectorsAvailable && vectorsEnabled && state != null) {
+        if (vectorsAvailable && state != null) {
             for (IndexMetadata indexMetadata : state.metadata()) {
                 MappingMetadata mappingMetadata = indexMetadata.mapping();
                 if (mappingMetadata != null) {
@@ -81,7 +80,7 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
             }
         }
         VectorsFeatureSetUsage usage =
-            new VectorsFeatureSetUsage(vectorsAvailable, vectorsEnabled, numDenseVectorFields, avgDenseVectorDims);
+            new VectorsFeatureSetUsage(vectorsAvailable, true, numDenseVectorFields, avgDenseVectorDims);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

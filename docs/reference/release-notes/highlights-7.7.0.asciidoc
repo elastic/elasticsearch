@@ -26,8 +26,8 @@ pivot and summarize your data and store it in a new index. See
 We introduced a new `search.check_buckets_step_size` setting to
 better control how the coordinating node allocates memory when aggregating
 buckets. The allocation of buckets is now be done in steps, each step
-allocating a number of buckets equal to this setting. A parent circuit breaker
-check is performed on allocation, to avoid an OOM failure.
+allocating a number of buckets equal to this setting. To avoid an `OutOfMemory`
+error, a parent circuit breaker check is performed on allocation.
 
 // end::notable-highlights[]
 

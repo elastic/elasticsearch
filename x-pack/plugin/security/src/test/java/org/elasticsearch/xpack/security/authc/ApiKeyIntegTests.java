@@ -67,8 +67,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -295,7 +295,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
         boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
-            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
                 // has been invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.isInvalidated(), is(true));
@@ -328,7 +328,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectedKeyIds = Sets.newHashSet(createdApiKeys.get(1).getId());
         apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
-            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
                 // has been invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.isInvalidated(), is(true));
@@ -411,7 +411,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 createdApiKeys.get(3).getId());
         boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
-            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
                 // has been expired, not invalidated
                 assertTrue(apiKey.getExpiration().isBefore(Instant.now()));

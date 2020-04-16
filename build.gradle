@@ -526,3 +526,11 @@ subprojects {
     }
   }
 }
+
+subprojects {
+  project.ext.disableTasks = { String... tasknames ->
+    for (String taskname : tasknames) {
+      project.tasks.named(taskname).configure { onlyIf { false } }
+    }
+  }
+}

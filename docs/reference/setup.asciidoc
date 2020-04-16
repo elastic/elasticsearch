@@ -87,6 +87,8 @@ include::setup/sysconfig.asciidoc[]
 
 include::setup/bootstrap-checks.asciidoc[]
 
+include::setup/bootstrap-checks-xes.asciidoc[]
+
 include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
@@ -94,3 +96,7 @@ include::setup/stopping.asciidoc[]
 include::setup/add-nodes.asciidoc[]
 
 include::setup/restart-cluster.asciidoc[]
+
+include::modules/remote-clusters.asciidoc[]
+
+include::modules/plugins.asciidoc[]

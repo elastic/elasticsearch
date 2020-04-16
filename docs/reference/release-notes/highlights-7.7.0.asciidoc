@@ -61,7 +61,7 @@ request parameter, `keep_alive`.
 [float]
 === Password protection for the keystore
 
-{es} uses a custom on-disk keystore for secure settings such as
+{es} uses a custom on-disk {ref}/secure-settings.html[keystore] for secure settings such as
 passwords and SSL certificates. Up until now, this prevented users with
 command-line access from viewing secure files by listing commands, but nothing
 prevented such users from changing values in the keystore, or removing values

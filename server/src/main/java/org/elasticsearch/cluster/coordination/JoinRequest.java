@@ -60,11 +60,7 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            minimumTerm = in.readLong();
-        } else {
-            minimumTerm = 0L;
-        }
+        minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
 
@@ -72,9 +68,7 @@ public class JoinRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeLong(minimumTerm);
-        }
+        out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }
 

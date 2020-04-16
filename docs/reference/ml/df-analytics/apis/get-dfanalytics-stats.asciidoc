@@ -205,7 +205,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
 //Begin outlier_detection_stats
 `outlier_detection_stats`::::
 (object)
-An object containing statistical data about the {oldetection} job.
+An object containing information about the {oldetection} job.
 +
 .Properties of `outlier_detection_stats`
 [%collapsible%open]

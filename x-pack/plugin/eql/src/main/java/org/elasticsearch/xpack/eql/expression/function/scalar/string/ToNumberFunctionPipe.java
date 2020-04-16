@@ -36,30 +36,6 @@ public class ToNumberFunctionPipe extends Pipe {
     }
 
     @Override
-    public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = value.resolveAttributes(resolver);
-        if (newSource == value) {
-            return this;
-        }
-        return replaceChildren(Collections.singletonList(newSource));
-    }
-
-    @Override
-    public boolean supportedByAggsOnlyQuery() {
-        return value.supportedByAggsOnlyQuery();
-    }
-
-    @Override
-    public boolean resolved() {
-        return value.resolved();
-    }
-
-    @Override
-    public final void collectFields(QlSourceBuilder sourceBuilder) {
-        value.collectFields(sourceBuilder);
-    }
-
-    @Override
     protected NodeInfo<ToNumberFunctionPipe> info() {
         return NodeInfo.create(this, ToNumberFunctionPipe::new, expression(), value, base);
     }

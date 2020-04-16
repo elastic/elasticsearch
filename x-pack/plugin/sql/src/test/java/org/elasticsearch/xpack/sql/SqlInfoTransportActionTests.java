@@ -68,20 +68,20 @@ public class SqlInfoTransportActionTests extends ESTestCase {
     public void testEnabled() {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
-        boolean isExplicitlyEnabled = false;
+        boolean isExplicitlySet = false;
         if (enabled) {
             if (randomBoolean()) {
                 settings.put("xpack.sql.enabled", enabled);
-                isExplicitlyEnabled = true;
+                isExplicitlySet = true;
             }
         } else {
             settings.put("xpack.sql.enabled", enabled);
-            isExplicitlyEnabled = true;
+            isExplicitlySet = true;
         }
         SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
-        if (isExplicitlyEnabled) {
+        if (isExplicitlySet) {
             assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.SQL_ENABLED } );
         }
     }

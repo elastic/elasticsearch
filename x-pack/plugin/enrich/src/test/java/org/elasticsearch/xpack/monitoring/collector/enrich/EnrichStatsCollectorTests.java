@@ -90,6 +90,8 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             verify(licenseState).isMonitoringAllowed();
         }
         if (isElectedMaster && isMonitoringAllowed) {
+            // The enrich setting is only checked if the node is master and monitoring is allowed,
+            // so in other cases we won't have a deprecation warning.
             assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ENRICH_ENABLED_SETTING });
         }
     }

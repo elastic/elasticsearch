@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -254,6 +253,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
             listener.onResponse(Collections.emptyMap());
+            return;
         }
 
         threadPool.generic().execute(() -> {
@@ -270,9 +270,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             for (String repository : repositories) {
                 client.admin().cluster()
                     .prepareGetSnapshots(repository)
-                    .execute(new ActionListener<GetSnapshotsResponse>() {
-                        @Override
-                        public void onResponse(GetSnapshotsResponse resp) {
+                    .execute(ActionListener.wrap(resp -> {
                             final Set<SnapshotState> retainableStates =
                                 new HashSet<>(Arrays.asList(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL));
                             try {
@@ -289,14 +287,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                 logger.error(new ParameterizedMessage("exception computing snapshots for repository {}", repository), e);
                                 throw e;
                             }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
+                        },
+                        e -> {
                             logger.warn(new ParameterizedMessage("unable to retrieve snapshots for repository [{}]", repository), e);
                             onComplete.run();
+                            errorHandler.accept(e);
                         }
-                    });
+                    ));
             }
         });
     }
@@ -439,9 +436,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
         CountDownLatch latch = new CountDownLatch(1);
         client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.getName())
-            .execute(new LatchedActionListener<>(new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            .execute(new LatchedActionListener<>(ActionListener.wrap(acknowledgedResponse -> {
                     if (acknowledgedResponse.isAcknowledged()) {
                         logger.debug("[{}] snapshot [{}] deleted successfully", repo, snapshot);
                     } else {
@@ -449,16 +444,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
                     slmStats.snapshotDeleted(slmPolicy);
                     listener.onResponse(acknowledgedResponse);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+                },
+                e -> {
                     logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
                         repo, snapshot), e);
                     slmStats.snapshotDeleteFailure(slmPolicy);
                     listener.onFailure(e);
-                }
-            }, latch));
+                }), latch));
         try {
             // Deletes cannot occur simultaneously, so wait for this
             // deletion to complete before attempting the next one

@@ -53,6 +53,7 @@ public class XPackSettings {
      * <p>
      * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -73,7 +74,12 @@ public class XPackSettings {
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling rollup. Defaults to true. */
+    /**
+     * Setting for enabling or disabling rollup. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
         Property.NodeScope, Property.Deprecated);
 
@@ -85,7 +91,12 @@ public class XPackSettings {
     public static final Setting<Boolean> DLS_FLS_ENABLED = Setting.boolSetting("xpack.security.dls_fls.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
+    /**
+     * Setting for enabling or disabling Logstash extensions. Defaults to true.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
+     */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope, Property.Deprecated);
 
@@ -100,6 +111,7 @@ public class XPackSettings {
      * <p>
      * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
         Property.NodeScope, Property.Deprecated);
 

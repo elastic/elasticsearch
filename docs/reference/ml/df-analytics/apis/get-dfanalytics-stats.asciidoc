@@ -64,8 +64,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
 `data_frame_analytics`::
 (array)
-An array of objects that contain usage information for {dfanalytics-jobs}, which are sorted by the `id` value in 
-ascending order.
+An array of objects that contain usage information for {dfanalytics-jobs}, which
+are sorted by the `id` value in ascending order.
 +
 .Properties of {dfanalytics-job} usage resources
 [%collapsible%open]
@@ -400,7 +400,8 @@ run the job.
 //Begin data_counts
 `data_counts`:::
 (object)
-An object containing statistical data about the documents in the analysis.
+An object that provides counts for the quantity of documents skipped, used in
+training, or available for testing.
 +
 .Properties of `data_counts`
 [%collapsible%open]

@@ -288,7 +288,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final TransformConfig config = request.getConfig();
-        final Pivot pivot = new Pivot(config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
@@ -344,9 +344,10 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         } else {
             if (config.getDestination().getPipeline() != null) {
                 if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                        RestStatus.BAD_REQUEST
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                            RestStatus.BAD_REQUEST
                         )
                     );
                     return;

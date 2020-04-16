@@ -329,7 +329,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ActionListener<Response> listener
     ) {
 
-        final Pivot pivot = new Pivot(config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {

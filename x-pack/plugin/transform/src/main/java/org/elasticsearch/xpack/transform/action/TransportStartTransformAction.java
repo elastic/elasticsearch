@@ -297,7 +297,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
     private void createDestinationIndex(final TransformConfig config, final ActionListener<Boolean> listener) {
 
-        final Pivot pivot = new Pivot(config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
             TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(

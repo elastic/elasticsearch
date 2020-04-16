@@ -86,7 +86,9 @@ public final class SchemaUtil {
 
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = Aggregations.getAggregationInputAndOutputTypes(agg);
+            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+                agg
+            );
             aggregationSourceFieldNames.putAll(inputAndOutputTypes.v1());
             aggregationTypes.putAll(inputAndOutputTypes.v2());
         }
@@ -157,7 +159,7 @@ public final class SchemaUtil {
         aggregationTypes.forEach((targetFieldName, aggregationName) -> {
             String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
-            String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
+            String destinationMapping = TransformAggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
             logger.debug(() -> new ParameterizedMessage(
                 "Deduced mapping for: [{}], agg type [{}] to [{}]",
@@ -166,7 +168,7 @@ public final class SchemaUtil {
                 destinationMapping
             ));
 
-            if (Aggregations.isDynamicMapping(destinationMapping)) {
+            if (TransformAggregations.isDynamicMapping(destinationMapping)) {
                 logger.debug(() -> new ParameterizedMessage(
                     "Dynamic target mapping set for field [{}] and aggregation [{}]",
                     targetFieldName,

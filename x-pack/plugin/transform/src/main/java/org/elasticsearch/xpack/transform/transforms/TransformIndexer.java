@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptException;
@@ -30,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -46,18 +44,15 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
@@ -238,7 +233,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
-                pivot = new Pivot(getConfig().getPivotConfig());
+                pivot = new Pivot(getConfig().getPivotConfig(), getJobId());
 
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
@@ -404,30 +399,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
-        final Aggregations aggregations = searchResponse.getAggregations();
-        // Treat this as a "we reached the end".
-        // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
-        if (aggregations == null) {
-            logger.info(
-                "[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.",
-                getJobId()
-            );
-            auditor.info(
-                getJobId(),
-                "Source indices have been deleted or closed. "
-                    + "Please verify that these indices exist and are open ["
-                    + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
-                    + "]."
-            );
-            return new IterationResult<>(Collections.emptyList(), null, true);
-        }
-        final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-
         switch (runState) {
             case APPLY_BUCKET_RESULTS:
-                return processBuckets(agg);
+                return processBuckets(searchResponse);
             case IDENTIFY_CHANGES:
-                return processChangedBuckets(agg);
+                return processChangedBuckets(searchResponse);
 
             default:
                 // Any other state is a bug, should not happen
@@ -603,9 +579,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }));
     }
 
-    private IterationResult<TransformIndexerPosition> processBuckets(final CompositeAggregation agg) {
-        // we reached the end
-        if (agg.getBuckets().isEmpty()) {
+    private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
+        long docsBeforeProcess = getStats().getNumDocuments();
+
+        Stream<IndexRequest> indexRequestStream = pivot.processBuckets(
+            searchResponse,
+            getConfig().getDestination().getIndex(),
+            getConfig().getDestination().getPipeline(),
+            getFieldMappings(),
+            getStats()
+        );
+
+        if (indexRequestStream == null) {
             if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || pivot.supportsIncrementalBucketUpdate() == false) {
                 return new IterationResult<>(Collections.emptyList(), null, true);
             }
@@ -620,19 +605,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return new IterationResult<>(Collections.emptyList(), new TransformIndexerPosition(null, changedBucketsAfterKey), false);
         }
 
-        long docsBeforeProcess = getStats().getNumDocuments();
-
         TransformIndexerPosition oldPosition = getPosition();
         TransformIndexerPosition newPosition = new TransformIndexerPosition(
-            agg.afterKey(),
+            pivot.getAfterKey(searchResponse),
             oldPosition != null ? getPosition().getBucketsPosition() : null
         );
 
-        IterationResult<TransformIndexerPosition> result = new IterationResult<>(
-            processBucketsToIndexRequests(agg).collect(Collectors.toList()),
-            newPosition,
-            agg.getBuckets().isEmpty()
-        );
+        List<IndexRequest> indexRequests = indexRequestStream.collect(Collectors.toList());
+        IterationResult<TransformIndexerPosition> result = new IterationResult<>(indexRequests, newPosition, indexRequests.isEmpty());
 
         // NOTE: progress is also mutated in onFinish
         if (progress != null) {
@@ -643,7 +623,28 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return result;
     }
 
-    private IterationResult<TransformIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
+    private IterationResult<TransformIndexerPosition> processChangedBuckets(final SearchResponse searchResponse) {
+        final Aggregations aggregations = searchResponse.getAggregations();
+
+        // Treat this as a "we reached the end".
+        // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
+        if (aggregations == null) {
+            logger.info(
+                "[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.",
+                getJobId()
+            );
+            auditor.info(
+                getJobId(),
+                "Source indices have been deleted or closed. "
+                    + "Please verify that these indices exist and are open ["
+                    + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
+                    + "]."
+            );
+            return new IterationResult<>(Collections.emptyList(), null, true);
+        }
+
+        final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+
         // initialize the map of changed buckets, the map might be empty if source do not require/implement
         // changed bucket detection
         changedBuckets = pivot.initialIncrementalBucketUpdateMap();
@@ -667,48 +668,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         runState = RunState.APPLY_BUCKET_RESULTS;
 
         return new IterationResult<>(Collections.emptyList(), getPosition(), false);
-    }
-
-    /*
-     * Parses the result and creates a stream of indexable documents
-     *
-     * Implementation decisions:
-     *
-     * Extraction uses generic maps as intermediate exchange format in order to hook in ingest pipelines/processors
-     * in later versions, see {@link IngestDocument).
-     */
-    private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
-        final TransformConfig transformConfig = getConfig();
-        String indexName = transformConfig.getDestination().getIndex();
-
-        return pivot.extractResults(agg, getFieldMappings(), getStats()).map(document -> {
-            String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
-
-            if (id == null) {
-                throw new RuntimeException("Expected a document id but got null.");
-            }
-
-            XContentBuilder builder;
-            try {
-                builder = jsonBuilder();
-                builder.startObject();
-                for (Map.Entry<String, ?> value : document.entrySet()) {
-                    // skip all internal fields
-                    if (value.getKey().startsWith("_") == false) {
-                        builder.field(value.getKey(), value.getValue());
-                    }
-                }
-                builder.endObject();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            IndexRequest request = new IndexRequest(indexName).source(builder).id(id);
-            if (transformConfig.getDestination().getPipeline() != null) {
-                request.setPipeline(transformConfig.getDestination().getPipeline());
-            }
-            return request;
-        });
     }
 
     protected QueryBuilder buildFilterQuery() {

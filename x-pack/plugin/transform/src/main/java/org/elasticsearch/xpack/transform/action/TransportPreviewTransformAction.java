@@ -147,7 +147,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             SourceDestValidations.PREVIEW_VALIDATIONS,
             ActionListener.wrap(r -> {
 
-                Pivot pivot = new Pivot(config.getPivotConfig());
+                Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
                 try {
                     pivot.validateConfig();
                 } catch (ElasticsearchStatusException e) {

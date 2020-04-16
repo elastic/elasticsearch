@@ -12,8 +12,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,11 +27,13 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
@@ -39,6 +43,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,13 +61,15 @@ public class Pivot {
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
+    private final String transformId;
     private final boolean supportsIncrementalBucketUpdate;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
 
-    public Pivot(PivotConfig config) {
+    public Pivot(PivotConfig config, String transformId) {
         this.config = config;
+        this.transformId = transformId;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
 
         boolean supportsIncrementalBucketUpdate = false;
@@ -75,7 +82,7 @@ public class Pivot {
 
     public void validateConfig() {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            if (Aggregations.isSupportedByTransform(agg.getType()) == false) {
+            if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
                 throw new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST);
             }
         }
@@ -221,6 +228,89 @@ public class Pivot {
         }
 
         return filteredQuery;
+    }
+
+    public Stream<IndexRequest> processBuckets(
+        final SearchResponse searchResponse,
+        final String destinationIndex,
+        final String destinationPipeline,
+        final Map<String, String> fieldMappings,
+        final TransformIndexerStats stats
+    ) {
+        final Aggregations aggregations = searchResponse.getAggregations();
+
+        // Treat this as a "we reached the end".
+        // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
+        if (aggregations == null) {
+            logger.info(
+                "[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.",
+                transformId
+            );
+            return null;
+        }
+
+        final CompositeAggregation compositeAgg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+        if (compositeAgg.getBuckets().isEmpty()) {
+            return null;
+        }
+
+        return processBucketsToIndexRequests(compositeAgg, destinationIndex, destinationPipeline, fieldMappings, stats);
+    }
+
+    public Map<String, Object> getAfterKey(SearchResponse searchResponse) {
+        final Aggregations aggregations = searchResponse.getAggregations();
+        if (aggregations == null) {
+            return null;
+        }
+
+        final CompositeAggregation compositeAgg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+
+        return compositeAgg != null ? compositeAgg.afterKey() : null;
+    }
+
+    /*
+     * Parses the result and creates a stream of indexable documents
+     *
+     * Implementation decisions:
+     *
+     * Extraction uses generic maps as intermediate exchange format in order to hook in ingest pipelines/processors
+     * in later versions, see {@link IngestDocument).
+     */
+    private Stream<IndexRequest> processBucketsToIndexRequests(
+        CompositeAggregation agg,
+        String destinationIndex,
+        String destinationPipeline,
+        Map<String, String> fieldMappings,
+        TransformIndexerStats stats
+    ) {
+        return extractResults(agg, fieldMappings, stats).map(document -> {
+            String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
+
+            if (id == null) {
+                throw new RuntimeException("Expected a document id but got null.");
+            }
+
+            XContentBuilder builder;
+            try {
+                builder = jsonBuilder();
+                builder.startObject();
+                for (Map.Entry<String, ?> value : document.entrySet()) {
+                    // skip all internal fields
+                    if (value.getKey().startsWith("_") == false) {
+                        builder.field(value.getKey(), value.getValue());
+                    }
+                }
+                builder.endObject();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            IndexRequest request = new IndexRequest(destinationIndex).source(builder).id(id);
+            if (destinationPipeline != null) {
+                request.setPipeline(destinationPipeline);
+            }
+            return request;
+        });
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {

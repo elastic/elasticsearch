@@ -19,8 +19,8 @@ public abstract class Agg {
     private final AggSource source;
 
     Agg(String id, AggSource source) {
-        this.id = id;
         Objects.requireNonNull(source, "AggSource must not be null");
+        this.id = id;
         this.source = source;
     }
 
@@ -34,7 +34,7 @@ public abstract class Agg {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id) + source.hashCode();
+        return Objects.hash(id, source);
     }
 
     @Override

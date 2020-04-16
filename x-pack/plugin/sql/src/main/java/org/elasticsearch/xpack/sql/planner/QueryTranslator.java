@@ -617,7 +617,7 @@ final class QueryTranslator {
                 return new MatrixStatsAgg(id, singletonList(field(m, m.field())));
             }
             throw new SqlIllegalArgumentException(
-                "Cannot use scalar functions or operators: [{}] in matrix stats " + "aggregate functions [KURTOSIS] and [SKEWNESS]",
+                "Cannot use scalar functions or operators: [{}] in aggregate functions [KURTOSIS] and [SKEWNESS]",
                 m.field().toString()
             );
         }

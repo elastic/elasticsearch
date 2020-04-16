@@ -1830,7 +1830,7 @@ public class QueryTranslatorTests extends ESTestCase {
                     () -> optimizeAndPlan("SELECT " + aggFunction + "(int * 10.123) FROM test")
                 );
                 assertEquals(
-                    "Cannot use scalar functions or operators: [int * 10.123] in matrix stats aggregate functions " +
+                    "Cannot use scalar functions or operators: [int * 10.123] in aggregate functions " +
                     "[KURTOSIS] and [SKEWNESS]", siae.getMessage()
                 );
             }

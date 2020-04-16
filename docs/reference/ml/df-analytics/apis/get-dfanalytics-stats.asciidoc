@@ -81,7 +81,7 @@ An object containing information about the analysis job.
 //Begin classification_stats
 `classification_stats`::::
 (object)
-An object containing statistical data about the {classanalysis}.
+An object containing information about the {classanalysis} job.
 +
 .Properties of `classification_stats`
 [%collapsible%open]

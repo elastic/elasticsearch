@@ -15,8 +15,8 @@ public class PercentileRanksAgg extends LeafAgg {
 
     private final List<Double> values;
 
-    public PercentileRanksAgg(String id, Object fieldOrScript, List<Double> values) {
-        super(id, fieldOrScript);
+    public PercentileRanksAgg(String id, AggTarget target, List<Double> values) {
+        super(id, target);
         this.values = values;
     }
 

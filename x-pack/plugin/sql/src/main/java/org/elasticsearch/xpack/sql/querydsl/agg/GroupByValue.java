@@ -16,15 +16,15 @@ import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 public class GroupByValue extends GroupByKey {
 
     public GroupByValue(String id, String fieldName) {
-        this(id, fieldName, null, null);
+        this(id, AggTarget.of(fieldName), null);
     }
 
     public GroupByValue(String id, ScriptTemplate script) {
-        this(id, null, script, null);
+        this(id, AggTarget.of(script), null);
     }
 
-    private GroupByValue(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        super(id, fieldName, script, direction);
+    private GroupByValue(String id, AggTarget target, Direction direction) {
+        super(id, target, direction);
     }
 
     @Override
@@ -33,7 +33,7 @@ public class GroupByValue extends GroupByKey {
     }
 
     @Override
-    protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        return new GroupByValue(id, fieldName, script, direction);
+    protected GroupByKey copy(String id, AggTarget target, Direction direction) {
+        return new GroupByValue(id, target(), direction);
     }
 }

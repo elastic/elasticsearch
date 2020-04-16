@@ -10,18 +10,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 
 public abstract class LeafAgg extends Agg {
 
-    LeafAgg(String id, Object fieldOrScript) {
-        super(id, fieldOrScript);
+    LeafAgg(String id, AggTarget target) {
+        super(id, target);
     }
 
     abstract AggregationBuilder toBuilder();
 
     @SuppressWarnings("rawtypes")
     protected ValuesSourceAggregationBuilder addFieldOrScript(ValuesSourceAggregationBuilder builder) {
-        if (fieldName() != null) {
-            return builder.field(fieldName());
-        } else {
-            return builder.script(scriptTemplate().toPainless());
-        }
+        return target().with(builder);
     }
 }

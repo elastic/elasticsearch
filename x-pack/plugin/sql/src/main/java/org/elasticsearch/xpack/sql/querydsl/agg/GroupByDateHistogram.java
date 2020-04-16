@@ -25,24 +25,24 @@ public class GroupByDateHistogram extends GroupByKey {
     private final ZoneId zoneId;
 
     public GroupByDateHistogram(String id, String fieldName, long fixedInterval, ZoneId zoneId) {
-        this(id, fieldName, null, null, fixedInterval, null, zoneId);
+        this(id, AggTarget.of(fieldName), null, fixedInterval, null, zoneId);
     }
 
     public GroupByDateHistogram(String id, ScriptTemplate script, long fixedInterval, ZoneId zoneId) {
-        this(id, null, script, null, fixedInterval, null, zoneId);
+        this(id, AggTarget.of(script), null, fixedInterval, null, zoneId);
     }
     
     public GroupByDateHistogram(String id, String fieldName, String calendarInterval, ZoneId zoneId) {
-        this(id, fieldName, null, null, -1L, calendarInterval, zoneId);
+        this(id, AggTarget.of(fieldName), null, -1L, calendarInterval, zoneId);
     }
     
     public GroupByDateHistogram(String id, ScriptTemplate script, String calendarInterval, ZoneId zoneId) {
-        this(id, null, script, null, -1L, calendarInterval, zoneId);
+        this(id, AggTarget.of(script), null, -1L, calendarInterval, zoneId);
     }
 
-    private GroupByDateHistogram(String id, String fieldName, ScriptTemplate script, Direction direction, long fixedInterval,
+    private GroupByDateHistogram(String id, AggTarget target, Direction direction, long fixedInterval,
             String calendarInterval, ZoneId zoneId) {
-        super(id, fieldName, script, direction);
+        super(id, target, direction);
         if (fixedInterval <= 0 && (calendarInterval == null || calendarInterval.isBlank())) {
             throw new SqlIllegalArgumentException("Either fixed interval or calendar interval needs to be specified");
         }
@@ -64,8 +64,8 @@ public class GroupByDateHistogram extends GroupByKey {
     }
 
     @Override
-    protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        return new GroupByDateHistogram(id, fieldName, script, direction, fixedInterval, calendarInterval, zoneId);
+    protected GroupByKey copy(String id, AggTarget target, Direction direction) {
+        return new GroupByDateHistogram(id, target(), direction, fixedInterval, calendarInterval, zoneId);
     }
 
     @Override

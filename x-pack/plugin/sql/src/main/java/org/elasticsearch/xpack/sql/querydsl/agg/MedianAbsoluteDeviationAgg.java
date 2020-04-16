@@ -12,8 +12,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.medianAb
 
 public class MedianAbsoluteDeviationAgg extends LeafAgg {
 
-    public MedianAbsoluteDeviationAgg(String id, Object fieldOrScript) {
-        super(id, fieldOrScript);
+    public MedianAbsoluteDeviationAgg(String id, AggTarget target) {
+        super(id, target);
     }
 
     @Override

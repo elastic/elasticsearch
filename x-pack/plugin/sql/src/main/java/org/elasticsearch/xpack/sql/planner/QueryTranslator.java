@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
+import org.elasticsearch.xpack.sql.querydsl.agg.AggTarget;
 import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
@@ -256,15 +257,15 @@ final class QueryTranslator {
         return e.foldable() || e instanceof FieldAttribute;
     }
 
-    private static Object asFieldOrLiteralOrScript(AggregateFunction af) {
+    private static AggTarget asFieldOrLiteralOrScript(AggregateFunction af) {
         return asFieldOrLiteralOrScript(af, af.field());
     }
 
-    private static Object asFieldOrLiteralOrScript(AggregateFunction af, Expression e) {
+    private static AggTarget asFieldOrLiteralOrScript(AggregateFunction af, Expression e) {
         if (e == null) {
             return null;
         }
-        return isFieldOrLiteral(e) ? field(af, e) : ((ScalarFunction) e).asScript();
+        return isFieldOrLiteral(e) ? AggTarget.of(field(af, e)) : AggTarget.of(((ScalarFunction) e).asScript());
     }
 
     // TODO: see whether escaping is needed

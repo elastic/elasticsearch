@@ -11,11 +11,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 
 public class SumAgg extends LeafAgg {
 
-    public SumAgg(String id, Object fieldOrScript) {
-        super(id, fieldOrScript);
+    public SumAgg(String id, AggTarget target) {
+        super(id, target);
     }
 
-    @Override AggregationBuilder toBuilder() {
+    @Override
+    AggregationBuilder toBuilder() {
         return addFieldOrScript(sum(id()));
     }
 }

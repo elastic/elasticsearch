@@ -11,8 +11,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 
 public class MaxAgg extends LeafAgg {
 
-    public MaxAgg(String id, Object fieldOrScript) {
-        super(id, fieldOrScript);
+    public MaxAgg(String id, AggTarget target) {
+        super(id, target);
     }
 
     @Override

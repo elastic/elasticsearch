@@ -11,8 +11,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 
 public class MinAgg extends LeafAgg {
 
-    public MinAgg(String id, Object fieldOrScript) {
-        super(id, fieldOrScript);
+    public MinAgg(String id, AggTarget target) {
+        super(id, target);
     }
 
     @Override

@@ -20,15 +20,15 @@ public class GroupByNumericHistogram extends GroupByKey {
     private final double interval;
 
     public GroupByNumericHistogram(String id, String fieldName, double interval) {
-        this(id, fieldName, null, null, interval);
+        this(id, AggTarget.of(fieldName), null, interval);
     }
 
     public GroupByNumericHistogram(String id, ScriptTemplate script, double interval) {
-        this(id, null, script, null, interval);
+        this(id, AggTarget.of(script), null, interval);
     }
 
-    private GroupByNumericHistogram(String id, String fieldName, ScriptTemplate script, Direction direction, double interval) {
-        super(id, fieldName, script, direction);
+    private GroupByNumericHistogram(String id, AggTarget aggTarget, Direction direction, double interval) {
+        super(id, aggTarget, direction);
         this.interval = interval;
     }
 
@@ -39,8 +39,8 @@ public class GroupByNumericHistogram extends GroupByKey {
     }
 
     @Override
-    protected GroupByKey copy(String id, String fieldName, ScriptTemplate script, Direction direction) {
-        return new GroupByNumericHistogram(id, fieldName, script, direction, interval);
+    protected GroupByKey copy(String id, AggTarget target, Direction direction) {
+        return new GroupByNumericHistogram(id, target(), direction, interval);
     }
 
     @Override

@@ -592,7 +592,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue("
                 + "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(" +
                      "doc,params.v3),params.v4),params.v5,params.v6])",
@@ -864,7 +864,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
                 "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
@@ -889,7 +889,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
                 "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
@@ -1022,7 +1022,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
                 "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])",
             scriptTemplate.toString());
@@ -1036,7 +1036,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
                 "InternalSqlScriptUtils.nullif(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
             scriptTemplate.toString());
@@ -1050,7 +1050,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(" + ""
                 + "doc,params.v0),params.v1),params.v2,InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v3)," +
                 "params.v4),params.v5,params.v6])",
@@ -1065,7 +1065,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
-        ScriptTemplate scriptTemplate = groupingContext.tail.scriptTemplate();
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt("  +
                 "InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2,params.v3])",
             scriptTemplate.toString());

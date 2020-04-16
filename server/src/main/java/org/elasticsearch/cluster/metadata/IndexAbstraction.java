@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 
 /**
@@ -268,8 +269,7 @@ public interface IndexAbstraction {
             this.dataStream = dataStream;
             this.dataStreamIndices = List.copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.stream()
-                .filter(index -> index.getIndex().getName().equals(
-                    org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration())))
+                .filter(index -> index.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration())))
                 .findFirst()
                 .orElse(null);
             assert writeIndex != null;

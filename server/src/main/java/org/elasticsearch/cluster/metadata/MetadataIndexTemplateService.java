@@ -703,7 +703,8 @@ public class MetadataIndexTemplateService {
         // global template such that it has this setting) we will fail and the user will have to update the index template and remove
         // this setting or update the corresponding component template that contributes to the index template resolved settings
         if (isHidden == null) {
-            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+            if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
+                IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
                 throw new IllegalStateException("A global index V2 template [" + winnerName + "], composed of component templates [" +
                     String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
             }

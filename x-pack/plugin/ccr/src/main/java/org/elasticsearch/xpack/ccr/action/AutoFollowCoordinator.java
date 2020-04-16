@@ -63,6 +63,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.wrapClient;
 import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 /**
@@ -244,7 +245,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                                      PutFollowAction.Request request,
                                      Runnable successHandler,
                                      Consumer<Exception> failureHandler) {
-                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                    Client followerClient = wrapClient(client, headers);
                     followerClient.execute(
                         PutFollowAction.INSTANCE,
                         request,

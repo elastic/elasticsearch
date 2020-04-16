@@ -48,6 +48,8 @@ public class InboundHandlerTests extends ESTestCase {
     private final Version version = Version.CURRENT;
 
     private TaskManager taskManager;
+    private Transport.ResponseHandlers responseHandlers;
+    private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
     private FakeTcpChannel channel;
 
@@ -61,7 +63,10 @@ public class InboundHandlerTests extends ESTestCase {
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler("node", version, new StatsTracker(), threadPool,
             BigArrays.NON_RECYCLING_INSTANCE);
-        handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive);
+        requestHandlers = new Transport.RequestHandlers();
+        responseHandlers = new Transport.ResponseHandlers();
+        handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive, requestHandlers,
+            responseHandlers);
     }
 
     @After
@@ -74,7 +79,7 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>("test-request", TestRequest::new, taskManager,
             (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
-        handler.registerRequestHandler(registry);
+        requestHandlers.registerHandler(registry);
 
         handler.inboundMessage(channel, new InboundMessage(null, true));
         if (channel.isServerChannel()) {
@@ -93,7 +98,7 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
-        long requestId = handler.getResponseHandlers().add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
             @Override
             public void handleResponse(TestResponse response) {
                 responseCaptor.set(response);
@@ -119,7 +124,7 @@ public class InboundHandlerTests extends ESTestCase {
                 channelCaptor.set(channel);
                 requestCaptor.set(request);
             }, ThreadPool.Names.SAME, false, true);
-        handler.registerRequestHandler(registry);
+        requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
         OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
             new TestRequest(requestValue), version, action, requestId, false, false);

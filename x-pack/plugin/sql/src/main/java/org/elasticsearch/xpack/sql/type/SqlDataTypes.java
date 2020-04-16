@@ -274,7 +274,6 @@ public class SqlDataTypes {
                 || dataType == SCALED_FLOAT // because of scaling_factor
                 || dataType == CONSTANT_KEYWORD
                 || dataType == GEO_POINT
-                || dataType == GEO_SHAPE
                 || dataType == SHAPE;
     }
 

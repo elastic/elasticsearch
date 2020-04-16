@@ -79,7 +79,7 @@ keystore in order to benefit from the new behavior.
 [float]
 === A new aggregation: `top_metrics`
 
-The new `top_metrics` aggregation "selects" a metric from a document according
+The new {ref}//search-aggregations-metrics-top-metrics.html[`top_metrics` aggregation] "selects" a metric from a document according
 to a criteria on a given, different field. That criteria is currently being the
 largest or smallest "sort" value. It is fairly similar to `top_hits` in spirit
 but because it is more limited it is able to do its job using less memory and

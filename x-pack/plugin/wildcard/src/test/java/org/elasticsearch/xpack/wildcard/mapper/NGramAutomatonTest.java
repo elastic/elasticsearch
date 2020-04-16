@@ -103,7 +103,8 @@ public class NGramAutomatonTest extends ESTestCase {
     }
 
     // The pgTrgmExample methods below test examples from the slides at
-    // http://www.pgcon.org/2012/schedule/attachments/248_Alexander%20Korotkov%20-%20Index%20support%20for%20regular%20expression%20search.pdf
+    // http://www.pgcon.org/2012/schedule/attachments/
+    //    248_Alexander%20Korotkov%20-%20Index%20support%20for%20regular%20expression%20search.pdf
     @Test
     public void pgTrgmExample1() {
         assertTrigramExpression("a(b+|c+)d", new Or<String>(

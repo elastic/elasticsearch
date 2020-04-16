@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -82,17 +81,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
-    private static Logger logger = LogManager.getLogger(XPackPlugin.class);
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
 
@@ -349,29 +345,10 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
         final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
-
-        // In order to avoid missing any updates to the configuration files that back an
-        // SSLConfiguration, we start watching the files prior to reading them during the
-        // construction of the SSLService. Since we need the SSLService to reload, a future is used
-        // to provide access. Blocking access is used to obtain the SSLService but this will
-        // only block if a file is changed during the construction of the SSLService during node
-        // startup.
-        final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
-            try {
-                final SSLService sslService = sslServiceFuture.get();
-                logger.debug("reloading ssl configuration [{}]", sslConfiguration);
-                sslService.reloadSSLContext(sslConfiguration);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException e) {
-                throw new ElasticsearchException("failed to obtain ssl service", e);
-            }
-        };
-
-        SSLConfigurationReloader.startWatching(environment, reloadConsumer, resourceWatcherService, sslConfigurations.values());
+        final SSLConfigurationReloader reloader =
+            new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
-        sslServiceFuture.complete(sslService);
+        reloader.setSSLService(sslService);
         setSslService(sslService);
         return sslService;
     }

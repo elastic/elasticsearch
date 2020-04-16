@@ -347,8 +347,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        SSLConfigurationReloader.startWatching(env, reloadConsumer, resourceWatcherService,
-            SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -400,8 +399,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        SSLConfigurationReloader.startWatching(env, reloadConsumer, resourceWatcherService,
-            SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -445,8 +443,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        SSLConfigurationReloader.startWatching(env, reloadConsumer, resourceWatcherService,
-            SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -488,8 +485,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        SSLConfigurationReloader.startWatching(env, reloadConsumer, resourceWatcherService,
-            SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -535,8 +531,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 reloadLatch.countDown();
             }
         };
-        SSLConfigurationReloader.startWatching(env, reloadConsumer, resourceWatcherService,
-            SSLService.getSSLConfigurations(env.settings()).values());
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env.settings()).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 

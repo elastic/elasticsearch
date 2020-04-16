@@ -40,6 +40,27 @@ To avoid errors, do not submit mapping requests that change the
 {ref}/enabled.html[`enabled`] mapping parameter.
 ====
 
+[[prevent-include-in-root-change]]
+.The `include_in_parent` and `include_in_root` mapping parameters cannot be changed for `nested` fields.
+[%collapsible]
+====
+*Details* +
+Mapping requests that attempt to change the
+{ref}/nested.html#nested-include-in-parent-parm[`include_in_parent`] or
+{ref}/nested.html#nested-include-in-root-parm[`include_in_root`] mapping
+parameter for a `nested` field will fail and return an error.
+
+Previously, {es} accepted mapping requests that attempted to change the
+`include_in_parent` or `include_in_root` parameter. Theses changes were not
+applied, but such requests didn't return an error.
+
+*Impact* +
+To avoid errors, do not submit mapping requests that change the
+{ref}/nested.html#nested-include-in-parent-parm[`include_in_parent`] or
+{ref}/nested.html#nested-include-in-root-parm[`include_in_root`] mapping
+parameter.
+====
+
 .The get field mapping API's `local` query parameter is deprecated.
 [%collapsible]
 ====
@@ -59,7 +80,7 @@ To avoid deprecation warnings, discontinue use of the `local` parameter.
 === Settings changes
 
 [[deprecate-node-local-storage]]
-.The `node.local_storage` setting is deprecated
+.The `node.local_storage` setting is deprecated.
 [%collapsible]
 ====
 *Details* +

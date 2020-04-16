@@ -1711,7 +1711,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "*");
+                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "*");
             assertEquals(1, indices.length);
             assertEquals("index", indices[0].getName());
         }
@@ -1723,18 +1723,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-alias");
+                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-alias");
             assertEquals(0, indices.length);
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-*");
+                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-*");
             assertEquals(1, indices.length);
             assertEquals("index", indices[0].getName());
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
+                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
             assertEquals(1, indices.length);
             Arrays.sort(indices, Comparator.comparing(Index::getName));
             assertEquals("index", indices[0].getName());
@@ -1904,7 +1904,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(justAnIndex, false)
                 .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))).build();
 
-        IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+        IndicesOptions indicesOptions = IndicesOptions.strictIncludeDataStreamsExpandOpenAndForbidClosedIgnoreThrottled();
         Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
         Arrays.sort(result, Comparator.comparing(Index::getName));
         assertThat(result.length, equalTo(3));

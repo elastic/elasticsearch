@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class ShardFollowTask extends ImmutableFollowParameters implements PersistentTaskParams {
 

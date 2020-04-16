@@ -60,6 +60,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.systemClient;
+
 /**
  * Encapsulates licensing checking for CCR.
  */
@@ -356,48 +358,6 @@ public class CcrLicenseChecker {
         final ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         return securityContext.getUser();
-    }
-
-    public static Client wrapClient(Client client, Map<String, String> headers) {
-        if (headers.isEmpty()) {
-            return client;
-        } else {
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            Map<String, String> filteredHeaders = headers.entrySet().stream()
-                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            return new FilterClient(client) {
-                @Override
-                protected <Request extends ActionRequest, Response extends ActionResponse>
-                void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-                    }
-                }
-            };
-        }
-    }
-
-    private static Client systemClient(Client client) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        return new FilterClient(client) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    threadContext.markAsSystemContext();
-                    super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-                }
-            }
-        };
-    }
-
-    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
-        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
-        threadContext.copyHeaders(headers.entrySet());
-        return storedContext;
     }
 
     private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Response;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ilm.IndexLifecycleTransition;
 
 import java.io.IOException;
@@ -67,6 +68,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -76,6 +78,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             indexNameExpressionResolver);
         this.xContentRegistry = namedXContentRegistry;
         this.client = client;
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -90,14 +93,13 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+        LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
+        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+                request.getPolicy().getName());
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
                 new AckedClusterStateUpdateTask<Response>(request, listener) {
                     @Override
@@ -116,7 +118,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             .get(request.getPolicy().getName());
                         long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
+                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), securityHeaders,
                             nextVersion, Instant.now().toEpochMilli());
                         LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
                         if (oldPolicy == null) {

@@ -168,7 +168,6 @@ public class TransportPutDataFrameAnalyticsAction
         } else {
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
-                threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
                     listener::onFailure
@@ -182,7 +181,6 @@ public class TransportPutDataFrameAnalyticsAction
         if (response.isCompleteMatch()) {
             updateDocMappingAndPutConfig(
                 memoryCappedConfig,
-                threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure
@@ -203,12 +201,13 @@ public class TransportPutDataFrameAnalyticsAction
     }
 
     private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
-                                              Map<String, String> headers,
                                               ActionListener<IndexResponse> listener) {
+        Map<String, String> securityHeaders = securityContext != null ? securityContext.extractSecurityHeadersForJob("ml_dataframe",
+                config.getId()) : Map.of();
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, listener);
+            configProvider.put(config, securityHeaders, listener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -217,7 +216,7 @@ public class TransportPutDataFrameAnalyticsAction
             client,
             clusterState,
             ActionListener.wrap(
-                unused -> configProvider.put(config, headers, ActionListener.wrap(
+                unused -> configProvider.put(config, securityHeaders, ActionListener.wrap(
                     indexResponse -> {
                         auditor.info(
                             config.getId(),

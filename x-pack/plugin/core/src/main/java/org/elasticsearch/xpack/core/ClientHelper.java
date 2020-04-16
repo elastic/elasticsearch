@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -160,6 +161,41 @@ public final class ClientHelper {
                 client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
             }
         }
+    }
+
+    public static Client wrapClient(Client client, Map<String, String> headers) {
+        if (headers.isEmpty()) {
+            return client;
+        } else {
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return new FilterClient(client) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse>
+                void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
+                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                    }
+                }
+            };
+        }
+    }
+
+    public static Client systemClient(Client client) {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        return new FilterClient(client) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    threadContext.markAsSystemContext();
+                    super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                }
+            }
+        };
     }
 
     private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {

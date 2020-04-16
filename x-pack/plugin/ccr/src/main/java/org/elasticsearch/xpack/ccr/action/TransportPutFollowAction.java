@@ -40,9 +40,13 @@ import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ClientHelper.wrapClient;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
@@ -53,6 +57,7 @@ public final class TransportPutFollowAction
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final ActiveShardsObserver activeShardsObserver;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutFollowAction(
@@ -76,6 +81,7 @@ public final class TransportPutFollowAction
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -133,7 +139,9 @@ public final class TransportPutFollowAction
             .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);
 
-        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ccr_follow",
+                request.getFollowerIndex());
+        final Client clientWithHeaders = wrapClient(client, securityHeaders);
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
             @Override

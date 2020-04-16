@@ -154,7 +154,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 }
             });
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            putDatafeed(request, state, listener);
         }
     }
 
@@ -164,7 +164,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                      ClusterState clusterState,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+            putDatafeed(request, clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
@@ -181,12 +181,12 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     }
 
     private void putDatafeed(PutDatafeedAction.Request request,
-                             Map<String, String> headers,
                              ClusterState clusterState,
                              ActionListener<PutDatafeedAction.Response> listener) {
-
         String datafeedId = request.getDatafeed().getId();
         String jobId = request.getDatafeed().getJobId();
+        Map<String, String> securityHeaders = securityContext != null ? securityContext.extractSecurityHeadersForJob("ml_datafeed",
+                datafeedId) : Map.of();
         ElasticsearchException validationError = checkConfigsAreNotDefinedInClusterState(datafeedId, jobId);
         if (validationError != null) {
             listener.onFailure(validationError);
@@ -197,7 +197,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> {
             datafeedConfigProvider.putDatafeedConfig(
                 request.getDatafeed(),
-                headers,
+                securityHeaders,
                 ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
                     listener::onFailure

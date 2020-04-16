@@ -20,12 +20,16 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
+
+    static final String JOB_AUTHN_ORIGIN_METADATA_KEY = "_xpack_security_job_authn_origin";
+    static final String JOB_AUTHN_ID_METADATA_KEY = "_xpack_security_job_authn_id";
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -124,6 +128,18 @@ public class Authentication implements ToXContentObject {
         }
         out.writeVInt(type.ordinal());
         out.writeMap(metadata);
+    }
+
+    public Authentication withJobOriginAndId(String jobOrigin, String jobId) {
+        Map<String, Object> metadata = new HashMap<>(this.metadata.size() + 2);
+        metadata.putAll(this.metadata);
+        if (metadata.putIfAbsent(JOB_AUTHN_ORIGIN_METADATA_KEY, jobOrigin) != null) {
+            throw new IllegalArgumentException("Authentication already has a job origin " + metadata.get(JOB_AUTHN_ORIGIN_METADATA_KEY));
+        }
+        if (metadata.putIfAbsent(JOB_AUTHN_ID_METADATA_KEY, jobId) != null) {
+            throw new IllegalArgumentException("Authentication already has a job id " + metadata.get(JOB_AUTHN_ID_METADATA_KEY));
+        }
+        return new Authentication(this.user, this.authenticatedBy, this.lookedUpBy, this.version, this.type, metadata);
     }
 
     @Override

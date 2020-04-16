@@ -32,9 +32,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -48,6 +50,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
     private final AsyncSearchIndexService store;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportSubmitAsyncSearchAction(ClusterService clusterService,
@@ -64,6 +67,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
         this.store = new AsyncSearchIndexService(clusterService, threadContext, client, registry);
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
     }
 
     @Override
@@ -134,15 +138,16 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, CancellableTask submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
-        Map<String, String> originHeaders = nodeClient.threadPool().getThreadContext().getHeaders();
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
                 AsyncSearchId searchId = new AsyncSearchId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
+                Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(ClientHelper.ASYNC_SEARCH_ORIGIN,
+                        searchId.getEncoded());
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId,
-                    submitTask::isCancelled, keepAlive, originHeaders, taskHeaders, searchId, store.getClient(),
+                    submitTask::isCancelled, keepAlive, securityHeaders, taskHeaders, searchId, store.getClient(),
                     nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };

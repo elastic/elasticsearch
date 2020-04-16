@@ -67,7 +67,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -103,14 +102,10 @@ public class DatafeedConfigProvider {
      * @param config The datafeed configuration
      * @param listener Index response listener
      */
-    public void putDatafeedConfig(DatafeedConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
+    public void putDatafeedConfig(DatafeedConfig config, Map<String, String> securityHeaders, ActionListener<IndexResponse> listener) {
 
-        if (headers.isEmpty() == false) {
-            // Filter any values in headers that aren't security fields
+        if (securityHeaders.isEmpty() == false) {
             DatafeedConfig.Builder builder = new DatafeedConfig.Builder(config);
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             builder.setHeaders(securityHeaders);
             config = builder.build();
         }

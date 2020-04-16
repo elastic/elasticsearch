@@ -68,15 +68,12 @@ public class DataFrameAnalyticsConfigProvider {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void put(DataFrameAnalyticsConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
+    public void put(DataFrameAnalyticsConfig config, Map<String, String> securityHeaders, ActionListener<IndexResponse> listener) {
         String id = config.getId();
 
-        if (headers.isEmpty() == false) {
+        if (false == securityHeaders.isEmpty()) {
             // Filter any values in headers that aren't security fields
             DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(config);
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             builder.setHeaders(securityHeaders);
             config = builder.build();
         }

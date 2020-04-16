@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -41,6 +43,17 @@ public class SecurityContext {
         this.threadContext = threadContext;
         this.authenticationSerializer = new AuthenticationContextSerializer();
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+    }
+
+    public Map<String, String> extractSecurityHeadersForJob(String jobOrigin, String jobId) {
+        Authentication currentAuthentication = getAuthentication();
+        Authentication authenticationWithJobId = currentAuthentication.withJobOriginAndId(jobOrigin, jobId);
+        try {
+            String encodedJobAuthenticationHeader = authenticationWithJobId.encode();
+            return Map.of(AuthenticationField.AUTHENTICATION_KEY, encodedJobAuthenticationHeader);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

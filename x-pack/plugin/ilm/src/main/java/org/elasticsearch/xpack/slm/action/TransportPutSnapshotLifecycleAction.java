@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
@@ -43,12 +44,14 @@ public class TransportPutSnapshotLifecycleAction extends
     TransportMasterNodeAction<PutSnapshotLifecycleAction.Request, PutSnapshotLifecycleAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PutSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
     @Override
     protected String executor() {
@@ -65,15 +68,13 @@ public class TransportPutSnapshotLifecycleAction extends
                                    final ClusterState state,
                                    final ActionListener<PutSnapshotLifecycleAction.Response> listener) {
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
-
+        LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        LifecyclePolicy.validatePolicyName(request.getLifecycleId());
+        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("snapshot_lifecycle",
+                request.getLifecycleId());
         clusterService.submitStateUpdateTask("put-snapshot-lifecycle-" + request.getLifecycleId(),
             new AckedClusterStateUpdateTask<PutSnapshotLifecycleAction.Response>(request, listener) {
                 @Override
@@ -85,7 +86,7 @@ public class TransportPutSnapshotLifecycleAction extends
                     if (snapMeta == null) {
                         SnapshotLifecyclePolicyMetadata meta = SnapshotLifecyclePolicyMetadata.builder()
                             .setPolicy(request.getLifecycle())
-                            .setHeaders(filteredHeaders)
+                            .setHeaders(securityHeaders)
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
                         lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta),
@@ -96,7 +97,7 @@ public class TransportPutSnapshotLifecycleAction extends
                         SnapshotLifecyclePolicyMetadata oldLifecycle = snapLifecycles.get(id);
                         SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(oldLifecycle)
                             .setPolicy(request.getLifecycle())
-                            .setHeaders(filteredHeaders)
+                            .setHeaders(securityHeaders)
                             .setVersion(oldLifecycle == null ? 1L : oldLifecycle.getVersion() + 1)
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();

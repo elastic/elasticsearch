@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -76,6 +77,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportResumeFollowAction(
@@ -95,6 +97,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -171,14 +174,11 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final ResponseHandler handler = new ResponseHandler(numShards, listener);
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
+        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ccr_follow", request.getFollowerIndex());
         for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
             final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request.getParameters(),
-                leaderIndexMetadata, followIndexMetadata, filteredHeaders);
+                leaderIndexMetadata, followIndexMetadata, securityHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
         }
     }

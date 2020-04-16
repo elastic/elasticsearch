@@ -74,10 +74,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                     jobBuilder -> {
                         DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
                         useSecondaryAuthIfAvailable(securityContext, () -> {
-                            Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                            previewDatafeed.setHeaders(headers);
+                            Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ml_datafeed",
+                                    datafeedConfig.getId());
+                            previewDatafeed.setHeaders(securityHeaders);
                             jobResultsProvider.datafeedTimingStats(
                                 jobBuilder.getId(),
                                 timingStats -> {

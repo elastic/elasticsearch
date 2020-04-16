@@ -27,9 +27,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +47,7 @@ public class TransportPutAutoFollowPatternAction extends
 
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutAutoFollowPatternAction(
@@ -59,6 +62,7 @@ public class TransportPutAutoFollowPatternAction extends
             PutAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -80,9 +84,7 @@ public class TransportPutAutoFollowPatternAction extends
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ccr_autofollow", request.getName());
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
@@ -98,7 +100,7 @@ public class TransportPutAutoFollowPatternAction extends
 
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
-                                return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
+                                return innerPut(request, securityHeaders, currentState, remoteClusterState.getState());
                             }
                         });
                 } else {

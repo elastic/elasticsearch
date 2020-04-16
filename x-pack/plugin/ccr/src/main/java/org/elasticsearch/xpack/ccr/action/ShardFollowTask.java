@@ -30,10 +30,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
 
     public static final String NAME = "xpack/ccr/shard_follow_task";
 
-    // list of headers that will be stored when a job is created
-    public static final Set<String> HEADER_FILTERS =
-            Set.of("es-security-runas-user", "_xpack_security_authentication");
-
     private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     private static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
     private static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");

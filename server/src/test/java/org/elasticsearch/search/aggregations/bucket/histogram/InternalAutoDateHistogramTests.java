@@ -22,7 +22,9 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -35,6 +37,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +45,12 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
 
@@ -55,7 +63,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
-        defaultStart = randomLongBetween(0, DateFormatter.forPattern("date_optional_time").parseMillis("2050-01-01"));
+        defaultStart = randomLongBetween(0, utcMillis("2050-01-01"));
         roundingIndex = between(0, AutoDateHistogramAggregationBuilder.buildRoundings(null, null).length - 1);
     }
 
@@ -273,5 +281,105 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, 1);
+    }
+
+    public void testReduceSecond() {
+        InternalAutoDateHistogram h = new ReduceTestBuilder(10)
+            .bucket("1970-01-01T00:00:01", 1).bucket("1970-01-01T00:00:02", 1).bucket("1970-01-01T00:00:03", 1)
+            .finishShardResult("s", 1)
+            .bucket("1970-01-01T00:00:03", 1).bucket("1970-01-01T00:00:04", 1)
+            .finishShardResult("s", 1)
+            .reduce();
+        assertThat(keys(h), equalTo(Arrays.asList(
+            "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", "1970-01-01T00:00:03Z", "1970-01-01T00:00:04Z")));
+        assertThat(docCounts(h), equalTo(Arrays.asList(1, 1, 2, 1)));
+    }
+
+    public void testReduceThirtySeconds() {
+        InternalAutoDateHistogram h = new ReduceTestBuilder(10)
+            .bucket("1970-01-01T00:00:00", 1).bucket("1970-01-01T00:00:30", 1).bucket("1970-01-01T00:02:00", 1)
+            .finishShardResult("s", 1)
+            .bucket("1970-01-01T00:00:30", 1).bucket("1970-01-01T00:01:00", 1)
+            .finishShardResult("s", 1)
+            .reduce();
+        assertThat(keys(h), equalTo(Arrays.asList(
+            "1970-01-01T00:00:00Z", "1970-01-01T00:00:30Z", "1970-01-01T00:01:00Z", "1970-01-01T00:01:30Z", "1970-01-01T00:02:00Z")));
+        assertThat(docCounts(h), equalTo(Arrays.asList(1, 2, 1, 0, 1)));
+    }
+
+    public void testReduceBumpsInnerRange() {
+        InternalAutoDateHistogram h = new ReduceTestBuilder(2)
+            .bucket("1970-01-01T00:00:01", 1).bucket("1970-01-01T00:00:02", 1)
+            .finishShardResult("s", 1)
+            .bucket("1970-01-01T00:00:00", 1).bucket("1970-01-01T00:00:05", 1)
+            .finishShardResult("s", 5)
+            .reduce();
+        assertThat(keys(h), equalTo(Arrays.asList("1970-01-01T00:00:00Z", "1970-01-01T00:00:05Z")));
+        assertThat(docCounts(h), equalTo(Arrays.asList(3, 1)));
+    }
+
+    public void testReduceBumpsRounding() {
+        InternalAutoDateHistogram h = new ReduceTestBuilder(2)
+            .bucket("1970-01-01T00:00:01", 1).bucket("1970-01-01T00:00:02", 1)
+            .finishShardResult("s", 1)
+            .bucket("1970-01-01T00:00:00", 1).bucket("1970-01-01T00:01:00", 1)
+            .finishShardResult("m", 1)
+            .reduce();
+        assertThat(keys(h), equalTo(Arrays.asList("1970-01-01T00:00:00Z", "1970-01-01T00:01:00Z")));
+        assertThat(docCounts(h), equalTo(Arrays.asList(3, 1)));
+    }
+
+    private static class ReduceTestBuilder {
+        private static final DocValueFormat FORMAT = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("date_time_no_millis"), ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
+        private final List<InternalAggregation> results = new ArrayList<>();
+        private final List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>();
+        private final int targetBuckets;
+
+        ReduceTestBuilder(int targetBuckets) {
+            this.targetBuckets = targetBuckets;
+        }
+
+        ReduceTestBuilder bucket(String key, long docCount) {
+            buckets.add(new InternalAutoDateHistogram.Bucket(
+                utcMillis(key), docCount, FORMAT, new InternalAggregations(emptyList())));
+            return this;
+        }
+
+        ReduceTestBuilder finishShardResult(String whichRounding, int innerInterval) {
+            RoundingInfo roundings[] = AutoDateHistogramAggregationBuilder.buildRoundings(ZoneOffset.UTC, null);
+            int roundingIdx = -1;
+            for (int i = 0; i < roundings.length; i++) {
+                if (roundings[i].unitAbbreviation.equals(whichRounding)) {
+                    roundingIdx = i;
+                    break;
+                }
+            }
+            assertThat("rounding [" + whichRounding + "] should be in " + Arrays.toString(roundings), roundingIdx, greaterThan(-1));
+            assertTrue(Arrays.toString(roundings[roundingIdx].innerIntervals) + " must contain " + innerInterval,
+                    Arrays.binarySearch(roundings[roundingIdx].innerIntervals, innerInterval) >= 0);
+            BucketInfo bucketInfo = new BucketInfo(roundings, roundingIdx, new InternalAggregations(emptyList()));
+            results.add(new InternalAutoDateHistogram("test", new ArrayList<>(buckets), targetBuckets, bucketInfo,
+                    FORMAT, emptyMap(), innerInterval));
+            buckets.clear();
+            return this;
+        }
+
+        InternalAutoDateHistogram reduce() {
+            assertThat("finishShardResult must be called before reduce", buckets, empty());
+            return (InternalAutoDateHistogram) results.get(0).reduce(results, emptyReduceContextBuilder().forFinalReduction());
+        }
+    }
+
+    private static long utcMillis(String time) {
+        return DateFormatter.forPattern("date_optional_time").parseMillis(time);
+    }
+
+    private List<String> keys(InternalAutoDateHistogram h) {
+        return h.getBuckets().stream().map(InternalAutoDateHistogram.Bucket::getKeyAsString).collect(toList());
+    }
+
+    private List<Integer> docCounts(InternalAutoDateHistogram h) {
+        return h.getBuckets().stream().map(b -> (int) b.getDocCount()).collect(toList());
     }
 }

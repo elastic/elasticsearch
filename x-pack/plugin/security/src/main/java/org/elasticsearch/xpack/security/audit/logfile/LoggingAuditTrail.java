@@ -1015,7 +1015,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
-            policyMap = Maps.copyMayWithAddedOrReplacedEntry(policyMap, policyName, eventFilterPolicy);
+            policyMap = Maps.copyMapWithAddedOrReplacedEntry(policyMap, policyName, eventFilterPolicy);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }

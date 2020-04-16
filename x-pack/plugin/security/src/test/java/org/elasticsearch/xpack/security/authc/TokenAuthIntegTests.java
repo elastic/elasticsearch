@@ -138,11 +138,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
-
+        final String accessToken = response.getAccessToken();
+        final String refreshToken = response.getRefreshToken();
         Instant created = Instant.now();
 
         InvalidateTokenResponse invalidateResponse = restClient.security().invalidateToken(
-            new InvalidateTokenRequest(response.getAccessToken(), null, null, null), SECURITY_REQUEST_OPTIONS);
+            new InvalidateTokenRequest(accessToken, null, null, null), SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(1));
         assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
@@ -168,18 +169,31 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             if (deleteTriggered.compareAndSet(false, true)) {
                 // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
-                ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () ->
-                    restClient.security().invalidateToken(new InvalidateTokenRequest("fooobar", null, null, null),
-                        SECURITY_REQUEST_OPTIONS));
-                assertThat(e.getMessage(), containsString("token malformed"));
-                assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+                InvalidateTokenResponse invalidateResponseTwo = restClient.security()
+                    .invalidateToken(new InvalidateTokenRequest("fooobar", null, null, null),
+                        SECURITY_REQUEST_OPTIONS);
+                assertThat(invalidateResponseTwo.getInvalidatedTokens(), equalTo(0));
+                assertThat(invalidateResponseTwo.getPreviouslyInvalidatedTokens(), equalTo(0));
+                assertThat(invalidateResponseTwo.getErrors().size(), equalTo(0));
             }
             restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
             SearchResponse searchResponse = restClient.search(new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
-                    .source(SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)), SECURITY_REQUEST_OPTIONS);
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)), SECURITY_REQUEST_OPTIONS);
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         }, 30, TimeUnit.SECONDS);
+
+        // Now the documents are deleted, try to invalidate the access token and refresh token again
+        InvalidateTokenResponse invalidateAccessTokenResponse = restClient.security().invalidateToken(
+            new InvalidateTokenRequest(accessToken, null, null, null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateAccessTokenResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getErrors().size(), equalTo(0));
+        InvalidateTokenResponse invalidateRefreshTokenResponse = restClient.security().invalidateToken(
+            new InvalidateTokenRequest(refreshToken, null, null, null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateRefreshTokenResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getErrors().size(), equalTo(0));
     }
 
     public void testInvalidateAllTokensForUser() throws Exception {
@@ -233,7 +247,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
-    public void testExpireMultipleTimes() throws IOException {
+    public void testInvalidateMultipleTimes() throws IOException {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
@@ -248,6 +262,91 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateAgainResponse.getInvalidatedTokens(), equalTo(0));
         assertThat(invalidateAgainResponse.getPreviouslyInvalidatedTokens(), equalTo(1));
         assertThat(invalidateAgainResponse.getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidateNotValidAccessTokens() throws Exception {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        // Perform a request to invalidate a token, before the tokens index is created
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(generateAccessToken(Version.CURRENT), null, null, null),
+                SECURITY_REQUEST_OPTIONS));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        // Create a token to trigger index creation
+        restClient.security().createToken(CreateTokenRequest.passwordGrant(
+            SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        InvalidateTokenResponse invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest("!this_is_not_a_base64_string_and_we_should_fail_decoding_it", null, null, null),
+                SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+
+        invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest("10we+might+assume+this+is+valid+old+token", null, null,
+                null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+
+        invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(generateInvalidShortAccessToken(Version.CURRENT), null, null,
+                null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+
+        // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
+        // tokens index
+        invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(generateAccessToken(Version.CURRENT), null, null, null),
+                SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+    }
+
+    public void testInvalidateNotValidRefreshTokens() throws Exception {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        // Perform a request to invalidate a refresh token, before the tokens index is created
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(null,
+                    TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()), null, null),
+                SECURITY_REQUEST_OPTIONS));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        // Create a token to trigger index creation
+        restClient.security().createToken(CreateTokenRequest.passwordGrant(
+            SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        InvalidateTokenResponse invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(null, "!this_is_not_a_base64_string_and_we_should_fail_decoding_it", null, null),
+                SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+
+        invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(null, "10we+might+assume+this+is+valid+old+token", null,
+                null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+
+        invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(null,
+                    TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, randomAlphaOfLength(32)), null, null),
+                SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
+
+        // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
+        // tokens index
+        invalidateResponse = restClient.security()
+            .invalidateToken(new InvalidateTokenRequest(null,
+                    TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()), null, null),
+                SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
     public void testRefreshingToken() throws IOException {
@@ -512,9 +611,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     private String generateAccessToken(Version version) throws Exception {
         TokenService tokenService = internalCluster().getInstance(TokenService.class);
         String accessTokenString = UUIDs.randomBase64UUID();
-        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            accessTokenString = TokenService.hashTokenString(accessTokenString);
-        }
+        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
+    }
+
+    private String generateInvalidShortAccessToken(Version version) throws Exception {
+        TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        String accessTokenString = randomAlphaOfLength(32); // UUIDs are 36
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 }

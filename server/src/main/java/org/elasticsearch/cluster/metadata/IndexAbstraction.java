@@ -264,12 +264,15 @@ public interface IndexAbstraction {
         private final List<IndexMetadata> dataStreamIndices;
         private final IndexMetadata writeIndex;
 
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
-                          List<IndexMetadata> dataStreamIndices, IndexMetadata writeIndex) {
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices) {
             this.dataStream = dataStream;
             this.dataStreamIndices = List.copyOf(dataStreamIndices);
-            this.writeIndex = writeIndex;
-            assert dataStreamIndices.contains(writeIndex);
+            this.writeIndex =  dataStreamIndices.stream()
+                .filter(index -> index.getIndex().getName().equals(
+                    org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration())))
+                .findFirst()
+                .orElse(null);
+            assert writeIndex != null;
         }
 
         @Override

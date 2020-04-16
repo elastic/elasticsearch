@@ -49,8 +49,8 @@ this response is partial or not, plus the usual metadata (shards involved,
 number of hits etc) and potentially results. If the response is not complete
 and final, the client can continue polling for results, issuing a new request
 using the provided search ID. If new results are available, the returned
-version is incremented and the new results batch returned. This can go on until
-all the results are fetched.
+version is incremented and the new batch of results are returned. This can 
+continue until all the results are fetched.
 
 Unless deleted earlier by the user, the asynchronous searches are kept alive
 for a given interval. This defaults to 5 days and can be controlled by another

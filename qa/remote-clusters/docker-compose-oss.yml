@@ -32,7 +32,7 @@ services:
         hard: 65536
     healthcheck:
       start_period: 15s
-      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      test: ["CMD", "wget", "-q", "http://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
@@ -64,7 +64,7 @@ services:
         hard: -1
     healthcheck:
       start_period: 15s
-      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      test: ["CMD", "wget", "-q", "http://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5

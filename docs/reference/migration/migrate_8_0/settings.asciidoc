@@ -57,11 +57,15 @@ the `node.local_storage` setting has been removed.
 
 In Elasticsearch 7.8.0, the following settings have been deprecated:
 
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
 * `xpack.ilm.enabled`
 * `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
 * `xpack.slm.enabled`
 * `xpack.sql.enabled`
 * `xpack.transform.enabled`
+* `xpack.vectors.enabled`
 
-In future releases, it will not be possible to disable the APIs for ILM,
-Monitoring, SLM, SQL, and Transforms.
+In future releases, it will not be possible to disable the APIs for Enrichment,
+Flattened mappings, ILM, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.

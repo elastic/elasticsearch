@@ -399,11 +399,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggKurtosis]
 
 [NOTE]
 ====
-`KURTOSIS` cannot be used on top of scalar functions but only directly on a field. So, for example, the following is
-not allowed and an error is returned:
+`KURTOSIS` cannot be used on top of scalar functions or operators but only directly on a field. So, for example,
+the following is not allowed and an error is returned:
 [source, sql]
 ---------------------------------------
- SELECT KURTOSIS(salary), gender FROM emp GROUP BY gender
+ SELECT KURTOSIS(salary / 12.0), gender FROM emp GROUP BY gender
 ---------------------------------------
 ====
 
@@ -517,7 +517,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggSkewness]
 not allowed and an error is returned:
 [source, sql]
 ---------------------------------------
- SELECT SKEWNESS(salary), gender FROM emp GROUP BY gender
+ SELECT SKEWNESS(ROUND(salary / 12.0, 2), gender FROM emp GROUP BY gender
 ---------------------------------------
 ====
 

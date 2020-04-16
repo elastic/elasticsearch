@@ -87,8 +87,8 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
         }
     }
 
-    void persistStats() {
-        trainedModelStatsService.queueStats(getLatestStatsAndReset());
+    void persistStats(boolean flush) {
+        trainedModelStatsService.queueStats(getLatestStatsAndReset(), flush);
         if (persistenceQuotient < 1000 && currentInferenceCount.sum() > 1000) {
             persistenceQuotient = 1000;
         }
@@ -117,14 +117,14 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
             if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
                 statsAccumulator.incMissingFields();
                 if (shouldPersistStats) {
-                    persistStats();
+                    persistStats(false);
                 }
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }
             InferenceResults inferenceResults = trainedModelDefinition.infer(fields, update.apply(inferenceConfig));
             if (shouldPersistStats) {
-                persistStats();
+                persistStats(false);
             }
             listener.onResponse(inferenceResults);
         } catch (Exception e) {

@@ -105,14 +105,26 @@ public class TrainedModelStatsService {
         clusterService.addListener((event) -> this.clusterState = event.state());
     }
 
-    public void queueStats(InferenceStats stats) {
+    /**
+     * Queues the stats for storing.
+     * @param stats The stats to store or increment
+     * @param flush When `true`, this indicates that stats should be written as soon as possible.
+     *              If `false`, stats are not persisted until the next periodic persistence action.
+     */
+    public void queueStats(InferenceStats stats, boolean flush) {
         if (stats.hasStats() == false) {
+            if (flush) {
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::updateStats);
+            }
             return;
         }
         statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
             (k, previousStats) -> previousStats == null ?
                 stats :
                 InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
+        if (flush) {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::updateStats);
+        }
     }
 
     void stop() {
@@ -226,6 +238,9 @@ public class TrainedModelStatsService {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.upsert(builder)
                 .index(MlStatsIndex.writeAlias())
+                // Usually, there shouldn't be a conflict, but if there is, only around a single update should have happened
+                // out of band. If there is MANY more than that, something strange is happening and it should fail.
+                .retryOnConflict(3)
                 .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
                 .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params));
             return updateRequest;

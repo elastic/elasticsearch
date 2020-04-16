@@ -35,7 +35,7 @@ Previously, {es} accepted mapping requests that attempted to change the
 `enabled` parameter of the root mapping. Theses changes were not applied, but
 such requests didn't return an error.
 
-*How to migrate* +
+*Impact* +
 To avoid errors, do not submit mapping requests that change the
 {ref}/enabled.html[`enabled`] mapping parameter.
 ====
@@ -50,7 +50,7 @@ parameter is deprecated and will be removed in {es} 8.0.0.
 The `local` parameter is a no-op. The API always retrieves field mappings
 locally.
 
-*How to migrate* +
+*Impact* +
 To avoid deprecation warnings, discontinue use of the `local` parameter.
 ====
 
@@ -62,8 +62,13 @@ To avoid deprecation warnings, discontinue use of the `local` parameter.
 .The `node.local_storage` setting is deprecated
 [%collapsible]
 ====
+*Details* +
 The `node.local_storage` setting is deprecated. In {es} 8.0.0, all nodes require
 local storage.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `node.local_storage`
+setting.
 ====
 
 //end::notable-breaking-changes[]

@@ -105,6 +105,16 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         }
     }
 
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new ExistsQueryBuilder((String) null));
         expectThrows(IllegalArgumentException.class, () -> new ExistsQueryBuilder(""));

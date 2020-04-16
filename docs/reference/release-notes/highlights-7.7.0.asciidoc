@@ -55,9 +55,6 @@ continue until all the results are fetched.
 Unless deleted earlier by the user, the asynchronous searches are kept alive
 for a given interval. This defaults to 5 days and can be controlled by another
 request parameter, `keep_alive`.
-
-This functionality is offered under the free {xpack} Basic license.
-
 // end::notable-highlights[]
 
 // tag::notable-highlights[]

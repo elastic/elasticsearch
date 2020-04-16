@@ -40,7 +40,7 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
 
     @Override
     protected MultiValuesSourceFieldConfig doParseInstance(XContentParser parser) throws IOException {
-        return MultiValuesSourceFieldConfig.parserBuilder(true, true, true).apply(parser, null).build();
+        return MultiValuesSourceFieldConfig.PARSER.apply(true, true, true).apply(parser, null).build();
     }
 
     @Override

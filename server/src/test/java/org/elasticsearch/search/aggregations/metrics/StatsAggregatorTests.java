@@ -49,6 +49,7 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,6 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -71,6 +71,8 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-10;
     private static final String VALUE_SCRIPT_NAME = "value_script";
     private static final String FIELD_SCRIPT_NAME = "field_script";
+
+    // TODO: Script tests, should fail with defaultValuesSourceType disabled.
 
     public void testEmpty() throws IOException {
         final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
@@ -473,7 +475,10 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.NUMERIC);
+        return Arrays.asList(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
     }
 
     @Override

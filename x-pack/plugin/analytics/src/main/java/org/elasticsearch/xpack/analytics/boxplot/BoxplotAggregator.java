@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,8 +58,8 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        if (valuesSource instanceof ValuesSource.Histogram) {
-            final HistogramValues values = ((ValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
+        if (valuesSource instanceof HistogramValuesSource.Histogram) {
+            final HistogramValues values = ((HistogramValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {

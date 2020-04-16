@@ -20,22 +20,44 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
-class MinAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    MinAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(MinAggregationBuilder.NAME,
+            Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new MinMaxAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        ValuesSourceConfig config,
+                                        ValuesSource valuesSource,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        Map<String, Object> metadata) throws IOException {
+                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent, metadata);
+                }
+            });
+    }
+
+    MinAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                         Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -47,11 +69,18 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Nu
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        return new MinAggregator(name, config, valuesSource, searchContext, parent, metadata);
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            MinAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof MinMaxAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MinMaxAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
     }
 }

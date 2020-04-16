@@ -20,14 +20,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric>{
+class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     private final TTestType testType;
     private final int tails;
@@ -35,7 +34,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory<ValuesSo
     private final Query filterB;
     private Tuple<Weight, Weight> weights;
 
-    TTestAggregatorFactory(String name, Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, TTestType testType, int tails,
+    TTestAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs, TTestType testType, int tails,
                            QueryBuilder filterA, QueryBuilder filterB,
                            DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
@@ -65,7 +64,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory<ValuesSo
 
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs,
+                                          Map<String, ValuesSourceConfig> configs,
                                           DocValueFormat format,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,

@@ -206,8 +206,8 @@ public class JdbcAssert {
 
     private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
-        ResultSetMetaData metaData = expected.getMetaData();
-        int columns = metaData.getColumnCount();
+        ResultSetMetaData metadata = expected.getMetaData();
+        int columns = metadata.getColumnCount();
 
         long count = 0;
         try {
@@ -219,10 +219,10 @@ public class JdbcAssert {
                 }
 
                 for (int column = 1; column <= columns; column++) {
-                    int type = metaData.getColumnType(column);
+                    int type = metadata.getColumnType(column);
                     Class<?> expectedColumnClass = null;
                     try {
-                        String columnClassName = metaData.getColumnClassName(column);
+                        String columnClassName = metadata.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
                         if (columnClassName != null && !columnClassName.contains(".")) {
@@ -258,7 +258,7 @@ public class JdbcAssert {
                             : actual.getObject(column);
 
                     String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
-                        metaData.getColumnName(column), count + 1);
+                        metadata.getColumnName(column), count + 1);
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {

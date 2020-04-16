@@ -69,7 +69,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 public class AvgAggregatorTests extends AggregatorTestCase {
@@ -525,7 +524,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         fieldType.setName("value");
         fieldType.setHasDocValues(true);
 
-        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>avg", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))
@@ -715,7 +714,10 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.NUMERIC);
+        return Arrays.asList(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
     }
 
     @Override

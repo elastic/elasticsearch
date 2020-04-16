@@ -36,13 +36,13 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int shardSize;
     private final int maxDocsPerValue;
     private final String executionHint;
 
-    DiversifiedAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, int shardSize, int maxDocsPerValue,
+    DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
                                  String executionHint, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);

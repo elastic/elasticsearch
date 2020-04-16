@@ -56,7 +56,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
                 ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser =
-            MultiValuesSourceFieldConfig.parserBuilder(true, false, false);
+            MultiValuesSourceFieldConfig.PARSER.apply(true, false, false);
         PARSER.declareObjectArray(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
     }
 

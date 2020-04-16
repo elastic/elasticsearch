@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -57,11 +58,12 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                     + "] index level setting.");
         }
         List<TopMetricsAggregator.MetricSource> metricSources = metricFields.stream().map(config -> {
-                    ValuesSourceConfig<ValuesSource.Numeric> resolved = ValuesSourceConfig.resolve(
+                    ValuesSourceConfig resolved = ValuesSourceConfig.resolve(
                             searchContext.getQueryShardContext(), ValueType.NUMERIC,
-                            config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null);
+                            config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
+                        CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
                     return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
-                            resolved.toValuesSource(searchContext.getQueryShardContext()));
+                        (ValuesSource.Numeric) resolved.toValuesSource());
                 }).collect(toList());
         return new TopMetricsAggregator(name, searchContext, parent, metadata, size, sortBuilders.get(0), metricSources);
     }

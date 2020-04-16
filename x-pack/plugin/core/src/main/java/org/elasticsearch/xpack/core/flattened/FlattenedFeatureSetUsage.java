@@ -38,6 +38,11 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {

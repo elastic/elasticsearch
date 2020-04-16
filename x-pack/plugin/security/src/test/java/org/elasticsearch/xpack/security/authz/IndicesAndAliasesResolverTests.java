@@ -1543,7 +1543,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true, false));
             resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
-            assertThat(resolvedIndices.getLocal(), contains("-*")); // -* signals no indices to es core. An empty list means *all* indices
+            // if data streams are to be ignored then this happens in IndexNameExpressionResolver:
+            assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
         }
         {

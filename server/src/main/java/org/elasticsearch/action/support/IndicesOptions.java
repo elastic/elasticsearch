@@ -113,6 +113,9 @@ public class IndicesOptions implements ToXContentFragment {
     public static final IndicesOptions LENIENT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
             EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions LENIENT_INCLUDE_DATA_STREAMS_EXPAND_OPEN =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.INCLUDE_DATA_STREAMS),
+            EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
             EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN));
@@ -463,6 +466,10 @@ public class IndicesOptions implements ToXContentFragment {
      */
     public static IndicesOptions lenientExpandOpen() {
         return LENIENT_EXPAND_OPEN;
+    }
+
+    public static IndicesOptions lenientIncludeDataStreamsExpandOpen() {
+        return LENIENT_INCLUDE_DATA_STREAMS_EXPAND_OPEN;
     }
 
     /**

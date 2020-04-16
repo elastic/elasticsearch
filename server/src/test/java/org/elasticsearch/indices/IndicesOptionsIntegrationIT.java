@@ -646,8 +646,21 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setSource("{}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false);
-        verifyResolvability("logs*", refreshBuilder("logs*"), false);
-        verifyResolvability("logs*", search("logs*"), false, 2);
+
+        String wildcardExpression = "logs*";
+        verifyResolvability(wildcardExpression, refreshBuilder(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, search(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, msearch(null, wildcardExpression), false);
+        verifyResolvability(wildcardExpression, clearCache(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, _flush(wildcardExpression),true);
+        verifyResolvability(wildcardExpression, segments(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, stats(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, forceMerge(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), true);
 
         DeleteDataStreamAction.Request deleteRequest = new DeleteDataStreamAction.Request("*");
         client().admin().indices().deleteDataStream(deleteRequest).actionGet();

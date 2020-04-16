@@ -432,9 +432,8 @@ class IndicesAndAliasesResolver {
             }
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            if (indicesOptions.includeDataStreams() == false) {
-                return false;
-            } else if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
+            // If indicesOptions.includeDataStreams() returns false then we fail later in IndexNameExpressionResolver.
+            if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
                 return true;
             } else {
                 return false;

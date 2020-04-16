@@ -296,28 +296,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      * conversion of AggSpecs into namedWriteables.
      */
     protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries
-            = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+        SearchPlugin plugin = registerPlugin();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugin == null ? emptyList() : List.of(plugin));
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedWriteables());
 
-        Plugin plugin = registerPlugin();
-
-        if (plugin == null) {
-            return entries;
-        }
-
-        entries.addAll(plugin.getNamedWriteables());
-
-        if (plugin instanceof SearchPlugin) {
-            for (SearchPlugin.AggregationSpec spec : ((SearchPlugin)plugin).getAggregations()) {
-                entries.add(new NamedWriteableRegistry.Entry(AggregationBuilder.class,
-                    spec.getName().getPreferredName(), spec.getReader()));
-
-                for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.getResultReaders().entrySet()) {
-                    String writeableName = t.getKey();
-                    Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
-                    entries.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
-                }
-            }
+        // Modules/plugins may have extra namedwriteables that are not added by agg specs
+        if (plugin != null) {
+            entries.addAll(((Plugin) plugin).getNamedWriteables());
         }
 
         return entries;
@@ -327,7 +312,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      * If a test needs to register additional aggregation specs for namedWriteable, etc, this method
      * can be overridden by the implementor.
      */
-    protected Plugin registerPlugin() {
+    protected SearchPlugin registerPlugin() {
         return null;
     }
 

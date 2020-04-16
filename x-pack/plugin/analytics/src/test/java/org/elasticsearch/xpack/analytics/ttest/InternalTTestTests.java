@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -27,7 +27,7 @@ import java.util.Map;
 public class InternalTTestTests extends InternalAggregationTestCase<InternalTTest> {
 
     @Override
-    protected Plugin registerPlugin() {
+    protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
     }
 

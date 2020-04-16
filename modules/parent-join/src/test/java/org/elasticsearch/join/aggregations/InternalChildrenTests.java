@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
@@ -36,7 +36,7 @@ import java.util.Map;
 public class InternalChildrenTests extends InternalSingleBucketAggregationTestCase<InternalChildren> {
 
     @Override
-    protected Plugin registerPlugin() {
+    protected SearchPlugin registerPlugin() {
         return new ParentJoinPlugin();
     }
 

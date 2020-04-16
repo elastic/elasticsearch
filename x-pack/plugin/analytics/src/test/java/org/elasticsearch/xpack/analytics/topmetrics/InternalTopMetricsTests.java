@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -56,7 +56,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.MetricValue(DocValueFormat.RAW, SortValue.from(1));
 
     @Override
-    protected Plugin registerPlugin() {
+    protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
     }
 

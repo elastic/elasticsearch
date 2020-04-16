@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.analytics.stringstats;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
 
     @Override
-    protected Plugin registerPlugin() {
+    protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -50,7 +50,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     private boolean hasMatrixStatsResults;
 
     @Override
-    protected Plugin registerPlugin() {
+    protected SearchPlugin registerPlugin() {
         return new MatrixAggregationPlugin();
     }
 

@@ -58,7 +58,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Settings settings,
         XPackLicenseState licenseState,
         Client client
     ) {

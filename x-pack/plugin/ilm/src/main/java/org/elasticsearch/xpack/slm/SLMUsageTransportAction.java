@@ -30,7 +30,7 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Inject
     public SLMUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   Settings settings, XPackLicenseState licenseState) {
+                                   XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
         this.licenseState = licenseState;

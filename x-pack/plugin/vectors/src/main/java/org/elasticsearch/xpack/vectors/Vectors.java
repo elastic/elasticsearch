@@ -26,8 +26,7 @@ import java.util.Map;
 
 public class Vectors extends Plugin implements MapperPlugin, ActionPlugin {
 
-    public Vectors(Settings settings) {
-    }
+    public Vectors() { }
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

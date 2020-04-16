@@ -18,8 +18,7 @@ import static java.util.Collections.singletonMap;
 
 public class FlattenedMapperPlugin extends Plugin implements MapperPlugin {
 
-    public FlattenedMapperPlugin(Settings settings) {
-    }
+    public FlattenedMapperPlugin() { }
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

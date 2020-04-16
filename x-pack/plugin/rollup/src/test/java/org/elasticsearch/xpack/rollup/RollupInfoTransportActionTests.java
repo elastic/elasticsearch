@@ -57,7 +57,7 @@ public class RollupInfoTransportActionTests extends ESTestCase {
 
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
         var usageAction = new RollupUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+            mock(ActionFilters.class), null, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage rollupUsage = future.get().getUsage();

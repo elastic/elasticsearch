@@ -38,7 +38,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Inject
     public SqlUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   Settings settings, XPackLicenseState licenseState, Client client) {
+                                   XPackLicenseState licenseState, Client client) {
         super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
         this.licenseState = licenseState;

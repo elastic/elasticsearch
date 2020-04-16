@@ -22,7 +22,6 @@ public class LogstashInfoTransportAction extends XPackInfoFeatureTransportAction
     public LogstashInfoTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        Settings settings,
         XPackLicenseState licenseState
     ) {
         super(XPackInfoFeatureAction.LOGSTASH.name(), transportService, actionFilters);

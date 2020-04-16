@@ -20,7 +20,7 @@ public class SqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
     public SqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  Settings settings, XPackLicenseState licenseState) {
+                                  @Deprecated Settings settings, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.SQL.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

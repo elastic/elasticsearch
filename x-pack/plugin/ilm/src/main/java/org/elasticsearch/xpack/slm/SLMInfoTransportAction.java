@@ -20,7 +20,7 @@ public class SLMInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
     public SLMInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  Settings settings, XPackLicenseState licenseState) {
+                                  XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

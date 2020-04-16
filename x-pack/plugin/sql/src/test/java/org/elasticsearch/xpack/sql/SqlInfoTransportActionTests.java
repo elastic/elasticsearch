@@ -110,7 +110,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new SqlUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+            mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();

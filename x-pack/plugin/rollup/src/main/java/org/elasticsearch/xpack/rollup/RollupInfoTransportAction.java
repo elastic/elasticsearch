@@ -20,7 +20,7 @@ public class RollupInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
     public RollupInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                     Settings settings, XPackLicenseState licenseState) {
+                                     @Deprecated Settings settings, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.ROLLUP.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

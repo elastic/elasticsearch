@@ -33,7 +33,6 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Settings settings,
         XPackLicenseState licenseState
     ) {
         super(

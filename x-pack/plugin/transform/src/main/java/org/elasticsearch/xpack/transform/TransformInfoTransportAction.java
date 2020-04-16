@@ -63,7 +63,7 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
     public TransformInfoTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        Settings settings,
+        @Deprecated Settings settings,
         XPackLicenseState licenseState
     ) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);

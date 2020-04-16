@@ -29,7 +29,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
     @Inject
     public RollupUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Settings settings, XPackLicenseState licenseState) {
+                                      XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.ROLLUP.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
         this.licenseState = licenseState;

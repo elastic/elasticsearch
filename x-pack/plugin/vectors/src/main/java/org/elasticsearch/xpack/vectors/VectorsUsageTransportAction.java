@@ -31,16 +31,14 @@ import java.util.Map;
 
 public class VectorsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final Settings settings;
     private final XPackLicenseState licenseState;
 
     @Inject
     public VectorsUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Settings settings, XPackLicenseState licenseState) {
+                                       @Deprecated Settings settings, XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.VECTORS.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.settings = settings;
         this.licenseState = licenseState;
     }
 

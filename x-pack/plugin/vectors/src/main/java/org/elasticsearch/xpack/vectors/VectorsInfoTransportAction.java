@@ -20,7 +20,7 @@ public class VectorsInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Inject
     public VectorsInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      Settings settings, XPackLicenseState licenseState) {
+                                      @Deprecated Settings settings, XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.VECTORS.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

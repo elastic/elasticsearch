@@ -228,6 +228,7 @@ public class DataFrameAnalyticsManager {
                 if (error instanceof TaskCancelledException && task.isStopping()) {
                     LOGGER.debug(new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping",
                         config.getId()), error);
+                    task.markAsCompleted();
                 } else {
                     task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage());
                 }

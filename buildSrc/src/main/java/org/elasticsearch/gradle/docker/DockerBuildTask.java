@@ -1,6 +1,5 @@
 package org.elasticsearch.gradle.docker;
 
-import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
@@ -34,8 +33,7 @@ public class DockerBuildTask extends DefaultTask {
     @Inject
     public DockerBuildTask(WorkerExecutor workerExecutor) {
         this.workerExecutor = workerExecutor;
-        final String markerPath = "markers/" + this.getName() + ".marker";
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file(markerPath));
+        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction

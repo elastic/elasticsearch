@@ -296,7 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     modulesFiles = { oss, platform ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin-x86_64' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
             it.mode = 0755
@@ -310,7 +310,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         } else {
           buildModules = project(':distribution').buildDefaultModules
         }
-        List excludePlatforms = ['linux', 'windows', 'darwin']
+        List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
         if (platform != null) {
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
@@ -318,7 +318,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         from(buildModules) {
           for (String excludePlatform : excludePlatforms) {
-            exclude "**/platform/${excludePlatform}-x86_64/**"
+            exclude "**/platform/${excludePlatform}/**"
           }
         }
         if (project.path.startsWith(':distribution:packages')) {

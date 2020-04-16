@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.HashSet;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -41,6 +40,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -751,7 +751,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMergeNestedMappings() throws IOException {
-        MapperService mapperService = createIndex("index1", Settings.EMPTY, jsonBuilder().startObject()
+        MapperService mapperService = createIndex("index1", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("nested1")
                     .field("type", "nested")

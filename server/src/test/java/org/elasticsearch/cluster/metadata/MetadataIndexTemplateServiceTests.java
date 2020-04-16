@@ -522,23 +522,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(result, equalTo("my-template"));
     }
 
-    public void testFindV2TemplatesNullHiddenIndexFiltersOutGlobalTemplate() throws Exception {
+    public void testFindV2TemplatesNullIsHiddenFlag() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        /*
-         * Create a few index templates matching the following index patterns, in order of priority:
-         *
-         *  i*             -> "my-template", "global-template"
-         *  *              -> "my-template, "global-template", "template-wit-hidden-setting", "my-template4"
-         *  hidden*        -> "global-template", "template-with-hidden-setting"
-         *  cthidden*      -> "global-template", component-template-has-hidden-setting
-         *  false-hidden*  -> "global-template", "template-with-false-hidden-setting"
-         */
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 indexTemplate = new IndexTemplateV2(List.of("i*"), null, List.of("ct"), 20L, 1L, null);
-        state = service.addIndexTemplateV2(state, true, "my-template", indexTemplate);
 
         IndexTemplateV2 globalIndexTemplate = new IndexTemplateV2(List.of("*"), null, List.of("ct"), 15L, 1L, null);
         state = service.addIndexTemplateV2(state, true, "global-template", globalIndexTemplate);
@@ -548,31 +537,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null);
         state = service.addIndexTemplateV2(state, true, "template-with-hidden-setting", idxTemplateWithHiddenSetting);
 
-        Settings settings = builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
-        ComponentTemplate ctWithIndexHiddenSetting = new ComponentTemplate(new Template(settings, null, null), null, null);
-        state = service.addComponentTemplate(state, true, "ct-with-index-hidden-setting", ctWithIndexHiddenSetting);
-        IndexTemplateV2 idxTemplateWithCtHiddenSetting = new IndexTemplateV2(List.of("cthidden*"), null,
-            List.of("ct-with-index-hidden-setting"), 10L, 1L, null);
-        state = service.addIndexTemplateV2(state, true, "component-template-has-hidden-setting", idxTemplateWithCtHiddenSetting);
-
-        Template hiddenSettingFalse = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build(), null, null);
-        IndexTemplateV2 templateWithHiddenSettingFalse = new IndexTemplateV2(List.of("false-hidden*"), hiddenSettingFalse, null, 5L,
-            1L, null);
-        state = service.addIndexTemplateV2(state, true, "template-with-false-hidden-setting", templateWithHiddenSettingFalse);
-
-        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", null), is("my-template"));
-        assertThat("we don't know if the user requested explicitly that the index should be hidden, a template with the hidden " +
-                "setting set to TRUE is matching, so the global template must be excluded",
+        assertThat("the matching global template should not be shadowed by a template with lower priority",
             MetadataIndexTemplateService.findV2Template(state.metadata(), "hidden-index-name", null),
-            is("template-with-hidden-setting"));
-        assertThat("we don't know if the user requested explicitly that the index should be hidden, a template with the hidden " +
-                "setting set to TRUE is matching, so the global template must be excluded",
-            MetadataIndexTemplateService.findV2Template(state.metadata(), "cthidden-index-name", null),
-            is("component-template-has-hidden-setting"));
-        assertThat("we don't know if the user requested explicitly that the index should be hidden, a template with the hidden " +
-                "setting set to FALSE is matching, the global template must STILL be included",
-            MetadataIndexTemplateService.findV2Template(state.metadata(), "false-hidden-index", null),
             is("global-template"));
+
+        try {
+            // add an invalid global template that specifies the `index.hidden` setting
+            IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
+                null);
+            Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
+                new IndexTemplateV2Metadata(Map.of("invalid_global_template", invalidGlobalTemplate))).build();
+
+            MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", null);
+            fail("expecting an exception as the matching global template is invalid");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("A global index V2 template [invalid_global_template], composed of component templates [ct] " +
+                "defined the index.hidden setting, which is not allowed"));
+        }
     }
 
     public void testResolveMappings() throws Exception {

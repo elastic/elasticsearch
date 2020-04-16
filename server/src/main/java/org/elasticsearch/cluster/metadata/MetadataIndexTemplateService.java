@@ -690,34 +690,26 @@ public class MetadataIndexTemplateService {
             return null;
         }
 
-        // this is complex but if the index is not hidden in the create request but is hidden as the result of template application,
-        // then we need to exclude global templates
-        if (isHidden == null) {
-            final Optional<Map.Entry<IndexTemplateV2, String>> templateWithHiddenSetting = matchedTemplates.entrySet().stream()
-                .filter(entry -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, entry.getValue()))).findFirst();
-            if (templateWithHiddenSetting.isPresent()) {
-                Map.Entry<IndexTemplateV2, String> indexTemplateV2ToNameEntry = templateWithHiddenSetting.get();
-                final boolean templateIsHidden =
-                    IndexMetadata.INDEX_HIDDEN_SETTING.get(resolveSettings(metadata, indexTemplateV2ToNameEntry.getValue()));
-                if (templateIsHidden) {
-                    // remove the global templates
-                    matchedTemplates.keySet().removeIf(current -> current.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern));
-                }
-                // validate that hidden didn't change
-                if (matchedTemplates.containsKey(indexTemplateV2ToNameEntry.getKey()) == false) {
-                    throw new IllegalStateException("A global index V2 template [" + indexTemplateV2ToNameEntry.getValue() +
-                        "] defined the index hidden setting, which is not allowed");
-                }
-            }
-        }
-
         final List<IndexTemplateV2> candidates = new ArrayList<>(matchedTemplates.keySet());
         CollectionUtil.timSort(candidates, Comparator.comparing(IndexTemplateV2::priority,
             Comparator.nullsLast(Comparator.reverseOrder())));
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);
-        return matchedTemplates.get(winner);
+        String winnerName = matchedTemplates.get(winner);
+
+        // if the index is not hidden in the create request but the winner template is a global template that specifies the `index.hidden`
+        // setting (which is not allowed, so it'd be due to a restored index cluster state that modified a component template used by this
+        // global template such that it has this setting) we will fail and the user will have to update the index template and remove
+        // this setting or update the corresponding component template that contributes to the index template resolved settings
+        if (isHidden == null) {
+            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+                throw new IllegalStateException("A global index V2 template [" + winnerName + "], composed of component templates [" +
+                    String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
+            }
+        }
+
+        return winnerName;
     }
 
     /**

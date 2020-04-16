@@ -11,13 +11,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.wildcard.mapper.regex.And;
 import org.elasticsearch.xpack.wildcard.mapper.regex.Leaf;
 import org.elasticsearch.xpack.wildcard.mapper.regex.True;
-import org.junit.Test;
 
 import static org.elasticsearch.xpack.wildcard.mapper.regex.Leaf.leaves;
 
 public class NGramExtractorTest extends ESTestCase {
-    @Test
-    public void simple() {
+    public void testSimple() {
         NGramExtractor gram = new NGramExtractor(3, 4, 10000, 100);
         Automaton automaton = new RegExp("hero of legend").toAutomaton();
         assertEquals(
@@ -34,8 +32,7 @@ public class NGramExtractorTest extends ESTestCase {
         assertEquals(new Leaf<>("her"), gram.extract(automaton));
     }
 
-    @Test
-    public void maxNgrams() {
+    public void testMaxNgrams() {
         NGramExtractor gram = new NGramExtractor(3, 4, 10000, 3);
         Automaton automaton = new RegExp("hero of legend").toAutomaton();
         assertEquals(

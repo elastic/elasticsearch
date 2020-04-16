@@ -22,9 +22,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -618,7 +618,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             // advance the cursor for changed bucket detection
             return new IterationResult<>(Collections.emptyList(), new TransformIndexerPosition(null, changedBucketsAfterKey), false);
-
         }
 
         long docsBeforeProcess = getStats().getNumDocuments();
@@ -715,12 +714,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected QueryBuilder buildFilterQuery() {
         assert nextCheckpoint != null;
 
-        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+        QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         TransformConfig config = getConfig();
         if (this.isContinuous()) {
 
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder);
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder);
 
             if (lastCheckpoint != null) {
                 filteredQuery.filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
@@ -730,7 +729,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return filteredQuery;
         }
 
-        return pivotQueryBuilder;
+        return queryBuilder;
     }
 
     @Override
@@ -763,14 +762,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         TransformIndexerPosition position = getPosition();
 
-        CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
-        changesAgg.aggregateAfter(position != null ? position.getBucketsPosition() : null);
-        sourceBuilder.aggregation(changesAgg);
+        pivot.buildChangedBucketsQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, pageSize);
 
-        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+        QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         TransformConfig config = getConfig();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
 
         sourceBuilder.query(filteredQuery);
@@ -782,32 +779,34 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private SearchSourceBuilder buildUpdateQuery(SearchSourceBuilder sourceBuilder) {
         TransformIndexerPosition position = getPosition();
 
-        sourceBuilder.aggregation(pivot.buildAggregation(position != null ? position.getIndexerPosition() : null, pageSize));
         TransformConfig config = getConfig();
+        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
-        QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
+        AggregationBuilder aggregation = pivot.aggregation(position != null ? position.getIndexerPosition() : null, pageSize);
+
+        if (aggregation != null) {
+            sourceBuilder.aggregation(aggregation);
+        }
 
         // if its either the 1st run or not continuous, do not apply extra filters
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
-            sourceBuilder.query(pivotQueryBuilder);
+            sourceBuilder.query(queryBuilder);
             logger.trace("running query: {}", sourceBuilder);
 
             return sourceBuilder;
         }
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
-        QueryBuilder pivotFilter = pivot.filterBuckets(
-            changedBuckets,
-            config.getSyncConfig().getField(),
-            lastCheckpoint.getTimeUpperBound()
-        );
-        if (pivotFilter != null) {
-            filteredQuery.filter(pivotFilter);
+        QueryBuilder filter = pivot.filter(changedBuckets, config.getSyncConfig().getField(), lastCheckpoint.getTimeUpperBound());
+
+        if (filter != null) {
+            filteredQuery.filter(filter);
         }
 
         sourceBuilder.query(filteredQuery);
+
         logger.trace("running query: {}", sourceBuilder);
 
         return sourceBuilder;

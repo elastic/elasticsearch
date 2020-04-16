@@ -137,7 +137,7 @@ public class Pivot {
 
         SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(buildAggregation(position, pageSize));
+        sourceBuilder.aggregation(aggregation(position, pageSize));
         sourceBuilder.size(0);
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
@@ -147,19 +147,19 @@ public class Pivot {
         return searchRequest;
     }
 
-    public AggregationBuilder buildAggregation(Map<String, Object> position, int pageSize) {
+    public AggregationBuilder aggregation(Map<String, Object> position, int pageSize) {
         cachedCompositeAggregation.aggregateAfter(position);
         cachedCompositeAggregation.size(pageSize);
 
         return cachedCompositeAggregation;
     }
 
-    public CompositeAggregationBuilder buildIncrementalBucketUpdateAggregation(int pageSize) {
+    public SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {
 
-        CompositeAggregationBuilder compositeAgg = createCompositeAggregationSources(config, true);
-        compositeAgg.size(pageSize);
-
-        return compositeAgg;
+        CompositeAggregationBuilder changesAgg = createCompositeAggregationSources(config, true);
+        changesAgg.size(pageSize).aggregateAfter(position);
+        sourceBuilder.aggregation(changesAgg);
+        return sourceBuilder;
     }
 
     public Map<String, Set<String>> initialIncrementalBucketUpdateMap() {
@@ -197,11 +197,7 @@ public class Pivot {
         );
     }
 
-    public QueryBuilder filterBuckets(
-        Map<String, Set<String>> changedBuckets,
-        String synchronizationField,
-        long lastSynchronizationCheckpoint
-    ) {
+    public QueryBuilder filter(Map<String, Set<String>> changedBuckets, String synchronizationField, long lastSynchronizationCheckpoint) {
         assert changedBuckets != null;
 
         if (config.getGroupConfig().getGroups().size() == 1) {

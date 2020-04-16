@@ -10,22 +10,22 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 
 import java.util.Objects;
 
-public class AggTarget {
+public class AggSource {
 
     private final String fieldName;
     private final ScriptTemplate script;
 
-    private AggTarget(String fieldName, ScriptTemplate script) {
+    private AggSource(String fieldName, ScriptTemplate script) {
         this.fieldName = fieldName;
         this.script = script;
     }
 
-    public static AggTarget of(String fieldName) {
-        return new AggTarget(fieldName, null);
+    public static AggSource of(String fieldName) {
+        return new AggSource(fieldName, null);
     }
 
-    public static AggTarget of(ScriptTemplate script) {
-        return new AggTarget(null, script);
+    public static AggSource of(ScriptTemplate script) {
+        return new AggSource(null, script);
     }
 
     @SuppressWarnings("rawtypes")
@@ -59,8 +59,8 @@ public class AggTarget {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        AggTarget aggTarget = (AggTarget) o;
-        return Objects.equals(fieldName, aggTarget.fieldName) && Objects.equals(script, aggTarget.script);
+        AggSource aggSource = (AggSource) o;
+        return Objects.equals(fieldName, aggSource.fieldName) && Objects.equals(script, aggSource.script);
     }
 
     @Override

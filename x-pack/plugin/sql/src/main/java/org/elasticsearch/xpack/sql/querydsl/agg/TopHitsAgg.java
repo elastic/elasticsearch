@@ -24,22 +24,22 @@ import static org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing.LAST;
 
 public class TopHitsAgg extends LeafAgg {
 
-    private final AggTarget sortTarget;
+    private final AggSource sortSource;
     private final SortOrder sortOrder;
     private final DataType fieldDataType;
     private final DataType sortFieldDataType;
 
     public TopHitsAgg(
         String id,
-        AggTarget target,
+        AggSource source,
         DataType fieldDataType,
-        AggTarget sortTarget,
+        AggSource sortSource,
         DataType sortFieldDataType,
         SortOrder sortOrder
     ) {
-        super(id, target);
+        super(id, source);
         this.fieldDataType = fieldDataType;
-        this.sortTarget = sortTarget;
+        this.sortSource = sortSource;
         this.sortOrder = sortOrder;
         this.sortFieldDataType = sortFieldDataType;
     }
@@ -48,18 +48,18 @@ public class TopHitsAgg extends LeafAgg {
     AggregationBuilder toBuilder() {
         // Sort missing values (NULLs) as last to get the first/last non-null value
         List<SortBuilder<?>> sortBuilderList = new ArrayList<>(2);
-        if (sortTarget != null) {
-            if (sortTarget.fieldName() != null) {
+        if (sortSource!= null) {
+            if (sortSource.fieldName() != null) {
                 sortBuilderList.add(
-                    new FieldSortBuilder(sortTarget.fieldName()).order(sortOrder)
+                    new FieldSortBuilder(sortSource.fieldName()).order(sortOrder)
                         .missing(LAST.position())
                         .unmappedType(sortFieldDataType.esType())
                 );
-            } else if (sortTarget.script() != null) {
+            } else if (sortSource.script() != null) {
                 sortBuilderList.add(
                     new ScriptSortBuilder(
-                        Scripts.nullSafeSort(sortTarget.script()).toPainless(),
-                        sortTarget.script().outputType().isNumeric()
+                        Scripts.nullSafeSort(sortSource.script()).toPainless(),
+                        sortSource.script().outputType().isNumeric()
                             ? ScriptSortBuilder.ScriptSortType.NUMBER
                             : ScriptSortBuilder.ScriptSortType.STRING
                     ).order(sortOrder)
@@ -67,15 +67,15 @@ public class TopHitsAgg extends LeafAgg {
             }
         }
 
-        if (target().fieldName() != null) {
+        if (source().fieldName() != null) {
             sortBuilderList.add(
-                new FieldSortBuilder(target().fieldName()).order(sortOrder).missing(LAST.position()).unmappedType(fieldDataType.esType())
+                new FieldSortBuilder(source().fieldName()).order(sortOrder).missing(LAST.position()).unmappedType(fieldDataType.esType())
             );
         } else {
             sortBuilderList.add(
                 new ScriptSortBuilder(
-                    Scripts.nullSafeSort(target().script()).toPainless(),
-                    target().script().outputType().isNumeric()
+                    Scripts.nullSafeSort(source().script()).toPainless(),
+                    source().script().outputType().isNumeric()
                         ? ScriptSortBuilder.ScriptSortType.NUMBER
                         : ScriptSortBuilder.ScriptSortType.STRING
                 ).order(sortOrder)
@@ -83,16 +83,16 @@ public class TopHitsAgg extends LeafAgg {
         }
 
         TopHitsAggregationBuilder builder = topHits(id());
-        if (target().fieldName() != null) {
-            return builder.docValueField(target().fieldName(), SqlDataTypes.format(fieldDataType)).sorts(sortBuilderList).size(1);
+        if (source().fieldName() != null) {
+            return builder.docValueField(source().fieldName(), SqlDataTypes.format(fieldDataType)).sorts(sortBuilderList).size(1);
         } else {
-            return builder.scriptField(id(), target().script().toPainless()).sorts(sortBuilderList).size(1);
+            return builder.scriptField(id(), source().script().toPainless()).sorts(sortBuilderList).size(1);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sortTarget, sortOrder, fieldDataType, sortFieldDataType);
+        return Objects.hash(super.hashCode(), sortSource, sortOrder, fieldDataType, sortFieldDataType);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class TopHitsAgg extends LeafAgg {
             return false;
         }
         TopHitsAgg that = (TopHitsAgg) o;
-        return Objects.equals(sortTarget, that.sortTarget) &&
+        return Objects.equals(sortSource, that.sortSource) &&
                 sortOrder==that.sortOrder &&
                 Objects.equals(fieldDataType, that.fieldDataType) &&
                 Objects.equals(sortFieldDataType, that.sortFieldDataType);

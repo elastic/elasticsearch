@@ -16,15 +16,15 @@ public class PercentilesAgg extends LeafAgg {
 
     private final List<Double> percents;
 
-    public PercentilesAgg(String id, AggTarget target, List<Double> percents) {
-        super(id, target);
+    public PercentilesAgg(String id, AggSource source, List<Double> percents) {
+        super(id, source);
         this.percents = percents;
     }
 
     @Override
     AggregationBuilder toBuilder() {
         // TODO: look at keyed
-        PercentilesAggregationBuilder builder = (PercentilesAggregationBuilder) addFieldOrScript(percentiles(id()));
+        PercentilesAggregationBuilder builder = (PercentilesAggregationBuilder) addAggSource(percentiles(id()));
         return builder.percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray());
     }
 }

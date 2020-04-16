@@ -11,12 +11,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 
 public class MinAgg extends LeafAgg {
 
-    public MinAgg(String id, AggTarget target) {
-        super(id, target);
+    public MinAgg(String id, AggSource source) {
+        super(id, source);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return addFieldOrScript(min(id()));
+        return addAggSource(min(id()));
     }
 }

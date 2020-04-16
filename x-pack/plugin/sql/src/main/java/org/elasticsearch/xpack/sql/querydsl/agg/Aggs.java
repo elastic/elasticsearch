@@ -39,7 +39,7 @@ public class Aggs {
 
     public static final String ROOT_GROUP_NAME = "groupby";
 
-    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, AggTarget.of(StringUtils.EMPTY), null) {
+    public static final GroupByKey IMPLICIT_GROUP_KEY = new GroupByKey(ROOT_GROUP_NAME, AggSource.of(StringUtils.EMPTY), null) {
 
         @Override
         public CompositeValuesSourceBuilder<?> createSourceBuilder() {
@@ -47,7 +47,7 @@ public class Aggs {
         }
 
         @Override
-        protected GroupByKey copy(String id, AggTarget target, Direction direction) {
+        protected GroupByKey copy(String id, AggSource source, Direction direction) {
             return this;
         }
     };

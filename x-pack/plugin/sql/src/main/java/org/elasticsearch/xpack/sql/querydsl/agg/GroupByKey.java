@@ -26,19 +26,19 @@ public abstract class GroupByKey extends Agg {
 
     protected final Direction direction;
 
-    protected GroupByKey(String id, AggTarget target, Direction direction) {
-        super(id, target);
+    protected GroupByKey(String id, AggSource source, Direction direction) {
+        super(id, source);
         // ASC is the default order of CompositeValueSource
         this.direction = direction == null ? Direction.ASC : direction;
     }
 
     public ScriptTemplate script() {
-        return target().script();
+        return source().script();
     }
 
     public final CompositeValuesSourceBuilder<?> asValueSource() {
         CompositeValuesSourceBuilder<?> builder = createSourceBuilder();
-        ScriptTemplate script = target().script();
+        ScriptTemplate script = source().script();
         if (script != null) {
             builder.script(script.toPainless());
             if (script.outputType().isInteger()) {
@@ -61,7 +61,7 @@ public abstract class GroupByKey extends Agg {
         }
         // field based
         else {
-            builder.field(target().fieldName());
+            builder.field(source().fieldName());
         }
         return builder.order(direction.asOrder())
                .missingBucket(true);
@@ -69,10 +69,10 @@ public abstract class GroupByKey extends Agg {
 
     protected abstract CompositeValuesSourceBuilder<?> createSourceBuilder();
 
-    protected abstract GroupByKey copy(String id, AggTarget target, Direction direction);
+    protected abstract GroupByKey copy(String id, AggSource source, Direction direction);
 
     public GroupByKey with(Direction direction) {
-        return this.direction == direction ? this : copy(id(), target(), direction);
+        return this.direction == direction ? this : copy(id(), source(), direction);
     }
 
     @Override

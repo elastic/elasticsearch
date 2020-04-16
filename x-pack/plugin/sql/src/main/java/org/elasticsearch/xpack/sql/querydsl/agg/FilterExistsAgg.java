@@ -21,16 +21,16 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.Scripts.formatTem
  */
 public class FilterExistsAgg extends LeafAgg {
 
-    public FilterExistsAgg(String id, AggTarget target) {
-        super(id, target);
+    public FilterExistsAgg(String id, AggSource source) {
+        super(id, source);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        if (target().fieldName() != null) {
-            return filter(id(), QueryBuilders.existsQuery(target().fieldName()));
+        if (source().fieldName() != null) {
+            return filter(id(), QueryBuilders.existsQuery(source().fieldName()));
         } else {
-            return filter(id(), QueryBuilders.scriptQuery(wrapWithIsNotNull(target().script()).toPainless()));
+            return filter(id(), QueryBuilders.scriptQuery(wrapWithIsNotNull(source().script()).toPainless()));
         }
     }
 

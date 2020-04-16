@@ -16,25 +16,25 @@ import static java.lang.String.format;
 public abstract class Agg {
 
     private final String id;
-    private final AggTarget target;
+    private final AggSource source;
 
-    Agg(String id, AggTarget target) {
+    Agg(String id, AggSource source) {
         this.id = id;
-        Objects.requireNonNull(target, "AggTarget must not be null");
-        this.target = target;
+        Objects.requireNonNull(source, "AggSource must not be null");
+        this.source = source;
     }
 
     public String id() {
         return id;
     }
 
-    public AggTarget target() {
-        return target;
+    public AggSource source() {
+        return source;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id) + target.hashCode();
+        return Objects.hash(id) + source.hashCode();
     }
 
     @Override
@@ -49,11 +49,11 @@ public abstract class Agg {
 
         Agg other = (Agg) obj;
         return Objects.equals(id, other.id)
-            && Objects.equals(target, other.target);
+            && Objects.equals(source, other.source);
     }
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s(%s)", getClass().getSimpleName(), target.toString());
+        return format(Locale.ROOT, "%s(%s)", getClass().getSimpleName(), source.toString());
     }
 }

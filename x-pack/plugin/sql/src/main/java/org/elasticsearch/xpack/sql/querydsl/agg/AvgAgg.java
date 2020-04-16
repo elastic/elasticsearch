@@ -11,12 +11,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 
 public class AvgAgg extends LeafAgg {
 
-    public AvgAgg(String id, AggTarget target) {
-        super(id, target);
+    public AvgAgg(String id, AggSource source) {
+        super(id, source);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return addFieldOrScript(avg(id()));
+        return addAggSource(avg(id()));
     }
 }

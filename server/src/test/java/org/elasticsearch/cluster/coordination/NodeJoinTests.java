@@ -71,6 +71,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -193,7 +194,7 @@ public class NodeJoinTests extends ESTestCase {
     protected DiscoveryNode newNode(int i, boolean master) {
         final Set<DiscoveryNodeRole> roles;
         if (master) {
-            roles = Collections.singleton(DiscoveryNodeRole.MASTER_ROLE);
+            roles = singleton(DiscoveryNodeRole.MASTER_ROLE);
         } else {
             roles = Collections.emptySet();
         }
@@ -391,6 +392,45 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(new JoinRequest(node1, newerTerm,
             Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))));
         assertTrue(isLocalNodeElectedMaster());
+    }
+
+    public void testJoinUpdateVotingConfigExclusion() throws Exception {
+        DiscoveryNode initialNode = newNode(0, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+
+        CoordinationMetadata.VotingConfigExclusion votingConfigExclusion = new CoordinationMetadata.VotingConfigExclusion(
+                                                        CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
+
+        setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
+                                                                                                initialVersion, votingConfigExclusion));
+
+        DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
+                                                            emptyMap(), singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+        long newerTerm = newTerm + randomLongBetween(1, 10);
+
+        joinNodeAndRun(new JoinRequest(knownJoiningNode, initialTerm,
+            Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))));
+
+        assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+        }));
+    }
+
+    private ClusterState buildStateWithVotingConfigExclusion(DiscoveryNode initialNode,
+                                                             long initialTerm,
+                                                             long initialVersion,
+                                                             CoordinationMetadata.VotingConfigExclusion votingConfigExclusion) {
+        ClusterState initialState = initialState(initialNode, initialTerm, initialVersion,
+                                                    new VotingConfiguration(singleton(initialNode.getId())));
+        Metadata newMetadata = Metadata.builder(initialState.metadata())
+                                        .coordinationMetadata(CoordinationMetadata.builder(initialState.coordinationMetadata())
+                                                                                    .addVotingConfigExclusion(votingConfigExclusion)
+                                                                                    .build())
+                                        .build();
+
+        return ClusterState.builder(initialState).metadata(newMetadata).build();
     }
 
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {

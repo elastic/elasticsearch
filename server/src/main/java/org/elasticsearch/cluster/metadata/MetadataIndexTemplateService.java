@@ -705,7 +705,7 @@ public class MetadataIndexTemplateService {
         if (isHidden == null) {
             if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
                 IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
-                throw new IllegalStateException("A global index V2 template [" + winnerName + "], composed of component templates [" +
+                throw new IllegalStateException("global index template [" + winnerName + "], composed of component templates [" +
                     String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
             }
         }

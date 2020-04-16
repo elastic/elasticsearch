@@ -231,9 +231,7 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
       ]
     }
   }
-  buildDockerImageTask.onlyIf {
-    Architecture.current().name().toLowerCase().equals(architecture)
-  }
+  buildDockerImageTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
   assemble.dependsOn(buildDockerImageTask)
 }
 

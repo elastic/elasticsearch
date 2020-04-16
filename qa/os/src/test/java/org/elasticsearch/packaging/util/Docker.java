@@ -490,13 +490,14 @@ public class Docker {
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
+        // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
-        // pigz is useful for compressing large heapdumps more quickly than gzip.
-        Stream.of("zip", "unzip", "pigz")
+        // pigz is useful for compressing large heap dumps more quickly than gzip.
+        Stream.of("zip", "unzip", "pigz", "nc")
             .forEach(
-                cliPackage -> assertTrue(
-                    cliPackage + " ought to be installed. ",
-                    dockerShell.runIgnoreExitCode("which " + cliPackage).isSuccess()
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be installed. ",
+                    dockerShell.runIgnoreExitCode("which " + cliBinary).isSuccess()
                 )
             );
     }

@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.text.ParsePosition;
 import java.util.Objects;
 
 public class ToNumberFunctionProcessor implements Processor {
@@ -44,23 +41,11 @@ public class ToNumberFunctionProcessor implements Processor {
     }
 
     private static Number parseDecimal(String source) {
-        DecimalFormat df = new DecimalFormat();
-        DecimalFormatSymbols otherSymbols = new DecimalFormatSymbols();
-        ParsePosition position = new ParsePosition(0);
-
-        otherSymbols.setDecimalSeparator('.');
-        df.setGroupingUsed(false);
-        df.setDecimalFormatSymbols(otherSymbols);
-        df.setNegativePrefix("-");
-
-        // base 10 has to allow for doubles, but others are integer only
-        Number parsed = df.parse(source, position);
-
-        if (parsed == null || position.getIndex() < source.length()) {
-            throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", source, 10);
+        try {
+            return Integer.valueOf(source);
+        } catch (NumberFormatException e) {
+            return Double.valueOf(source);
         }
-
-        return parsed;
     }
 
     public static Object doProcess(Object value, Object base) {

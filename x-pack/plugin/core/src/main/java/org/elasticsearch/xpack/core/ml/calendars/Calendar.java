@@ -111,7 +111,7 @@ public class Calendar implements ToXContentObject, Writeable {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TYPE.getPreferredName(), CALENDAR_TYPE);
         }
         builder.endObject();

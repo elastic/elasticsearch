@@ -28,6 +28,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.Token;
 import org.apache.lucene.queryparser.classic.XQueryParser;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -151,6 +152,12 @@ public class QueryStringQueryParser extends XQueryParser {
         queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
+    }
+
+    @Override
+    public void setEnablePositionIncrements(boolean enable) {
+        super.setEnablePositionIncrements(enable);
+        queryBuilder.setEnablePositionIncrements(enable);
     }
 
     @Override
@@ -457,7 +464,7 @@ public class QueryStringQueryParser extends XQueryParser {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits(minSimilarity),
-                getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions);
+                getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions, context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -582,7 +589,7 @@ public class QueryStringQueryParser extends XQueryParser {
                 if (isLastPos) {
                     posQuery = currentFieldType.prefixQuery(plist.get(0), getMultiTermRewriteMethod(), context);
                 } else {
-                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                    posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
@@ -607,7 +614,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query existsQuery(String fieldName) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             return new MatchNoDocsQuery("No mappings yet");
         }

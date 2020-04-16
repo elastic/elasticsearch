@@ -43,6 +43,7 @@ public class EnableAssignmentDecider {
 
     public static final Setting<Allocation> CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING =
         new Setting<>("cluster.persistent_tasks.allocation.enable", Allocation.ALL.toString(), Allocation::fromString, Dynamic, NodeScope);
+    public static final String ALLOCATION_NONE_EXPLANATION = "no persistent task assignments are allowed due to cluster settings";
 
     private volatile Allocation enableAssignment;
 
@@ -64,7 +65,7 @@ public class EnableAssignmentDecider {
      */
     public AssignmentDecision canAssign() {
         if (enableAssignment == Allocation.NONE) {
-            return new AssignmentDecision(AssignmentDecision.Type.NO, "no persistent task assignments are allowed due to cluster settings");
+            return new AssignmentDecision(AssignmentDecision.Type.NO, ALLOCATION_NONE_EXPLANATION);
         }
         return AssignmentDecision.YES;
     }

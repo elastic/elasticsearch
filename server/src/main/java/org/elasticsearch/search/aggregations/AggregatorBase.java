@@ -23,7 +23,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -46,13 +46,12 @@ public abstract class AggregatorBase extends Aggregator {
     protected final String name;
     protected final Aggregator parent;
     protected final SearchContext context;
-    private final Map<String, Object> metaData;
+    private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
     protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
-    private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
 
@@ -63,24 +62,23 @@ public abstract class AggregatorBase extends Aggregator {
      * @param factories             The factories for all the sub-aggregators under this aggregator
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
-     * @param metaData              The metaData associated with this aggregator
+     * @param metadata              The metadata associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.pipelineAggregators = pipelineAggregators;
-        this.metaData = metaData;
+        this.metadata = metadata;
         this.parent = parent;
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(this);
+        this.subAggregators = factories.createSubAggregators(context, this);
         context.addReleasable(this, Lifetime.PHASE);
+        final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
             void badState(){
-                throw new QueryPhaseExecutionException(AggregatorBase.this.context,
-                        "preCollection not called on new Aggregator before use", null);
+                throw new QueryPhaseExecutionException(shardTarget, "preCollection not called on new Aggregator before use", null);
             }
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
@@ -147,12 +145,8 @@ public abstract class AggregatorBase extends Aggregator {
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    public Map<String, Object> metaData() {
-        return this.metaData;
-    }
-
-    public List<PipelineAggregator> pipelineAggregators() {
-        return this.pipelineAggregators;
+    public Map<String, Object> metadata() {
+        return this.metadata;
     }
 
     /**

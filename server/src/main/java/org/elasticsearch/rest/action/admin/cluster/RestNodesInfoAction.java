@@ -26,40 +26,33 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = Sets.newHashSet(
-            "http",
-            "ingest",
-            "indices",
-            "jvm",
-            "os",
-            "plugins",
-            "process",
-            "settings",
-            "thread_pool",
-            "transport");
+    static final Set<String> ALLOWED_METRICS = NodesInfoRequest.Metric.allMetrics();
 
     private final SettingsFilter settingsFilter;
 
-    public RestNodesInfoAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
-        super(settings);
-        controller.registerHandler(GET, "/_nodes", this);
-        // this endpoint is used for metrics, not for node IDs, like /_nodes/fs
-        controller.registerHandler(GET, "/_nodes/{nodeId}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/{metrics}", this);
-        // added this endpoint to be aligned with stats
-        controller.registerHandler(GET, "/_nodes/{nodeId}/info/{metrics}", this);
-
+    public RestNodesInfoAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_nodes"),
+            // this endpoint is used for metrics, not for node IDs, like /_nodes/fs
+            new Route(GET, "/_nodes/{nodeId}"),
+            new Route(GET, "/_nodes/{nodeId}/{metrics}"),
+            // added this endpoint to be aligned with stats
+            new Route(GET, "/_nodes/{nodeId}/info/{metrics}"));
     }
 
     @Override
@@ -105,16 +98,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.all();
         } else {
             nodesInfoRequest.clear();
-            nodesInfoRequest.settings(metrics.contains("settings"));
-            nodesInfoRequest.os(metrics.contains("os"));
-            nodesInfoRequest.process(metrics.contains("process"));
-            nodesInfoRequest.jvm(metrics.contains("jvm"));
-            nodesInfoRequest.threadPool(metrics.contains("thread_pool"));
-            nodesInfoRequest.transport(metrics.contains("transport"));
-            nodesInfoRequest.http(metrics.contains("http"));
-            nodesInfoRequest.plugins(metrics.contains("plugins"));
-            nodesInfoRequest.ingest(metrics.contains("ingest"));
-            nodesInfoRequest.indices(metrics.contains("indices"));
+            // disregard unknown metrics
+            metrics.retainAll(ALLOWED_METRICS);
+            nodesInfoRequest.addMetrics(metrics.toArray(String[]::new));
         }
         return nodesInfoRequest;
     }

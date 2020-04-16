@@ -35,8 +35,8 @@ public class PercolateWithNestedQueryBuilderTests extends PercolateQueryBuilderT
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         super.initializeAdditionalMappings(mapperService);
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(
-                "_doc", "some_nested_object", "type=nested"))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
+                "some_nested_object", "type=nested"))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     public void testDetectsNestedDocuments() throws IOException {

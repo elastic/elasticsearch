@@ -51,7 +51,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
@@ -73,7 +72,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected TransportSingleShardAction(String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
                                          String executor) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -85,9 +84,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         this.executor = executor;
 
         if (!isSubAction()) {
-            transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
+            transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, request, new TransportHandler());
         }
-        transportService.registerRequestHandler(transportShardAction, request, ThreadPool.Names.SAME, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, request, new ShardTransportHandler());
     }
 
     /**
@@ -107,12 +106,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        threadPool.executor(getExecutor(request, shardId)).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() throws Exception {
-                listener.onResponse(shardOperation(request, shardId));
-            }
-        });
+        threadPool.executor(getExecutor(request, shardId))
+            .execute(ActionRunnable.supply(listener, () -> shardOperation(request, shardId)));
     }
 
     protected abstract Writeable.Reader<Response> getResponseReader();
@@ -280,7 +275,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         @Override
         public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
-            execute(request, new ChannelActionListener<>(channel, actionName, request));
+            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
         }
     }
 

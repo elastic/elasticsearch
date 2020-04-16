@@ -43,9 +43,8 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
-                                     DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                                     DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
                     + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
@@ -119,7 +118,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalMax reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -156,14 +155,18 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalPercentilesBucket that = (InternalPercentilesBucket) obj;
         return Arrays.equals(percents, that.percents) && Arrays.equals(percentiles, that.percentiles);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(Arrays.hashCode(percents), Arrays.hashCode(percentiles));
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), Arrays.hashCode(percentiles));
     }
 
     public static class Iter implements Iterator<Percentile> {

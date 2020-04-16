@@ -21,7 +21,6 @@
       get: { index:  test_1, id: 1, _source: false }
 
   - match:   { _index:   test_1  }
-  - match:   { _type: _doc }
   - match:   { _id:      "1"       }
   - is_false:  _source
 
@@ -60,7 +59,6 @@
         _source: true
 
   - match:   { _index:   test_1  }
-  - match:   { _type: _doc }
   - match:   { _id:      "1"       }
   - match:   { fields.count:  [1] }
   - match:   { _source.include.field1: v1 }

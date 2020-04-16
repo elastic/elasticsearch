@@ -1,44 +1,50 @@
 {
-  "ml.flush_job": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [
-        "/_ml/anomaly_detectors/{job_id}/_flush"
-      ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The name of the job to flush"
+  "ml.flush_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html",
+      "description":"Forces any buffered data to be processed by the job."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_flush",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The name of the job to flush"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "calc_interim":{
+        "type":"boolean",
+        "description":"Calculates interim results for the most recent bucket or all buckets within the latency period"
       },
-      "params": {
-        "calc_interim": {
-          "type": "boolean",
-          "description": "Calculates interim results for the most recent bucket or all buckets within the latency period"
-        },
-        "start": {
-          "type": "string",
-          "description": "When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
-        },
-        "end": {
-          "type": "string",
-          "description": "When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
-        },
-        "advance_time": {
-          "type": "string",
-          "description": "Advances time to the given value generating results and updating the model for the advanced interval"
-        },
-        "skip_time": {
-          "type": "string",
-          "description": "Skips time to the given value without generating results or updating the model for the skipped interval"
-        }
+      "start":{
+        "type":"string",
+        "description":"When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
+      },
+      "end":{
+        "type":"string",
+        "description":"When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
+      },
+      "advance_time":{
+        "type":"string",
+        "description":"Advances time to the given value generating results and updating the model for the advanced interval"
+      },
+      "skip_time":{
+        "type":"string",
+        "description":"Skips time to the given value without generating results or updating the model for the skipped interval"
       }
     },
-    "body": {
-      "description": "Flush parameters"
+    "body":{
+      "description":"Flush parameters"
     }
   }
 }

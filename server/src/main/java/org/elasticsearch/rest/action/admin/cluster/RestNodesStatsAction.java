@@ -24,52 +24,45 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
-    public RestNodesStatsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_nodes/stats", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 
-        controller.registerHandler(GET, "/_nodes/stats/{metric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
-
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{index_metric}", this);
-
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_nodes/stats"),
+            new Route(GET, "/_nodes/{nodeId}/stats"),
+            new Route(GET, "/_nodes/stats/{metric}"),
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}"),
+            new Route(GET, "/_nodes/stats/{metric}/{index_metric}"),
+            new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}"));
     }
 
-    static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(
-            entry("os", r -> r.os(true)),
-            entry("jvm", r -> r.jvm(true)),
-            entry("thread_pool", r -> r.threadPool(true)),
-            entry("fs", r -> r.fs(true)),
-            entry("transport", r -> r.transport(true)),
-            entry("http", r -> r.http(true)),
-            entry("indices", r -> r.indices(true)),
-            entry("process", r -> r.process(true)),
-            entry("breaker", r -> r.breaker(true)),
-            entry("script", r -> r.script(true)),
-            entry("discovery", r -> r.discovery(true)),
-            entry("ingest", r -> r.ingest(true)),
-            entry("adaptive_selection", r -> r.adaptiveSelection(true)));
+    static final Map<String, Consumer<NodesStatsRequest>> METRICS;
+
+    static {
+        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
+        for (NodesStatsRequest.Metric metric : NodesStatsRequest.Metric.values()) {
+            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
+        }
+        map.put("indices", request -> request.indices(true));
+        METRICS = Collections.unmodifiableMap(map);
+    }
 
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 
@@ -174,9 +167,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
         }
         if (nodesStatsRequest.indices().isSet(Flag.Search) && (request.hasParam("groups"))) {
             nodesStatsRequest.indices().groups(request.paramAsStringArray("groups", null));
-        }
-        if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
-            nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
         }
         if (nodesStatsRequest.indices().isSet(Flag.Segments)) {
             nodesStatsRequest.indices().includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));

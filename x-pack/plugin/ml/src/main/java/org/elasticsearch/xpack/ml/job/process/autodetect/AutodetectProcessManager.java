@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -26,14 +27,14 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -57,7 +58,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -66,7 +67,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.io.IOException;
@@ -92,15 +93,16 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AutodetectProcessManager.class);
 
     private final Client client;
-    private final Environment environment;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
+    private final IndexNameExpressionResolver expressionResolver;
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
+    private final AnnotationPersister annotationPersister;
 
     private NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
@@ -109,26 +111,28 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private final NamedXContentRegistry xContentRegistry;
 
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
 
     private volatile boolean upgradeInProgress;
 
-    public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
-                                    NamedXContentRegistry xContentRegistry, Auditor auditor, ClusterService clusterService,
+    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
+                                    NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor, ClusterService clusterService,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister, AutodetectProcessFactory autodetectProcessFactory,
-                                    NormalizerFactory normalizerFactory, NativeStorageProvider nativeStorageProvider) {
-        this.environment = environment;
+                                    JobDataCountsPersister jobDataCountsPersister, AnnotationPersister annotationPersister,
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+                                    NativeStorageProvider nativeStorageProvider, IndexNameExpressionResolver expressionResolver) {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
+        this.expressionResolver = expressionResolver;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
+        this.annotationPersister = annotationPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = Objects.requireNonNull(nativeStorageProvider);
         clusterService.addListener(this);
@@ -223,7 +227,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
      * @param input            Data input stream
      * @param xContentType     the {@link XContentType} of the input
      * @param params           Data processing parameters
-     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written)
+     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written as a result of this call)
      */
     public void processData(JobTask jobTask, AnalysisRegistry analysisRegistry, InputStream input,
                             XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
@@ -329,10 +333,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     updateProcessMessage.setFilter(filter);
 
                     if (updateParams.isUpdateScheduledEvents()) {
-                        jobManager.getJob(jobTask.getJobId(), new ActionListener<Job>() {
+                        jobManager.getJob(jobTask.getJobId(), new ActionListener<>() {
                             @Override
                             public void onResponse(Job job) {
-                                DataCounts dataCounts = getStatistics(jobTask).get().v1();
+                                Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = getStatistics(jobTask);
+                                DataCounts dataCounts = stats.isPresent() ? stats.get().v1() : new DataCounts(job.getId());
                                 ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
                                         .start(job.earliestValidTimestamp(dataCounts));
                                 jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
@@ -353,21 +358,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (updateParams.getFilter() == null) {
             filterListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request();
-            getFilterRequest.setFilterId(updateParams.getFilter().getId());
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest,
-                    new ActionListener<GetFiltersAction.Response>() {
-
-                @Override
-                public void onResponse(GetFiltersAction.Response response) {
-                    filterListener.onResponse(response.getFilters().results().get(0));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    handler.accept(e);
-                }
-            });
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(updateParams.getFilter().getId());
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, ActionListener.wrap(
+                getFilterResponse -> filterListener.onResponse(getFilterResponse.getFilters().results().get(0)),
+                handler::accept
+            ));
         }
     }
 
@@ -435,13 +430,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasHandler),
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasHandler),
             e -> closeHandler.accept(e, true)
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
         ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,
@@ -500,7 +495,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
+        ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);
@@ -508,21 +503,23 @@ public class AutodetectProcessManager implements ClusterStateListener {
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                 renormalizerExecutorService);
 
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
+        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autodetectExecutorService,
                 onProcessCrash(jobTask));
-        AutoDetectResultProcessor processor =
-            new AutoDetectResultProcessor(
+        AutodetectResultProcessor processor =
+            new AutodetectResultProcessor(
                 client,
                 auditor,
                 jobId,
                 renormalizer,
                 jobResultsPersister,
+                annotationPersister,
+                process,
                 autodetectParams.modelSizeStats(),
                 autodetectParams.timingStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
-            autoDetectExecutorService.submit(() -> processor.process(process));
+            autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
+            autodetectExecutorService.submit(processor::process);
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
@@ -533,7 +530,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             }
             throw e;
         }
-        return new AutodetectCommunicator(job, environment, process, new StateStreamer(client), dataCountsReporter, processor, handler,
+        return new AutodetectCommunicator(job, process, new StateStreamer(client), dataCountsReporter, processor, handler,
                 xContentRegistry, autodetectWorkerExecutor);
 
     }
@@ -684,7 +681,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
@@ -703,7 +700,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 try {
@@ -734,9 +731,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
-        AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
-        executorService.submit(autoDetectWorkerExecutor::start);
-        return autoDetectWorkerExecutor;
+        AutodetectWorkerExecutorService autodetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+        executorService.submit(autodetectWorkerExecutor::start);
+        return autodetectWorkerExecutor;
     }
 
     public ByteSizeValue getMinLocalStorageAvailable() {

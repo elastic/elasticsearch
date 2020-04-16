@@ -8,7 +8,7 @@ but adds support for removing stop words.  It defaults to using the
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -16,11 +16,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -90,7 +89,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -128,7 +126,7 @@ about stop word configuration.
 In this example, we configure the `stop` analyzer to use a specified list of
 words as stop words:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -150,11 +148,10 @@ POST my_index/_analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -217,7 +214,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -246,7 +242,7 @@ it, usually by adding token filters. This would recreate the built-in
 `stop` analyzer and you can use it as a starting point for further
 customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /stop_example
 {
@@ -270,8 +266,8 @@ PUT /stop_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: stop_example, first: stop, second: rebuilt_stop}\nendyaml\n/]
+
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> You'd add any token filters after `english_stop`.

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Map;
 
@@ -35,7 +36,7 @@ public abstract class MovingFunctionScript {
      */
     public abstract double execute(Map<String, Object> params, double[] values);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         MovingFunctionScript newInstance();
     }
 

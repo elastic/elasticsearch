@@ -19,24 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a variable load/store.
  */
-public final class EVariable extends AStoreable {
+public class EVariable extends AExpression {
 
-    private final String name;
-
-    private Variable variable = null;
+    protected final String name;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -45,58 +42,29 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        variable = locals.getVariable(location, name);
-
-        if (write && variable.readonly) {
-            throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
         }
 
-        actual = variable.clazz;
-    }
+        Output output = new Output();
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
+        Variable variable = scope.getVariable(location, name);
 
-    @Override
-    int accessElementCount() {
-        return 0;
-    }
+        if (input.write && variable.isFinal()) {
+            throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+        }
 
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
+        output.actual = variable.getType();
 
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
+        VariableNode variableNode = new VariableNode();
 
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
+        variableNode.setLocation(location);
+        variableNode.setExpressionType(output.actual);
+        variableNode.setName(name);
 
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
+        output.expressionNode = variableNode;
 
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(name);
+        return output;
     }
 }

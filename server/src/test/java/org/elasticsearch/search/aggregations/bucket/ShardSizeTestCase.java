@@ -43,7 +43,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
     protected void createIdx(String keyFieldMapping) {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "key", keyFieldMapping));
+                .setMapping("key", keyFieldMapping));
     }
 
     protected static String routing1; // routing key to shard 1
@@ -103,7 +103,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx", "type").setRouting(shard).setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setRouting(shard).setSource(jsonBuilder()
                     .startObject()
                     .field("key", key)
                     .field("value", 1)

@@ -35,9 +35,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
@@ -88,6 +90,7 @@ public final class ExternalTestCluster extends TestCluster {
             .put("node.ingest", false)
             .put("node.name", EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("cluster.name", clusterName)
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .putList("discovery.seed_hosts",
                 Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList()));
         if (Environment.PATH_HOME_SETTING.exists(additionalSettings) == false) {
@@ -116,7 +119,7 @@ public final class ExternalTestCluster extends TestCluster {
             int masterAndDataNodes = 0;
             for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
-                httpAddresses[i] = nodeInfo.getHttp().address().publishAddress().address();
+                httpAddresses[i] = nodeInfo.getInfo(HttpInfo.class).address().publishAddress().address();
                 if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;

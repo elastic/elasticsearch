@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -31,7 +32,6 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,14 +50,19 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.azureStoreService = new AzureStorageService(settings);
+        this.azureStoreService = createAzureStoreService(settings);
+    }
+
+    // non-static, package private for testing
+    AzureStorageService createAzureStoreService(final Settings settings) {
+        return new AzureStorageService(settings);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ThreadPool threadPool) {
+                                                           ClusterService clusterService) {
         return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, azureStoreService, threadPool));
+                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService));
     }
 
     @Override

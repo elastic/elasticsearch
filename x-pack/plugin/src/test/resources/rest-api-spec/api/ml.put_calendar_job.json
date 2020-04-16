@@ -1,22 +1,29 @@
 {
-  "ml.put_calendar_job": {
-    "stability": "stable",
-    "methods": [ "PUT" ],
-    "url": {
-      "paths": [ "/_ml/calendars/{calendar_id}/jobs/{job_id}" ],
-      "parts": {
-        "calendar_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the calendar to modify"
-        },
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to add to the calendar"
-        }
-      }
+  "ml.put_calendar_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html",
+      "description":"Adds an anomaly detection job to a calendar."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/jobs/{job_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            },
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to add to the calendar"
+            }
+          }
+        }
+      ]
+    }
   }
 }

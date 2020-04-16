@@ -25,7 +25,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -79,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -654,7 +655,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':['a','b','c']}", new Object[]{new Text("a"), new Text(new BytesArray("b")), new Text("c")});
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[]{null, null, null});
-        objects.put("{'objects':['OPEN','CLOSE']}", IndexMetaData.State.values());
+        objects.put("{'objects':['OPEN','CLOSE']}", IndexMetadata.State.values());
         objects.put("{'objects':[{'f1':'v1'},{'f2':'v2'}]}", new Object[]{singletonMap("f1", "v1"), singletonMap("f2", "v2")});
         objects.put("{'objects':[[1,2,3],[4,5]]}", new Object[]{Arrays.asList(1, 2, 3), Arrays.asList(4, 5)});
 
@@ -700,7 +701,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':'a'}", new Text("a"));
         object.put("{'object':'b'}", new Text(new BytesArray("b")));
         object.put("{'object':null}", null);
-        object.put("{'object':'OPEN'}", IndexMetaData.State.OPEN);
+        object.put("{'object':'OPEN'}", IndexMetadata.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);
         object.put("{'object':{'f1':'v1'}}", singletonMap("f1", "v1"));
         object.put("{'object':{'f1':{'f2':'v2'}}}", singletonMap("f1", singletonMap("f2", "v2")));
@@ -1170,16 +1171,17 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             {
                 NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-                assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
+                assertThat(e.getMessage(), endsWith("unknown field [unknown]"));
+                assertThat(e.getCandidates(), containsInAnyOrder("test1", "test2", "deprecated", "str"));
             }
             {
-                Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+                Exception e = expectThrows(XContentParseException.class, () -> p.namedObject(String.class, "doesn't matter", null));
                 assertEquals("unknown named object category [java.lang.String]", e.getMessage());
             }
         }
         try (XContentParser emptyRegistryParser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {})) {
-            Exception e = expectThrows(NamedObjectNotFoundException.class,
+            Exception e = expectThrows(XContentParseException.class,
                 () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("named objects are not supported for this parser", e.getMessage());
         }
@@ -1206,11 +1208,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     private static void expectNonNullFieldException(ThrowingRunnable runnable) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
-    }
-
-    private static void expectNonNullFormatterException(ThrowingRunnable runnable) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {

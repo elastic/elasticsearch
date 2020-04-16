@@ -1,0 +1,56 @@
+--
+:api: get-transform-stats
+:request: GetTransformStatsRequest
+:response: GetTransformStatsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get {transform} stats API
+
+Retrieves the operational statistics of one or more {transforms}.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get {transform} stats request
+
+A +{request}+ requires a {transform} id or the special wildcard `_all`
+to get the statistics for all {transforms}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET Stats request referencing an existing {transform}
+
+==== Optional arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of
+{transform} stats to skip.
+`size` specifies the maximum number of {transform} stats to get.
+Defaults to `0` and `100` respectively.
+<2> Whether to ignore if a wildcard expression matches no {transforms}.
+
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested {transform} statistics.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The response contains a list of `TransformStats` objects
+<2> The running state of the {transform}, for example `started`, `indexing`, etc.
+<3> The overall {transform} statistics recording the number of documents indexed etc.
+<4> The progress of the current run in the {transform}. Supplies the number of docs left until the next checkpoint
+and the total number of docs expected.
+<5> The assigned node information if the task is currently assigned to a node and running.

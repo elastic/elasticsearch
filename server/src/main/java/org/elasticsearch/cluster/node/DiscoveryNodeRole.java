@@ -20,15 +20,17 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.Node;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 
 /**
  * Represents a node role.
  */
-public abstract class DiscoveryNodeRole {
+public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private final String roleName;
 
@@ -53,7 +55,21 @@ public abstract class DiscoveryNodeRole {
         return roleNameAbbreviation;
     }
 
+    private final boolean isKnownRole;
+
+    /**
+     * Whether this role is known by this node, or is an {@link DiscoveryNodeRole.UnknownRole}.
+     */
+    public final boolean isKnownRole() {
+        return isKnownRole;
+    }
+
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
+        this(true, roleName, roleNameAbbreviation);
+    }
+
+    private DiscoveryNodeRole(final boolean isKnownRole, final String roleName, final String roleNameAbbreviation) {
+        this.isKnownRole = isKnownRole;
         this.roleName = Objects.requireNonNull(roleName);
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
     }
@@ -61,10 +77,31 @@ public abstract class DiscoveryNodeRole {
     protected abstract Setting<Boolean> roleSetting();
 
     @Override
-    public String toString() {
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DiscoveryNodeRole that = (DiscoveryNodeRole) o;
+        return roleName.equals(that.roleName) &&
+            roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
+            isKnownRole == that.isKnownRole;
+    }
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation());
+    }
+
+    @Override
+    public final int compareTo(final DiscoveryNodeRole o) {
+        return roleName.compareTo(o.roleName);
+    }
+
+    @Override
+    public final String toString() {
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
+                (isKnownRole ? "" : ", isKnownRole=false") +
                 '}';
     }
 
@@ -104,10 +141,23 @@ public abstract class DiscoveryNodeRole {
 
     };
 
+    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
+
+        @Override
+        protected Setting<Boolean> roleSetting() {
+            return Node.NODE_REMOTE_CLUSTER_CLIENT;
+        }
+
+    };
+
     /**
      * The built-in node roles.
      */
-    public static Set<DiscoveryNodeRole> BUILT_IN_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE);
+    public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
+        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
+
+    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
+        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -122,7 +172,7 @@ public abstract class DiscoveryNodeRole {
          * @param roleNameAbbreviation the role name abbreviation
          */
         UnknownRole(final String roleName, final String roleNameAbbreviation) {
-            super(roleName, roleNameAbbreviation);
+            super(false, roleName, roleNameAbbreviation);
         }
 
         @Override

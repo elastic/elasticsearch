@@ -37,8 +37,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.script.SimilarityScript;
@@ -117,7 +117,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
             };
         };
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", scriptFactory, true);
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
         Document doc = new Document();
@@ -211,7 +211,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
             };
         };
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightScriptFactory, "foobaz", scriptFactory, true);
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
         Document doc = new Document();

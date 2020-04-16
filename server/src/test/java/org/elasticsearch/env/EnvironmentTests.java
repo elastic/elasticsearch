@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.env;
 
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,15 +26,14 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Simple unit-tests for Environment.java
@@ -121,34 +121,6 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.configFile(), equalTo(pathHome.resolve("config")));
     }
 
-    public void testNodeDoesNotRequireLocalStorage() {
-        final Path pathHome = createTempDir().toAbsolutePath();
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("node.local_storage", false)
-                        .put("node.master", false)
-                        .put("node.data", false)
-                        .build();
-        final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), arrayWithSize(0));
-    }
-
-    public void testNodeDoesNotRequireLocalStorageButHasPathData() {
-        final Path pathHome = createTempDir().toAbsolutePath();
-        final Path pathData = pathHome.resolve("data");
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("path.data", pathData)
-                        .put("node.local_storage", false)
-                        .put("node.master", false)
-                        .put("node.data", false)
-                        .build();
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Environment(settings, null));
-        assertThat(e, hasToString(containsString("node does not require local storage yet path.data is set to [" + pathData + "]")));
-    }
-
     public void testNonExistentTempPathValidation() {
         Settings build = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -168,4 +140,57 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
         assertThat(e.getMessage(), endsWith(".test] is not a directory"));
     }
+
+    // test that environment paths are absolute and normalized
+    public void testPathNormalization() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), "home")
+            .put(Environment.PATH_DATA_SETTING.getKey(), "./home/../home/data")
+            .put(Environment.PATH_LOGS_SETTING.getKey(), "./home/../home/logs")
+            .put(Environment.PATH_REPO_SETTING.getKey(), "./home/../home/repo")
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), "./home/../home/shared_data")
+            .put(Environment.NODE_PIDFILE_SETTING.getKey(), "./home/../home/pidfile")
+            .build();
+
+        // the above paths will be treated as relative to the working directory
+        final Path workingDirectory = PathUtils.get(System.getProperty("user.dir"));
+
+        final Environment environment = new Environment(settings, null, createTempDir());
+        final String homePath = Environment.PATH_HOME_SETTING.get(environment.settings());
+        assertPath(homePath, workingDirectory.resolve("home"));
+
+        final Path home = PathUtils.get(homePath);
+
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(environment.settings());
+        assertThat(dataPaths, hasSize(1));
+        assertPath(dataPaths.get(0), home.resolve("data"));
+
+        final String logPath = Environment.PATH_LOGS_SETTING.get(environment.settings());
+        assertPath(logPath, home.resolve("logs"));
+
+        final List<String> repoPaths = Environment.PATH_REPO_SETTING.get(environment.settings());
+        assertThat(repoPaths, hasSize(1));
+        assertPath(repoPaths.get(0), home.resolve("repo"));
+
+        final String sharedDataPath = Environment.PATH_SHARED_DATA_SETTING.get(environment.settings());
+        assertPath(sharedDataPath, home.resolve("shared_data"));
+
+        final String pidFile = Environment.NODE_PIDFILE_SETTING.get(environment.settings());
+        assertPath(pidFile, home.resolve("pidfile"));
+    }
+
+    private void assertPath(final String actual, final Path expected) {
+        assertIsAbsolute(actual);
+        assertIsNormalized(actual);
+        assertThat(PathUtils.get(actual), equalTo(expected));
+    }
+
+    private void assertIsAbsolute(final String path) {
+        assertTrue("path [" + path + "] is not absolute", PathUtils.get(path).isAbsolute());
+    }
+
+    private void assertIsNormalized(final String path) {
+        assertThat("path [" + path + "] is not normalized", PathUtils.get(path), equalTo(PathUtils.get(path).normalize()));
+    }
+
 }

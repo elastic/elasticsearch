@@ -29,7 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,7 +57,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -74,7 +74,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 

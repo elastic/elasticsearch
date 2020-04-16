@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
@@ -35,8 +35,8 @@ public class DeprecationChecks {
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = Collections.emptyList();
 
-    static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
-            Collections.singletonList(IndexDeprecationChecks::oldIndicesCheck);
+    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
+            List.of(IndexDeprecationChecks::oldIndicesCheck, IndexDeprecationChecks::translogRetentionSettingCheck);
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
             List.of(MlDeprecationChecks::checkDataFeedAggregations, MlDeprecationChecks::checkDataFeedQuery);

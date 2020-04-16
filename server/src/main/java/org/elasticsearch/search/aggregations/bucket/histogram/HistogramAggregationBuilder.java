@@ -24,23 +24,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,10 +44,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A builder for histograms on numeric fields.
+ * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
+ * fields are unsupported, and will throw at the factory layer.
  */
-public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
 
     private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
@@ -62,10 +58,10 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
     }
 
-    private static final ObjectParser<HistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<HistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, HistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
         PARSER.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);
 
@@ -83,8 +79,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             Histogram.ORDER_FIELD);
     }
 
-    public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        HistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     private double interval;
@@ -95,13 +91,18 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     private boolean keyed = false;
     private long minDocCount = 0;
 
-    /** Create a new builder with the given name. */
-    public HistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
-    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    /** Create a new builder with the given name. */
+    public HistogramAggregationBuilder(String name) {
+        super(name);
+    }
+
+    protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.interval = clone.interval;
         this.offset = clone.offset;
         this.minBound = clone.minBound;
@@ -112,13 +113,13 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new HistogramAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new HistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(in);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -261,6 +262,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
         builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), interval);
@@ -295,26 +301,31 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                context, parent, subFactoriesBuilder, metaData);
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(order, keyed, minDocCount, interval, offset, minBound, maxBound);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), order, keyed, minDocCount, interval, offset, minBound, maxBound);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         HistogramAggregationBuilder other = (HistogramAggregationBuilder) obj;
         return Objects.equals(order, other.order)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(minDocCount, other.minDocCount)
-                && Objects.equals(interval, other.interval)
-                && Objects.equals(offset, other.offset)
-                && Objects.equals(minBound, other.minBound)
-                && Objects.equals(maxBound, other.maxBound);
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(minDocCount, other.minDocCount)
+            && Objects.equals(interval, other.interval)
+            && Objects.equals(offset, other.offset)
+            && Objects.equals(minBound, other.minBound)
+            && Objects.equals(maxBound, other.maxBound);
     }
 }

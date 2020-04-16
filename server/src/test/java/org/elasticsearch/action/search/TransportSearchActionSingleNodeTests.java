@@ -19,14 +19,11 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -153,7 +150,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.size(0);
         originalRequest.source(source);
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.NUMERIC);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC);
         terms.field("price");
         terms.size(1);
         source.aggregation(terms);
@@ -175,64 +172,6 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             Aggregations aggregations = searchResponse.getAggregations();
             LongTerms longTerms = aggregations.get("terms");
             assertEquals(2, longTerms.getBuckets().size());
-        }
-    }
-
-    public void testSplitIndices() {
-        {
-            CreateIndexResponse response = client().admin().indices().prepareCreate("write").get();
-            assertTrue(response.isAcknowledged());
-        }
-        {
-            CreateIndexResponse response = client().admin().indices().prepareCreate("readonly").get();
-            assertTrue(response.isAcknowledged());
-        }
-        {
-            SearchResponse response = client().prepareSearch("readonly").get();
-            assertEquals(1, response.getTotalShards());
-            assertEquals(1, response.getSuccessfulShards());
-            assertEquals(1, response.getNumReducePhases());
-        }
-        {
-            SearchResponse response = client().prepareSearch("write").get();
-            assertEquals(1, response.getTotalShards());
-            assertEquals(1, response.getSuccessfulShards());
-            assertEquals(1, response.getNumReducePhases());
-        }
-        {
-            SearchResponse response = client().prepareSearch("readonly", "write").get();
-            assertEquals(2, response.getTotalShards());
-            assertEquals(2, response.getSuccessfulShards());
-            assertEquals(1, response.getNumReducePhases());
-        }
-        {
-            Settings settings = Settings.builder().put("index.blocks.read_only", "true").build();
-            AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("readonly").setSettings(settings).get();
-            assertTrue(response.isAcknowledged());
-        }
-        try {
-            {
-                SearchResponse response = client().prepareSearch("readonly").get();
-                assertEquals(1, response.getTotalShards());
-                assertEquals(1, response.getSuccessfulShards());
-                assertEquals(1, response.getNumReducePhases());
-            }
-            {
-                SearchResponse response = client().prepareSearch("write").get();
-                assertEquals(1, response.getTotalShards());
-                assertEquals(1, response.getSuccessfulShards());
-                assertEquals(1, response.getNumReducePhases());
-            }
-            {
-                SearchResponse response = client().prepareSearch("readonly", "write").get();
-                assertEquals(2, response.getTotalShards());
-                assertEquals(2, response.getSuccessfulShards());
-                assertEquals(3, response.getNumReducePhases());
-            }
-        } finally {
-            Settings settings = Settings.builder().put("index.blocks.read_only", "false").build();
-            AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("readonly").setSettings(settings).get();
-            assertTrue(response.isAcknowledged());
         }
     }
 }

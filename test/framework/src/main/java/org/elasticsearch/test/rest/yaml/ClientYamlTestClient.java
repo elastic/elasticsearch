@@ -19,7 +19,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
@@ -38,7 +37,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.Closeable;
@@ -46,6 +44,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,19 +99,20 @@ public class ClientYamlTestClient implements Closeable {
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 
+        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
+                .collect(Collectors.toSet());
+
+        List<ClientYamlSuiteRestApi.Path> bestPaths = restApi.getBestMatchingPaths(params.keySet());
+        //the rest path to use is randomized out of the matching ones (if more than one)
+        ClientYamlSuiteRestApi.Path path = RandomizedTest.randomFrom(bestPaths);
+
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
 
-        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
-                .collect(Collectors.toSet());
-        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
-                .collect(Collectors.toSet());
-
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (restApi.getPathParts().containsKey(entry.getKey())) {
+            if (path.getParts().contains(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
-                apiRequiredPathParts.remove(entry.getKey());
             } else if (restApi.getParams().containsKey(entry.getKey())
                     || restSpec.isGlobalParameter(entry.getKey())
                     || restSpec.isClientParameter(entry.getKey())) {
@@ -124,16 +124,33 @@ public class ClientYamlTestClient implements Closeable {
             }
         }
 
-        if (false == apiRequiredPathParts.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "missing required path part: " + apiRequiredPathParts + " by [" + restApi.getName() + "] api");
-        }
         if (false == apiRequiredParameters.isEmpty()) {
             throw new IllegalArgumentException(
                     "missing required parameter: " + apiRequiredParameters + " by [" + restApi.getName() + "] api");
         }
 
-        List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());
+        Set<String> partNames = pathParts.keySet();
+        if (path.getParts().size() != partNames.size() || path.getParts().containsAll(partNames) == false) {
+            throw new IllegalStateException("provided path parts don't match the best matching path: "
+                + path.getParts() + " - " + partNames);
+        }
+
+        String finalPath = path.getPath();
+        for (Entry<String, String> pathPart : pathParts.entrySet()) {
+            try {
+                //Encode rules for path and query string parameters are different. We use URI to encode the path. We need to encode each
+                // path part separately, as each one might contain slashes that need to be escaped, which needs to be done manually.
+                // We prepend "/" to the path part to handle parts that start with - or other invalid characters.
+                URI uri = new URI(null, null, null, -1, "/" + pathPart.getValue(), null, null);
+                //manually escape any slash that each part may contain
+                String encodedPathPart = uri.getRawPath().substring(1).replaceAll("/", "%2F");
+                finalPath = finalPath.replace("{" + pathPart.getKey() + "}", encodedPathPart);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("unable to build uri", e);
+            }
+        }
+
+        List<String> supportedMethods = Arrays.asList(path.getMethods());
         String requestMethod;
         if (entity != null) {
             if (false == restApi.isBodySupported()) {
@@ -157,32 +174,8 @@ public class ClientYamlTestClient implements Closeable {
             requestMethod = RandomizedTest.randomFrom(supportedMethods);
         }
 
-        //the rest path to use is randomized out of the matching ones (if more than one)
-        ClientYamlSuiteRestPath restPath = RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts));
-        //Encode rules for path and query string parameters are different. We use URI to encode the path.
-        //We need to encode each path part separately, as each one might contain slashes that need to be escaped, which needs to
-        //be done manually.
-        String requestPath;
-        if (restPath.getPathParts().length == 0) {
-            requestPath = "/";
-        } else {
-            StringBuilder finalPath = new StringBuilder();
-            for (String pathPart : restPath.getPathParts()) {
-                try {
-                    finalPath.append('/');
-                    // We prepend "/" to the path part to handle parts that start with - or other invalid characters
-                    URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
-                    //manually escape any slash that each part may contain
-                    finalPath.append(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException("unable to build uri", e);
-                }
-            }
-            requestPath = finalPath.toString();
-        }
-
         logger.debug("calling api [{}]", apiName);
-        Request request = new Request(requestMethod, requestPath);
+        Request request = new Request(requestMethod, finalPath);
         for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }

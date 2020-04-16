@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Response;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
 
 public class UpdateModelSnapshotActionResponseTests
-        extends AbstractStreamableTestCase<UpdateModelSnapshotAction.Response> {
+        extends AbstractWireSerializingTestCase<UpdateModelSnapshotAction.Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -18,7 +19,7 @@ public class UpdateModelSnapshotActionResponseTests
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 }

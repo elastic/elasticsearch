@@ -21,6 +21,7 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -30,7 +31,7 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elas
     AcknowledgedResponse> {
 
     @Override
-    protected org.elasticsearch.action.support.master.AcknowledgedResponse createServerTestInstance() {
+    protected org.elasticsearch.action.support.master.AcknowledgedResponse createServerTestInstance(XContentType xContentType) {
         return new org.elasticsearch.action.support.master.AcknowledgedResponse(randomBoolean());
     }
 

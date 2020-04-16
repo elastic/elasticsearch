@@ -1,15 +1,20 @@
 {
-  "license.get_trial_status": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-trial-status.html",
-    "stability": "stable",
-    "methods": ["GET"],
-    "url": {
-      "paths": ["/_license/trial_status"],
-      "parts" : {
-      },
-      "params": {
-      }
+  "license.get_trial_status":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-trial-status.html",
+      "description":"Retrieves information about the status of the trial license."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license/trial_status",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -19,24 +19,24 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarAction extends Action<AcknowledgedResponse> {
+public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";
 
     private DeleteCalendarAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
 
         private String calendarId;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+        }
 
         public Request() {
         }
@@ -52,12 +52,6 @@ public class DeleteCalendarAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
         }
 
         @Override

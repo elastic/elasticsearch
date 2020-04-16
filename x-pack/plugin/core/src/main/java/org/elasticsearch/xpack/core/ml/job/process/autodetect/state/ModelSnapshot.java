@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -297,6 +297,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static String documentIdPrefix(String jobId) {
         return jobId + "_" + TYPE + "_";
+    }
+
+    public static String annotationDocumentId(ModelSnapshot snapshot) {
+        return "annotation_for_" + documentId(snapshot);
     }
 
     public static String documentId(ModelSnapshot snapshot) {

@@ -29,7 +29,6 @@ import org.apache.lucene.search.similarities.BasicModelIF;
 import org.apache.lucene.search.similarities.BasicModelIn;
 import org.apache.lucene.search.similarities.BasicModelIne;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.Distribution;
@@ -257,16 +256,6 @@ final class SimilarityProviders {
     public static BooleanSimilarity createBooleanSimilarity(Settings settings, Version indexCreatedVersion) {
         assertSettingsIsSubsetOf("boolean", indexCreatedVersion, settings);
         return new BooleanSimilarity();
-    }
-
-    public static ClassicSimilarity createClassicSimilarity(Settings settings, Version indexCreatedVersion) {
-        assertSettingsIsSubsetOf("classic", indexCreatedVersion, settings, DISCOUNT_OVERLAPS);
-
-        boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
-
-        ClassicSimilarity similarity = new ClassicSimilarity();
-        similarity.setDiscountOverlaps(discountOverlaps);
-        return similarity;
     }
 
     public static DFRSimilarity createDfrSimilarity(Settings settings, Version indexCreatedVersion) {

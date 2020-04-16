@@ -1,11 +1,12 @@
+[role="xpack"]
 [[actions-jira]]
-=== Jira Action
+=== Jira action
 
 Use the `jira` action to create issues in  https://www.atlassian.com/software/jira[Atlassian's Jira Software].
 To create issues you need to <<configuring-jira, configure at least one Jira account>> in `elasticsearch.yml`.
 
 [[configuring-jira-actions]]
-==== Configuring Jira Actions
+==== Configuring Jira actions
 
 You configure Jira actions in the `actions` array. Action-specific attributes
 are specified using the `jira` keyword.
@@ -48,7 +49,7 @@ The following snippet shows a simple jira action definition:
 <7> The priority of the Jira issue.
 
 [[jira-action-attributes]]
-==== Jira Action Attributes
+==== Jira action attributes
 
 Depending of how Jira projects are configured, the issues can have many different fields and values. Therefore
 the `jira` action can accept any type of sub fields within its `issue` field. These fields will be directly used
@@ -99,7 +100,7 @@ always required to create an issue in Jira.
 |======
 
 [[configuring-jira]]
-==== Configuring Jira Accounts
+==== Configuring Jira accounts
 
 You configure the accounts {watcher} can use to communicate with Jira in the
 `xpack.notification.jira` namespace in `elasticsearch.yml`.
@@ -140,7 +141,7 @@ WARNING: It is strongly advised to use Basic Authentication with secured HTTPS
  protocol only.
 
 You can also specify defaults for the
-{ref}/notification-settings.html#jira-account-attributes[Jira issues]:
+<<jira-account-attributes,Jira issues>>:
 
 [source,yaml]
 --------------------------------------------------
@@ -158,7 +159,7 @@ xpack.notification.jira:
 
 If you configure multiple Jira accounts, you either need to configure a default
 account or specify which account the notification should be sent with in the
-<<actions-jira, jira>> action.
+<<actions-jira,`jira`>> action.
 
 [source,yaml]
 --------------------------------------------------

@@ -33,7 +33,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -165,12 +165,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
-        when(mapperService.fullName("_parent_join")).thenReturn(metaJoinFieldType);
+        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
         return mapperService;
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
                 .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));

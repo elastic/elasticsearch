@@ -1,53 +1,72 @@
 {
-  "ml.get_model_snapshots": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html",
-    "stability": "stable",
-    "methods": [ "GET", "POST" ],
-    "url": {
-      "paths": [
-        "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
-        "/_ml/anomaly_detectors/{job_id}/model_snapshots"
-      ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to fetch"
+  "ml.get_model_snapshots":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-snapshot.html",
+      "description":"Retrieves information about model snapshots."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to fetch"
+            },
+            "snapshot_id":{
+              "type":"string",
+              "description":"The ID of the snapshot to fetch"
+            }
+          }
         },
-        "snapshot_id": {
-          "type": "string",
-          "description": "The ID of the snapshot to fetch"
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to fetch"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "description":"Skips a number of documents"
       },
-      "params": {
-        "from": {
-          "type": "int",
-          "description": "Skips a number of documents"
-        },
-        "size": {
-          "type": "int",
-          "description": "The default number of documents returned in queries as a string."
-        },
-        "start": {
-          "type": "date",
-          "description": "The filter 'start' query parameter"
-        },
-        "end": {
-          "type": "date",
-          "description": "The filter 'end' query parameter"
-        },
-        "sort": {
-          "type": "string",
-          "description": "Name of the field to sort on"
-        },
-        "desc": {
-          "type": "boolean",
-          "description": "True if the results should be sorted in descending order"
-        }
+      "size":{
+        "type":"int",
+        "description":"The default number of documents returned in queries as a string."
+      },
+      "start":{
+        "type":"date",
+        "description":"The filter 'start' query parameter"
+      },
+      "end":{
+        "type":"date",
+        "description":"The filter 'end' query parameter"
+      },
+      "sort":{
+        "type":"string",
+        "description":"Name of the field to sort on"
+      },
+      "desc":{
+        "type":"boolean",
+        "description":"True if the results should be sorted in descending order"
       }
     },
-    "body": {
-      "description": "Model snapshot selection criteria"
+    "body":{
+      "description":"Model snapshot selection criteria"
     }
   }
 }

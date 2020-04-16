@@ -46,9 +46,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         ensureGreen();
         client().admin().indices().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
         client().admin().indices().prepareClose("test-1").get();
-        indexRandom(true, client().prepareIndex("test-0", "type1", "1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex("test-0", "type1", "2").setSource("field1", "quick brown"),
-            client().prepareIndex("test-0", "type1", "3").setSource("field1", "quick"));
+        indexRandom(true, client().prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex("test-0").setId("2").setSource("field1", "quick brown"),
+            client().prepareIndex("test-0").setId("3").setSource("field1", "quick"));
         refresh("test-*");
         assertHitCount(
                 client()
@@ -75,25 +75,25 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                 .addAliasAction(AliasActions.add().index("test1").alias("alias0").routing("0"))
                 .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0")).get();
 
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "test1"), nullValue());
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias"), nullValue());
+        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias"), nullValue());
 
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "test1"), nullValue());
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias10"), equalTo("0"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias20"), equalTo("0"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias21"), equalTo("1"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting("3", "test1"), equalTo("3"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting("0", "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias20"), equalTo("0"));
+        assertThat(clusterService().state().metadata().resolveIndexRouting(null, "alias21"), equalTo("1"));
+        assertThat(clusterService().state().metadata().resolveIndexRouting("3", "test1"), equalTo("3"));
+        assertThat(clusterService().state().metadata().resolveIndexRouting("0", "alias10"), equalTo("0"));
 
         try {
-            clusterService().state().metaData().resolveIndexRouting("1", "alias10");
+            clusterService().state().metadata().resolveIndexRouting("1", "alias10");
             fail("should fail");
         } catch (IllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias
         }
 
         try {
-            clusterService().state().metaData().resolveIndexRouting(null, "alias0");
+            clusterService().state().metadata().resolveIndexRouting(null, "alias0");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             // Expected
@@ -177,7 +177,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                         "test3", newSet("0", "1", "2", "tw ", " ltw ", " lw"))));
 
         assertThat(
-                indexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metaData(), "0,1,2,tw , ltw , lw"),
+                indexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metadata(), "0,1,2,tw , ltw , lw"),
                 equalTo(newMap(
                         "test1", newSet("0", "1", "2", "tw ", " ltw ", " lw"),
                         "test2", newSet("0", "1", "2", "tw ", " ltw ", " lw"),

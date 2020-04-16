@@ -1,27 +1,37 @@
 {
-  "security.enable_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html",
-    "stability": "stable",
-    "methods": [ "PUT", "POST" ],
-    "url": {
-      "paths": [
-        "/_security/user/{username}/_enable"
-      ],
-      "parts": {
-        "username": {
-          "type" : "string",
-          "description" : "The username of the user to enable",
-          "required" : true
-        }
-      },
-      "params": {
-        "refresh": {
-          "type" : "enum",
-          "options": ["true", "false", "wait_for"],
-          "description" : "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
-        }
-      }
+  "security.enable_user":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html",
+      "description":"Enables users in the native realm."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/user/{username}/_enable",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "username":{
+              "type":"string",
+              "description":"The username of the user to enable"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    }
   }
 }

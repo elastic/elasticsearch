@@ -23,12 +23,15 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.WrappingProcessor;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.elasticsearch.script.ScriptService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -43,7 +46,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
  *
  * Note that this processor is experimental.
  */
-public final class ForEachProcessor extends AbstractProcessor {
+public final class ForEachProcessor extends AbstractProcessor implements WrappingProcessor {
 
     public static final String TYPE = "foreach";
 
@@ -63,29 +66,49 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         List<?> values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
         if (values == null) {
             if (ignoreMissing) {
-                return ingestDocument;
+                handler.accept(ingestDocument, null);
+            } else {
+                handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
-            throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
+        } else {
+            innerExecute(0, values, new ArrayList<>(values.size()), ingestDocument, handler);
         }
-        List<Object> newValues = new ArrayList<>(values.size());
-        IngestDocument document = ingestDocument;
-        for (Object value : values) {
-            Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
-            try {
-                document = processor.execute(document);
-                if (document == null) {
-                    return null;
+    }
+
+    void innerExecute(int index, List<?> values, List<Object> newValues, IngestDocument document,
+                      BiConsumer<IngestDocument, Exception> handler) {
+        for (; index < values.size(); index++) {
+            AtomicBoolean shouldContinueHere = new AtomicBoolean();
+            Object value = values.get(index);
+            Object previousValue = document.getIngestMetadata().put("_value", value);
+            int nextIndex = index + 1;
+            processor.execute(document, (result, e) -> {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                if (e != null || result == null) {
+                    handler.accept(result, e);
+                } else if (shouldContinueHere.getAndSet(true)) {
+                    innerExecute(nextIndex, values, newValues, document, handler);
                 }
-            } finally {
-                newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
+            });
+
+            if (shouldContinueHere.getAndSet(true) == false) {
+                return;
             }
         }
-        document.setFieldValue(field, newValues);
-        return document;
+
+        if (index == values.size()) {
+            document.setFieldValue(field, new ArrayList<>(newValues));
+            handler.accept(document, null);
+        }
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     @Override
@@ -97,7 +120,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         return field;
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 

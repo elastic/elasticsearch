@@ -1,18 +1,24 @@
 {
-  "security.invalidate_token": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html",
-    "stability": "stable",
-    "methods": [ "DELETE" ],
-    "url": {
-      "paths": [
-        "/_security/oauth2/token"
-      ],
-      "parts": {},
-      "params": {}
+  "security.invalidate_token":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html",
+      "description":"Invalidates one or more access tokens or refresh tokens."
     },
-    "body": {
-      "description" : "The token to invalidate",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/oauth2/token",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The token to invalidate",
+      "required":true
     }
   }
 }

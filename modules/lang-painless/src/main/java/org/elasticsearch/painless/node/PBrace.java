@@ -19,26 +19,24 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BraceNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store and defers to a child subnode.
  */
-public final class PBrace extends AStoreable {
+public class PBrace extends AExpression {
 
-    private AExpression index;
-
-    private AStoreable sub = null;
+    protected final AExpression index;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
@@ -47,78 +45,52 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-        index.extractVariables(variables);
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
-
-        if (prefix.actual.isArray()) {
-            sub = new PSubBrace(location, prefix.actual, index);
-        } else if (prefix.actual == def.class) {
-            sub = new PSubDefArray(location, index);
-        } else if (Map.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubMapShortcut(location, prefix.actual, index);
-        } else if (List.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubListShortcut(location, prefix.actual, index);
-        } else {
-            throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        sub.write = write;
-        sub.read = read;
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(locals);
-        actual = sub.actual;
-    }
+        Output output = new Output();
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
-    }
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
 
-    @Override
-    boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
+        AExpression sub;
 
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.actual = actual;
-    }
+        if (prefixOutput.actual.isArray()) {
+            sub = new PSubBrace(location, prefixOutput.actual, index);
+        } else if (prefixOutput.actual == def.class) {
+            sub = new PSubDefArray(location, index);
+        } else if (Map.class.isAssignableFrom(prefixOutput.actual)) {
+            sub = new PSubMapShortcut(location, prefixOutput.actual, index);
+        } else if (List.class.isAssignableFrom(prefixOutput.actual)) {
+            sub = new PSubListShortcut(location, prefixOutput.actual, index);
+        } else {
+            throw createError(new IllegalArgumentException("Illegal array access on type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
+        }
 
-    @Override
-    int accessElementCount() {
-        return sub.accessElementCount();
-    }
+        Input subInput = new Input();
+        subInput.write = input.write;
+        subInput.read = input.read;
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
+        output.isDefOptimized = subOutput.isDefOptimized;
 
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.setup(writer, globals);
-    }
+        BraceNode braceNode = new BraceNode();
 
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        sub.load(writer, globals);
-    }
+        braceNode.setLeftNode(prefix.cast(prefixOutput));
+        braceNode.setRightNode(subOutput.expressionNode);
 
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        sub.store(writer, globals);
-    }
+        braceNode.setLocation(location);
+        braceNode.setExpressionType(output.actual);
 
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
+        output.expressionNode = braceNode;
+
+        return output;
     }
 }

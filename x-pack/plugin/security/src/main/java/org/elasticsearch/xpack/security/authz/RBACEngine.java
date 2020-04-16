@@ -25,14 +25,18 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
@@ -43,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -57,10 +62,13 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -85,7 +93,7 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME, GetApiKeyAction.NAME);
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
     private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
@@ -136,7 +144,7 @@ public class RBACEngine implements AuthorizationEngine {
                                        ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest())) {
+            if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
@@ -153,26 +161,39 @@ public class RBACEngine implements AuthorizationEngine {
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
-            if (request instanceof UserRequest == false) {
-                assert false : "right now only a user request should be allowed";
-                return false;
-            }
-            UserRequest userRequest = (UserRequest) request;
-            String[] usernames = userRequest.usernames();
-            if (usernames == null || usernames.length != 1 || usernames[0] == null) {
-                assert false : "this role should only be used for actions to apply to a single user";
-                return false;
-            }
-            final String username = usernames[0];
-            final boolean sameUsername = authentication.getUser().principal().equals(username);
-            if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
-                return checkChangePasswordAction(authentication);
-            }
+            if (request instanceof UserRequest) {
+                UserRequest userRequest = (UserRequest) request;
+                String[] usernames = userRequest.usernames();
+                if (usernames == null || usernames.length != 1 || usernames[0] == null) {
+                    assert false : "this role should only be used for actions to apply to a single user";
+                    return false;
+                }
+                final String username = usernames[0];
+                final boolean sameUsername = authentication.getUser().principal().equals(username);
+                if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
+                    return checkChangePasswordAction(authentication);
+                }
 
-            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
-                || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
-            return sameUsername;
+                assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
+                    || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
+                    : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                return sameUsername;
+            } else if (request instanceof GetApiKeyRequest) {
+                GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                    assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
+                    // if authenticated by API key then the request must also contain same API key id
+                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
+                        return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
+                    } else {
+                        return false;
+                    }
+                }
+            } else {
+                assert false : "right now only a user request or get api key request should be allowed";
+                return false;
+            }
         }
         return false;
     }
@@ -212,7 +233,7 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, AliasOrIndex> aliasOrIndexLookup,
+                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
@@ -222,17 +243,18 @@ public class RBACEngine implements AuthorizationEngine {
             // need to validate that the action is allowed and then move on
             authorizeIndexActionName(action, authorizationInfo, null, listener);
         } else if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
-            // scroll is special
-            // some APIs are indices requests that are not actually associated with indices. For example,
-            // search scroll request, is categorized under the indices context, but doesn't hold indices names
-            // (in this case, the security check on the indices was done on the search request that initialized
-            // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
-            // piggyback on it and enhance the context with the original authentication. This serves as our method
-            // to validate the scroll id only stays with the same user!
-            // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
-            // indices permission as it's categorized under cluster. This is why the scroll check is performed
-            // even before checking if the user has any indices permission.
             if (isScrollRelatedAction(action)) {
+                // scroll is special
+                // some APIs are indices requests that are not actually associated with indices. For example,
+                // search scroll request, is categorized under the indices context, but doesn't hold indices names
+                // (in this case, the security check on the indices was done on the search request that initialized
+                // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
+                // piggyback on it and enhance the context with the original authentication. This serves as our method
+                // to validate the scroll id only stays with the same user!
+                // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+                // indices permission as it's categorized under cluster. This is why the scroll check is performed
+                // even before checking if the user has any indices permission.
+
                 // if the action is a search scroll action, we first authorize that the user can execute the action for some
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
@@ -244,11 +266,22 @@ public class RBACEngine implements AuthorizationEngine {
                     // information such as the index and the incoming address of the request
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
+            } else if (isAsyncSearchRelatedAction(action)) {
+                if (SubmitAsyncSearchAction.NAME.equals(action)) {
+                    // we check if the user has any indices permission when submitting an async-search request in order to be
+                    // able to fail the request early. Fine grained index-level permissions are handled by the search action
+                    // that is triggered internally by the submit API.
+                    authorizeIndexActionName(action, authorizationInfo, null, listener);
+                } else {
+                    // async-search actions other than submit have a custom security layer that checks if the current user is
+                    // the same as the user that submitted the original request so we can skip security here.
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                }
             } else {
-                assert false :
-                    "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
-                listener.onFailure(new IllegalStateException("only scroll related requests are known indices api that don't support " +
-                    "retrieving the indices they relate to"));
+                assert false : "only scroll and async-search related requests are known indices api that don't " +
+                    "support retrieving the indices they relate to";
+                listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
+                    "api that don't support retrieving the indices they relate to"));
             }
         } else if (request instanceof IndicesRequest &&
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
@@ -306,10 +339,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
+                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), aliasOrIndexLookup));
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), indicesLookup));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
@@ -360,8 +393,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
-            cluster.put(checkAction, userRole.grants(checkPrivilege));
+            cluster.put(checkAction, userRole.grants(ClusterPrivilegeResolver.resolve(checkAction)));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
@@ -412,15 +444,17 @@ public class RBACEngine implements AuthorizationEngine {
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();
-        // But we don't have a meaningful ordering for objects like ConditionalClusterPrivilege, so the tests work with "random" ordering
-        final Set<ConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
-        for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
-            if (tup.v2() == null) {
-                if (ClusterPrivilege.NONE.equals(tup.v1()) == false) {
-                    cluster.addAll(tup.v1().name());
-                }
+        // But we don't have a meaningful ordering for objects like ConfigurableClusterPrivilege, so the tests work with "random" ordering
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = new HashSet<>();
+        for (ClusterPrivilege privilege : userRole.cluster().privileges()) {
+            if (privilege instanceof NamedClusterPrivilege) {
+                cluster.add(((NamedClusterPrivilege) privilege).name());
+            } else if (privilege instanceof ConfigurableClusterPrivilege) {
+                conditionalCluster.add((ConfigurableClusterPrivilege) privilege);
             } else {
-                conditionalCluster.add(tup.v2());
+                throw new IllegalArgumentException(
+                    "found unsupported cluster privilege : " + privilege +
+                        ((privilege != null) ? " of type " + privilege.getClass().getSimpleName() : ""));
             }
         }
 
@@ -465,12 +499,12 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
-    static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, AliasOrIndex> aliasAndIndexLookup) {
+    static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, IndexAbstraction> aliasAndIndexLookup) {
         Predicate<String> predicate = role.allowedIndicesMatcher(action);
 
         List<String> indicesAndAliases = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        for (Map.Entry<String, AliasOrIndex> entry : aliasAndIndexLookup.entrySet()) {
+        for (Map.Entry<String, IndexAbstraction> entry : aliasAndIndexLookup.entrySet()) {
             String aliasOrIndex = entry.getKey();
             if (predicate.test(aliasOrIndex)) {
                 indicesAndAliases.add(aliasOrIndex);
@@ -481,7 +515,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private void buildIndicesAccessControl(Authentication authentication, String action,
                                            AuthorizationInfo authorizationInfo, Set<String> indices,
-                                           Map<String, AliasOrIndex> aliasAndIndexLookup,
+                                           Map<String, IndexAbstraction> aliasAndIndexLookup,
                                            ActionListener<IndexAuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
@@ -506,9 +540,12 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         assert realmType != null;
-        // ensure the user was authenticated by a realm that we can change a password for. The native realm is an internal realm and
-        // right now only one can exist in the realm configuration - if this changes we should update this check
-        return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
+        // Ensure that the user is not authenticated with an access token or an API key.
+        // Also ensure that the user was authenticated by a realm that we can change a password for. The native realm is an internal realm
+        // and right now only one can exist in the realm configuration - if this changes we should update this check
+        final AuthenticationType authType = authentication.getAuthenticationType();
+        return (authType.equals(AuthenticationType.REALM)
+            && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType)));
     }
 
     static class RBACAuthorizationInfo implements AuthorizationInfo {
@@ -548,5 +585,11 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(ClearScrollAction.NAME) ||
             action.equals("indices:data/read/sql/close_cursor") ||
             action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+    }
+
+    private static boolean isAsyncSearchRelatedAction(String action) {
+        return action.equals(SubmitAsyncSearchAction.NAME) ||
+            action.equals(GetAsyncSearchAction.NAME) ||
+            action.equals(DeleteAsyncSearchAction.NAME);
     }
 }

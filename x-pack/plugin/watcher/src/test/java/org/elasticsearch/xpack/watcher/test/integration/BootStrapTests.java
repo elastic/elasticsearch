@@ -291,20 +291,20 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     public void testManuallyStopped() throws Exception {
         WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
-        assertThat(response.watcherMetaData().manuallyStopped(), is(false));
+        assertThat(response.watcherMetadata().manuallyStopped(), is(false));
         stopWatcher();
         response = new WatcherStatsRequestBuilder(client()).get();
-        assertThat(response.watcherMetaData().manuallyStopped(), is(true));
+        assertThat(response.watcherMetadata().manuallyStopped(), is(true));
         startWatcher();
         response = new WatcherStatsRequestBuilder(client()).get();
-        assertThat(response.watcherMetaData().manuallyStopped(), is(false));
+        assertThat(response.watcherMetadata().manuallyStopped(), is(false));
     }
 
     public void testWatchRecordSavedTwice() throws Exception {
         // Watcher could prevent to start if a watch record tried to executed twice or more and the watch didn't exist
         // for that watch record or the execution threadpool rejected the watch record.
         // A watch record without a watch is the easiest to simulate, so that is what this test does.
-        if (client().admin().indices().prepareExists(Watch.INDEX).get().isExists() == false) {
+        if (indexExists(Watch.INDEX) == false) {
             // we rarely create an .watches alias in the base class
             assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
         }

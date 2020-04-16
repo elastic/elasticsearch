@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.scriptfilter;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,6 +49,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
@@ -111,15 +114,15 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
-                        .addMapping("my-type", createMappingSource("binary"))
+                        .setMapping(createMappingSource("binary"))
                         .setSettings(indexSettings())
         );
-        client().prepareIndex("my-index", "my-type", "1")
+        client().prepareIndex("my-index").setId("1")
                 .setSource(jsonBuilder().startObject().field("binaryData",
                         Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())
                 .get();
         flush();
-        client().prepareIndex("my-index", "my-type", "2")
+        client().prepareIndex("my-index").setId("2")
                 .setSource(jsonBuilder().startObject().field("binaryData",
                         Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject())
                 .get();
@@ -146,7 +149,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("binaryData")
                 .field("type", fieldType)
@@ -158,15 +161,15 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     public void testCustomScriptBoost() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
                 .get();
         flush();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
                 .get();
         flush();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test").setId("3")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
                 .get();
         refresh();
@@ -220,6 +223,55 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
+    }
+
+    public void testDisallowExpensiveQueries() {
+        try {
+            assertAcked(
+                    prepareCreate("test-index").setMapping("num1", "type=double")
+            );
+            int docCount = 10;
+            for (int i = 1; i <= docCount; i++) {
+                client().prepareIndex("test-index").setId("" + i)
+                        .setSource("num1", i)
+                        .get();
+            }
+            refresh();
+
+            // Execute with search.allow_expensive_queries = null => default value = false => success
+            Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1",
+                    Collections.emptyMap());
+            SearchResponse resp = client().prepareSearch("test-index")
+                    .setQuery(scriptQuery(script))
+                    .get();
+            assertNoFailures(resp);
+
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+            // Set search.allow_expensive_queries to "false" => assert failure
+            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                    () -> client()
+                            .prepareSearch("test-index")
+                            .setQuery(scriptQuery(script))
+                            .get());
+            assertEquals("[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                    e.getCause().getMessage());
+
+            // Set search.allow_expensive_queries to "true" => success
+            updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            resp = client().prepareSearch("test-index")
+                    .setQuery(scriptQuery(script))
+                    .get();
+            assertNoFailures(resp);
+        } finally {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
 
     private static AtomicInteger scriptCounter = new AtomicInteger(0);

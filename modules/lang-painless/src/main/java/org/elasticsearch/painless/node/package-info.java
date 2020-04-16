@@ -33,14 +33,12 @@
  * {@link org.elasticsearch.painless.node.AExpression} - The superclass for all E* (expression) and P* (postfix) nodes.
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
- * {@link org.elasticsearch.painless.node.AStoreable} - The super class for an expression that can store a value in local memory.
  * {@link org.elasticsearch.painless.node.EAssignment} - Represents an assignment with the lhs and rhs as child nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
  * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
  * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECallLocal} - Represents a user-defined call.
  * {@link org.elasticsearch.painless.node.ECapturingFunctionRef} - Represents a function reference (capturing).
- * {@link org.elasticsearch.painless.node.ECast} - Represents a cast inserted into the tree replacing others. (Internal only.)
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
  * {@link org.elasticsearch.painless.node.EConditional} - Represents a conditional expression.
  * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant inserted into the tree replacing others. (Internal only.)
@@ -88,7 +86,7 @@
  * {@link org.elasticsearch.painless.node.SIf} - Represents an if block.
  * {@link org.elasticsearch.painless.node.SIfElse} - Represents an if/else block.
  * {@link org.elasticsearch.painless.node.SReturn} - Represents a return statement.
- * {@link org.elasticsearch.painless.node.SSource} - The root of all Painless trees.  Contains a series of statements.
+ * {@link org.elasticsearch.painless.node.SClass} - The root of all Painless trees.  Contains a series of statements.
  * {@link org.elasticsearch.painless.node.SSubEachArray} - Represents a for-each loop for arrays.
  * {@link org.elasticsearch.painless.node.SSubEachIterable} - Represents a for-each loop for iterables.
  * {@link org.elasticsearch.painless.node.SThrow} - Represents a throw statement.
@@ -98,7 +96,7 @@
  * Note that internal nodes are generated during the analysis phase by modifying the tree on-the-fly
  * for clarity of development and convenience during the writing phase.
  * <p>
- * All Painless trees must start with an SSource node at the root.  Each node has a constructor that requires
+ * All Painless trees must start with an SClass node at the root.  Each node has a constructor that requires
  * all of its values and children be passed in at the time of instantiation.  This means that Painless trees
  * are build bottom-up; however, this helps enforce tree structure correctness and fits naturally with a
  * standard recursive-descent parser.
@@ -109,7 +107,7 @@
  * <p>
  * Generally, expression nodes have member data that evaluate static and def types.  The typical order for an expression node
  * during the analysis phase looks like the following:
- * {@code
+ * <pre>{@code
  * For known expected types:
  *
  * expression.child.expected = expectedType      // set the known expected type
@@ -132,7 +130,7 @@
  * expression.child = expression.child.cast(...) // add an implicit cast node if the child node's
  *                                               // actual type is not the expected type and set the
  *                                               // expression's child to the implicit cast node
- * }
+ * }</pre>
  * Expression nodes just call each child during the writing phase.
  * <p>
  * Postfix nodes represent postfixes in a variable/method chain including braces, calls, or fields.

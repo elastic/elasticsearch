@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -21,14 +19,16 @@ import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackUsageAction extends BaseRestHandler {
-    public RestXPackUsageAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_xpack/usage", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_xpack/usage"));
     }
 
     @Override

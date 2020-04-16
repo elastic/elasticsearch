@@ -35,11 +35,12 @@ parameter, which follows a specific format:
 // https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
 [source,ebnf]
 --------------------------------------------------
-AGG_SEPARATOR       =  '>' ;
-METRIC_SEPARATOR    =  '.' ;
+AGG_SEPARATOR       =  `>` ;
+METRIC_SEPARATOR    =  `.` ;
 AGG_NAME            =  <the name of the aggregation> ;
 METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
-PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
+MULTIBUCKET_KEY     =  `[<KEY_NAME>]`
+PATH                =  <AGG_NAME><MULTIBUCKET_KEY>? (<AGG_SEPARATOR>, <AGG_NAME> )* ( <METRIC_SEPARATOR>, <METRIC> ) ;
 --------------------------------------------------
 
 For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in the `"my_stats"` metric, which is
@@ -49,7 +50,7 @@ Paths are relative from the position of the pipeline aggregation; they are not a
 aggregation tree. For example, this derivative is embedded inside a date_histogram and refers to a "sibling"
 metric `"the_sum"`:
 
-[source,js]
+[source,console,id=buckets-path-example]
 --------------------------------------------------
 POST /_search
 {
@@ -71,7 +72,7 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The metric is called `"the_sum"`
 <2> The `buckets_path` refers to the metric via a relative path `"the_sum"`
 
@@ -79,7 +80,7 @@ POST /_search
 instead of embedded "inside" them.  For example, the `max_bucket` aggregation uses the `buckets_path` to specify
 a metric embedded inside a sibling aggregation:
 
-[source,js]
+[source,console,id=buckets-path-sibling-example]
 --------------------------------------------------
 POST /_search
 {
@@ -105,10 +106,56 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the
 `sales_per_month` date histogram.
+
+If a Sibling pipeline agg references a multi-bucket aggregation, such as a `terms` agg, it also has the option to
+select specific keys from the multi-bucket.  For example, a `bucket_script` could select two specific buckets (via
+their bucket keys) to perform the calculation:
+
+[source,console,id=buckets-path-specific-bucket-example]
+--------------------------------------------------
+POST /_search
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "calendar_interval" : "month"
+            },
+            "aggs": {
+                "sale_type": {
+                    "terms": {
+                        "field": "type"
+                    },
+                    "aggs": {
+                        "sales": {
+                            "sum": {
+                                "field": "price"
+                            }
+                        }
+                    }
+                },
+                "hat_vs_bag_ratio": {
+                    "bucket_script": {
+                        "buckets_path": {
+                            "hats": "sale_type['hat']>sales", <1>
+                            "bags": "sale_type['bag']>sales"  <1>
+                        },
+                        "script": "params.hats / params.bags"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[setup:sales]
+
+<1> `buckets_path` selects the hats and bags buckets (via `['hat']`/`['bag']``) to use in the script specifically,
+instead of fetching all the buckets from `sale_type` aggregation
 
 [float]
 === Special Paths
@@ -117,7 +164,7 @@ Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path
 the pipeline aggregation to use the document count as its input.  For example, a derivative can be calculated
 on the document count of each bucket, instead of a specific metric:
 
-[source,js]
+[source,console,id=buckets-path-count-example]
 --------------------------------------------------
 POST /_search
 {
@@ -136,14 +183,14 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> By using `_count` instead of a metric name, we can calculate the derivative of document counts in the histogram
 
 The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
-returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be
+returned by that aggregation in the pipeline aggregation instead of a metric. For example, a `bucket_selector` can be
 used here to filter out buckets which contain no buckets for an inner terms aggregation:
 
-[source,js]
+[source,console,id=buckets-path-bucket-count-example]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -175,8 +222,8 @@ POST /sales/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> By using `_bucket_count` instead of a metric name, we can filter out `histo` buckets where they contain no buckets
 for the `categories` aggregation
 
@@ -234,6 +281,7 @@ include::pipeline/percentiles-bucket-aggregation.asciidoc[]
 include::pipeline/movavg-aggregation.asciidoc[]
 include::pipeline/movfn-aggregation.asciidoc[]
 include::pipeline/cumulative-sum-aggregation.asciidoc[]
+include::pipeline/cumulative-cardinality-aggregation.asciidoc[]
 include::pipeline/bucket-script-aggregation.asciidoc[]
 include::pipeline/bucket-selector-aggregation.asciidoc[]
 include::pipeline/bucket-sort-aggregation.asciidoc[]

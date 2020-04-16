@@ -1,17 +1,25 @@
 {
-  "rollup.start_job": {
-    "documentation": "",
-    "stability" : "experimental",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_rollup/job/{id}/_start" ],
-      "parts": {
-        "id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to start"
+  "rollup.start_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-start-job.html",
+      "description":"Starts an existing, stopped rollup job."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/job/{id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job to start"
+            }
+          }
         }
-      }
+      ]
     }
   }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.Setting;
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
     public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
 
     public static final String NAME = "max_retry";
 
@@ -46,8 +46,8 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         final Decision decision;
         if (unassignedInfo != null && unassignedInfo.getNumFailedAllocations() > 0) {
-            final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-            final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
+            final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetadata.getSettings());
             if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
                 decision = allocation.decision(Decision.NO, NAME, "shard has exceeded the maximum number of retries [%d] on " +
                     "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",

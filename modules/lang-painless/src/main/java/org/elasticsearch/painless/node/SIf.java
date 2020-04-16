@@ -19,23 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.IfNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an if block.
  */
-public final class SIf extends AStatement {
+public class SIf extends AStatement {
 
-    AExpression condition;
-    final SBlock ifblock;
+    protected final AExpression condition;
+    protected final SBlock ifblock;
 
     public SIf(Location location, AExpression condition, SBlock ifblock) {
         super(location);
@@ -45,21 +44,15 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
-        }
-    }
+        AExpression.Input conditionInput = new AExpression.Input();
+        conditionInput.expected = boolean.class;
+        AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+        condition.cast(conditionInput, conditionOutput);
 
-    @Override
-    void analyze(Locals locals) {
-        condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
-
-        if (condition.constant != null) {
+        if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -67,35 +60,24 @@ public final class SIf extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        ifblock.lastSource = lastSource;
-        ifblock.inLoop = inLoop;
-        ifblock.lastLoop = lastLoop;
+        Input ifblockInput = new Input();
+        ifblockInput.lastSource = input.lastSource;
+        ifblockInput.inLoop = input.inLoop;
+        ifblockInput.lastLoop = input.lastLoop;
 
-        ifblock.analyze(Locals.newLocalScope(locals));
+        Output ifblockOutput = ifblock.analyze(classNode, scriptRoot, scope.newLocalScope(), ifblockInput);
 
-        anyContinue = ifblock.anyContinue;
-        anyBreak = ifblock.anyBreak;
-        statementCount = ifblock.statementCount;
-    }
+        output.anyContinue = ifblockOutput.anyContinue;
+        output.anyBreak = ifblockOutput.anyBreak;
+        output.statementCount = ifblockOutput.statementCount;
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+        IfNode ifNode = new IfNode();
+        ifNode.setConditionNode(condition.cast(conditionOutput));
+        ifNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
+        ifNode.setLocation(location);
 
-        Label fals = new Label();
+        output.statementNode = ifNode;
 
-        condition.write(writer, globals);
-        writer.ifZCmp(Opcodes.IFEQ, fals);
-
-        ifblock.continu = continu;
-        ifblock.brake = brake;
-        ifblock.write(writer, globals);
-
-        writer.mark(fals);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, ifblock);
+        return output;
     }
 }

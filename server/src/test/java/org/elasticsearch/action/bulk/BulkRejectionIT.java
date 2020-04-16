@@ -23,8 +23,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -39,6 +44,18 @@ public class BulkRejectionIT extends ESIntegTestCase {
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 1)
             .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(InternalSettingsPlugin.class);
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            // sync global checkpoint quickly so we can verify seq_no_stats aligned between all copies after tests.
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build();
     }
 
     @Override

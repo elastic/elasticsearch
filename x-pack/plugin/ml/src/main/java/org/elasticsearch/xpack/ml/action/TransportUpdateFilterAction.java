@@ -44,7 +44,6 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -57,8 +56,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     @Inject
     public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
                                        JobManager jobManager, ClusterService clusterService) {
-        super(UpdateFilterAction.NAME, transportService, actionFilters,
-            (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
+        super(UpdateFilterAction.NAME, transportService, actionFilters, UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
     }
@@ -109,7 +107,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -127,7 +125,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             @Override
             public void onFailure(Exception e) {
                 Exception reportedException;
-                if (e instanceof VersionConflictEngineException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     reportedException = ExceptionsHelper.conflictStatusException("Error updating filter with id [" + filter.getId()
                             + "] because it was modified while the update was in progress", e);
                 } else {

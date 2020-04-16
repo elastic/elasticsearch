@@ -1,37 +1,45 @@
 {
-  "ml.start_datafeed": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/datafeeds/{datafeed_id}/_start" ],
-      "parts": {
-        "datafeed_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the datafeed to start"
+  "ml.start_datafeed":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html",
+      "description":"Starts one or more datafeeds."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/datafeeds/{datafeed_id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to start"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "start":{
+        "type":"string",
+        "required":false,
+        "description":"The start time from where the datafeed should begin"
       },
-      "params": {
-        "start": {
-          "type": "string",
-          "required": false,
-          "description": "The start time from where the datafeed should begin"
-        },
-        "end": {
-          "type": "string",
-          "required": false,
-          "description": "The end time when the datafeed should stop. When not set, the datafeed continues in real time"
-        },
-        "timeout": {
-          "type": "time",
-          "required": false,
-          "description": "Controls the time to wait until a datafeed has started. Default to 20 seconds"
-        }
+      "end":{
+        "type":"string",
+        "required":false,
+        "description":"The end time when the datafeed should stop. When not set, the datafeed continues in real time"
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until a datafeed has started. Default to 20 seconds"
       }
     },
-    "body": {
-      "description": "The start datafeed parameters"
+    "body":{
+      "description":"The start datafeed parameters"
     }
   }
 }

@@ -28,6 +28,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -44,7 +45,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -85,14 +85,15 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (query instanceof SpanMatchNoDocsQuery) {
             return;
         }
-        assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class)).or(instanceOf(FieldMaskingSpanQuery.class)));
+        assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class))
+                .or(instanceOf(FieldMaskingSpanQuery.class)));
         if (query instanceof SpanMultiTermQueryWrapper) {
             SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
-            Query innerQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
+            Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
                 BoostQuery boostQuery = (BoostQuery) innerQuery;
@@ -264,7 +265,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(
                             QueryBuilders.prefixQuery("body", "bar")
                         );
-                        Query query = queryBuilder.toQuery(createShardContext(reader));
+                        Query query = queryBuilder.toQuery(createShardContext(new IndexSearcher(reader)));
                         RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {

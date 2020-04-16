@@ -1,0 +1,11 @@
+plugins {
+  id 'elasticsearch.reaper'
+}
+
+task launchReaper {
+  doLast {
+    def reaper = project.extensions.getByName('reaper')
+    reaper.registerCommand('test', 'true')
+    reaper.unregister('test')
+  }
+}

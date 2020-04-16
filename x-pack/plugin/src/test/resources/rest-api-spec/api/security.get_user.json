@@ -1,22 +1,32 @@
 {
-  "security.get_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [
-        "/_security/user/{username}",
-        "/_security/user"
-      ],
-      "parts": {
-        "username": {
-          "type" : "list",
-          "description" : "A comma-separated list of usernames",
-          "required" : false
-        }
-      },
-      "params": {}
+  "security.get_user":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user.html",
+      "description":"Retrieves information about users in the native realm and built-in users."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/user/{username}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "username":{
+              "type":"list",
+              "description":"A comma-separated list of usernames"
+            }
+          }
+        },
+        {
+          "path":"/_security/user",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

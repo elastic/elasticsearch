@@ -174,6 +174,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSetQuantifier(SqlBaseParser.SetQuantifierContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#selectItems}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSelectItems(SqlBaseParser.SelectItemsContext ctx);
+  /**
    * Visit a parse tree produced by the {@code selectExpression}
    * labeled alternative in {@link SqlBaseParser#selectItem}.
    * @param ctx the parse tree
@@ -225,6 +231,24 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitAliasedRelation(SqlBaseParser.AliasedRelationContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#pivotClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPivotClause(SqlBaseParser.PivotClauseContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#pivotArgs}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPivotArgs(SqlBaseParser.PivotArgsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#namedValueExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#expression}.
    * @param ctx the parse tree

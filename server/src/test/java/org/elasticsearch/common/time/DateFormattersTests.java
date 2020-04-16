@@ -26,7 +26,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -40,6 +39,31 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
+
+    public void testWeekBasedDates() {
+        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+        DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
+
+        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
+        assertThat(DateFormatters.from(dateFormatter.parse("2016-01")) ,
+            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+
+        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
+        assertThat(DateFormatters.from(dateFormatter.parse("2015-01")) ,
+            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+
+
+        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+         dateFormatter = DateFormatters.forPattern("YYYY");
+
+        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")) ,
+            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+
+        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")) ,
+            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+    }
 
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest
@@ -253,7 +277,7 @@ public class DateFormattersTests extends ESTestCase {
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
-        DateTimeFormatter roundUpFormatter = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_millis")).getRoundupParser();
+        JavaDateFormatter roundUpFormatter = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_millis")).getRoundupParser();
         Instant epochMilliInstant = DateFormatters.from(roundUpFormatter.parse("1234567890")).toInstant();
         assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
 
@@ -266,7 +290,7 @@ public class DateFormattersTests extends ESTestCase {
 
         assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
-        DateTimeFormatter epochSecondRoundupParser = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_second")).getRoundupParser();
+        JavaDateFormatter epochSecondRoundupParser = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_second")).getRoundupParser();
         Instant epochSecondInstant = DateFormatters.from(epochSecondRoundupParser.parse("1234567890")).toInstant();
         assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
 
@@ -280,7 +304,7 @@ public class DateFormattersTests extends ESTestCase {
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
-        DateTimeFormatter roundUpFormatter = dateFormatter.getRoundupParser();
+        JavaDateFormatter roundUpFormatter = dateFormatter.getRoundupParser();
         long millis = DateFormatters.from(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
         assertThat(millis, is(expectedMilliSeconds));
     }
@@ -290,8 +314,8 @@ public class DateFormattersTests extends ESTestCase {
         String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
             "strict_date_optional_time||date_optional_time");
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
-        DateTimeFormatter roundUpFormatter = formatter.getRoundupParser();
-        assertThat(roundUpFormatter.getZone(), is(zoneId));
+        JavaDateFormatter roundUpFormatter = formatter.getRoundupParser();
+        assertThat(roundUpFormatter.zone(), is(zoneId));
         assertThat(formatter.zone(), is(zoneId));
     }
 
@@ -300,8 +324,8 @@ public class DateFormattersTests extends ESTestCase {
         String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
             "strict_date_optional_time||date_optional_time");
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
-        DateTimeFormatter roundupParser = formatter.getRoundupParser();
-        assertThat(roundupParser.getLocale(), is(locale));
+        JavaDateFormatter roundupParser = formatter.getRoundupParser();
+        assertThat(roundupParser.locale(), is(locale));
         assertThat(formatter.locale(), is(locale));
     }
 

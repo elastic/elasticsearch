@@ -25,9 +25,6 @@ public class MonitoringBulkResponse extends ActionResponse {
     private Error error;
     private boolean ignored;
 
-    public MonitoringBulkResponse() {
-    }
-
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
         this.tookInMillis = tookInMillis;
         this.ignored = ignored;
@@ -36,6 +33,13 @@ public class MonitoringBulkResponse extends ActionResponse {
     public MonitoringBulkResponse(final long tookInMillis, final Error error) {
         this(tookInMillis, false);
         this.error = error;
+    }
+
+    public MonitoringBulkResponse(StreamInput in) throws IOException {
+        super(in);
+        tookInMillis = in.readVLong();
+        error = in.readOptionalWriteable(Error::new);
+        ignored = in.readBoolean();
     }
 
     public TimeValue getTook() {
@@ -76,16 +80,7 @@ public class MonitoringBulkResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tookInMillis = in.readVLong();
-        error = in.readOptionalWriteable(Error::new);
-        ignored = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeOptionalWriteable(error);
         out.writeBoolean(ignored);

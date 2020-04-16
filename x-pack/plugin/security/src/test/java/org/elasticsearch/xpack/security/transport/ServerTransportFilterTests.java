@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -77,13 +77,14 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
-        ServerTransportFilter filter = getClientOrNodeFilter();
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
+        ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
         //future.get(); // don't block it's not called really just mocked
@@ -98,13 +99,14 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(action), eq(request), eq((User)null), any(ActionListener.class));
-        ServerTransportFilter filter = getClientOrNodeFilter();
+        }).when(authcService).authenticate(eq(action), eq(request), eq(true), any(ActionListener.class));
+        ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture listener = mock(PlainActionFuture.class);
         filter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
@@ -118,13 +120,14 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testInboundAuthenticationException() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onFailure(authE);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
-        ServerTransportFilter filter = getClientOrNodeFilter();
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
+        ServerTransportFilter filter = getNodeFilter();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             filter.inbound("_action", request, channel, future);
@@ -137,15 +140,16 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     public void testInboundAuthorizationException() throws Exception {
-        ServerTransportFilter filter = getClientOrNodeFilter();
+        ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = mock(Authentication.class);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
         when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -158,63 +162,41 @@ public class ServerTransportFilterTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("authz failed"));
     }
 
-    public void testClientProfileRejectsNodeActions() throws Exception {
-        TransportRequest request = mock(TransportRequest.class);
-        ServerTransportFilter filter = getClientFilter(true);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> filter.inbound("internal:foo/bar", request, channel, new PlainActionFuture<>()));
-        assertEquals("executing internal/shard actions is considered malicious and forbidden", e.getMessage());
-        e = expectThrows(ElasticsearchSecurityException.class,
-                () -> filter.inbound("indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]"),
-                        request, channel, new PlainActionFuture<>()));
-        assertEquals("executing internal/shard actions is considered malicious and forbidden", e.getMessage());
-        verifyZeroInteractions(authcService);
-    }
-
-    public void testNodeProfileAllowsNodeActions() throws Exception {
+    public void testAllowsNodeActions() throws Exception {
         final String internalAction = "internal:foo/bar";
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
-        ServerTransportFilter filter = getNodeFilter(true);
+        ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(internalAction), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(internalAction), eq(request), eq(true), any(ActionListener.class));
         doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq((User)null), any(ActionListener.class));
+        }).when(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(true), any(ActionListener.class));
 
         filter.inbound(internalAction, request, channel, new PlainActionFuture<>());
-        verify(authcService).authenticate(eq(internalAction), eq(request), eq((User)null), any(ActionListener.class));
+        verify(authcService).authenticate(eq(internalAction), eq(request), eq(true), any(ActionListener.class));
         verify(authzService).authorize(eq(authentication), eq(internalAction), eq(request), any(ActionListener.class));
 
         filter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
-        verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq((User)null), any(ActionListener.class));
+        verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(true), any(ActionListener.class));
         verify(authzService).authorize(eq(authentication), eq(nodeOrShardAction), eq(request), any(ActionListener.class));
         verifyNoMoreInteractions(authcService, authzService);
     }
 
-    private ServerTransportFilter getClientOrNodeFilter() throws IOException {
-        return randomBoolean() ? getNodeFilter(true) : getClientFilter(true);
-    }
-
-    private ServerTransportFilter.ClientProfile getClientFilter(boolean reservedRealmEnabled) throws IOException {
+    private ServerTransportFilter getNodeFilter() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
-        return new ServerTransportFilter.ClientProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings));
-    }
-
-    private ServerTransportFilter.NodeProfile getNodeFilter(boolean reservedRealmEnabled) throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        ThreadContext threadContext = new ThreadContext(settings);
-        return new ServerTransportFilter.NodeProfile(authcService, authzService, threadContext, false, destructiveOperations,
-                reservedRealmEnabled, new SecurityContext(settings, threadContext), new XPackLicenseState(settings));
+        return new ServerTransportFilter(authcService, authzService, threadContext, false, destructiveOperations,
+                new SecurityContext(settings, threadContext), new XPackLicenseState(settings));
     }
 }

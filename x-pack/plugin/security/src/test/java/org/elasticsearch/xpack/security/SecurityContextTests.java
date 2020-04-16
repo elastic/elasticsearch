@@ -15,12 +15,17 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SecurityContextTests extends ESTestCase {
 
@@ -51,6 +56,14 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(user, securityContext.getUser());
     }
 
+    public void testGetAuthenticationDoesNotSwallowIOException() {
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, ""); // an intentionally corrupt header
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, securityContext::getAuthentication);
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(EOFException.class));
+    }
+
     public void testSetUser() {
         final User user = new User("test");
         assertNull(securityContext.getAuthentication());
@@ -61,7 +74,7 @@ public class SecurityContextTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
-        assertEquals("authentication is already present in the context", e.getMessage());
+        assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
 
     public void testExecuteAsUser() throws IOException {

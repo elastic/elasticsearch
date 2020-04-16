@@ -33,13 +33,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -55,10 +53,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.StringFilter includeExclude, SearchContext context,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators, metaData);
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(1, context.bigArrays());
@@ -114,8 +111,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
-                bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
+        if (bucketCountThresholds.getMinDocCount() == 0
+            && (InternalOrder.isCountDesc(order) == false
+                    || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
@@ -137,7 +135,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
         long otherDocCount = 0;
-        BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
+        BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
         StringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
@@ -168,15 +166,14 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         runDeferredCollections(survivingBucketOrds);
 
         // Now build the aggs
-        for (int i = 0; i < list.length; i++) {
-          final StringTerms.Bucket bucket = list[i];
-          bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-          bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-          bucket.docCountError = 0;
+        for (final StringTerms.Bucket bucket : list) {
+            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            bucket.docCountError = 0;
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
+                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
                 Arrays.asList(list), 0);
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,8 +45,13 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     private String nodeId;
     private ShardId shardId;
 
-    private SnapshotShardFailure() {
-
+    SnapshotShardFailure(StreamInput in) throws IOException {
+        nodeId = in.readOptionalString();
+        shardId = new ShardId(in);
+        super.shardId = shardId.getId();
+        index = shardId.getIndexName();
+        reason = in.readString();
+        status = RestStatus.readFrom(in);
     }
 
     /**
@@ -82,28 +87,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Nullable
     public String nodeId() {
         return nodeId;
-    }
-
-    /**
-     * Reads shard failure information from stream input
-     *
-     * @param in stream input
-     * @return shard failure information
-     */
-    static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
-        SnapshotShardFailure exp = new SnapshotShardFailure();
-        exp.readFrom(in);
-        return exp;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        nodeId = in.readOptionalString();
-        shardId = new ShardId(in);
-        super.shardId = shardId.getId();
-        index = shardId.getIndexName();
-        reason = in.readString();
-        status = RestStatus.readFrom(in);
     }
 
     @Override
@@ -153,7 +136,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             throw new ElasticsearchParseException("index shard was not set");
         }
 
-        ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetaData.INDEX_UUID_NA_VALUE, intShardId);
+        ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetadata.INDEX_UUID_NA_VALUE, intShardId);
 
         RestStatus restStatus;
         if (status != null) {

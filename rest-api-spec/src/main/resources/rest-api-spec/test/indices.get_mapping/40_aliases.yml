@@ -18,7 +18,6 @@
 
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_alias
 
   - match: {test_index.mappings.properties.text.type:     text}

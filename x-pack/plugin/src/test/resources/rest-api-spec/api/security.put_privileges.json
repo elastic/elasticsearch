@@ -1,27 +1,35 @@
 {
-  "security.put_privileges": {
-    "documentation": "TODO",
-    "stability": "stable",
-    "methods": [ "PUT", "POST" ],
-    "url": {
-      "paths": [
-        "/_security/privilege/"
-      ],
-      "params": {
-        "refresh": {
-          "type": "enum",
-          "options": [
-            "true",
-            "false",
-            "wait_for"
-          ],
-          "description": "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+  "security.put_privileges":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-privileges.html",
+      "description":"Adds or updates application privileges."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/privilege/",
+          "methods":[
+            "PUT",
+            "POST"
+          ]
         }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
       }
     },
-    "body": {
-      "description" : "The privilege(s) to add",
-      "required" : true
+    "body":{
+      "description":"The privilege(s) to add",
+      "required":true
     }
   }
 }

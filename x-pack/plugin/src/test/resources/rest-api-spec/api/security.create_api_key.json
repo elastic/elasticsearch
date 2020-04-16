@@ -1,22 +1,35 @@
 {
-  "security.create_api_key": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html",
-    "stability": "stable",
-    "methods": [ "PUT", "POST" ],
-    "url": {
-      "paths": [ "/_security/api_key" ],
-      "parts": {},
-      "params": {
-        "refresh": {
-          "type" : "enum",
-          "options": ["true", "false", "wait_for"],
-          "description" : "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+  "security.create_api_key":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html",
+      "description":"Creates an API key for access without requiring basic authentication."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/api_key",
+          "methods":[
+            "PUT",
+            "POST"
+          ]
         }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
       }
     },
-    "body": {
-      "description" : "The api key request to create an API key",
-      "required" : true
+    "body":{
+      "description":"The api key request to create an API key",
+      "required":true
     }
   }
 }

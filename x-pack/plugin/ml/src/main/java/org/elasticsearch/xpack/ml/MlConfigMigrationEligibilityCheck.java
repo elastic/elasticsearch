@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -53,7 +53,7 @@ public class MlConfigMigrationEligibilityCheck {
     }
 
     static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
-        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (clusterState.metadata().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
             return false;
         }
 
@@ -90,9 +90,9 @@ public class MlConfigMigrationEligibilityCheck {
             return false;
         }
 
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
-                MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
+                MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
     }
 
     /**
@@ -117,8 +117,8 @@ public class MlConfigMigrationEligibilityCheck {
             return false;
         }
 
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
-                || MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
+                || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
     }
 }

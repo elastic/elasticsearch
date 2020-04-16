@@ -8,17 +8,31 @@ setup:
         wait_for_status: yellow
 
   - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+            {
+              "cluster": ["manage_security"]
+            }
+
+  - do:
       security.put_user:
         username: "token_user"
         body:  >
           {
             "password" : "x-pack-test-password",
-            "roles" : [ "superuser" ],
+            "roles" : [ "admin_role" ],
             "full_name" : "Token User"
           }
 
 ---
 teardown:
+
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
   - do:
       security.delete_user:
         username: "token_user"
@@ -46,7 +60,7 @@ teardown:
       security.authenticate: {}
 
   - match: { username: "token_user" }
-  - match: { roles.0:  "superuser" }
+  - match: { roles.0:  "admin_role" }
   - match: { full_name: "Token User" }
 
 ---
@@ -71,7 +85,7 @@ teardown:
       security.authenticate: {}
 
   - match: { username: "token_user" }
-  - match: { roles.0:  "superuser" }
+  - match: { roles.0:  "admin_role" }
   - match: { full_name: "Token User" }
 
   - do:
@@ -111,7 +125,7 @@ teardown:
       security.authenticate: {}
 
   - match: { username: "token_user" }
-  - match: { roles.0:  "superuser" }
+  - match: { roles.0:  "admin_role" }
   - match: { full_name: "Token User" }
 
   - do:
@@ -152,7 +166,7 @@ teardown:
       security.authenticate: {}
 
   - match: { username: "token_user" }
-  - match: { roles.0:  "superuser" }
+  - match: { roles.0:  "admin_role" }
   - match: { full_name: "Token User" }
 
   - do:

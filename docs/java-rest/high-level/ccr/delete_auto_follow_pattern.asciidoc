@@ -3,7 +3,7 @@
 :request: DeleteAutoFollowPatternRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Auto Follow Pattern API
 

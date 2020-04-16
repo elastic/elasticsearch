@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -63,7 +62,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -102,13 +100,13 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metaData().indices().containsKey("test"), equalTo(false));
+        assertThat(state.metadata().indices().containsKey("test"), equalTo(false));
 
         createIndex("test");
         NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         // make sure that all shards recovered before trying to flush
         assertThat(client().admin().cluster().prepareHealth("test")
@@ -125,15 +123,16 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().getMasterName();
         String otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{otherNode})).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
         logger.info("--> stop master node, no master block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
 
-        awaitBusy(() -> {
+        assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            return clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID);
+            assertTrue(clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
+
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         // verify that both nodes are still in the cluster state but there is no master
@@ -154,7 +153,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
+        assertThat(state.metadata().indices().containsKey("test"), equalTo(true));
 
         ensureGreen();
 
@@ -171,7 +170,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         masterNode = internalCluster().getMasterName();
         otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{masterNode})).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
         logger.info("--> stop non-master node, no master block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
@@ -196,7 +195,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
+        assertThat(state.metadata().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
         ensureGreen();
@@ -241,7 +240,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         ensureGreen();
         // make sure that all shards recovered before trying to flush
@@ -317,10 +316,10 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 logger.debug("--> starting the disruption, preventing cluster state publishing");
                 partition.startDisrupting();
-                MetaData.Builder metaData = MetaData.builder(currentState.metaData()).persistentSettings(
-                        Settings.builder().put(currentState.metaData().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
+                Metadata.Builder metadata = Metadata.builder(currentState.metadata()).persistentSettings(
+                        Settings.builder().put(currentState.metadata().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
                 );
-                return ClusterState.builder(currentState).metaData(metaData).build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override
@@ -355,7 +354,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForEvents(Priority.LANGUID));
 
         for (String node : internalCluster().getNodeNames()) {
-            Settings nodeSetting = internalCluster().clusterService(node).state().metaData().settings();
+            Settings nodeSetting = internalCluster().clusterService(node).state().metadata().settings();
             assertThat(node + " processed the cluster state despite of a min master node violation",
                 nodeSetting.get("_SHOULD_NOT_BE_THERE_"), nullValue());
         }

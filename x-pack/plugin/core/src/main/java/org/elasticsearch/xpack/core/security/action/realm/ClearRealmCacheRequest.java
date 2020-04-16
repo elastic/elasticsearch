@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.security.action.realm;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -16,6 +16,17 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
 
     String[] realms;
     String[] usernames;
+
+
+    public ClearRealmCacheRequest() {
+        super((String[]) null);
+    }
+
+    public ClearRealmCacheRequest(StreamInput in) throws IOException {
+        super(in);
+        realms = in.readStringArray();
+        usernames = in.readStringArray();
+    }
 
     /**
      * @return  {@code true} if this request targets realms, {@code false} otherwise.
@@ -68,41 +79,29 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realms = in.readStringArray();
-        usernames = in.readStringArray();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(realms);
         out.writeStringArrayNullable(usernames);
     }
 
-    public static class Node extends BaseNodeRequest {
+    public static class Node extends TransportRequest {
 
         private String[] realms;
         private String[] usernames;
 
-        public Node() {
+        public Node(StreamInput in) throws IOException {
+            super(in);
+            realms = in.readStringArray();
+            usernames = in.readStringArray();
         }
 
-        public Node(ClearRealmCacheRequest request, String nodeId) {
-            super(nodeId);
+        public Node(ClearRealmCacheRequest request) {
             this.realms = request.realms;
             this.usernames = request.usernames;
         }
         public String[] getRealms() { return realms; }
         public String[] getUsernames() { return usernames; }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            realms = in.readStringArray();
-            usernames = in.readStringArray();
-        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

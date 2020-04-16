@@ -73,25 +73,25 @@ public class GeoDataLoader {
                 createString("name", createIndex);
 
                 // Type specific
-                createIndex.startObject("shore").field("type", "geo_shape").endObject(); // lakes
+                createIndex.startObject("shore").field("type", "shape").endObject(); // lakes
 
                 createString("aliases", createIndex); // road_segments
                 createIndex.startObject("num_lanes").field("type", "integer").endObject(); // road_segments, divided_routes
-                createIndex.startObject("centerline").field("type", "geo_shape").endObject(); // road_segments, streams
+                createIndex.startObject("centerline").field("type", "shape").endObject(); // road_segments, streams
 
-                createIndex.startObject("centerlines").field("type", "geo_shape").endObject(); // divided_routes
+                createIndex.startObject("centerlines").field("type", "shape").endObject(); // divided_routes
 
-                createIndex.startObject("boundary").field("type", "geo_shape").endObject(); // forests, named_places
+                createIndex.startObject("boundary").field("type", "shape").endObject(); // forests, named_places
 
-                createIndex.startObject("position").field("type", "geo_shape").endObject(); // bridges, buildings
+                createIndex.startObject("position").field("type", "shape").endObject(); // bridges, buildings
 
                 createString("address", createIndex); // buildings
-                createIndex.startObject("footprint").field("type", "geo_shape").endObject(); // buildings
+                createIndex.startObject("footprint").field("type", "shape").endObject(); // buildings
 
                 createIndex.startObject("type").field("type", "keyword").endObject(); // ponds
-                createIndex.startObject("shores").field("type", "geo_shape").endObject(); // ponds
+                createIndex.startObject("shores").field("type", "shape").endObject(); // ponds
 
-                createIndex.startObject("neatline").field("type", "geo_shape").endObject(); // map_neatlines
+                createIndex.startObject("neatline").field("type", "shape").endObject(); // map_neatlines
 
             }
             createIndex.endObject();

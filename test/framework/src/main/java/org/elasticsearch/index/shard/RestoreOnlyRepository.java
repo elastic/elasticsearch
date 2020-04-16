@@ -21,10 +21,12 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -32,16 +34,15 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
@@ -67,7 +68,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public RepositoryMetaData getMetadata() {
+    public RepositoryMetadata getMetadata() {
         return null;
     }
 
@@ -77,35 +78,33 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
         return null;
     }
 
     @Override
-    public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
+    public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId index) throws IOException {
         return null;
     }
 
     @Override
-    public RepositoryData getRepositoryData() {
-        Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
-        map.put(new IndexId(indexName, "blah"), emptySet());
-        return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), map, Collections.emptyList());
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        final IndexId indexId = new IndexId(indexName, "blah");
+        listener.onResponse(new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.singletonMap(indexId, emptySet()), ShardGenerations.EMPTY));
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
+                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                 boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
+                                 Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+        listener.onResponse(null);
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
-                                         int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                         boolean includeGlobalState, Map<String, Object> userMetadata) {
-        return null;
-    }
-
-    @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
+                               ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -135,15 +134,20 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return null;
     }
 
     @Override
     public void verify(String verificationToken, DiscoveryNode localNode) {
+    }
+
+    @Override
+    public void updateState(final ClusterState state) {
     }
 }

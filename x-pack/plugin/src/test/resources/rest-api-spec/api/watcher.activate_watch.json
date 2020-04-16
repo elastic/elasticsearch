@@ -1,18 +1,26 @@
 {
-  "watcher.activate_watch": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html",
-    "stability": "stable",
-    "methods": [ "PUT", "POST" ],
-    "url": {
-      "paths": [ "/_watcher/watch/{watch_id}/_activate" ],
-      "parts": {
-        "watch_id": {
-          "type" : "string",
-          "description" : "Watch ID",
-          "required" : true
-        }
-      }
+  "watcher.activate_watch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html",
+      "description":"Activates a currently inactive watch."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/watch/{watch_id}/_activate",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "watch_id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          }
+        }
+      ]
+    }
   }
 }

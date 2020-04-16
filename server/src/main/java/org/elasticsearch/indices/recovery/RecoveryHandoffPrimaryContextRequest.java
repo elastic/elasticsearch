@@ -39,7 +39,11 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
     /**
      * Initialize an empty request (used to serialize into when reading from a stream).
      */
-    RecoveryHandoffPrimaryContextRequest() {
+    RecoveryHandoffPrimaryContextRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        primaryContext = new ReplicationTracker.PrimaryContext(in);
     }
 
     /**
@@ -66,14 +70,6 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
 
     ReplicationTracker.PrimaryContext primaryContext() {
         return primaryContext;
-    }
-
-    @Override
-    public void readFrom(final StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
-        primaryContext = new ReplicationTracker.PrimaryContext(in);
     }
 
     @Override

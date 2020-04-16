@@ -58,17 +58,17 @@ public class IpRangeIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+                .setMapping("ip", "type=ip", "ips", "type=ip"));
         waitForRelocation(ClusterHealthStatus.GREEN);
 
         indexRandom(true,
-                client().prepareIndex("idx", "type", "1").setSource(
+                client().prepareIndex("idx").setId("1").setSource(
                         "ip", "192.168.1.7",
                         "ips", Arrays.asList("192.168.0.13", "192.168.1.2")),
-                client().prepareIndex("idx", "type", "2").setSource(
+                client().prepareIndex("idx").setId("2").setSource(
                         "ip", "192.168.1.10",
                         "ips", Arrays.asList("192.168.1.25", "192.168.1.28")),
-                client().prepareIndex("idx", "type", "3").setSource(
+                client().prepareIndex("idx").setId("3").setSource(
                         "ip", "2001:db8::ff00:42:8329",
                         "ips", Arrays.asList("2001:db8::ff00:42:8329", "2001:db8::ff00:42:8380")));
 

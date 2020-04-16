@@ -29,24 +29,31 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.LeafFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
+ * An example script plugin that adds a {@link ScriptEngine}
+ * implementing expert scoring.
  */
 public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+    public ScriptEngine getScriptEngine(
+        Settings settings,
+        Collection<ScriptContext<?>> contexts
+    ) {
         return new MyExpertScriptEngine();
     }
 
-    /** An example {@link ScriptEngine} that uses Lucene segment details to implement pure document frequency scoring. */
+    /** An example {@link ScriptEngine} that uses Lucene segment details to
+     *  implement pure document frequency scoring. */
     // tag::expert_engine
     private static class MyExpertScriptEngine implements ScriptEngine {
         @Override
@@ -55,8 +62,12 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public <T> T compile(String scriptName, String scriptSource,
-                ScriptContext<T> context, Map<String, String> params) {
+        public <T> T compile(
+            String scriptName,
+            String scriptSource,
+            ScriptContext<T> context,
+            Map<String, String> params
+        ) {
             if (context.equals(ScoreScript.CONTEXT) == false) {
                 throw new IllegalArgumentException(getType()
                         + " scripts cannot be used for context ["
@@ -64,7 +75,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                ScoreScript.Factory factory = PureDfLeafFactory::new;
+                ScoreScript.Factory factory = new PureDfFactory();
                 return context.factoryClazz.cast(factory);
             }
             throw new IllegalArgumentException("Unknown script name "
@@ -74,6 +85,29 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public void close() {
             // optionally close resources
+        }
+
+        @Override
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(ScoreScript.CONTEXT);
+        }
+
+        private static class PureDfFactory implements ScoreScript.Factory,
+                                                      ScriptFactory {
+            @Override
+            public boolean isResultDeterministic() {
+                // PureDfLeafFactory only uses deterministic APIs, this
+                // implies the results are cacheable.
+                return true;
+            }
+
+            @Override
+            public LeafFactory newFactory(
+                Map<String, Object> params,
+                SearchLookup lookup
+            ) {
+                return new PureDfLeafFactory(params, lookup);
+            }
         }
 
         private static class PureDfLeafFactory implements LeafFactory {
@@ -115,7 +149,9 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                      */
                     return new ScoreScript(params, lookup, context) {
                         @Override
-                        public double execute() {
+                        public double execute(
+                            ExplanationHolder explanation
+                        ) {
                             return 0.0d;
                         }
                     };
@@ -138,11 +174,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         currentDocid = docid;
                     }
                     @Override
-                    public double execute() {
+                    public double execute(ExplanationHolder explanation) {
                         if (postings.docID() != currentDocid) {
                             /*
-                             * advance moved past the current doc, so this doc
-                             * has no occurrences of the term
+                             * advance moved past the current doc, so this
+                             * doc has no occurrences of the term
                              */
                             return 0.0d;
                         }

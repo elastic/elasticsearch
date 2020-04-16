@@ -25,10 +25,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -36,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -57,18 +55,18 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -78,8 +76,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertEquals(byteSize, clusterState.getRoutingTable()
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
         logger.info("Start the primary shard");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         assertEquals(1, clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.STARTED));
         assertEquals(1, clusterState.getRoutingNodes().unassigned().size());
@@ -107,14 +104,14 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             }
         });
         logger.info("creating an index with 1 shard, no replica");
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -122,7 +119,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
 
         logger.info("start primary shard");
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
         logger.info("move the shard");
         String existingNodeId = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
@@ -144,7 +141,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().node(toNodeId).iterator().next().getExpectedShardSize(), byteSize);
 
         logger.info("finish moving the shard");
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
         assertThat(clusterState.getRoutingNodes().node(existingNodeId).isEmpty(), equalTo(true));
         assertThat(clusterState.getRoutingNodes().node(toNodeId).iterator().next().state(), equalTo(ShardRoutingState.STARTED));

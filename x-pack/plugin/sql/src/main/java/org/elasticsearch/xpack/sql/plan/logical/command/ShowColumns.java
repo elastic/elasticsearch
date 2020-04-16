@@ -6,17 +6,17 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +61,7 @@ public class ShowColumns extends Command {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(SqlSession session, ActionListener<Page> listener) {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
@@ -73,7 +73,7 @@ public class ShowColumns extends Command {
                         rows = new ArrayList<>();
                         fillInRows(indexResult.get().mapping(), null, rows);
                     }
-                    listener.onResponse(Rows.of(output(), rows));
+                    listener.onResponse(of(session, rows));
                 },
                 listener::onFailure));
     }
@@ -85,7 +85,7 @@ public class ShowColumns extends Command {
             String name = e.getKey();
             if (dt != null) {
                 // show only fields that exist in ES
-                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.typeName));
+                rows.add(asList(prefix != null ? prefix + "." + name : name, SqlDataTypes.sqlType(dt).getName(), dt.typeName()));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
                     fillInRows(field.getProperties(), newPrefix, rows);

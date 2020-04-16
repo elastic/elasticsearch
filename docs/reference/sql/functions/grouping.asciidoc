@@ -30,16 +30,15 @@ HISTOGRAM(
 
 *Output*: non-empty buckets or groups of the given expression divided according to the given interval
 
-.Description
-
-The histogram function takes all matching values and divides them into buckets with fixed size matching the given interval, using (roughly) the following formula:
+*Description*: The histogram function takes all matching values and divides them into buckets with fixed size matching the given interval, using (roughly) the following formula:
 
 [source, sql]
 ----
 bucket_key = Math.floor(value / interval) * interval
 ----
 
-NOTE:: The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `NULL`; as such the histogram places all missing values in the `NULL` group.
+[NOTE]
+The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `NULL`; as such the histogram places all missing values in the `NULL` group.
 
 `Histogram` can be applied on either numeric fields:
 
@@ -85,6 +84,16 @@ When the histogram in SQL is applied on **DATE** type instead of **DATETIME**, t
 the multiple of a day. E.g.: for `HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)` the interval
 actually used will be `INTERVAL '2' DAY`. If the interval specified is less than 1 day, e.g.:
 `HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '20' HOUR)` then the interval used will be `INTERVAL '1' DAY`.
+
+[IMPORTANT]
+All intervals specified for a date/time HISTOGRAM will use a <<search-aggregations-bucket-datehistogram-aggregation,fixed interval>>
+in their `date_histogram` aggregation definition, with the notable exceptions of `INTERVAL '1' YEAR`, `INTERVAL '1' MONTH` and `INTERVAL '1' DAY`  where a calendar interval is used.
+The choice for a calendar interval was made for having a more intuitive result for YEAR, MONTH and DAY groupings. In the case of YEAR, for example, the calendar intervals consider a one year
+bucket as the one starting on January 1st that specific year, whereas a fixed interval one-year-bucket considers one year as a number
+of milliseconds (for example, `31536000000ms` corresponding to 365 days, 24 hours per day, 60 minutes per hour etc.). With fixed intervals,
+the day of February 5th, 2019 for example, belongs to a bucket that starts on December 20th, 2018 and {es} (and implicitly {es-sql}) would
+have returned the year 2018 for a date that's actually in 2019. With calendar interval this behavior is more intuitive, having the day of
+February 5th, 2019 actually belonging to the 2019 year bucket. 
 
 [IMPORTANT]
 Histogram in SQL cannot be applied applied on **TIME** type.

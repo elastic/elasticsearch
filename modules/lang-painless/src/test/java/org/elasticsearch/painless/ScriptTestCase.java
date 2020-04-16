@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
-import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -96,8 +95,8 @@ public abstract class ScriptTestCase extends ESTestCase {
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings,
-                    scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT), null);
+            Walker.buildPainlessTree(scriptClassInfo, getTestName(), script, pickySettings,
+                    scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT));
         }
         // test actual script execution
         PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);

@@ -5,11 +5,16 @@ To upgrade directly to {es} {version} from versions 6.0-6.6, you must shut down
 all nodes in the cluster, upgrade each node to {version}, and restart the cluster.
 
 NOTE: If you are running a version prior to 6.0,
-https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[upgrade to 6.7]
+{stack-ref-68}/upgrading-elastic-stack.html[upgrade to 6.8]
 and reindex your old indices or bring up a new {version} cluster and
 <<reindex-upgrade-remote, reindex from remote>>.
 
-To perform a  full cluster restart upgrade to {version}:
+include::preparing_to_upgrade.asciidoc[]
+
+[float]
+=== Upgrading your cluster
+
+To perform a full cluster restart upgrade to {version}:
 
 . *Disable shard allocation.*
 +
@@ -17,13 +22,15 @@ To perform a  full cluster restart upgrade to {version}:
 include::disable-shard-alloc.asciidoc[]
 --
 
-. *Stop indexing and perform a synced flush.*
+. *Stop indexing and perform a flush.*
 +
 --
-Performing a <<indices-synced-flush, synced-flush>> speeds up shard
-recovery.
+Performing a <<indices-flush, flush>> speeds up shard recovery.
 
-include::synced-flush.asciidoc[]
+[source,console]
+--------------------------------------------------
+POST /_flush
+--------------------------------------------------
 --
 
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
@@ -52,6 +59,11 @@ include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
 
+If upgrading from a 6.x cluster, you must also
+<<modules-discovery-bootstrap-cluster,configure cluster bootstrapping>> by
+setting the <<initial_master_nodes,`cluster.initial_master_nodes` setting>> on
+the master-eligible nodes.
+
 . *Upgrade any plugins.*
 +
 Use the `elasticsearch-plugin` script to install the upgraded version of each
@@ -61,7 +73,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start each upgraded node.*
 +
@@ -70,22 +82,17 @@ If you have dedicated master nodes, start them first and wait for them to
 form a cluster and elect a master before proceeding with your data nodes.
 You can check progress by looking at the logs.
 
-If upgrading from a 6.x cluster, you must
-<<modules-discovery-bootstrap-cluster,configure cluster bootstrapping>> by
-setting the `cluster.initial_master_nodes` setting.
-
 As soon as enough master-eligible nodes have discovered each other, they form a
 cluster and elect a master. At that point, you can use
 <<cat-health,`_cat/health`>> and <<cat-nodes,`_cat/nodes`>> to monitor nodes
 joining the cluster:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/health
 
 GET _cat/nodes
 --------------------------------------------------
-// CONSOLE
 
 The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
@@ -113,7 +120,7 @@ When all nodes have joined the cluster and recovered their primary shards,
 reenable allocation by restoring `cluster.routing.allocation.enable` to its
 default:
 
-[source,js]
+[source,console]
 ------------------------------------------------------
 PUT _cluster/settings
 {
@@ -122,7 +129,6 @@ PUT _cluster/settings
   }
 }
 ------------------------------------------------------
-// CONSOLE
 
 Once allocation is reenabled, the cluster starts allocating replica shards to
 the data nodes. At this point it is safe to resume indexing and searching,
@@ -133,13 +139,12 @@ is `green`.
 You can monitor progress with the <<cat-health,`_cat/health`>> and
 <<cat-recovery,`_cat/recovery`>> APIs:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/health
 
 GET _cat/recovery
 --------------------------------------------------
-// CONSOLE
 --
 
 . *Restart machine learning jobs.*

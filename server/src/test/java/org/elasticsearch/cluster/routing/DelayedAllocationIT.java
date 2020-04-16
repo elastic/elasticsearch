@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,8 +43,8 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testNoDelayedTimeout() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get();
         ensureGreen("test");
         indexRandomData();
@@ -62,8 +62,8 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationNodeLeavesAndComesBack() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();
@@ -84,8 +84,8 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationTimesOut() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))).get();
         ensureGreen("test");
         indexRandomData();
@@ -107,8 +107,8 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();
@@ -130,8 +130,8 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationChangeWithSettingTo0() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
         ensureGreen("test");
         indexRandomData();
@@ -150,7 +150,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
         }
         // we want to test both full divergent copies of the shard in terms of segments, and
         // a case where they are the same (using sync flush), index Random does all this goodness

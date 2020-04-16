@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -61,14 +62,14 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatConnectionToHTTPWorks() throws Exception {
-        Settings.Builder builder = Settings.builder();
+        Settings.Builder builder = Settings.builder().put("xpack.security.http.ssl.enabled", true);
         addSSLSettingsForPEMFiles(
             builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
             "xpack.security.http.",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        SSLService service = new SSLService(builder.build(), newEnvironment());
+        SSLService service = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(builder.build())));
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),

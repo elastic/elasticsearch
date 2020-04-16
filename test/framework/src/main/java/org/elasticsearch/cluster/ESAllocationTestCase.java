@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -51,7 +50,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
@@ -122,8 +120,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        return strategy.applyStartedShards(clusterState,
-            arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1))));
+        return startShardsAndReroute(strategy, clusterState, randomFrom(initializingShards));
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
@@ -149,9 +146,63 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         do {
             lastClusterState = clusterState;
             logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
-            clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+            clusterState = startInitializingShardsAndReroute(service, clusterState);
         } while (lastClusterState.equals(clusterState) == false);
         return clusterState;
+    }
+
+    /**
+     * Mark all initializing shards as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState clusterState) {
+        return startShardsAndReroute(allocationService, clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+    }
+
+    /**
+     * Mark all initializing shards on the given node as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService,
+                                                                 ClusterState clusterState,
+                                                                 RoutingNode routingNode) {
+        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING));
+    }
+
+    /**
+     * Mark all initializing shards for the given index as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService,
+                                                                 ClusterState clusterState,
+                                                                 String index) {
+        return startShardsAndReroute(allocationService, clusterState,
+            clusterState.routingTable().index(index).shardsWithState(INITIALIZING));
+    }
+
+    /**
+     * Mark the given shards as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startShardsAndReroute(AllocationService allocationService,
+                                                     ClusterState clusterState,
+                                                     ShardRouting... initializingShards) {
+        return startShardsAndReroute(allocationService, clusterState, Arrays.asList(initializingShards));
+    }
+
+    /**
+     * Mark the given shards as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startShardsAndReroute(AllocationService allocationService,
+                                                     ClusterState clusterState,
+                                                     List<ShardRouting> initializingShards) {
+        return allocationService.reroute(allocationService.applyStartedShards(clusterState, initializingShards), "reroute after starting");
     }
 
     public static class TestAllocateDecision extends AllocationDecider {
@@ -205,26 +256,33 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public DelayedShardsMockGatewayAllocator() {}
 
         @Override
-        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+        public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
             // no-op
         }
 
         @Override
-        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+        public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
             // no-op
         }
 
         @Override
-        public void allocateUnassigned(RoutingAllocation allocation) {
-            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-            while (unassignedIterator.hasNext()) {
-                ShardRouting shard = unassignedIterator.next();
-                if (shard.primary() || shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
-                    continue;
-                }
-                if (shard.unassignedInfo().isDelayed()) {
-                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
-                }
+        public void beforeAllocation(RoutingAllocation allocation) {
+            // no-op
+        }
+
+        @Override
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+            // no-op
+        }
+
+        @Override
+        public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
+                                       UnassignedAllocationHandler unassignedAllocationHandler) {
+            if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                return;
+            }
+            if (shardRouting.unassignedInfo().isDelayed()) {
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }
     }

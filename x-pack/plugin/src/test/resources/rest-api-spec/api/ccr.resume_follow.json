@@ -1,21 +1,29 @@
 {
-  "ccr.resume_follow": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-resume-follow.html",
-    "stability" : "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/{index}/_ccr/resume_follow" ],
-      "parts": {
-        "index": {
-          "type": "string",
-          "required": true,
-          "description": "The name of the follow index to resume following."
-        }
-      }
+  "ccr.resume_follow":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-resume-follow.html",
+      "description": "Resumes a follower index that has been paused"
     },
-    "body": {
-      "description" : "The name of the leader index and other optional ccr related parameters",
-      "required" : false
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ccr/resume_follow",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the follow index to resume following."
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The name of the leader index and other optional ccr related parameters",
+      "required":false
     }
   }
 }

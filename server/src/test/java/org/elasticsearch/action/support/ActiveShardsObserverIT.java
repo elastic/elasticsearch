@@ -25,8 +25,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
@@ -118,7 +118,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                        .get()
                        .isShardsAcknowledged());
         waitForIndexCreationToComplete(indexName);
-        if (client().admin().indices().prepareExists(indexName).get().isExists()) {
+        if (indexExists(indexName)) {
             client().admin().indices().prepareDelete(indexName).get();
         }
 
@@ -147,7 +147,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                 .execute();
 
         logger.info("--> wait until the cluster state contains the new index");
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().metaData().hasIndex(indexName)));
+        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().metadata().hasIndex(indexName)));
 
         logger.info("--> delete the index");
         assertAcked(client().admin().indices().prepareDelete(indexName));

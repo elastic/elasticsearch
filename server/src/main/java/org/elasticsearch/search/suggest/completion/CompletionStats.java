@@ -22,7 +22,6 @@ import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class CompletionStats implements Streamable, Writeable, ToXContentFragment {
+public class CompletionStats implements Writeable, ToXContentFragment {
 
     private static final String COMPLETION = "completion";
     private static final String SIZE_IN_BYTES = "size_in_bytes";
@@ -64,11 +63,6 @@ public class CompletionStats implements Streamable, Writeable, ToXContentFragmen
 
     public FieldMemoryStats getFields() {
         return fields;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -1,19 +1,26 @@
 {
-  "ilm.delete_lifecycle": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-delete-lifecycle.html",
-    "stability": "stable",
-    "methods": [ "DELETE" ],
-    "url": {
-      "paths": ["/_ilm/policy/{policy}"],
-      "parts": {
-        "policy": {
-          "type" : "string",
-          "description" : "The name of the index lifecycle policy"
-        }
-      },
-      "params": {
-      }
+  "ilm.delete_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-delete-lifecycle.html",
+      "description": "Deletes the specified lifecycle policy definition. A currently used policy cannot be deleted."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ilm/policy/{policy}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "policy":{
+              "type":"string",
+              "description":"The name of the index lifecycle policy"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
   }
 }

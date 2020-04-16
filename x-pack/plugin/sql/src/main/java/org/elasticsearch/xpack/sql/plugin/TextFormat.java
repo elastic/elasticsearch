@@ -6,15 +6,18 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -26,9 +29,6 @@ import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEX
 /**
  * Templating class for displaying SQL responses in text formats.
  */
-
-// TODO are we sure toString is correct here? What about dates that come back as longs.
-// Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
 enum TextFormat {
 
     /**
@@ -41,22 +41,41 @@ enum TextFormat {
      */
     PLAIN_TEXT() {
         @Override
-        String format(Cursor cursor, RestRequest request, SqlQueryResponse response) {
-            final BasicFormatter formatter;
-            if (cursor instanceof TextFormatterCursor) {
-                formatter = ((TextFormatterCursor) cursor).getFormatter();
-                return formatter.formatWithoutHeader(response.rows());
-            } else {
+        String format(RestRequest request, SqlQueryResponse response) {
+            BasicFormatter formatter = null;
+            Cursor cursor = null;
+            ZoneId zoneId = null;
+
+            // check if the cursor is already wrapped first
+            if (response.hasCursor()) {
+                Tuple<Cursor, ZoneId> tuple = Cursors.decodeFromStringWithZone(response.cursor());
+                cursor = tuple.v1();
+                zoneId = tuple.v2();
+                if (cursor instanceof TextFormatterCursor) {
+                    formatter = ((TextFormatterCursor) cursor).getFormatter();
+                }
+            }
+
+            // if there are headers available, it means it's the first request
+            // so initialize the underlying formatter and wrap it in the cursor
+            if (response.columns() != null) {
                 formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
+                // if there's a cursor, wrap the formatter in it
+                if (cursor != null) {
+                    response.cursor(Cursors.encodeToString(new TextFormatterCursor(cursor, formatter), zoneId));
+                }
+                // format with header
                 return formatter.formatWithHeader(response.columns(), response.rows());
             }
-        }
-
-        @Override
-        Cursor wrapCursor(Cursor oldCursor, SqlQueryResponse response) {
-            BasicFormatter formatter = (oldCursor instanceof TextFormatterCursor) ?
-                    ((TextFormatterCursor) oldCursor).getFormatter() : new BasicFormatter(response.columns(), response.rows(), TEXT);
-            return TextFormatterCursor.wrap(super.wrapCursor(oldCursor, response), formatter);
+            else {
+                // should be initialized (wrapped by the cursor)
+                if (formatter != null) {
+                    // format without header
+                    return formatter.formatWithoutHeader(response.rows());
+                }
+            }
+            // if this code is reached, it means it's a next page without cursor wrapping
+            throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");
         }
 
         @Override
@@ -219,12 +238,11 @@ enum TextFormat {
     };
 
 
-    String format(Cursor cursor, RestRequest request, SqlQueryResponse response) {
+    String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
-        boolean header = hasHeader(request);
-
-        if (header) {
+        // if the header is requested (and the column info is present - namely it's the first page) return the info
+        if (hasHeader(request) && response.columns() != null) {
             row(sb, response.columns(), ColumnInfo::name);
         }
 
@@ -237,10 +255,6 @@ enum TextFormat {
 
     boolean hasHeader(RestRequest request) {
         return true;
-    }
-
-    Cursor wrapCursor(Cursor oldCursor, SqlQueryResponse response) {
-        return Cursors.decodeFromString(response.cursor());
     }
 
     static TextFormat fromMediaTypeOrFormat(String accept) {

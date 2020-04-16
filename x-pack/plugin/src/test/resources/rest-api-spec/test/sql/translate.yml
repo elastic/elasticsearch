@@ -6,7 +6,6 @@
         body:
           - index:
               _index: test
-              _type:  doc
               _id:    1
           - str: test1
             int: 1
@@ -20,10 +19,9 @@
         size: 1000
         _source:
           includes:
+            - int
             - str
           excludes: []
-        docvalue_fields:
-          - field: int
         sort:
           - int:
               order: asc

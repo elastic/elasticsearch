@@ -92,27 +92,27 @@ public class GetResponseTests extends ESTestCase {
 
     public void testToXContent() {
         {
-            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
+            GetResponse getResponse = new GetResponse(new GetResult("index", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new DocumentField("field1",
                     Collections.singletonList("value1"))), null));
             String output = Strings.toString(getResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
                 "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
                 output);
         }
         {
-            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO,
+            GetResponse getResponse = new GetResponse(new GetResult("index", "id", UNASSIGNED_SEQ_NO,
                 0, 1, false, null, null, null));
             String output = Strings.toString(getResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }
 
     public void testToString() {
-        GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 0, 1, 1, true,
+        GetResponse getResponse = new GetResponse(new GetResult("index", "id", 0, 1, 1, true,
                     new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
                         Collections.singletonMap("field1", new DocumentField("field1", Collections.singletonList("value1"))), null));
-        assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
+        assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
             "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
             getResponse.toString());
     }
@@ -124,7 +124,7 @@ public class GetResponseTests extends ESTestCase {
 
     public void testFromXContentThrowsParsingException() throws IOException {
         GetResponse getResponse =
-            new GetResponse(new GetResult(null, null, null, UNASSIGNED_SEQ_NO, 0, randomIntBetween(1, 5),
+            new GetResponse(new GetResult(null, null, UNASSIGNED_SEQ_NO, 0, randomIntBetween(1, 5),
                 randomBoolean(), null, null, null));
 
         XContentType xContentType = randomFrom(XContentType.values());
@@ -132,7 +132,7 @@ public class GetResponseTests extends ESTestCase {
 
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ParsingException exception = expectThrows(ParsingException.class, () -> GetResponse.fromXContent(parser));
-            assertEquals("Missing required fields [_index,_type,_id]", exception.getMessage());
+            assertEquals("Missing required fields [_index,_id]", exception.getMessage());
         }
     }
 

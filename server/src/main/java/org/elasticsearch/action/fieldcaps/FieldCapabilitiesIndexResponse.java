@@ -29,24 +29,23 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Response for {@link FieldCapabilitiesIndexRequest} requests.
+ * Response for {@link TransportFieldCapabilitiesIndexAction}.
  */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private String indexName;
-    private Map<String, FieldCapabilities> responseMap;
+    private Map<String, IndexFieldCapabilities> responseMap;
 
-    FieldCapabilitiesIndexResponse(String indexName, Map<String, FieldCapabilities> responseMap) {
+    FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap) {
         this.indexName = indexName;
         this.responseMap = responseMap;
     }
 
-    FieldCapabilitiesIndexResponse() {
+    FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
+        super(in);
+        this.indexName = in.readString();
+        this.responseMap =
+            in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
     }
-
-    FieldCapabilitiesIndexResponse(StreamInput input) throws IOException {
-        this.readFrom(input);
-    }
-
 
     /**
      * Get the index name
@@ -58,7 +57,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     /**
      * Get the field capabilities map
      */
-    public Map<String, FieldCapabilities> get() {
+    public Map<String, IndexFieldCapabilities> get() {
         return responseMap;
     }
 
@@ -66,21 +65,12 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
      *
      * Get the field capabilities for the provided {@code field}
      */
-    public FieldCapabilities getField(String field) {
+    public IndexFieldCapabilities getField(String field) {
         return responseMap.get(field);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.indexName = in.readString();
-        this.responseMap =
-            in.readMap(StreamInput::readString, FieldCapabilities::new);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(indexName);
         out.writeMap(responseMap,
             StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));

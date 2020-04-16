@@ -154,3 +154,25 @@ executes the request. For example, this is the place where you'd specify a
 `NodeSelector` to control which node receives the request. See the
 <<java-rest-low-usage-request-options,low level client documentation>> for
 more examples of customizing the options.
+
+[[java-rest-high-getting-started-asynchronous-usage]]
+=== Asynchronous usage
+
+All of the the methods across the different clients exist in a traditional synchronous and 
+asynchronous variant. The difference is that the asynchronous ones use asynchronous requests 
+in the REST Low Level Client. This is useful if you are doing multiple requests or are using e.g.
+rx java, Kotlin co-routines, or similar frameworks.
+
+The asynchronous methods are recognizable by the fact that they have the word "Async" in their name 
+and return a `Cancellable` instance. The asynchronous methods accept the same request object 
+as the synchronous variant and accept a generic `ActionListener<T>` where `T` is the return 
+type of the synchronous method. 
+
+All asynchronous methods return a `Cancellable` object with a `cancel` method that you may call 
+in case you want to abort the request. Cancelling
+no longer needed requests is a good way to avoid putting unnecessary 
+load on Elasticsearch.
+
+Using the `Cancellable` instance is optional and you can safely ignore this if you have 
+no need for this. A use case for this would be using this with e.g. Kotlin's `suspendCancellableCoRoutine`. 
+

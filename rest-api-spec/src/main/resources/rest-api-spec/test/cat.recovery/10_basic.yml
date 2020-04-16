@@ -1,5 +1,8 @@
 ---
 "Test cat recovery output":
+  - skip:
+      version: " - 7.99.99"
+      reason: format of bytes output changed in 8.0.0
 
   - do:
       cat.recovery: {}
@@ -35,10 +38,10 @@
                 \d+         \s+                                 # files_recovered
                 \d+\.\d+%   \s+                                 # files_percent
                 \d+         \s+                                 # files_total
-                \d+         \s+                                 # bytes
-                \d+         \s+                                 # bytes_recovered
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_recovered
                 \d+\.\d+%   \s+                                 # bytes_percent
-                \d+         \s+                                 # bytes_total
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_total
                 -?\d+       \s+                                 # translog_ops
                 \d+         \s+                                 # translog_ops_recovered
                 -?\d+\.\d+%                                     # translog_ops_percent
@@ -56,7 +59,7 @@
               (
                 \d          \s+                                 # shard
                 ((\S+\s?){1,10})\s+                             # source_node
-                \d+                                             # bytes
+                \d+(b|kb|mb|gb|tb|pb)                           # bytes
                 \n
               )+
               $/
@@ -71,7 +74,7 @@
               (
                 \d          \s+                                 # shard
                 ((\S+\s?){1,10})\s+                             # target_node
-                \d+                                             # bytes
+                \d+(b|kb|mb|gb|tb|pb)                           # bytes
                 \n
               )+
               $/
@@ -79,8 +82,8 @@
 ---
 "Test cat recovery output for closed index":
   - skip:
-      version: " - 7.1.99"
-      reason: closed indices are replicated starting version 7.2.0
+      version: " - 7.99.99"
+      reason: format of bytes output changed in 8.0.0
 
   - do:
       indices.create:
@@ -122,10 +125,10 @@
           \d+         \s+                                 # files_recovered
           \d+\.\d+%   \s+                                 # files_percent
           \d+         \s+                                 # files_total
-          \d+         \s+                                 # bytes
-          \d+         \s+                                 # bytes_recovered
+          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes
+          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_recovered
           \d+\.\d+%   \s+                                 # bytes_percent
-          \d+         \s+                                 # bytes_total
+          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_total
           0          \s+                                  # translog_ops (always 0 for closed indices)
           0           \s+                                 # translog_ops_recovered (always 0 for closed indices)
           100\.0%                                         # translog_ops_percent (always 100.0% for closed indices)

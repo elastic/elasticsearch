@@ -19,34 +19,29 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public class RestCreateIndexAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestCreateIndexAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in create " +
-        "index requests is deprecated. The parameter will be removed in the next major version.";
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-    public RestCreateIndexAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
+public class RestCreateIndexAction extends BaseRestHandler {
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(PUT, "/{index}"));
     }
 
     @Override
@@ -56,19 +51,13 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
                 request.getXContentType()).v2();
-            sourceAsMap = prepareMappings(sourceAsMap, includeTypeName);
+            sourceAsMap = prepareMappings(sourceAsMap);
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
@@ -79,9 +68,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
     }
 
 
-    static Map<String, Object> prepareMappings(Map<String, Object> source, boolean includeTypeName) {
-        if (includeTypeName
-            || source.containsKey("mappings") == false
+    static Map<String, Object> prepareMappings(Map<String, Object> source) {
+        if (source.containsKey("mappings") == false
             || (source.get("mappings") instanceof Map) == false) {
             return source;
         }
@@ -91,11 +79,10 @@ public class RestCreateIndexAction extends BaseRestHandler {
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
         if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-            throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
-                "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+            throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
         }
 
-        newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
+        newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
     }
 }

@@ -172,6 +172,10 @@ public abstract class NetworkUtils {
         try {
             return intf.isUp();
         } catch (final SocketException e) {
+            // virtual ethernet devices come and go, we will treat such a device that disappeared as not being up
+            if (intf.getName().startsWith("veth") && e.getMessage().equals("No such device (getFlags() failed)")) {
+                return false;
+            }
             throw new IOException("failed to check if interface [" + intf.getName() + "] is up", e);
         }
     }
@@ -200,10 +204,14 @@ public abstract class NetworkUtils {
     static InetAddress[] getAllAddresses() throws IOException {
         return filterAllAddresses(address -> true, "no up-and-running addresses found");
     }
-    
+
+    static Optional<NetworkInterface> maybeGetInterfaceByName(List<NetworkInterface> networkInterfaces, String name) {
+        return networkInterfaces.stream().filter(netIf -> name.equals(netIf.getName())).findFirst();
+    }
+
     /** Returns addresses for the given interface (it must be marked up) */
     static InetAddress[] getAddressesForInterface(String name) throws SocketException {
-        Optional<NetworkInterface> networkInterface = getInterfaces().stream().filter((netIf) -> name.equals(netIf.getName())).findFirst();
+        Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), name);
 
         if (networkInterface.isPresent() == false) {
             throw new IllegalArgumentException("No interface named '" + name + "' found, got " + getInterfaces());

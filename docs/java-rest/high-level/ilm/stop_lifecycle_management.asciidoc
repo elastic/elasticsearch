@@ -3,7 +3,7 @@
 :request: StopILMRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Stop Index Lifecycle Management API
 

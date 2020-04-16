@@ -5,9 +5,11 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Exec;
 import org.gradle.api.tasks.Internal;
 import org.gradle.process.BaseExecSpec;
+import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
@@ -16,10 +18,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * A wrapper around gradle's Exec task to capture output and log on error.
@@ -27,8 +32,9 @@ import java.util.function.Function;
 @SuppressWarnings("unchecked")
 public class LoggedExec extends Exec {
 
+    private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     private Consumer<Logger> outputLogger;
-    
+
     public LoggedExec() {
 
         if (getLogger().isInfoEnabled() == false) {
@@ -91,35 +97,41 @@ public class LoggedExec extends Exec {
     }
 
     public static ExecResult exec(Project project, Action<ExecSpec> action) {
-        return genericExec(project, project::exec, action);
+        return genericExec(project::exec, action);
+    }
+
+    public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {
+        return genericExec(execOperations::exec, action);
     }
 
     public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
-        return genericExec(project, project::javaexec, action);
+        return genericExec(project::javaexec, action);
     }
 
-    private static <T extends BaseExecSpec>  ExecResult genericExec(
-        Project project,
-        Function<Action<T>,ExecResult> function,
-        Action<T> action
-    ) {
-        if (project.getLogger().isInfoEnabled()) {
+    private static final Pattern NEWLINE = Pattern.compile(System.lineSeparator());
+
+    private static <T extends BaseExecSpec> ExecResult genericExec(Function<Action<T>, ExecResult> function, Action<T> action) {
+        if (LOGGER.isInfoEnabled()) {
             return function.apply(action);
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        ByteArrayOutputStream error = new ByteArrayOutputStream();
         try {
             return function.apply(spec -> {
                 spec.setStandardOutput(output);
-                spec.setErrorOutput(error);
+                spec.setErrorOutput(output);
                 action.execute(spec);
+                try {
+                    output.write(("Output for " + spec.getExecutable() + ":").getBytes(StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             });
         } catch (Exception e) {
             try {
-                project.getLogger().error("Standard output:");
-                project.getLogger().error(output.toString("UTF-8"));
-                project.getLogger().error("Standard error:");
-                project.getLogger().error(error.toString("UTF-8"));
+                if (output.size() != 0) {
+                    LOGGER.error("Exec output and error:");
+                    NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> LOGGER.error("| " + s));
+                }
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);
             }

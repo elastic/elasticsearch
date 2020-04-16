@@ -42,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -62,7 +61,8 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
     private final NamedXContentRegistry xContentRegistry;
 
     protected AbstractTransportGetResourcesAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                                                  Supplier<Request> request, Client client, NamedXContentRegistry xContentRegistry) {
+                                                  Writeable.Reader<Request> request, Client client,
+                                                  NamedXContentRegistry xContentRegistry) {
         super(actionName, transportService, actionFilters, request);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -80,6 +80,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
             sourceBuilder.from(request.getPageParams().getFrom())
                 .size(request.getPageParams().getSize());
         }
+        sourceBuilder.trackTotalHits(true);
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest(getIndices())
@@ -88,7 +89,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
-            .source(sourceBuilder);
+            .source(customSearchOptions(sourceBuilder));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
@@ -98,14 +99,19 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 public void onResponse(SearchResponse response) {
                     List<Resource> docs = new ArrayList<>();
                     Set<String> foundResourceIds = new HashSet<>();
+                    long totalHitCount = response.getHits().getTotalHits().value;
                     for (SearchHit hit : response.getHits().getHits()) {
                         BytesReference docSource = hit.getSourceRef();
                         try (InputStream stream = docSource.streamInput();
                              XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                                  xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                             Resource resource = parse(parser);
-                            docs.add(resource);
-                            foundResourceIds.add(extractIdFromResource(resource));
+                            String id = extractIdFromResource(resource);
+                            // Do not include a resource with the same ID twice
+                            if (foundResourceIds.contains(id) == false) {
+                                docs.add(resource);
+                                foundResourceIds.add(id);
+                            }
                         } catch (IOException e) {
                             this.onFailure(e);
                         }
@@ -115,7 +121,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
+                        listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
                     }
                 }
 
@@ -156,6 +162,10 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
             boolQuery.filter(additionalQuery);
         }
         return boolQuery.hasClauses() ? boolQuery : QueryBuilders.matchAllQuery();
+    }
+
+    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder;
     }
 
     @Nullable

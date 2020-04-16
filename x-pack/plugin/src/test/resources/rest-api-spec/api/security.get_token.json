@@ -1,18 +1,24 @@
 {
-  "security.get_token": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [
-        "/_security/oauth2/token"
-      ],
-      "parts": {},
-      "params": {}
+  "security.get_token":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html",
+      "description":"Creates a bearer token for access without requiring basic authentication."
     },
-    "body": {
-      "description" : "The token request to get",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/oauth2/token",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The token request to get",
+      "required":true
     }
   }
 }

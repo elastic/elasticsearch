@@ -48,7 +48,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
     public void testTook() throws Exception {
         XContentBuilder mapping = jsonBuilder()
             .startObject()
-                .startObject("type1")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
@@ -57,10 +57,10 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        createIndex("test", Settings.EMPTY, "type1", mapping);
+        createIndex("test", Settings.EMPTY, mapping);
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -92,13 +92,13 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder()
                 .put("number_of_shards", 1)
                 .build();
-        createIndex("test", settings, "_doc", mapping);
+        createIndex("test", settings, mapping);
         ensureGreen();
 
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(client().prepareIndex("test", "_doc", Integer.toString(i))
+            bulk.add(client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("text", "the quick brown fox jumped over the lazy dog"));
         }
         bulk.get();
@@ -135,13 +135,13 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder()
                 .put("number_of_shards", 1)
                 .build();
-        createIndex("test", settings, "_doc", mapping);
+        createIndex("test", settings, mapping);
         ensureGreen();
 
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(client().prepareIndex("test", "_doc", Integer.toString(i))
+            bulk.add(client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource("text", "the quick brown fox jumped over the lazy dog"));
         }
         bulk.get();

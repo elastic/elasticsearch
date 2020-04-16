@@ -48,7 +48,7 @@ public abstract class BucketAggregationScript {
 
     public abstract Number execute();
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         BucketAggregationScript newInstance(Map<String, Object> params);
     }
 }

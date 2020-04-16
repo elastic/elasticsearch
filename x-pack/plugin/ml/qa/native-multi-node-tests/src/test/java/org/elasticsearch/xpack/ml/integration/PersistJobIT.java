@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -178,13 +179,12 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
 
         // Check that state has not been persisted
-        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setFetchSource(false)
-            .setTrackTotalHits(true)
-            .setSize(10000)
-            .get();
+        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).get();
+        assertThat(Arrays.asList(stateDocsResponse.getHits().getHits()), empty());
 
-        assertThat(stateDocsResponse.getHits().getTotalHits().value, equalTo(0L));
+        // Check that results have not been persisted
+        SearchResponse resultsDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
+        assertThat(Arrays.asList(resultsDocsResponse.getHits().getHits()), empty());
 
         deleteJob(jobId);
     }

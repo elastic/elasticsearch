@@ -29,7 +29,23 @@ public class GetWatchResponse extends ActionResponse implements ToXContentObject
     private long seqNo;
     private long primaryTerm;
 
-    public GetWatchResponse() {
+    public GetWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        found = in.readBoolean();
+        if (found) {
+            status = new WatchStatus(in);
+            source = XContentSource.readFrom(in);
+            version = in.readZLong();
+            seqNo = in.readZLong();
+            primaryTerm = in.readVLong();
+        } else {
+            status = null;
+            source = null;
+            version = Versions.NOT_FOUND;
+            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+        }
     }
 
     /**
@@ -87,28 +103,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContentObject
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        found = in.readBoolean();
-        if (found) {
-            status = new WatchStatus(in);
-            source = XContentSource.readFrom(in);
-            version = in.readZLong();
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            status = null;
-            source = null;
-            version = Versions.NOT_FOUND;
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(id);
         out.writeBoolean(found);
         if (found) {

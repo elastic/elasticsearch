@@ -42,7 +42,15 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
 
-    MainResponse() {
+    MainResponse() {}
+
+    MainResponse(StreamInput in) throws IOException {
+        super(in);
+        nodeName = in.readString();
+        version = Version.readVersion(in);
+        clusterName = new ClusterName(in);
+        clusterUuid = in.readString();
+        build = Build.readBuild(in);
     }
 
     public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -76,22 +84,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(nodeName);
         Version.writeVersion(version, out);
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodeName = in.readString();
-        version = Version.readVersion(in);
-        clusterName = new ClusterName(in);
-        clusterUuid = in.readString();
-        build = Build.readBuild(in);
     }
 
     @Override
@@ -104,7 +101,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("number", build.getQualifiedVersion())
             .field("build_flavor", build.flavor().displayName())
             .field("build_type", build.type().displayName())
-            .field("build_hash", build.shortHash())
+            .field("build_hash", build.hash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
             .field("lucene_version", version.luceneVersion.toString())

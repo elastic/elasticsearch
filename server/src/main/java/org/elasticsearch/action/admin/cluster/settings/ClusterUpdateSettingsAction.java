@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsAction extends ActionType<ClusterUpdateSettingsResponse> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
     public static final String NAME = "cluster:admin/settings/update";
 
     private ClusterUpdateSettingsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClusterUpdateSettingsResponse newResponse() {
-        return new ClusterUpdateSettingsResponse();
+        super(NAME, ClusterUpdateSettingsResponse::new);
     }
 }

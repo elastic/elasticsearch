@@ -30,11 +30,12 @@ import java.util.List;
 public class OnGoingMerge {
 
     private final String id;
-    private final List<SegmentCommitInfo> mergedSegments;
+    private final MergePolicy.OneMerge oneMerge;
 
     public OnGoingMerge(MergePolicy.OneMerge merge) {
         this.id = Integer.toString(System.identityHashCode(merge));
-        this.mergedSegments = merge.segments;
+        this.oneMerge = merge;
+
     }
 
     /**
@@ -44,10 +45,20 @@ public class OnGoingMerge {
         return id;
     }
 
+
+    /**
+     * Returns the total size in bytes of this merge. Note that this does not
+     * indicate the size of the merged segment, but the
+     * input total size.
+     */
+    public long getTotalBytesSize() {
+        return oneMerge.totalBytesSize();
+    }
+
     /**
      * The list of segments that are being merged.
      */
     public List<SegmentCommitInfo> getMergedSegments() {
-        return mergedSegments;
+        return oneMerge.segments;
     }
 }

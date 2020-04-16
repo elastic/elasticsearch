@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
@@ -14,7 +14,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
+public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response> {
 
     public static final GetRollupJobsAction INSTANCE = new GetRollupJobsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get";
@@ -44,17 +44,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
     public static final ParseField STATS = new ParseField("stats");
 
     private GetRollupJobsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetRollupJobsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -62,7 +52,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         public Request(String id) {
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
+                this.id = Metadata.ALL;
             } else {
                 this.id = id;
             }
@@ -74,7 +64,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             super(in);
             id = in.readString();
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
+                this.id = Metadata.ALL;
             }
         }
 
@@ -88,7 +78,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description just needs to start
             // with `rollup_`
-            if (id.equals(MetaData.ALL)) {
+            if (id.equals(Metadata.ALL)) {
                 return task.getDescription().startsWith(RollupField.NAME + "_");
             }
             // Otherwise find the task by ID

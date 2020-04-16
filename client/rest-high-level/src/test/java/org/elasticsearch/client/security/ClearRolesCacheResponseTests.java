@@ -55,12 +55,13 @@ public class ClearRolesCacheResponseTests extends ESTestCase {
             assertThat(response.getHeader().getFailures().get(0).getMessage(), containsString("reason=test"));
         }
 
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            "{" + nodesHeader + clusterName + "\"nodes\" : { " +
-                "\"id1\": { \"name\": \"a\"}, " +
-                "\"id2\": { \"name\": \"b\"}" +
-                "}}")) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{" + nodesHeader + clusterName + "\"nodes\" : { \"id1\": { \"name\": \"a\"}, \"id2\": { \"name\": \"b\"}}}"
+            )
+        ) {
 
             ClearRolesCacheResponse response = ClearRolesCacheResponse.fromXContent(parser);
             assertNotNull(response);

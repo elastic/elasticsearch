@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -22,24 +22,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class FollowInfoAction extends Action<FollowInfoAction.Response> {
+public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
     public static final String NAME = "cluster:monitor/ccr/follow_info";
 
     public static final FollowInfoAction INSTANCE = new FollowInfoAction();
 
     private FollowInfoAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, FollowInfoAction.Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -108,7 +98,6 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeList(followInfos);
         }
 

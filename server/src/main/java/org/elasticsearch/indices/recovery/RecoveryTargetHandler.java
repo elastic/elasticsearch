@@ -23,10 +23,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 
-import java.io.IOException;
 import java.util.List;
 
 public interface RecoveryTargetHandler {
@@ -34,19 +33,20 @@ public interface RecoveryTargetHandler {
     /**
      * Prepares the target to receive translog operations, after all file have been copied
      *
-     * @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps  total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener);
+    void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener);
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, updates
      * the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
+     * @param trimAboveSeqNo   The recovery target should erase its existing translog above this sequence number
+     *                         from the previous primary terms.
      * @param listener         the listener which will be notified when this method is completed
      */
-    void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
+    void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener);
 
     /**
      * Handoff the primary context between the relocation source and the relocation target.
@@ -89,7 +89,8 @@ public interface RecoveryTargetHandler {
                          List<Long> phase1FileSizes,
                          List<String> phase1ExistingFileNames,
                          List<Long> phase1ExistingFileSizes,
-                         int totalTranslogOps);
+                         int totalTranslogOps,
+                         ActionListener<Void> listener);
 
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local
@@ -97,12 +98,12 @@ public interface RecoveryTargetHandler {
      *
      * @param totalTranslogOps an update number of translog operations that will be replayed later on
      * @param globalCheckpoint the global checkpoint on the primary
-     * @param sourceMetaData   meta data of the source store
+     * @param sourceMetadata   meta data of the source store
      */
-    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException;
+    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener);
 
     /** writes a partial file chunk to the target store */
-    void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+    void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
 
 }

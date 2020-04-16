@@ -25,7 +25,6 @@ import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,77 +38,87 @@ import static com.github.tomakehurst.wiremock.client.WireMock.head;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
+public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
 
-    private static final String OLD_JDK_VERSION = "1+99";
-    private static final String JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde";
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
     private static final Pattern NUM_CONFIGS_LOGLINE = Pattern.compile("NUM CONFIGS: (.*)");
 
-    public void testLinuxExtraction() throws IOException {
-        assertExtraction("getLinuxJdk", "linux", "bin/java", JDK_VERSION);
+    protected abstract String oldJdkVersion();
+
+    protected abstract String jdkVersion();
+
+    protected abstract String jdkVendor();
+
+    public final void testLinuxExtraction() throws IOException {
+        assertExtraction("getLinuxJdk", "linux", "bin/java", jdkVendor(), jdkVersion());
     }
 
-    public void testDarwinExtraction() throws IOException {
-        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", JDK_VERSION);
+    public final void testDarwinExtraction() throws IOException {
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", jdkVendor(), jdkVersion());
     }
 
-    public void testWindowsExtraction() throws IOException {
-        assertExtraction("getWindowsJdk", "windows", "bin/java", JDK_VERSION);
+    public final void testWindowsExtraction() throws IOException {
+        assertExtraction("getWindowsJdk", "windows", "bin/java", jdkVendor(), jdkVersion());
     }
 
-    public void testLinuxExtractionOldVersion() throws IOException {
-        assertExtraction("getLinuxJdk", "linux", "bin/java", OLD_JDK_VERSION);
+    public final void testLinuxExtractionOldVersion() throws IOException {
+        assertExtraction("getLinuxJdk", "linux", "bin/java", jdkVendor(), oldJdkVersion());
     }
 
-    public void testDarwinExtractionOldVersion() throws IOException {
-        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", OLD_JDK_VERSION);
+    public final void testDarwinExtractionOldVersion() throws IOException {
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", jdkVendor(), oldJdkVersion());
     }
 
-    public void testWindowsExtractionOldVersion() throws IOException {
-        assertExtraction("getWindowsJdk", "windows", "bin/java", OLD_JDK_VERSION);
+    public final void testWindowsExtractionOldVersion() throws IOException {
+        assertExtraction("getWindowsJdk", "windows", "bin/java", jdkVendor(), oldJdkVersion());
     }
 
-    public void testCrossProjectReuse() throws IOException {
+    public final void testCrossProjectReuse() throws IOException {
         runBuild("numConfigurations", "linux", result -> {
             Matcher matcher = NUM_CONFIGS_LOGLINE.matcher(result.getOutput());
             assertTrue("could not find num configs in output: " + result.getOutput(), matcher.find());
             assertThat(Integer.parseInt(matcher.group(1)), equalTo(6)); // 3 import configs, 3 export configs
-        }, JDK_VERSION);
+        }, jdkVendor(), jdkVersion());
     }
 
-    public void assertExtraction(String taskname, String platform, String javaBin, String version) throws IOException {
+    private void assertExtraction(String taskname, String platform, String javaBin, String vendor, String version) throws IOException {
         runBuild(taskname, platform, result -> {
             Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
             assertTrue("could not find jdk home in output: " + result.getOutput(), matcher.find());
             String jdkHome = matcher.group(1);
             Path javaPath = Paths.get(jdkHome, javaBin);
             assertTrue(javaPath.toString(), Files.exists(javaPath));
-        }, version);
+        }, vendor, version);
     }
 
-    private void runBuild(String taskname, String platform, Consumer<BuildResult> assertions, String version) throws IOException {
+    protected abstract String urlPath(boolean isOld, String platform, String extension);
+
+    protected abstract byte[] filebytes(String platform, String extension) throws IOException;
+
+    private void runBuild(String taskname, String platform, Consumer<BuildResult> assertions, String vendor, String version)
+        throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             String extension = platform.equals("windows") ? "zip" : "tar.gz";
-            boolean isOld = version.equals(OLD_JDK_VERSION);
-            String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + platform + "-x64_bin." + extension;
-            final byte[] filebytes;
-            try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream("fake_openjdk_" + platform + "." + extension)) {
-                filebytes = stream.readAllBytes();
-            }
-            String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
-            String urlPath = "/java/GA/" + versionPath + "/GPL/" + filename;
-            wireMock.stubFor(head(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200)));
-            wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
+            boolean isOld = version.equals(oldJdkVersion());
+
+            wireMock.stubFor(head(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(aResponse().withStatus(200)));
+            wireMock.stubFor(
+                get(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(
+                    aResponse().withStatus(200).withBody(filebytes(platform, extension))
+                )
+            );
             wireMock.start();
 
-            GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir("jdk-download"))
-                .withArguments(taskname,
-                    "-Dlocal.repo.path=" + getLocalTestRepoPath(),
+            GradleRunner runner = GradleRunner.create()
+                .withProjectDir(getProjectDir("jdk-download"))
+                .withArguments(
+                    taskname,
+                    "-Dtests.jdk_vendor=" + vendor,
                     "-Dtests.jdk_version=" + version,
                     "-Dtests.jdk_repo=" + wireMock.baseUrl(),
-                    "-i")
+                    "-i"
+                )
                 .withPluginClasspath();
 
             BuildResult result = runner.build();

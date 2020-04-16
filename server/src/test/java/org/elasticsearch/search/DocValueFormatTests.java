@@ -35,6 +35,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
+
 public class DocValueFormatTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
@@ -43,6 +45,7 @@ public class DocValueFormatTests extends ESTestCase {
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY));
@@ -86,6 +89,11 @@ public class DocValueFormatTests extends ESTestCase {
         out.writeNamedWriteable(DocValueFormat.GEOHASH);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
         assertSame(DocValueFormat.GEOHASH, in.readNamedWriteable(DocValueFormat.class));
+
+        out = new BytesStreamOutput();
+        out.writeNamedWriteable(DocValueFormat.GEOTILE);
+        in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        assertSame(DocValueFormat.GEOTILE, in.readNamedWriteable(DocValueFormat.class));
 
         out = new BytesStreamOutput();
         out.writeNamedWriteable(DocValueFormat.IP);
@@ -147,9 +155,20 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("859,802.354", formatter.format(0.8598023539251286d * 1_000_000));
     }
 
+    public void testGeoTileFormat() {
+        assertEquals("0/0/0", DocValueFormat.GEOTILE.format(longEncode(0, 0, 0)));
+        assertEquals("15/19114/7333", DocValueFormat.GEOTILE.format(longEncode(30, 70, 15)));
+        assertEquals("29/536869420/0", DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)));
+        assertEquals("29/1491/536870911", DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)));
+        assertEquals("2/2/1", DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)));
+        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13,95, 1)));
+        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13,-95, 1)));
+    }
+
     public void testRawParse() {
         assertEquals(-1L, DocValueFormat.RAW.parseLong("-1", randomBoolean(), null));
         assertEquals(1L, DocValueFormat.RAW.parseLong("1", randomBoolean(), null));
+        assertEquals(Long.MAX_VALUE - 2, DocValueFormat.RAW.parseLong(Long.toString(Long.MAX_VALUE - 2), randomBoolean(), null));
         // not checking exception messages as they could depend on the JVM
         expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("", randomBoolean(), null));
         expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("abc", randomBoolean(), null));
@@ -158,8 +177,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(1d, DocValueFormat.RAW.parseDouble("1", randomBoolean(), null), 0d);
         assertEquals(.5, DocValueFormat.RAW.parseDouble("0.5", randomBoolean(), null), 0d);
         // not checking exception messages as they could depend on the JVM
-        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("", randomBoolean(), null));
-        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseLong("abc", randomBoolean(), null));
+        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseDouble("", randomBoolean(), null));
+        expectThrows(IllegalArgumentException.class, () -> DocValueFormat.RAW.parseDouble("abc", randomBoolean(), null));
 
         assertEquals(new BytesRef("abc"), DocValueFormat.RAW.parseBytesRef("abc"));
     }

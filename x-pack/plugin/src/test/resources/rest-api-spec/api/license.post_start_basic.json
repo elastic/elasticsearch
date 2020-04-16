@@ -1,19 +1,25 @@
 {
-  "license.post_start_basic": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/start-basic.html",
-    "stability": "stable",
-    "methods": ["POST"],
-    "url": {
-      "paths": ["/_license/start_basic"],
-      "parts" : {
-      },
-      "params": {
-        "acknowledge": {
-          "type" : "boolean",
-          "description" : "whether the user has acknowledged acknowledge messages (default: false)"
-        }
-      }
+  "license.post_start_basic":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-basic.html",
+      "description":"Starts an indefinite basic license."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license/start_basic",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "acknowledge":{
+        "type":"boolean",
+        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      }
+    }
   }
 }

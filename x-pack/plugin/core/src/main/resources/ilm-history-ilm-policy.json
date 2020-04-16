@@ -1,0 +1,18 @@
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_size": "50GB",
+          "max_age": "30d"
+        }
+      }
+    },
+    "delete": {
+      "min_age": "90d",
+      "actions": {
+        "delete": {}
+      }
+    }
+  }
+}

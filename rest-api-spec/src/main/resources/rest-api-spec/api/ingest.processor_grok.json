@@ -1,15 +1,20 @@
 {
-  "ingest.processor_grok": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/grok-processor.html#grok-processor-rest-get",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": ["/_ingest/processor/grok"],
-      "parts": {
-      },
-      "params": {
-      }
+  "ingest.processor_grok":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/grok-processor.html#grok-processor-rest-get",
+      "description":"Returns a list of the built-in patterns."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/processor/grok",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

@@ -19,25 +19,15 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 
-public class TermVectorsAction extends Action<TermVectorsResponse> {
+public class TermVectorsAction extends ActionType<TermVectorsResponse> {
 
     public static final TermVectorsAction INSTANCE = new TermVectorsAction();
     public static final String NAME = "indices:data/read/tv";
 
     private TermVectorsAction() {
-        super(NAME);
+        super(NAME, TermVectorsResponse::new);
     }
 
-    @Override
-    public TermVectorsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<TermVectorsResponse> getResponseReader() {
-        return TermVectorsResponse::new;
-    }
 }

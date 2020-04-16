@@ -6,27 +6,22 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetBasicStatus extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetBasicStatus.class));
+    RestGetBasicStatus() {}
 
-    RestGetBasicStatus(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/_license/basic_status", this,
-                GET, "/_xpack/license/basic_status", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_license/basic_status"));
     }
 
     @Override

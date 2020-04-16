@@ -1,0 +1,109 @@
+[[node-certificates]]
+==== Generating node certificates
+
+TLS requires X.509 certificates to perform encryption and authentication of the
+application that is being communicated with. In order for the communication
+between nodes to be truly secure, the certificates must be validated. The
+recommended approach for validating certificate authenticity in an {es} cluster
+is to trust the certificate authority (CA) that signed the certificate. By doing
+this, as nodes are added to your cluster they just need to use a certificate
+signed by the same CA and the node is automatically allowed to join the cluster.
+Additionally, it is recommended that the certificates contain subject alternative
+names (SAN) that correspond to the node's IP address and DNS name so that
+hostname verification can be performed.
+
+The <<certutil,`elasticsearch-certutil`>> command simplifies the process
+of generating certificates for the {stack}. It takes care of generating a CA and
+signing certificates with the CA. It can be used interactively or in a silent
+mode through the use of an input file. It also supports generation of
+certificate signing requests (CSR), so that a commercial- or
+organization-specific CA can be used to sign the certificates. For example:
+
+. Optional: Create a certificate authority for your {es} cluster.
++
+--
+For example, use the `elasticsearch-certutil ca` command:
+
+[source,shell]
+----------------------------------------------------------
+bin/elasticsearch-certutil ca
+----------------------------------------------------------
+
+You can configure the cluster to trust all nodes that have a certificate that
+has been signed by this CA.
+
+The command outputs a single file, with a default name of `elastic-stack-ca.p12`.
+This file is a PKCS#12 keystore that contains the public certificate for your CA
+and the private key that is used to sign the certificates for each node.
+
+The `elasticsearch-certutil` command also prompts you for a password to protect
+the file and key. If you plan to add more nodes to your cluster in the future,
+retain a copy of the file and remember its password.
+--
+
+. Generate a certificate and private key for each node in your cluster.
++
+--
+For example, use the `elasticsearch-certutil cert` command:
+
+[source,shell]
+----------------------------------------------------------
+bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+----------------------------------------------------------
+The output is a single PKCS#12 keystore that includes the node certificate, node
+key, and CA certificate.
+
+You are also prompted for a password. You can enter a password for your
+certificate and key, or you can leave the password blank by pressing Enter.
+
+By default `elasticsearch-certutil` generates certificates that have no hostname
+information in them (that is, they do not have any Subject Alternative Name
+fields). This means that you can use the certificate for every node in your
+cluster, but you must turn off hostname verification as shown in the
+configuration below.
+
+If you want to use hostname verification within your cluster, run the
+`elasticsearch-certutil cert` command once for each of your nodes and provide
+the `--name`, `--dns` and `--ip` options.
+
+NOTE: You should secure the output files, since they contain the private keys
+for your instance.
+
+Alternatively, if you want to use a commercial or organization-specific CA,
+you can use the `elasticsearch-certutil csr` command to generate certificate
+signing requests (CSR) for the nodes in your cluster. For more information, see
+<<certutil>>.
+--
+
+. Optional: Generate additional certificates specifically for encrypting HTTP
+client communications. 
++
+--
+For example, use the `elasticsearch-certutil http` command:
+
+[source,shell]
+----------------------------------------------------------
+bin/elasticsearch-certutil http
+----------------------------------------------------------
+
+This command guides you through the process of generating the appropriate
+certificates for use in {es} and {kib}. If you created a CA for your cluster,
+you can re-use it by supplying its location when prompted.
+--
+
+. Copy the node certificates to the appropriate locations.
++
+--
+Copy the applicable files into the {es} configuration directory on each
+node.
+
+For each additional Elastic product that you want to configure, copy the
+certificates to the relevant configuration directory. 
+--
+
+NOTE: If you choose not to use `elasticsearch-certutil`, the certificates that
+you obtain must allow for both `clientAuth` and `serverAuth` if the extended key
+usage extension is present. The certificates need to be in PEM or PKCS#12
+format. Although not required, it is highly recommended that the certificate
+contain the DNS names and/or IP addresses of the node so that hostname
+verification can be used.

@@ -30,11 +30,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,8 +75,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             // we start cancelling all local tasks before cluster has a chance to recover.
             return;
         }
-        PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         // Cluster State   Local State      Local Action
         //   STARTED         NULL          Create as STARTED, Start
@@ -112,7 +112,13 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                         AllocatedPersistentTask persistentTask = runningTasks.get(allocationId);
                         if (persistentTask == null) {
                             // New task - let's start it
-                            startTask(taskInProgress);
+                            try {
+                                startTask(taskInProgress);
+                            } catch (Exception e) {
+                                logger.error("Unable to start allocated task [" + taskInProgress.getTaskName()
+                                    + "] with id [" + taskInProgress.getId()
+                                    + "] and allocation id [" + taskInProgress.getAllocationId() + "]", e);
+                            }
                         } else {
                             // The task is still running
                             notVisitedTasks.remove(allocationId);
@@ -163,11 +169,21 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
             }
         };
-        AllocatedPersistentTask task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
-                request);
+
+        AllocatedPersistentTask task;
+        try {
+            task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
+        } catch (Exception e) {
+            logger.error("Fatal error registering persistent task [" + taskInProgress.getTaskName()
+                + "] with id [" + taskInProgress.getId() + "] and allocation id [" + taskInProgress.getAllocationId()
+                + "], removing from persistent tasks", e);
+            notifyMasterOfFailedTask(taskInProgress, e);
+            return;
+        }
+
         boolean processed = false;
         try {
-            task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
+            task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
             logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was created", task.getAction(),
                     task.getPersistentTaskId(), task.getAllocationId());
             try {
@@ -186,6 +202,25 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 taskManager.unregister(task);
             }
         }
+    }
+
+    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress,
+                                                                                Exception originalException) {
+        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), originalException,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTask<?> persistentTask) {
+                    logger.trace("completion notification for failed task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
+                        taskInProgress.getAllocationId());
+                }
+
+                @Override
+                public void onFailure(Exception notificationException) {
+                    notificationException.addSuppressed(originalException);
+                    logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
+                        taskInProgress.getTaskName(), taskInProgress.getAllocationId()), notificationException);
+                }
+            });
     }
 
     /**

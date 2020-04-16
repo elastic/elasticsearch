@@ -26,7 +26,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
@@ -452,7 +452,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
+                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
                     // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                     // instance for all slots in the values array.
                     values[i].copyBytes(in.nextValue());

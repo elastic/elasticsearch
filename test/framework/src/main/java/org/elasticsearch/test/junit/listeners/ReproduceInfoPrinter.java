@@ -79,13 +79,19 @@ public class ReproduceInfoPrinter extends RunListener {
         String task = System.getProperty("tests.task");
 
         // append Gradle test runner test filter string
-        b.append(task);
+        b.append("'" + task + "'");
         b.append(" --tests \"");
         b.append(failure.getDescription().getClassName());
         final String methodName = failure.getDescription().getMethodName();
         if (methodName != null) {
-            b.append(".");
-            b.append(failure.getDescription().getMethodName());
+            // fallback to system property filter when tests contain "."
+            if (methodName.contains(".")) {
+                b.append("\" -Dtests.method=\"");
+                b.append(methodName);
+            } else {
+                b.append(".");
+                b.append(methodName);
+            }
         }
         b.append("\"");
 
@@ -168,8 +174,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
             appendOpt("compiler.java", System.getProperty("compiler.java"));
             appendOpt("runtime.java", System.getProperty("runtime.java"));
-            appendOpt("javax.net.ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
-            appendOpt("javax.net.ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
+            appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
         }
 

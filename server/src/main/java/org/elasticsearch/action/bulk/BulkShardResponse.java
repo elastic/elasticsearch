@@ -30,10 +30,16 @@ import java.io.IOException;
 
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
-    private ShardId shardId;
-    private BulkItemResponse[] responses;
+    private final ShardId shardId;
+    private final BulkItemResponse[] responses;
 
-    BulkShardResponse() {
+    BulkShardResponse(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        responses = new BulkItemResponse[in.readVInt()];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = new BulkItemResponse(in);
+        }
     }
 
     // NOTE: public for testing only
@@ -61,16 +67,6 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
             if (r != null) {
                 r.setForcedRefresh(forcedRefresh);
             }
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = new ShardId(in);
-        responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = BulkItemResponse.readBulkItem(in);
         }
     }
 

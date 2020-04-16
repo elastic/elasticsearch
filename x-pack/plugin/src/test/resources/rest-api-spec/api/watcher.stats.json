@@ -1,30 +1,54 @@
 {
-  "watcher.stats": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_watcher/stats", "/_watcher/stats/{metric}" ],
-      "parts": {
-        "metric": {
-          "type" : "list",
-          "options" : ["_all", "queued_watches", "current_watches", "pending_watches"],
-          "description" : "Controls what additional stat metrics should be include in the response"
-        }
-      },
-      "params": {
-        "metric": {
-          "type" : "list",
-          "options" : ["_all", "queued_watches", "current_watches", "pending_watches"],
-          "description" : "Controls what additional stat metrics should be include in the response"
-        },
-        "emit_stacktraces": {
-          "type" : "boolean",
-          "description" : "Emits stack traces of currently running watches",
-          "required" : false
-        }
-      }
+  "watcher.stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
+      "description":"Retrieves the current Watcher metrics."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/stats",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_watcher/stats/{metric}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "metric":{
+              "type":"list",
+              "options":[
+                "_all",
+                "queued_watches",
+                "current_watches",
+                "pending_watches"
+              ],
+              "description":"Controls what additional stat metrics should be include in the response"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "metric":{
+        "type":"list",
+        "options":[
+          "_all",
+          "queued_watches",
+          "current_watches",
+          "pending_watches"
+        ],
+        "description":"Controls what additional stat metrics should be include in the response"
+      },
+      "emit_stacktraces":{
+        "type":"boolean",
+        "description":"Emits stack traces of currently running watches",
+        "required":false
+      }
+    }
   }
 }

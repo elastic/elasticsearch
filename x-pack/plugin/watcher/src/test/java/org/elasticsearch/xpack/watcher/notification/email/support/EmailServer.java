@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.email.support;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Nullable;
 import org.subethamail.smtp.auth.EasyAuthenticationHandlerFactory;
 import org.subethamail.smtp.helper.SimpleMessageListener;
 import org.subethamail.smtp.helper.SimpleMessageListenerAdapter;
@@ -14,8 +15,13 @@ import org.subethamail.smtp.server.SMTPServer;
 import javax.mail.MessagingException;
 import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
@@ -37,8 +43,8 @@ public class EmailServer {
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final SMTPServer server;
 
-    public EmailServer(String host, final Logger logger) {
-        server = new SMTPServer(new SimpleMessageListenerAdapter(new SimpleMessageListener() {
+    public EmailServer(String host, @Nullable SSLContext sslContext, final Logger logger) {
+        final SimpleMessageListenerAdapter listener = new SimpleMessageListenerAdapter(new SimpleMessageListener() {
             @Override
             public boolean accept(String from, String recipient) {
                 return true;
@@ -49,9 +55,9 @@ public class EmailServer {
                 try {
                     Session session = Session.getInstance(new Properties());
                     MimeMessage msg = new MimeMessage(session, data);
-                    for (Listener listener : listeners) {
+                    for (Listener listener1 : listeners) {
                         try {
-                            listener.on(msg);
+                            listener1.on(msg);
                         } catch (Exception e) {
                             logger.error("Unexpected failure", e);
                             fail(e.getMessage());
@@ -61,12 +67,33 @@ public class EmailServer {
                     throw new RuntimeException("could not create mime message", me);
                 }
             }
-        }), new EasyAuthenticationHandlerFactory((user, passwd) -> {
+        });
+        final EasyAuthenticationHandlerFactory authentication = new EasyAuthenticationHandlerFactory((user, passwd) -> {
             assertThat(user, is(USERNAME));
             assertThat(passwd, is(PASSWORD));
-        }));
+        });
+        server = new SMTPServer(listener, authentication) {
+            @Override
+            public SSLSocket createSSLSocket(Socket socket) throws IOException {
+                if (sslContext == null) {
+                    return super.createSSLSocket(socket);
+                } else {
+                    SSLSocketFactory factory = sslContext.getSocketFactory();
+                    InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
+                    SSLSocket sslSocket = (SSLSocket) factory.createSocket(socket, remoteAddress.getHostString(), socket.getPort(), true);
+                    sslSocket.setUseClientMode(false);
+                    sslSocket.setEnabledCipherSuites(sslSocket.getSupportedCipherSuites());
+                    return sslSocket;
+                }
+            }
+        };
         server.setHostName(host);
         server.setPort(0);
+        if (sslContext != null) {
+            server.setEnableTLS(true);
+            server.setRequireTLS(true);
+            server.setHideTLS(false);
+        }
     }
 
     /**
@@ -93,8 +120,16 @@ public class EmailServer {
         listeners.add(listener);
     }
 
+    public void clearListeners() {
+        this.listeners.clear();
+    }
+
     public static EmailServer localhost(final Logger logger) {
-        EmailServer server = new EmailServer("localhost", logger);
+        return localhost(logger, null);
+    }
+
+    public static EmailServer localhost(final Logger logger, @Nullable SSLContext sslContext) {
+        EmailServer server = new EmailServer("localhost", sslContext, logger);
         server.start();
         return server;
     }

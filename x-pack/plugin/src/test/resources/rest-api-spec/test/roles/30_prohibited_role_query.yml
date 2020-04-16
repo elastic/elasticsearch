@@ -7,7 +7,11 @@ setup:
       cluster.health:
         wait_for_status: yellow
 
+---
+"Test use prohibited query inside role query":
+
   - do:
+      catch:  /terms query with terms lookup isn't supported as part of a role query/
       security.put_role:
         name: "role"
         body:  >
@@ -18,55 +22,9 @@ setup:
                   "names": "index",
                   "privileges": ["all"],
                   "query" : {
-                    "terms" : { "field" : { "index" : "_index", "type" : "_type", "id" : "_id", "path" : "_path"} }
+                    "terms" : { "field" : { "index" : "_index", "id" : "_id", "path" : "_path"} }
                   }
                 }
               ]
             }
-
-  - do:
-      security.put_user:
-        username: "joe"
-        body:  >
-            {
-              "password": "x-pack-test-password",
-              "roles" : [ "role" ]
-            }
-
----
-teardown:
-  - do:
-      security.delete_user:
-        username: "joe"
-        ignore: 404
-  - do:
-      security.delete_role:
-        name: "role"
-        ignore: 404
-
-
----
-"Test use prohibited query inside role query":
-
-  - do:
-      headers:
-        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
-      index:
-        index: index
-        type: type
-        id: 1
-        body:  >
-          {
-            "foo": "bar"
-          }
-
-
-  - do:
-      catch:  /terms query with terms lookup isn't supported as part of a role query/
-      headers:
-        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
-      search:
-        rest_total_hits_as_int: true
-        index: index
-        body: { "query" : { "match_all" : {} } }
 

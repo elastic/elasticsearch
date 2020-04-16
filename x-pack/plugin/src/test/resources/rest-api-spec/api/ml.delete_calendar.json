@@ -1,17 +1,25 @@
 {
-  "ml.delete_calendar": {
-    "stability": "stable",
-    "methods": [ "DELETE" ],
-    "url": {
-      "paths": [ "/_ml/calendars/{calendar_id}" ],
-      "parts": {
-        "calendar_id": {
-          "type" : "string",
-          "required" : true,
-          "description" : "The ID of the calendar to delete"
-        }
-      }
+  "ml.delete_calendar":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html",
+      "description":"Deletes a calendar."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to delete"
+            }
+          }
+        }
+      ]
+    }
   }
 }

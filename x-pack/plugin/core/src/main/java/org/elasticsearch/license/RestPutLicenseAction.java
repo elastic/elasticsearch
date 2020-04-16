@@ -6,35 +6,27 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
+    RestPutLicenseAction() {}
 
-    RestPutLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    @Override
+    public List<Route> routes() {
         // TODO: remove POST endpoint?
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license", this,
-                POST, "/_xpack/license", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                PUT, "/_license", this,
-                PUT,  "/_xpack/license", deprecationLogger);
+        return List.of(
+            new Route(POST, "/_license"),
+            new Route(PUT, "/_license"));
     }
 
     @Override
@@ -53,9 +45,9 @@ public class RestPutLicenseAction extends BaseRestHandler {
         putLicenseRequest.timeout(request.paramAsTime("timeout", putLicenseRequest.timeout()));
         putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
 
-        if ("basic".equals(putLicenseRequest.license().type())) {
+        if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {
             throw new IllegalArgumentException("Installing basic licenses is no longer allowed. Use the POST " +
-                    "/_license/start_basic API to install a basic license that does not expire.");
+                "/_license/start_basic API to install a basic license that does not expire.");
         }
 
         return channel -> client.execute(PutLicenseAction.INSTANCE, putLicenseRequest, new RestToXContentListener<>(channel));

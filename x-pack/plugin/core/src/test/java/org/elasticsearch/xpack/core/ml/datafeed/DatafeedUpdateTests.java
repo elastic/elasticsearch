@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -23,12 +26,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -38,6 +43,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
@@ -45,30 +51,15 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
-import static org.elasticsearch.xpack.core.ml.datafeed.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpdate> {
-
-    @AwaitsFix(bugUrl = "Tests need to be updated to use calendar/fixed interval explicitly")
-    public void testIntervalWarnings() {
-        /*
-        Placeholder test for visibility.  Datafeeds use calendar and fixed intervals through the deprecated
-        methods.  The randomized creation + final superclass tests made it impossible to add warning assertions,
-        so warnings have been disabled on this test.
-
-        When fixed, `enableWarningsCheck()` should be removed.
-         */
-    }
-
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
 
     @Override
     protected DatafeedUpdate createTestInstance() {
@@ -81,9 +72,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
-        if (randomBoolean() && datafeed == null) {
-            builder.setJobId(randomAlphaOfLength(10));
-        }
         if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, Integer.MAX_VALUE)));
         }
@@ -120,6 +108,17 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         if (randomBoolean()) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
         }
+        if (randomBoolean()) {
+            builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setIndicesOptions(IndicesOptions.fromParameters(
+                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                SearchRequest.DEFAULT_INDICES_OPTIONS));
+        }
         return builder.build();
     }
 
@@ -154,7 +153,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         "    \"buckets\": {\n" +
         "      \"date_histogram\": {\n" +
         "        \"field\": \"time\",\n" +
-        "        \"interval\": \"360s\",\n" +
+        "        \"fixed_interval\": \"360s\",\n" +
         "        \"time_zone\": \"UTC\"\n" +
         "      },\n" +
         "      \"aggregations\": {\n" +
@@ -168,7 +167,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         "    \"buckets2\": {\n" +
         "      \"date_histogram\": {\n" +
         "        \"field\": \"time\",\n" +
-        "        \"interval\": \"360s\",\n" +
+        "        \"fixed_interval\": \"360s\",\n" +
         "        \"time_zone\": \"UTC\"\n" +
         "      },\n" +
         "      \"aggregations\": {\n" +
@@ -193,12 +192,33 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_failBecauseTargetDatafeedHasDifferentId() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed, null));
+        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2")
+            .apply(datafeed, null));
+    }
+
+    public void testApply_failBecauseJobIdChanged() {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+
+        DatafeedUpdate datafeedUpdateWithUnchangedJobId = new DatafeedUpdate.Builder(datafeed.getId())
+            .setJobId("foo")
+            .build();
+        DatafeedConfig updatedDatafeed = datafeedUpdateWithUnchangedJobId.apply(datafeed, Collections.emptyMap());
+        assertThat(updatedDatafeed, equalTo(datafeed));
+
+        DatafeedUpdate datafeedUpdateWithChangedJobId = new DatafeedUpdate.Builder(datafeed.getId())
+            .setJobId("bar")
+            .build();
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap()));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getMessage(), equalTo(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
     }
 
     public void testApply_givenEmptyUpdate() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build()
+            .apply(datafeed, Collections.emptyMap());
         assertThat(datafeed, equalTo(updatedDatafeed));
     }
 
@@ -222,7 +242,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig datafeed = datafeedBuilder.build();
         QueryProvider queryProvider = createRandomValidQueryProvider("a", "b");
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
-        update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
         update.setFrequency(TimeValue.timeValueSeconds(142));
@@ -234,7 +253,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
-        assertThat(updatedDatafeed.getJobId(), equalTo("bar"));
+        assertThat(updatedDatafeed.getJobId(), equalTo("foo-feed"));
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
@@ -267,6 +286,16 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getAggregations(), equalTo(aggProvider.getAggs()));
     }
 
+    public void testApply_givenIndicesOptions() {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId())
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+            .build()
+            .apply(datafeed, Collections.emptyMap());
+        assertThat(datafeed.getIndicesOptions(), is(not(equalTo(updatedDatafeed.getIndicesOptions()))));
+        assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
+    }
+
     public void testApply_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
@@ -282,7 +311,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
 
-            assertThat(datafeed, not(equalTo(updatedDatafeed)));
+            assertThat("update was " + update, datafeed, not(equalTo(updatedDatafeed)));
         }
     }
 
@@ -297,7 +326,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 new Script("params.bytes > 0 ? params.bytes : null"));
         DateHistogramAggregationBuilder dateHistogram =
             AggregationBuilders.dateHistogram("histogram_buckets")
-                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
+                .field("timestamp").fixedInterval(new DateHistogramInterval("300000ms")).timeZone(ZoneOffset.UTC)
                 .subAggregation(maxTime)
                 .subAggregation(avgAggregationBuilder)
                 .subAggregation(derivativePipelineAggregationBuilder)
@@ -338,12 +367,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(0, 9)) {
-        case 0:
-            builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
-            break;
+        switch (between(1, 11)) {
         case 1:
-            builder.setJobId(instance.getJobId() + randomAlphaOfLength(5));
+            builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
         case 2:
             if (instance.getQueryDelay() == null) {
@@ -383,7 +409,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             } else {
                 AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
                 String timeField = randomAlphaOfLength(10);
-                aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
+                DateHistogramInterval interval = new DateHistogramInterval(between(10000, 3600000) + "ms");
+                aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).fixedInterval(interval)
                     .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
                 builder.setAggregations(AggProvider.fromParsedAggs(aggBuilder));
                 if (instance.getScriptFields().isEmpty() == false) {
@@ -410,6 +437,30 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 builder.setChunkingConfig(newChunkingConfig);
             } else {
                 builder.setChunkingConfig(null);
+            }
+            break;
+        case 10:
+            if (instance.getMaxEmptySearches() == null) {
+                builder.setMaxEmptySearches(randomFrom(-1, 10));
+            } else {
+                builder.setMaxEmptySearches(instance.getMaxEmptySearches() + 100);
+            }
+            break;
+        case 11:
+            if (instance.getIndicesOptions() != null) {
+                builder.setIndicesOptions(IndicesOptions.fromParameters(
+                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
+                    Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
+                    Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS));
+            } else {
+                builder.setIndicesOptions(IndicesOptions.fromParameters(
+                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    Boolean.toString(randomBoolean()),
+                    Boolean.toString(randomBoolean()),
+                    Boolean.toString(randomBoolean()),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS));
             }
             break;
         default:

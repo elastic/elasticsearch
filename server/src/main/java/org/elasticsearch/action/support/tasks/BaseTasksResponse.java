@@ -73,7 +73,6 @@ public class BaseTasksResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(taskFailures.size());
         for (TaskOperationFailure exp : taskFailures) {
             exp.writeTo(out);

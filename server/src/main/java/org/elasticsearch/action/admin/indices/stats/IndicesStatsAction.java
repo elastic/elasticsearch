@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class IndicesStatsAction extends Action<IndicesStatsResponse> {
+public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();
     public static final String NAME = "indices:monitor/stats";
 
     private IndicesStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndicesStatsResponse newResponse() {
-        return new IndicesStatsResponse();
+        super(NAME, IndicesStatsResponse::new);
     }
 }

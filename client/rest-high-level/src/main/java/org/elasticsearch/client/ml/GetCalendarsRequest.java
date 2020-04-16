@@ -19,8 +19,7 @@
 
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCalendarsRequest extends ActionRequest implements ToXContentObject {
+public class GetCalendarsRequest implements Validatable, ToXContentObject {
 
     public static final ObjectParser<GetCalendarsRequest, Void> PARSER =
             new ObjectParser<>("get_calendars_request", GetCalendarsRequest::new);
@@ -64,11 +63,6 @@ public class GetCalendarsRequest extends ActionRequest implements ToXContentObje
 
     public void setPageParams(PageParams pageParams) {
         this.pageParams = pageParams;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

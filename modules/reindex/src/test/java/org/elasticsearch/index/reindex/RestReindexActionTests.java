@@ -21,11 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -40,7 +38,8 @@ public class RestReindexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction(Settings.EMPTY, controller());
+        action = new RestReindexAction();
+        controller().registerHandler(action);
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
@@ -79,26 +78,5 @@ public class RestReindexActionTests extends RestActionTestCase {
             ReindexRequest request = action.buildRequest(requestBuilder.build());
             assertEquals("10m", request.getScrollTime().toString());
         }
-    }
-
-    /**
-     * test deprecation is logged if a type is used in the destination index request inside reindex
-     */
-    public void testTypeInDestination() throws IOException {
-        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(Method.POST)
-                .withPath("/_reindex");
-        XContentBuilder b = JsonXContent.contentBuilder().startObject();
-        {
-            b.startObject("dest");
-            {
-                b.field("type", (randomBoolean() ? "_doc" : randomAlphaOfLength(4)));
-            }
-            b.endObject();
-        }
-        b.endObject();
-        requestBuilder.withContent(new BytesArray(BytesReference.bytes(b).toBytesRef()), XContentType.JSON);
-        dispatchRequest(requestBuilder.build());
-        assertWarnings(ReindexRequest.TYPES_DEPRECATION_MESSAGE);
     }
 }

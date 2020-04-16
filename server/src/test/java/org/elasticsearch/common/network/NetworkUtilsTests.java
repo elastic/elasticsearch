@@ -20,13 +20,15 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.OptionalMatchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for network utils. Please avoid using any methods that cause DNS lookups!
@@ -80,27 +82,14 @@ public class NetworkUtilsTests extends ESTestCase {
         assertArrayEquals(new InetAddress[] { InetAddress.getByName("::1") }, NetworkUtils.filterIPV6(addresses));
     }
 
-    /**
-     * Test that selecting by name is possible and properly matches the addresses on all interfaces and virtual
-     * interfaces.
-     *
-     * Note that to avoid that this test fails when interfaces are down or they do not have addresses assigned to them,
-     * they are ignored.
-     */
-    public void testAddressInterfaceLookup() throws Exception {
-        for (NetworkInterface netIf : NetworkUtils.getInterfaces()) {
-            try {
-                if (!netIf.isUp() || Collections.list(netIf.getInetAddresses()).isEmpty()) {
-                    continue;
-                }
-            } catch (SocketException e) {
-                throw new AssertionError("Failed to check if interface [" + netIf + "] is up", e);
-            }
-
-            String name = netIf.getName();
-            InetAddress[] expectedAddresses = Collections.list(netIf.getInetAddresses()).toArray(new InetAddress[0]);
-            InetAddress[] foundAddresses = NetworkUtils.getAddressesForInterface(name);
-            assertArrayEquals(expectedAddresses, foundAddresses);
+    // test that selecting by name is possible
+    public void testMaybeGetInterfaceByName() throws Exception {
+        final List<NetworkInterface> networkInterfaces = NetworkUtils.getInterfaces();
+        for (NetworkInterface netIf : networkInterfaces) {
+            final Optional<NetworkInterface> maybeNetworkInterface =
+                NetworkUtils.maybeGetInterfaceByName(networkInterfaces, netIf.getName());
+            assertThat(maybeNetworkInterface, OptionalMatchers.isPresent());
+            assertThat(maybeNetworkInterface.get().getName(), equalTo(netIf.getName()));
         }
     }
 

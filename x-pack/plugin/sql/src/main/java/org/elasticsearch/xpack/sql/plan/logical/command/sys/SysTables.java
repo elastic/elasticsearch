@@ -6,16 +6,16 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexInfo;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,8 +27,8 @@ import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
-import static org.elasticsearch.xpack.sql.util.StringUtils.SQL_WILDCARD;
+import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
+import static org.elasticsearch.xpack.ql.util.StringUtils.SQL_WILDCARD;
 
 public class SysTables extends Command {
 
@@ -36,22 +36,18 @@ public class SysTables extends Command {
     private final LikePattern pattern;
     private final LikePattern clusterPattern;
     private final EnumSet<IndexType> types;
-    // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
-    private final boolean legacyTableTypes;
 
-    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
-            boolean legacyTableTypes) {
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types) {
         super(source);
         this.clusterPattern = clusterPattern;
         this.index = index;
         this.pattern = pattern;
         this.types = types;
-        this.legacyTableTypes = legacyTableTypes;
     }
 
     @Override
     protected NodeInfo<SysTables> info() {
-        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types, legacyTableTypes);
+        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types);
     }
 
     @Override
@@ -70,7 +66,7 @@ public class SysTables extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public final void execute(SqlSession session, ActionListener<Page> listener) {
         String cluster = session.indexResolver().clusterName();
 
         // first check if where dealing with ODBC enumeration
@@ -85,11 +81,11 @@ public class SysTables extends Command {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
-                listener.onResponse(Rows.singleton(output(), enumeration));
+                listener.onResponse(Page.last(Rows.singleton(output(), enumeration)));
                 return;
             }
         }
-        
+
         boolean includeFrozen = session.configuration().includeFrozen();
 
         // enumerate types
@@ -102,7 +98,7 @@ public class SysTables extends Command {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else is made of empty strings
                 // NB: since the types are sent in SQL, frozen doesn't have to be taken into account since
-                // it's just another BASE TABLE
+                // it's just another TABLE
                 Set<IndexType> typeSet = IndexType.VALID_REGULAR;
                 for (IndexType type : typeSet) {
                     Object[] enumeration = new Object[10];
@@ -111,7 +107,7 @@ public class SysTables extends Command {
                 }
 
                 values.sort(Comparator.comparing(l -> l.get(3).toString()));
-                listener.onResponse(Rows.of(output(), values));
+                listener.onResponse(of(session, values));
                 return;
             }
         }
@@ -122,7 +118,7 @@ public class SysTables extends Command {
 
         // if the catalog doesn't match, don't return any results
         if (cRegex != null && !Pattern.matches(cRegex, cluster)) {
-            listener.onResponse(Rows.empty(output()));
+            listener.onResponse(Page.last(Rows.empty(output())));
             return;
         }
 
@@ -141,14 +137,14 @@ public class SysTables extends Command {
         }
 
         session.indexResolver().resolveNames(idx, regex, tableTypes, ActionListener.wrap(result -> listener.onResponse(
-                Rows.of(output(), result.stream()
-                 // sort by type (which might be legacy), then by name
-                 .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
+                of(session, result.stream()
+                 // sort by type, then by name
+                 .sorted(Comparator.<IndexInfo, String> comparing(i -> i.type().toSql())
                            .thenComparing(Comparator.comparing(i -> i.name())))
                  .map(t -> asList(cluster,
-                         EMPTY,
+                         null,
                          t.name(),
-                         legacyName(t.type()),
+                         t.type().toSql(),
                          EMPTY,
                          null,
                          null,
@@ -157,10 +153,6 @@ public class SysTables extends Command {
                          null))
                 .collect(toList())))
         , listener::onFailure));
-    }
-
-    private String legacyName(IndexType indexType) {
-        return legacyTableTypes && IndexType.INDICES_ONLY.contains(indexType) ? IndexType.SQL_TABLE : indexType.toSql();
     }
 
     @Override

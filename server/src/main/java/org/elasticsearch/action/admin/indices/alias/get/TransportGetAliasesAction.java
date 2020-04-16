@@ -24,14 +24,17 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -58,27 +61,27 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected GetAliasesResponse newResponse() {
-        return new GetAliasesResponse();
+    protected GetAliasesResponse read(StreamInput in) throws IOException {
+        return new GetAliasesResponse(in);
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+    protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = state.metaData().findAliases(request, concreteIndices);
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases)));
     }
 
     /**
      * Fills alias result with empty entries for requested indices when no specific aliases were requested.
      */
-    static ImmutableOpenMap<String, List<AliasMetaData>> postProcess(GetAliasesRequest request, String[] concreteIndices,
-                                                                     ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
+    static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(GetAliasesRequest request, String[] concreteIndices,
+                                                                     ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
         for (String index : concreteIndices) {
             if (aliases.get(index) == null && noAliasesSpecified) {
-                List<AliasMetaData> previous = mapBuilder.put(index, Collections.emptyList());
+                List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
                 assert previous == null;
             }
         }

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
@@ -46,7 +45,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -54,16 +52,18 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-    public RestShardsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/shards", this);
-        controller.registerHandler(GET, "/_cat/shards/{index}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/shards"),
+            new Route(GET, "/_cat/shards/{index}"));
     }
 
     @Override
@@ -83,7 +83,7 @@ public class RestShardsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.clear().nodes(true).metaData(true).routingTable(true).indices(indices);
+        clusterStateRequest.clear().nodes(true).metadata(true).routingTable(true).indices(indices);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
@@ -200,6 +200,9 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
         table.addCell("warmer.total_time", "alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
 
+        table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
+        table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
+
         table.endHeaders();
         return table;
     }
@@ -214,7 +217,8 @@ public class RestShardsAction extends AbstractCatAction {
         return null;
     }
 
-    private Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
+    // package private for testing
+    Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
@@ -350,6 +354,9 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::current));
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::total));
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::totalTime));
+
+            table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
+            table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
 
             table.endRow();
         }

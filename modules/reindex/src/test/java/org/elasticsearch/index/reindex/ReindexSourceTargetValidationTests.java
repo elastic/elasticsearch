@@ -26,12 +26,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.containsString;
  * cluster....
  */
 public class ReindexSourceTargetValidationTests extends ESTestCase {
-    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
+    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()
                 .put(index("target", "target_alias", "target_multi"), true)
                 .put(index("target2", "target_multi"), true)
                 .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
@@ -60,6 +61,8 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver();
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
+
+    private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 
     public void testObviousCases() {
         fails("target", "target");
@@ -106,10 +109,10 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testRemoteInfoSkipsValidation() {
         // The index doesn't have to exist
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, query, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "does_not_exist", "target");
         // And it doesn't matter if they are the same index. They are considered to be different because the remote one is, well, remote.
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, query, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "target", "target");
     }
 
@@ -123,21 +126,21 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private void succeeds(RemoteInfo remoteInfo, String target, String... sources) {
-        TransportReindexAction.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
+        ReindexValidator.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
                 INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
     }
 
-    private static IndexMetaData index(String name, String... aliases) {
+    private static IndexMetadata index(String name, String... aliases) {
         return index(name, null, aliases);
     }
 
-    private static IndexMetaData index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
+    private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
+        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(Settings.builder()
                 .put("index.version.created", Version.CURRENT.id)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1));
         for (String alias: aliases) {
-            builder.putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex).build());
+            builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }
         return builder.build();
     }

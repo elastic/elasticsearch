@@ -1,36 +1,46 @@
 [role="xpack"]
 [[security-api-oidc-logout]]
+=== OpenID Connect logout API
 
-=== OpenID Connect Logout API
+Submits a request to invalidate a refresh token and an access token that was
+generated as a response to a call to `/_security/oidc/authenticate`.
 
-Submits a request to invalidate a refresh token and an access token that was generated as a response to a call to
-`/_security/oidc/authenticate`. If the OpenID Connect authentication realm in {es} is accordingly configured, the
-response to this call will contain a URI pointing to the End Session Endpoint of the OpenID Connect Provider in
-order to perform Single Logout
-
-{es} exposes all the necessary OpenID Connect related functionality via the OpenID Connect APIs. These APIs
-are used internally by {kib} in order to provide OpenID Connect based authentication, but can also be used by other,
-custom web applications or other clients. See also <<security-api-oidc-authenticate,OpenID Connect Authenticate API>>
-and <<security-api-oidc-prepare-authentication,OpenID Connect Prepare Authentication API>>
-
-==== Request
+[[security-api-oidc-logout-request]]
+==== {api-request-title}
 
 `POST /_security/oidc/logout`
 
-==== Request Body
+[[security-api-oidc-logout-desc]]
+==== {api-description-title}
+
+If the OpenID Connect authentication realm in {es} is accordingly configured,
+the response to this call will contain a URI pointing to the End Session
+Endpoint of the OpenID Connect Provider in order to perform Single Logout.
+
+{es} exposes all the necessary OpenID Connect related functionality via the
+OpenID Connect APIs. These APIs are used internally by {kib} in order to provide
+OpenID Connect based authentication, but can also be used by other, custom web
+applications or other clients. See also
+<<security-api-oidc-authenticate,OpenID Connect authenticate API>>
+and
+<<security-api-oidc-prepare-authentication,OpenID Connect prepare authentication API>>.
+
+[[security-api-oidc-logout-request-body]]
+==== {api-request-body-title}
 
 `access_token`::
-The value of the access token to be invalidated as part of the logout.
+  (Required, string) The value of the access token to be invalidated as part of the logout.
 
 `refresh_token`::
-The value of the refresh token to be invalidated as part of the logout. (Optional)
+  (Optional, string) The value of the refresh token to be invalidated as part of the logout.
 
 
-==== Examples
+[[security-api-oidc-logout-example]]
+==== {api-examples-title}
 
 The following example performs logout
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oidc/logout
 {
@@ -38,11 +48,11 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[catch:unauthorized]
+// TEST[catch:request]
 
-The following example output of the response contains the URI pointing to the End Session Endpoint of the
-OpenID Connect Provider with all the parameters of the Logout Request, as HTTP GET parameters
+The following example output of the response contains the URI pointing to the
+End Session Endpoint of the OpenID Connect Provider with all the parameters of
+the Logout Request, as HTTP GET parameters:
 
 [source,js]
 --------------------------------------------------

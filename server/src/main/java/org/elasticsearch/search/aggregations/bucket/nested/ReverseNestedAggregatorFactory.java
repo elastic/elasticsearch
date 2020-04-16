@@ -20,52 +20,56 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public class ReverseNestedAggregatorFactory extends AggregatorFactory<ReverseNestedAggregatorFactory> {
+public class ReverseNestedAggregatorFactory extends AggregatorFactory {
 
     private final boolean unmapped;
     private final ObjectMapper parentObjectMapper;
 
     public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
-                                          SearchContext context, AggregatorFactory<?> parent,
+                                          QueryShardContext queryShardContext, AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactories,
-                                          Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, subFactories, metaData);
+                                          Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         this.unmapped = unmapped;
         this.parentObjectMapper = parentObjectMapper;
     }
 
     @Override
-    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+    public Aggregator createInternal(SearchContext searchContext,
+                                        Aggregator parent,
+                                        boolean collectsFromSingleBucket,
+                                        Map<String, Object> metadata) throws IOException {
         if (unmapped) {
-            return new Unmapped(name, context, parent, pipelineAggregators, metaData);
+            return new Unmapped(name, searchContext, parent, metadata);
         } else {
-            return new ReverseNestedAggregator(name, factories, parentObjectMapper, context, parent, pipelineAggregators, metaData);
+            return new ReverseNestedAggregator(name, factories, parentObjectMapper,
+                searchContext, parent, metadata);
         }
     }
 
     private static final class Unmapped extends NonCollectingAggregator {
 
-        Unmapped(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            super(name, context, parent, pipelineAggregators, metaData);
+        Unmapped(String name,
+                    SearchContext context,
+                    Aggregator parent,
+                    Map<String, Object> metadata) throws IOException {
+            super(name, context, parent, metadata);
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metadata());
         }
     }
 }

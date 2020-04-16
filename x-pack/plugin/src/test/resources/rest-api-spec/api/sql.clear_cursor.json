@@ -1,15 +1,23 @@
 {
-  "sql.clear_cursor": {
-    "documentation": "Clear SQL cursor",
-    "stability" : "stable",
-    "methods": [ "POST"],
-    "url": {
-      "paths": [ "/_sql/close" ],
-      "parts": {}
+  "sql.clear_cursor":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-pagination.html",
+      "description":"Clears the SQL cursor"
     },
-    "body": {
-      "description" : "Specify the cursor value in the `cursor` element to clean the cursor.",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_sql/close",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"Specify the cursor value in the `cursor` element to clean the cursor.",
+      "required":true
     }
   }
 }

@@ -21,10 +21,12 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -37,6 +39,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,7 +52,9 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StreamTests extends ESTestCase {
 
@@ -403,6 +408,60 @@ public class StreamTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(string);
         }
+    }
+
+    public void testSecureStringSerialization() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = new SecureString("super secret".toCharArray());
+            output.writeSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            assertThat(secureString, is(equalTo(input.readSecureString())));
+        }
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = randomBoolean() ? null : new SecureString("super secret".toCharArray());
+            output.writeOptionalSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            if (secureString != null) {
+                assertThat(input.readOptionalSecureString(), is(equalTo(secureString)));
+            } else {
+                assertThat(input.readOptionalSecureString(), is(nullValue()));
+            }
+        }
+    }
+
+    public void testGenericSet() throws IOException {
+        Set<String> set = Set.of("a", "b", "c", "d", "e");
+        assertGenericRoundtrip(set);
+        // reverse order in normal set so linked hashset does not match the order
+        var list = new ArrayList<>(set);
+        Collections.reverse(list);
+        assertGenericRoundtrip(new LinkedHashSet<>(list));
+    }
+
+    private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
+                                     CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            outputAssertions.accept(output);
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+            inputAssertions.accept(input);
+        }
+    }
+
+    private void assertGenericRoundtrip(Object original) throws IOException {
+        assertSerialization(output -> {
+            output.writeGenericValue(original);
+        }, input -> {
+            Object read = input.readGenericValue();
+            assertThat(read, equalTo(original));
+        });
     }
 
 }

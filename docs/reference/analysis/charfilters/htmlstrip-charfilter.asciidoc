@@ -8,7 +8,7 @@ replaces HTML entities with their decoded value (e.g. replacing `&amp;` with
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -17,12 +17,12 @@ POST _analyze
   "text": "<p>I&apos;m so <b>happy</b>!</p>"
 }
 ---------------------------
-// CONSOLE
+
 <1> The <<analysis-keyword-tokenizer,`keyword` tokenizer>> returns a single term.
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -36,7 +36,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -71,7 +70,7 @@ The `html_strip` character filter accepts the following parameter:
 In this example, we configure the `html_strip` character filter to leave `<b>`
 tags in place:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -99,11 +98,10 @@ POST my_index/_analyze
   "text": "<p>I&apos;m so <b>happy</b>!</p>"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -117,7 +115,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

@@ -22,7 +22,6 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
@@ -117,7 +115,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
             if (relevanceRatings[i] != null) {
                 rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
             }
-            hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

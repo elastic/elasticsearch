@@ -23,18 +23,19 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
 
-    RestResizeHandler(final Settings settings) {
-        super(settings);
+    RestResizeHandler() {
     }
 
     @Override
@@ -55,10 +56,11 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
-        public RestShrinkIndexAction(final Settings settings, final RestController controller) {
-            super(settings);
-            controller.registerHandler(RestRequest.Method.PUT, "/{index}/_shrink/{target}", this);
-            controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_shrink/{target}"),
+                new Route(PUT, "/{index}/_shrink/{target}"));
         }
 
         @Override
@@ -75,10 +77,11 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     public static class RestSplitIndexAction extends RestResizeHandler {
 
-        public RestSplitIndexAction(final Settings settings, final RestController controller) {
-            super(settings);
-            controller.registerHandler(RestRequest.Method.PUT, "/{index}/_split/{target}", this);
-            controller.registerHandler(RestRequest.Method.POST, "/{index}/_split/{target}", this);
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_split/{target}"),
+                new Route(PUT, "/{index}/_split/{target}"));
         }
 
         @Override
@@ -89,6 +92,27 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         @Override
         protected ResizeType getResizeType() {
             return ResizeType.SPLIT;
+        }
+
+    }
+
+    public static class RestCloneIndexAction extends RestResizeHandler {
+
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_clone/{target}"),
+                new Route(PUT, "/{index}/_clone/{target}"));
+        }
+
+        @Override
+        public String getName() {
+            return "clone_index_action";
+        }
+
+        @Override
+        protected ResizeType getResizeType() {
+            return ResizeType.CLONE;
         }
 
     }

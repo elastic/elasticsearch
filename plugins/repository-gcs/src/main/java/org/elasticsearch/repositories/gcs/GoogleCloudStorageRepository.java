@@ -21,17 +21,16 @@ package org.elasticsearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Function;
 
@@ -61,10 +60,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final String bucket;
     private final String clientName;
 
-    GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
-                                        NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService, ThreadPool threadPool) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool, buildBasePath(metadata));
+    GoogleCloudStorageRepository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final GoogleCloudStorageService storageService,
+        final ClusterService clusterService) {
+        super(metadata, namedXContentRegistry, clusterService, buildBasePath(metadata));
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
@@ -74,7 +75,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             "using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
-    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
+    private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
@@ -100,7 +101,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     /**
      * Get a given setting from the repository settings, throwing a {@link RepositoryException} if the setting does not exist or is empty.
      */
-    static <T> T getSetting(Setting<T> setting, RepositoryMetaData metadata) {
+    static <T> T getSetting(Setting<T> setting, RepositoryMetadata metadata) {
         T value = setting.get(metadata.settings());
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");

@@ -25,7 +25,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -38,7 +38,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.util.Arrays;
@@ -59,8 +58,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE," +
-    "org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
@@ -78,8 +75,8 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
         ));
         indexRandomData(index);
         ensureGreen(index);
@@ -129,10 +126,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index2 = "test2";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index1).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")
         ));
         assertAcked(prepareCreate(index2).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")
         ));
         indexRandomData(index1);
         indexRandomData(index2);
@@ -158,7 +155,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate(index).setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "5")
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
 
@@ -216,7 +213,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(10, 20);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
         }
         indexRandom(true, builders);
         client().admin().indices().prepareFlush().setForce(true).execute().actionGet();

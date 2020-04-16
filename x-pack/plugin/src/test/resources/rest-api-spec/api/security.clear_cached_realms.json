@@ -1,27 +1,32 @@
 {
-  "security.clear_cached_realms": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [
-        "/_security/realm/{realms}/_clear_cache"
-      ],
-      "parts": {
-        "realms": {
-          "type" : "list",
-          "description" : "Comma-separated list of realms to clear",
-          "required" : true
-        }
-      },
-      "params": {
-        "usernames": {
-          "type" : "list",
-          "description" : "Comma-separated list of usernames to clear from the cache",
-          "required" : false
-        }
-      }
+  "security.clear_cached_realms":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html",
+      "description":"Evicts users from the user cache. Can completely clear the cache or evict specific users."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/realm/{realms}/_clear_cache",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "realms":{
+              "type":"list",
+              "description":"Comma-separated list of realms to clear"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "usernames":{
+        "type":"list",
+        "description":"Comma-separated list of usernames to clear from the cache",
+        "required":false
+      }
+    }
   }
 }

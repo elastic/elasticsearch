@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,14 +41,9 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         long term;
 
         Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
-                DocValueFormat format) {
+                DocValueFormat format, double score) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.term = term;
-        }
-
-        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
-                double score) {
-            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, null);
             this.score = score;
         }
 
@@ -87,11 +81,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
 
         @Override
-        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
-            return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, format);
-        }
-
-        @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
@@ -111,10 +100,10 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
     }
 
-    public SignificantLongTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, long subsetSize, long supersetSize,
+    public SignificantLongTerms(String name, int requiredSize, long minDocCount,
+            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metaData, format, subsetSize, supersetSize, significanceHeuristic,
+        super(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic,
                 buckets);
     }
 
@@ -132,24 +121,30 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
     @Override
     public SignificantLongTerms create(List<SignificantLongTerms.Bucket> buckets) {
-        return new SignificantLongTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData, format, subsetSize, supersetSize,
+        return new SignificantLongTerms(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize,
                 significanceHeuristic, buckets);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
         return new Bucket(prototype.subsetDf, prototype.subsetSize, prototype.supersetDf, prototype.supersetSize, prototype.term,
-                aggregations, prototype.format);
+                aggregations, prototype.format, prototype.score);
     }
 
     @Override
     protected SignificantLongTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        return new SignificantLongTerms(getName(), requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, subsetSize,
+        return new SignificantLongTerms(getName(), requiredSize, minDocCount, getMetadata(), format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 
     @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
+    }
+
+    @Override
+    Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                        InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
+        return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, prototype.term, aggregations, format, prototype.score);
     }
 }

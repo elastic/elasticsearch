@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 
 /**
  * Provides a number of utility methods for interacting with {@link Settings} and {@link Setting} inside a {@link Realm}.
- * Settings for realms use an {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSetting[]) affix} style,
+ * Settings for realms use an {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSettingDependency[]) affix} style,
  * where the <em>type</em> of the realm is part of the prefix, and name of the realm is the variable portion
  * (That is to set the order in a file realm named "file1", then full setting key would be
  * {@code xpack.security.authc.realms.file.file1.order}.
@@ -73,7 +74,7 @@ public class RealmSettings {
      * The {@code Function} takes the <em>realm-type</em> as an argument.
      * @param suffix The suffix of the setting (everything following the realm name in the affix setting)
      * @param delegateFactory A factory to produce the concrete setting.
-     *                       See {@link Setting#affixKeySetting(Setting.AffixKey, Function, Setting.AffixSetting[])}
+     *                       See {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSettingDependency[])}
      */
     public static <T> Function<String, Setting.AffixSetting<T>> affixSetting(String suffix, Function<String, Setting<T>> delegateFactory) {
         return realmType -> Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, delegateFactory);
@@ -91,10 +92,29 @@ public class RealmSettings {
                     return settingsByName.names().stream().map(name -> {
                         final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(type, name);
                         final Settings realmSettings = settingsByName.getAsSettings(name);
+                        verifyRealmSettings(id, realmSettings);
                         return new Tuple<>(id, realmSettings);
                     });
                 })
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+    }
+
+    /**
+     * Performs any necessary verifications on a realms settings that are not automatically applied by Settings validation infrastructure.
+     */
+    private static void verifyRealmSettings(RealmConfig.RealmIdentifier identifier, Settings realmSettings) {
+        final Settings nonSecureSettings = Settings.builder().put(realmSettings, false).build();
+        if (nonSecureSettings.isEmpty()) {
+            final String prefix = realmSettingPrefix(identifier);
+            throw new SettingsException(
+                "found settings for the realm [{}] (with type [{}]) in the secure settings (elasticsearch.keystore)," +
+                    " but this realm does not have any settings in elasticsearch.yml." +
+                    " Please remove these settings from the keystore, or update their names to match one of the realms that are" +
+                    " defined in elasticsearch.yml - [{}]",
+                identifier.getName(), identifier.getType(),
+                realmSettings.keySet().stream().map(k -> prefix + k).collect(Collectors.joining(","))
+            );
+        }
     }
 
     public static String getFullSettingKey(String realmName, Setting.AffixSetting<?> setting) {

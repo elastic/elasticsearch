@@ -25,13 +25,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -41,18 +42,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    public RestClusterStateAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
-
+    public RestClusterStateAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
     }
 
@@ -62,13 +62,21 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cluster/state"),
+            new Route(GET, "/_cluster/state/{metric}"),
+            new Route(GET, "/_cluster/state/{metric}/{indices}"));
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         if (request.hasParam("wait_for_metadata_version")) {
-            clusterStateRequest.waitForMetaDataVersion(request.paramAsLong("wait_for_metadata_version", 0));
+            clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
         clusterStateRequest.waitForTimeout(request.paramAsTime("wait_for_timeout", ClusterStateRequest.DEFAULT_WAIT_FOR_NODE_TIMEOUT));
 
@@ -88,7 +96,7 @@ public class RestClusterStateAction extends BaseRestHandler {
              */
             clusterStateRequest.routingTable(
                     metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
-            clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
+            clusterStateRequest.metadata(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
         }
@@ -98,11 +106,13 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                if (clusterStateRequest.waitForMetaDataVersion() != null) {
+                if (clusterStateRequest.waitForMetadataVersion() != null) {
                     builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
                 }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                response.getState().toXContent(builder, request);
+                ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request);
+                response.getState().toXContent(builder, params);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

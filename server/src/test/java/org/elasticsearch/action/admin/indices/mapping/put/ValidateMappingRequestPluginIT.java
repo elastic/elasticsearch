@@ -65,37 +65,37 @@ public class ValidateMappingRequestPluginIT extends ESSingleNodeTestCase {
         allowedOrigins.put("index_2", Arrays.asList("2", "3"));
         {
             String origin = randomFrom("", "3", "4", "5");
-            PutMappingRequest request = new PutMappingRequest().indices("index_1").type("doc").source("t1", "type=keyword").origin(origin);
+            PutMappingRequest request = new PutMappingRequest().indices("index_1").source("t1", "type=keyword").origin(origin);
             Exception e = expectThrows(IllegalStateException.class, () -> client().admin().indices().putMapping(request).actionGet());
             assertThat(e.getMessage(), equalTo("not allowed: index[index_1] origin[" + origin + "]"));
         }
         {
             PutMappingRequest request = new PutMappingRequest().indices("index_1").origin(randomFrom("1", "2"))
-                .type("doc").source("t1", "type=keyword");
+                .source("t1", "type=keyword");
             assertAcked(client().admin().indices().putMapping(request).actionGet());
         }
 
         {
             String origin = randomFrom("", "1", "4", "5");
-            PutMappingRequest request = new PutMappingRequest().indices("index_2").type("doc").source("t2", "type=keyword").origin(origin);
+            PutMappingRequest request = new PutMappingRequest().indices("index_2").source("t2", "type=keyword").origin(origin);
             Exception e = expectThrows(IllegalStateException.class, () -> client().admin().indices().putMapping(request).actionGet());
             assertThat(e.getMessage(), equalTo("not allowed: index[index_2] origin[" + origin + "]"));
         }
         {
             PutMappingRequest request = new PutMappingRequest().indices("index_2").origin(randomFrom("2", "3"))
-                .type("doc").source("t1", "type=keyword");
+                .source("t1", "type=keyword");
             assertAcked(client().admin().indices().putMapping(request).actionGet());
         }
 
         {
             String origin = randomFrom("", "1", "3", "4");
-            PutMappingRequest request = new PutMappingRequest().indices("*").type("doc").source("t3", "type=keyword").origin(origin);
+            PutMappingRequest request = new PutMappingRequest().indices("*").source("t3", "type=keyword").origin(origin);
             Exception e = expectThrows(IllegalStateException.class, () -> client().admin().indices().putMapping(request).actionGet());
             assertThat(e.getMessage(), containsString("not allowed:"));
         }
         {
             PutMappingRequest request = new PutMappingRequest().indices("index_2").origin("2")
-                .type("doc").source("t3", "type=keyword");
+                .source("t3", "type=keyword");
             assertAcked(client().admin().indices().putMapping(request).actionGet());
         }
     }

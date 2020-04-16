@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -120,7 +120,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final MonitoringBulkRequest request = randomRequest();
         final ClusterBlockException e = expectThrows(ClusterBlockException.class, () -> ActionTestUtils.executeBlocking(action, request));
 
-        assertThat(e, hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
+        assertThat(e, hasToString(containsString("ClusterBlockException: blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
     }
 
     public void testExecuteIgnoresRequestWhenCollectionIsDisabled() throws Exception {
@@ -169,7 +169,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
         final String clusterUUID = UUIDs.randomBase64UUID();
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT)
-                                                            .metaData(MetaData.builder().clusterUUID(clusterUUID).build())
+                                                            .metadata(Metadata.builder().clusterUUID(clusterUUID).build())
                                                             .build());
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
@@ -209,7 +209,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 assertThat(exportedDoc.getCluster(), equalTo(clusterUUID));
             });
 
-            final ActionListener listener = (ActionListener) i.getArguments()[1];
+            final ActionListener<?> listener = (ActionListener) i.getArguments()[1];
             listener.onResponse(null);
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
@@ -348,7 +348,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             final Collection<MonitoringDoc> exportedDocs = (Collection) i.getArguments()[0];
             assertThat(exportedDocs, is(docs));
 
-            final ActionListener listener = (ActionListener) i.getArguments()[1];
+            final ActionListener<?> listener = (ActionListener) i.getArguments()[1];
             listener.onResponse(null);
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));

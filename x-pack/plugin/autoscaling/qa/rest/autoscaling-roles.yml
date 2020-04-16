@@ -1,0 +1,3 @@
+autoscaling:
+  cluster:
+    - manage_autoscaling

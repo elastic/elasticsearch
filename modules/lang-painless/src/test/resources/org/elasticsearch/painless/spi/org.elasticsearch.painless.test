@@ -1,8 +1,14 @@
 # whitelist for tests
+
+# TODO: remove this when the transition from Joda to Java datetimes is completed
+class org.elasticsearch.script.JodaCompatibleZonedDateTime {
+  (Instant, ZoneId)
+}
+
 class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
 }
 
-class org.elasticsearch.painless.FeatureTestObject no_import {
+class org.elasticsearch.painless.FeatureTestObject @no_import {
   int z
   ()
   (int,int)

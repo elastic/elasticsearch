@@ -3,8 +3,9 @@
 :request: StartWatchServiceRequest
 :response: StartWatchServiceResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Start Watch Service API
+=== Start watch service API
 
 [id="{upid}-{api}-request"]
 ==== Execution

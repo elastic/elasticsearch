@@ -115,6 +115,7 @@ public class AliasActionsTests extends ESTestCase {
         Object searchRouting = randomBoolean() ? randomRouting() : null;
         Object indexRouting = randomBoolean() ? randomBoolean() ? searchRouting : randomRouting() : null;
         boolean writeIndex = randomBoolean();
+        boolean isHidden = randomBoolean();
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject();
         {
@@ -144,6 +145,7 @@ public class AliasActionsTests extends ESTestCase {
                     b.field("index_routing", indexRouting);
                 }
                 b.field("is_write_index", writeIndex);
+                b.field("is_hidden", isHidden);
             }
             b.endObject();
         }
@@ -162,6 +164,7 @@ public class AliasActionsTests extends ESTestCase {
             assertEquals(Objects.toString(searchRouting, null), action.searchRouting());
             assertEquals(Objects.toString(indexRouting, null), action.indexRouting());
             assertEquals(writeIndex, action.writeIndex());
+            assertEquals(isHidden, action.isHidden());
         }
     }
 

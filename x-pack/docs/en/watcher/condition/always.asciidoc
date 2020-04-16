@@ -1,14 +1,15 @@
+[role="xpack"]
 [[condition-always]]
-=== Always Condition
+=== Always condition
 
 Use the `always` condition to set the condition to `true`. This forces the watch 
-actions to be executed unless they are <<actions-ack-throttle, throttled>>. 
+actions to be executed unless they are <<actions-ack-throttle,throttled>>. 
 
 The `always` condition enables you to perform watch actions on a fixed schedule, 
 such as, _"Every Friday at noon, send a status report email to 
 sys.admin@example.com."_
 
-==== Using the Always Condition
+==== Using the always condition
 
 This is the default if you omit the condition definition from a watch.
 

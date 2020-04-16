@@ -1,12 +1,19 @@
 {
-  "license.delete": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-license.html",
-    "stability": "stable",
-    "methods": ["DELETE"],
-    "url": {
-      "paths": ["/_license"],
-      "parts" : {}
+  "license.delete":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-license.html",
+      "description":"Deletes licensing information for the cluster"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    }
   }
 }

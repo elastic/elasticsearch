@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -37,6 +38,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
+import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
@@ -82,6 +84,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private ScriptStats scriptStats;
 
     @Nullable
+    private ScriptCacheStats scriptCacheStats;
+
+    @Nullable
     private DiscoveryStats discoveryStats;
 
     @Nullable
@@ -90,7 +95,29 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
-    NodeStats() {
+    public NodeStats(StreamInput in) throws IOException {
+        super(in);
+        timestamp = in.readVLong();
+        if (in.readBoolean()) {
+            indices = new NodeIndicesStats(in);
+        }
+        os = in.readOptionalWriteable(OsStats::new);
+        process = in.readOptionalWriteable(ProcessStats::new);
+        jvm = in.readOptionalWriteable(JvmStats::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
+        fs = in.readOptionalWriteable(FsInfo::new);
+        transport = in.readOptionalWriteable(TransportStats::new);
+        http = in.readOptionalWriteable(HttpStats::new);
+        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::new);
+        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
+        } else {
+            scriptCacheStats = null;
+        }
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -100,7 +127,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
                      @Nullable IngestStats ingestStats,
-                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
+                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+                     @Nullable ScriptCacheStats scriptCacheStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -116,6 +144,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
+        this.scriptCacheStats = scriptCacheStats;
     }
 
     public long getTimestamp() {
@@ -210,31 +239,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return adaptiveSelectionStats;
     }
 
-    public static NodeStats readNodeStats(StreamInput in) throws IOException {
-        NodeStats nodeInfo = new NodeStats();
-        nodeInfo.readFrom(in);
-        return nodeInfo;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timestamp = in.readVLong();
-        if (in.readBoolean()) {
-            indices = NodeIndicesStats.readIndicesStats(in);
-        }
-        os = in.readOptionalWriteable(OsStats::new);
-        process = in.readOptionalWriteable(ProcessStats::new);
-        jvm = in.readOptionalWriteable(JvmStats::new);
-        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
-        fs = in.readOptionalWriteable(FsInfo::new);
-        transport = in.readOptionalWriteable(TransportStats::new);
-        http = in.readOptionalWriteable(HttpStats::new);
-        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
-        scriptStats = in.readOptionalWriteable(ScriptStats::new);
-        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::new);
-        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
+    @Nullable
+    public ScriptCacheStats getScriptCacheStats() {
+        return scriptCacheStats;
     }
 
     @Override
@@ -259,6 +266,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalWriteable(scriptCacheStats);
+        }
     }
 
     @Override
@@ -321,6 +331,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdaptiveSelectionStats() != null) {
             getAdaptiveSelectionStats().toXContent(builder, params);
+        }
+        if (getScriptCacheStats() != null) {
+            getScriptCacheStats().toXContent(builder, params);
         }
         return builder;
     }

@@ -30,7 +30,9 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportLogger;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@TestLogging(value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace")
+@TestLogging(
+    value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace",
+    reason = "to ensure we log network events on TRACE level")
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;

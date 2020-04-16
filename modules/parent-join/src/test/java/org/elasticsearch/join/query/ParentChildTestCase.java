@@ -65,6 +65,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         for (int i = 0; i < fields.length; i += 2) {
             source.put((String) fields[i], fields[i + 1]);
         }
+        source.put("id", id);
         return createIndexRequest(index, type, id, parentId, source);
     }
 
@@ -93,6 +94,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         }
         joinField.put("relations", relationMap);
         fields.put(joinFieldName, joinField);
+        fields.put("id", Collections.singletonMap("type", "keyword"));
         return Collections.singletonMap("properties", fields);
     }
 
@@ -111,7 +113,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         String name = type;
         type = "doc";
 
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index).setId(id);
         Map<String, Object> joinField = new HashMap<>();
         if (parentId != null) {
             joinField.put("name", name);

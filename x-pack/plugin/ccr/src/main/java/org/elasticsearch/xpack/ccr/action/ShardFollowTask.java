@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.ccr.action.ImmutableFollowParameters;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class ShardFollowTask extends ImmutableFollowParameters implements XPackPlugin.XPackPersistentTaskParams {
+public class ShardFollowTask extends ImmutableFollowParameters implements PersistentTaskParams {
 
     public static final String NAME = "xpack/ccr/shard_follow_task";
 
@@ -44,7 +44,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements XPackP
     private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
             (a) -> new ShardFollowTask((String) a[0],
                 new ShardId((String) a[1], (String) a[2], (int) a[3]), new ShardId((String) a[4], (String) a[5], (int) a[6]),
                 (Integer) a[7], (Integer) a[8], (Integer) a[9], (Integer) a[10], (ByteSizeValue) a[11], (ByteSizeValue) a[12],

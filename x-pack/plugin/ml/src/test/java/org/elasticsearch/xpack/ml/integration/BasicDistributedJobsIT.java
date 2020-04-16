@@ -16,14 +16,13 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -64,19 +64,21 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        ensureGreen();
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
@@ -106,10 +108,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
         client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
-        ensureGreen();
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
         StartDatafeedAction.Request startDataFeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDataFeedRequest);
 
@@ -120,9 +125,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
         assertBusy(() -> {
             GetDatafeedsStatsAction.Response statsResponse =
@@ -131,9 +136,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
 
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
-        ensureGreen();
         awaitJobOpenedAndAssigned(job.getId(), null);
         assertBusy(() -> {
             GetDatafeedsStatsAction.Response statsResponse =
@@ -149,19 +154,19 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
 
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
 
-        IndexRequest indexRequest = new IndexRequest("data", "type");
+        IndexRequest indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407081600L);
         client().index(indexRequest).get();
-        indexRequest = new IndexRequest("data", "type");
+        indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407082600L);
         client().index(indexRequest).get();
-        indexRequest = new IndexRequest("data", "type");
+        indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407083600L);
         client().index(indexRequest).get();
-        refresh();
+        refresh("*");
 
         Job.Builder job = createScheduledJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -171,6 +176,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
         client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
@@ -183,7 +189,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
-    @TestLogging("org.elasticsearch.xpack.persistent:TRACE,org.elasticsearch.cluster.service:DEBUG,org.elasticsearch.xpack.ml.action:DEBUG")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
@@ -203,11 +208,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
@@ -258,7 +264,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         // Sample each cs update and keep track each time a node holds more than `maxConcurrentJobAllocations` opening jobs.
         List<String> violations = new CopyOnWriteArrayList<>();
         internalCluster().clusterService(nonMlNode).addListener(event -> {
-            PersistentTasksCustomMetaData tasks = event.state().metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = event.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
             if (tasks == null) {
                 return;
             }
@@ -277,6 +283,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             }
         });
 
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
@@ -305,7 +312,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(1, nonMlNode);
         assertBusy(() -> {
             ClusterState state = client(nonMlNode).admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNull(task.getExecutorNode());
@@ -386,7 +393,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(0, tasks.taskMap().size());
         });
         logger.info("Stop non ml node");
@@ -418,9 +425,63 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> assertJobTask(jobId, JobState.OPENED, true));
     }
 
+    public void testCloseUnassignedLazyJobAndDatafeed() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        ensureStableCluster(3);
+
+        String jobId = "test-lazy-stop";
+        String datafeedId = jobId + "-datafeed";
+        // Assume the test machine won't have space to assign a 2TB job
+        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.TB), true);
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
+
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+
+        DatafeedConfig config = createDatafeed(datafeedId, jobId, Collections.singletonList("data"));
+        PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
+
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
+        OpenJobAction.Request openJobRequest = new OpenJobAction.Request(jobId);
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
+
+        // Job state should be opening because it won't fit anyway, but is allowed to open lazily
+        GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
+        GetJobsStatsAction.Response jobStatsResponse = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet();
+        assertEquals(JobState.OPENING, jobStatsResponse.getResponse().results().get(0).getState());
+
+        StartDatafeedAction.Request startDataFeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
+        client().execute(StartDatafeedAction.INSTANCE, startDataFeedRequest).actionGet();
+
+        // Datafeed state should be starting while it waits for job assignment
+        GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response datafeedStatsResponse =
+            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+        assertEquals(DatafeedState.STARTING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+
+        // A starting datafeed can be stopped normally or by force
+        StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
+        stopDatafeedRequest.setForce(randomBoolean());
+        StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
+        assertTrue(stopDatafeedResponse.isStopped());
+
+        datafeedStatsResponse = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+        assertEquals(DatafeedState.STOPPED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
+
+        // An opening job can also be stopped normally or by force
+        CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
+        closeJobRequest.setForce(randomBoolean());
+        CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
+        assertTrue(closeJobResponse.isClosed());
+
+        jobStatsResponse = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet();
+        assertEquals(JobState.CLOSED, jobStatsResponse.getResponse().results().get(0).getState());
+    }
+
     private void assertJobTask(String jobId, JobState expectedState, boolean hasExecutorNode) {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertEquals(1, tasks.taskMap().size());
         PersistentTask<?> task = MlTasks.getJobTask(jobId, tasks);
         assertNotNull(task);
@@ -442,7 +503,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     private CheckedRunnable<Exception> checkAllJobsAreAssignedAndOpened(int numJobs) {
         return () -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(numJobs, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.taskMap().values()) {
                 assertNotNull(task.getExecutorNode());

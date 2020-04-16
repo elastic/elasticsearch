@@ -21,12 +21,13 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -34,42 +35,37 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
-
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
-    private long id;
+    private final SearchContextId contextId;
 
-    private AggregatedDfs dfs;
+    private final AggregatedDfs dfs;
 
-    private OriginalIndices originalIndices;
+    private final OriginalIndices originalIndices;
 
-    public QuerySearchRequest() {
-    }
-
-    public QuerySearchRequest(OriginalIndices originalIndices, long id, AggregatedDfs dfs) {
-        this.id = id;
+    public QuerySearchRequest(OriginalIndices originalIndices, SearchContextId contextId, AggregatedDfs dfs) {
+        this.contextId = contextId;
         this.dfs = dfs;
         this.originalIndices = originalIndices;
     }
 
     public QuerySearchRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readLong();
-        dfs = readAggregatedDfs(in);
+        contextId = new SearchContextId(in);
+        dfs = new AggregatedDfs(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        contextId.writeTo(out);
         dfs.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
-    public long id() {
-        return id;
+    public SearchContextId contextId() {
+        return contextId;
     }
 
     public AggregatedDfs dfs() {
@@ -87,19 +83,14 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     public String getDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("id[");
-        sb.append(id);
+        sb.append(contextId);
         sb.append("], ");
         sb.append("indices[");
         Strings.arrayToDelimitedString(originalIndices.indices(), ",", sb);

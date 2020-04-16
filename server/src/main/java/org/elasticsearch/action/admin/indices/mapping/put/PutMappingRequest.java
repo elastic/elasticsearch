@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,15 +32,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -48,7 +48,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Puts mapping definition registered under a specific type into one or more indices. Best created with
+ * Puts mapping definition into one or more indices. Best created with
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
@@ -58,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
@@ -69,12 +69,25 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
-    private String type;
-
     private String source;
     private String origin = "";
 
     private Index concreteIndex;
+
+    public PutMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readOptionalString();
+            if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
+            }
+        }
+        source = in.readString();
+        concreteIndex = in.readOptionalWriteable(Index::new);
+        origin = in.readOptionalString();
+    }
 
     public PutMappingRequest() {
     }
@@ -90,11 +103,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (type == null) {
-            validationException = addValidationError("mapping type is missing", validationException);
-        }else if (type.isEmpty()) {
-            validationException = addValidationError("mapping type is empty", validationException);
-        }
         if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
         } else if (source.isEmpty()) {
@@ -151,21 +159,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * The mapping type.
-     */
-    public String type() {
-        return type;
-    }
-
-    /**
-     * The type of the mappings.
-     */
-    public PutMappingRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
      * The mapping source definition.
      */
     public String source() {
@@ -179,8 +172,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
      * mapping fields will automatically be put on the top level mapping object.
      */
-    public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(type, source));
+    public PutMappingRequest source(String... source) {
+        return source(simpleMapping(source));
     }
 
     public String origin() {
@@ -194,8 +187,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type
-     *            the mapping type
      * @param source
      *            consisting of field/properties pairs (e.g. "field1",
      *            "type=string,store=true")
@@ -203,22 +194,19 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
-    public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+    public static XContentBuilder simpleMapping(String... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
 
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     builder.startObject(fieldName);
-                    String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                    String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
@@ -232,13 +220,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
             builder.startObject("properties");
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     continue;
                 }
 
                 builder.startObject(fieldName);
-                String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {
@@ -249,9 +237,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.endObject();
             }
             builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
             builder.endObject();
             return builder;
         } catch (Exception e) {
@@ -300,36 +285,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
-        source = in.readString();
-        concreteIndex = in.readOptionalWriteable(Index::new);
-        origin = in.readOptionalString();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (source != null) {
-            try (InputStream stream = new BytesArray(source).streamInput()) {
-                builder.rawValue(stream, XContentType.JSON);
-            }
-        } else {
-            builder.startObject().endObject();
-        }
-        return builder;
     }
 }

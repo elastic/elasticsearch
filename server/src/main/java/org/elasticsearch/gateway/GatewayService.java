@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -50,19 +51,19 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =
-        Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope);
+        Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING =
         Setting.intSetting("gateway.expected_data_nodes", -1, -1, Property.NodeScope);
     public static final Setting<Integer> EXPECTED_MASTER_NODES_SETTING =
-        Setting.intSetting("gateway.expected_master_nodes", -1, -1, Property.NodeScope);
+        Setting.intSetting("gateway.expected_master_nodes", -1, -1, Property.NodeScope, Property.Deprecated);
     public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING =
         Setting.positiveTimeSetting("gateway.recover_after_time", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> RECOVER_AFTER_NODES_SETTING =
-        Setting.intSetting("gateway.recover_after_nodes", -1, -1, Property.NodeScope);
+        Setting.intSetting("gateway.recover_after_nodes", -1, -1, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING =
         Setting.intSetting("gateway.recover_after_data_nodes", -1, -1, Property.NodeScope);
     public static final Setting<Integer> RECOVER_AFTER_MASTER_NODES_SETTING =
-        Setting.intSetting("gateway.recover_after_master_nodes", 0, 0, Property.NodeScope);
+        Setting.intSetting("gateway.recover_after_master_nodes", 0, 0, Property.NodeScope, Property.Deprecated);
 
     public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true,
         false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
@@ -90,9 +91,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     @Inject
     public GatewayService(final Settings settings, final AllocationService allocationService, final ClusterService clusterService,
-                          final ThreadPool threadPool,
-                          final TransportNodesListGatewayMetaState listGatewayMetaState,
-                          final Discovery discovery) {
+                          final ThreadPool threadPool, final Discovery discovery, final NodeClient client) {
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -121,7 +120,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             recoveryRunnable = () ->
                     clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
         } else {
-            final Gateway gateway = new Gateway(clusterService, listGatewayMetaState);
+            final Gateway gateway = new Gateway(clusterService, client);
             recoveryRunnable = () ->
                     gateway.performStateRecovery(new GatewayRecoveryListener());
         }
@@ -255,7 +254,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         @Override
         public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
-            logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
+            logger.info("recovered [{}] indices into cluster_state", newState.metadata().indices().size());
             // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
             // not-recovered state, that we again do another state recovery.
             resetRecoveredFlags();

@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -24,7 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -41,6 +40,7 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
 public final class IndexPrivilege extends Privilege {
+    private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
@@ -48,6 +48,8 @@ public final class IndexPrivilege extends Privilege {
             ClusterSearchShardsAction.NAME);
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
             PutMappingAction.NAME);
+    private static final Automaton CREATE_DOC_AUTOMATON = patterns("indices:data/write/index", "indices:data/write/index[*",
+        "indices:data/write/index:op_type/create", "indices:data/write/bulk*", PutMappingAction.NAME);
     private static final Automaton INDEX_AUTOMATON =
             patterns("indices:data/write/index*", "indices:data/write/bulk*", "indices:data/write/update*", PutMappingAction.NAME);
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
@@ -57,14 +59,15 @@ public final class IndexPrivilege extends Privilege {
             unionAndMinimize(Arrays.asList(MONITOR_AUTOMATON, patterns("indices:admin/*")));
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(CreateIndexAction.NAME);
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME);
-    private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
-            GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
-            ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME,
-            ExplainLifecycleAction.NAME);
+    private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME,
+            GetIndexAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
+            ClusterSearchShardsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME, ExplainLifecycleAction.NAME);
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
         CloseIndexAction.NAME + "*");
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
+    private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh*", "indices:admin/flush*",
+        "indices:admin/synced_flush", "indices:admin/forcemerge*");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",                Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",                 ALL_AUTOMATON);
@@ -74,6 +77,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE =              new IndexPrivilege("delete",              DELETE_AUTOMATON);
     public static final IndexPrivilege WRITE =               new IndexPrivilege("write",               WRITE_AUTOMATON);
+    public static final IndexPrivilege CREATE_DOC =          new IndexPrivilege("create_doc",          CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR =             new IndexPrivilege("monitor",             MONITOR_AUTOMATON);
     public static final IndexPrivilege MANAGE =              new IndexPrivilege("manage",              MANAGE_AUTOMATON);
     public static final IndexPrivilege DELETE_INDEX =        new IndexPrivilege("delete_index",        DELETE_INDEX_AUTOMATON);
@@ -81,7 +85,8 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
-    public static final IndexPrivilege MANAGE_ILM =          new IndexPrivilege("manage_ilm",          MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
 
     private static final Map<String, IndexPrivilege> VALUES = Map.ofEntries(
             entry("none", NONE),
@@ -94,12 +99,14 @@ public final class IndexPrivilege extends Privilege {
             entry("delete", DELETE),
             entry("write", WRITE),
             entry("create", CREATE),
+            entry("create_doc", CREATE_DOC),
             entry("delete_index", DELETE_INDEX),
             entry("view_index_metadata", VIEW_METADATA),
             entry("read_cross_cluster", READ_CROSS_CLUSTER),
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
-            entry("manage_ilm", MANAGE_ILM));
+            entry("manage_ilm", MANAGE_ILM),
+            entry("maintenance", MAINTENANCE));
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
@@ -143,10 +150,12 @@ public final class IndexPrivilege extends Privilege {
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
                 } else {
-                    throw new IllegalArgumentException("unknown index privilege [" + part + "]. a privilege must be either " +
-                            "one of the predefined fixed indices privileges [" +
-                            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
-                            " actions");
+                    String errorMessage = "unknown index privilege [" + part + "]. a privilege must be either " +
+                        "one of the predefined fixed indices privileges [" +
+                        Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
+                        " actions";
+                    logger.debug(errorMessage);
+                    throw new IllegalArgumentException(errorMessage);
                 }
             }
         }
@@ -160,4 +169,9 @@ public final class IndexPrivilege extends Privilege {
     static Map<String, IndexPrivilege> values() {
         return VALUES;
     }
+
+    public static Set<String> names() {
+        return Collections.unmodifiableSet(VALUES.keySet());
+    }
+
 }

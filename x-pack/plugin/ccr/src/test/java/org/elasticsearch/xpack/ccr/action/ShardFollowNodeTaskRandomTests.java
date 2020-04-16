@@ -139,13 +139,13 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 Consumer<BulkShardOperationsResponse> handler,
                 Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
-                    tracker.markSeqNoAsCompleted(op.seqNo());
+                    tracker.markSeqNoAsProcessed(op.seqNo());
                 }
                 receivedOperations.addAll(operations);
 
                 // Emulate network thread and avoid SO:
                 final BulkShardOperationsResponse response = new BulkShardOperationsResponse();
-                response.setGlobalCheckpoint(tracker.getCheckpoint());
+                response.setGlobalCheckpoint(tracker.getProcessedCheckpoint());
                 response.setMaxSeqNo(tracker.getMaxSeqNo());
                 threadPool.generic().execute(() -> handler.accept(response));
             }
@@ -180,7 +180,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         }
                     } else {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
-                        final long globalCheckpoint = tracker.getCheckpoint();
+                        final long globalCheckpoint = tracker.getProcessedCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
                         handler.accept(new ShardChangesAction.Response(
                                 0L,
@@ -284,7 +284,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
                     String id = UUIDs.randomBase64UUID();
                     byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                    ops.add(new Translog.Index("doc", id, seqNo, 0, source));
+                    ops.add(new Translog.Index(id, seqNo, 0, source));
                 }
                 item.add(new TestResponse(
                     null,
@@ -332,7 +332,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
                         String id = UUIDs.randomBase64UUID();
                         byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                        ops.add(new Translog.Index("doc", id, seqNo, 0, source));
+                        ops.add(new Translog.Index(id, seqNo, 0, source));
                     }
                     // Report toSeqNo to simulate maxBatchSizeInBytes limit being met or last op to simulate a shard lagging behind:
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;

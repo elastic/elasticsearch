@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class BulkProcessorRetryIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";
-    private static final String TYPE_NAME = "type";
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -78,7 +77,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
 
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client(), new BulkProcessor.Listener() {
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client()::bulk, new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 // no op
@@ -175,7 +174,6 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
             processor.add(client()
                     .prepareIndex()
                     .setIndex(INDEX_NAME)
-                    .setType(TYPE_NAME)
                     .setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
                     .request());

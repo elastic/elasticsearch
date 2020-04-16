@@ -112,7 +112,7 @@ public class WaitForHttpResource {
             ssl = null;
         }
         IOException failure = null;
-        for (; ; ) {
+        while (true) {
             try {
                 checkResource(ssl);
                 return true;
@@ -129,18 +129,14 @@ public class WaitForHttpResource {
     }
 
     protected void checkResource(SSLContext ssl) throws IOException {
-        try {
-            final HttpURLConnection connection = buildConnection(ssl);
-            connection.connect();
-            final Integer response = connection.getResponseCode();
-            if (validResponseCodes.contains(response)) {
-                logger.info("Got successful response [{}] from URL [{}]", response, url);
-                return;
-            } else {
-                throw new IOException(response + " " + connection.getResponseMessage());
-            }
-        } catch (IOException e) {
-            throw e;
+        final HttpURLConnection connection = buildConnection(ssl);
+        connection.connect();
+        final Integer response = connection.getResponseCode();
+        if (validResponseCodes.contains(response)) {
+            logger.info("Got successful response [{}] from URL [{}]", response, url);
+            return;
+        } else {
+            throw new IOException(response + " " + connection.getResponseMessage());
         }
     }
 
@@ -165,11 +161,12 @@ public class WaitForHttpResource {
     private void configureBasicAuth(HttpURLConnection connection) {
         if (username != null) {
             if (password == null) {
-                throw new IllegalStateException("Basic Auth user [" + username
-                    + "] has been set, but no password has been configured");
+                throw new IllegalStateException("Basic Auth user [" + username + "] has been set, but no password has been configured");
             }
-            connection.setRequestProperty("Authorization",
-                "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8)));
+            connection.setRequestProperty(
+                "Authorization",
+                "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8))
+            );
         }
     }
 

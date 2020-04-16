@@ -10,11 +10,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
@@ -22,7 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -308,17 +307,17 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
     private String[] getAliasesOnLeader() throws InterruptedException, ExecutionException {
         final GetAliasesResponse response = leaderClient().admin().indices().getAliases(new GetAliasesRequest().indices("leader")).get();
-        return response.getAliases().get("leader").stream().map(AliasMetaData::alias).toArray(String[]::new);
+        return response.getAliases().get("leader").stream().map(AliasMetadata::alias).toArray(String[]::new);
     }
 
     private void assertAliasesExist(final String leaderIndex, final String followerIndex, final String... aliases) throws Exception {
-        assertAliasesExist(leaderIndex, followerIndex, (alias, aliasMetaData) -> {}, aliases);
+        assertAliasesExist(leaderIndex, followerIndex, (alias, aliasMetadata) -> {}, aliases);
     }
 
     private <E extends Exception> void assertAliasesExist(
             final String leaderIndex,
             final String followerIndex,
-            final CheckedBiConsumer<String, AliasMetaData, E> aliasMetaDataAssertion,
+            final CheckedBiConsumer<String, AliasMetadata, E> aliasMetadataAssertion,
             final String... aliases) throws Exception {
         // we must check serially because aliases exist will return true if any but not necessarily all of the requested aliases exist
         for (final String alias : aliases) {
@@ -333,26 +332,26 @@ public class CcrAliasesIT extends CcrIntegTestCase {
                     followerResponse.getAliases().get(followerIndex),
                     hasSize(aliases.length));
             for (final String alias : aliases) {
-                final AliasMetaData followerAliasMetaData = getAliasMetaData(followerResponse, followerIndex, alias);
+                final AliasMetadata followerAliasMetadata = getAliasMetadata(followerResponse, followerIndex, alias);
 
                 final GetAliasesResponse leaderResponse =
                         leaderClient().admin().indices().getAliases(new GetAliasesRequest().indices(leaderIndex).aliases(alias)).get();
-                final AliasMetaData leaderAliasMetaData = getAliasMetaData(leaderResponse, leaderIndex, alias);
+                final AliasMetadata leaderAliasMetadata = getAliasMetadata(leaderResponse, leaderIndex, alias);
 
                 assertThat(
-                        "alias [" + alias + "] index routing did not replicate, but was " + followerAliasMetaData.toString(),
-                        followerAliasMetaData.indexRouting(), equalTo(leaderAliasMetaData.indexRouting()));
+                        "alias [" + alias + "] index routing did not replicate, but was " + followerAliasMetadata.toString(),
+                        followerAliasMetadata.indexRouting(), equalTo(leaderAliasMetadata.indexRouting()));
                 assertThat(
-                        "alias [" + alias + "] search routing did not replicate, but was " + followerAliasMetaData.toString(),
-                        followerAliasMetaData.searchRoutingValues(), equalTo(leaderAliasMetaData.searchRoutingValues()));
+                        "alias [" + alias + "] search routing did not replicate, but was " + followerAliasMetadata.toString(),
+                        followerAliasMetadata.searchRoutingValues(), equalTo(leaderAliasMetadata.searchRoutingValues()));
                 assertThat(
-                        "alias [" + alias + "] filtering did not replicate, but was " + followerAliasMetaData.toString(),
-                        followerAliasMetaData.filter(), equalTo(leaderAliasMetaData.filter()));
+                        "alias [" + alias + "] filtering did not replicate, but was " + followerAliasMetadata.toString(),
+                        followerAliasMetadata.filter(), equalTo(leaderAliasMetadata.filter()));
                 assertThat(
-                        "alias [" + alias + "] should not be a write index, but was " + followerAliasMetaData.toString(),
-                        followerAliasMetaData.writeIndex(),
+                        "alias [" + alias + "] should not be a write index, but was " + followerAliasMetadata.toString(),
+                        followerAliasMetadata.writeIndex(),
                         equalTo(false));
-                aliasMetaDataAssertion.accept(alias, followerAliasMetaData);
+                aliasMetadataAssertion.accept(alias, followerAliasMetadata);
             }
         });
     }
@@ -360,29 +359,29 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     private void assertAliasExistence(final String alias, final boolean exists) throws Exception {
         assertBusy(() -> {
             // we must check serially because aliases exist will return true if any but not necessarily all of the requested aliases exist
-            final AliasesExistResponse response = followerClient().admin()
+            final GetAliasesResponse response = followerClient().admin()
                     .indices()
-                    .aliasesExist(new GetAliasesRequest().indices("follower").aliases(alias))
+                    .getAliases(new GetAliasesRequest().indices("follower").aliases(alias))
                     .get();
             if (exists) {
-                assertTrue("alias [" + alias + "] did not exist", response.exists());
+                assertFalse("alias [" + alias + "] did not exist", response.getAliases().isEmpty());
             } else {
-                assertFalse("alias [" + alias + "] exists", response.exists());
+                assertTrue("alias [" + alias + "] exists", response.getAliases().isEmpty());
             }
         });
     }
 
-    private AliasMetaData getAliasMetaData(final GetAliasesResponse response, final String index, final String alias) {
-        final Optional<AliasMetaData> maybeAliasMetaData =
+    private AliasMetadata getAliasMetadata(final GetAliasesResponse response, final String index, final String alias) {
+        final Optional<AliasMetadata> maybeAliasMetadata =
                 response.getAliases().get(index).stream().filter(a -> a.getAlias().equals(alias)).findFirst();
-        assertTrue("alias [" + alias + "] did not exist", maybeAliasMetaData.isPresent());
-        return maybeAliasMetaData.get();
+        assertTrue("alias [" + alias + "] did not exist", maybeAliasMetadata.isPresent());
+        return maybeAliasMetadata.get();
     }
 
     private CheckedRunnable<Exception> assertShardFollowTask(final int numberOfPrimaryShards) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData taskMetadata = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertNotNull("task metadata for follower should exist", taskMetadata);
 
             final ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -394,9 +393,9 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
             final List<TaskInfo> taskInfos = listTasksResponse.getTasks();
             assertThat("expected a task for each shard", taskInfos.size(), equalTo(numberOfPrimaryShards));
-            final Collection<PersistentTasksCustomMetaData.PersistentTask<?>> shardFollowTasks =
+            final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks =
                     taskMetadata.findTasks(ShardFollowTask.NAME, Objects::nonNull);
-            for (final PersistentTasksCustomMetaData.PersistentTask<?> shardFollowTask : shardFollowTasks) {
+            for (final PersistentTasksCustomMetadata.PersistentTask<?> shardFollowTask : shardFollowTasks) {
                 TaskInfo taskInfo = null;
                 final String expectedId = "id=" + shardFollowTask.getId();
                 for (final TaskInfo info : taskInfos) {

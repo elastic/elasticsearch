@@ -10,7 +10,7 @@ The buckets field is optional, and will default to 10 buckets if not specified.
 
 Requesting a target of 10 buckets.
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -24,7 +24,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== Keys
@@ -37,7 +36,7 @@ date string using the format specified with the `format` parameter:
 TIP: If no `format` is specified, then it will use the first date
 <<mapping-date-format,format>> specified in the field mapping.
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-format-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -52,14 +51,13 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Supports expressive date <<date-format-pattern,format pattern>>
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -119,19 +117,19 @@ Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
 
 Consider the following example:
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-timezone-example]
 ---------------------------------
-PUT my_index/log/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "date": "2015-10-01T00:30:00Z"
 }
 
-PUT my_index/log/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "date": "2015-10-01T01:30:00Z"
 }
 
-PUT my_index/log/3?refresh
+PUT my_index/_doc/3?refresh
 {
   "date": "2015-10-01T02:30:00Z"
 }
@@ -148,12 +146,11 @@ GET my_index/_search?size=0
   }
 }
 ---------------------------------
-// CONSOLE
 
 UTC is used if no time zone is specified, three 1-hour buckets are returned 
 starting at midnight UTC on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -186,7 +183,7 @@ starting at midnight UTC on 1 October 2015:
 If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before
 midnight UTC:
 
-[source,js]
+[source,console]
 ---------------------------------
 GET my_index/_search?size=0
 {
@@ -201,7 +198,6 @@ GET my_index/_search?size=0
   }
 }
 ---------------------------------
-// CONSOLE
 // TEST[continued]
 
 
@@ -209,7 +205,7 @@ Now three 1-hour buckets are still returned but the first bucket starts at
 11:00pm on 30 September 2015 since that is the local time for the bucket in 
 the specified time zone.
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -273,7 +269,7 @@ The accepted units for `minimum_interval` are:
 * minute
 * second
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-minimum-interval-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -288,7 +284,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== Missing value
@@ -297,7 +292,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console,id=autodatehistogram-aggregation-missing-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -312,7 +307,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.

@@ -22,26 +22,28 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestPluginsAction extends AbstractCatAction {
-    public RestPluginsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/plugins", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/plugins"));
     }
 
     @Override
@@ -65,7 +67,8 @@ public class RestPluginsAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().plugins(true);
+                nodesInfoRequest.clear()
+                    .addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final NodesInfoResponse nodesInfoResponse) throws Exception {
@@ -95,8 +98,14 @@ public class RestPluginsAction extends AbstractCatAction {
 
         for (DiscoveryNode node : nodes) {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
-
-            for (PluginInfo pluginInfo : info.getPlugins().getPluginInfos()) {
+            if (info == null) {
+                continue;
+            }
+            PluginsAndModules plugins = info.getInfo(PluginsAndModules.class);
+            if (plugins == null) {
+                continue;
+            }
+            for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
                 table.startRow();
                 table.addCell(node.getId());
                 table.addCell(node.getName());

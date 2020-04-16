@@ -5,16 +5,21 @@
 <titleabbrev>Put watch</titleabbrev>
 ++++
 
-The PUT watch API either registers a new watch in {watcher} or updates an
-existing one.
+Either registers a new watch in {watcher} or updates an existing one.
 
-[float]
-==== Request
+[[watcher-api-put-watch-request]]
+==== {api-request-title}
 
 `PUT _watcher/watch/<watch_id>`
 
-[float]
-==== Description
+[[watcher-api-put-watch-prereqs]]
+==== {api-prereq-title}
+
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
+
+[[watcher-api-put-watch-desc]]
+==== {api-description-title}
 
 When a watch is registered, a new document that represents the watch is added to
 the `.watches` index and its trigger is immediately registered with the relevant
@@ -27,24 +32,32 @@ IMPORTANT:  You must use {kib} or this API to create a watch. Do not put a watch
             privileges on the `.watches` index.
 
 When adding a watch you can also define its initial
-{stack-ov}/how-watcher-works.html#watch-active-state[active state]. You do that
-by setting the `active` parameter.
+<<watch-active-state,active state>>. You do that by setting the `active`
+parameter.
 
-[float]
-==== Path Parameters
+[[watcher-api-put-watch-security]]
+===== Security integration
 
-`watch_id` (required)::
-  (string) Identifier for the watch.
+When {es} {security-features} are enabled, your watch can index or search only
+on indices for which the user that stored the watch has privileges. If the user
+is able to read index `a`, but not index `b`, the same will apply, when the watch
+is executed.
 
-[float]
-==== Query Parameters
+[[watcher-api-put-watch-path-params]]
+==== {api-path-parms-title}
+
+`<watch_id>`::
+  (Required, string) Identifier for the watch.
+
+[[watcher-api-put-watch-query-params]]
+==== {api-query-parms-title}
 
 `active`::
-  (boolean) Defines whether the watch is active or inactive by default. The
-  default value is `true`, which means the watch is active by default.
+  (Optional, boolean) Defines whether the watch is active or inactive by default.
+  The default value is `true`, which means the watch is active by default.
 
-[float]
-==== Request Body
+[[watcher-api-put-watch-request-body]]
+==== {api-request-body-title}
 
 A watch has the following fields:
 
@@ -52,41 +65,44 @@ A watch has the following fields:
 |======
 | Name              | Description
 
-| `trigger`         | The {stack-ov}/trigger.html[trigger] that defines when
+| `trigger`         | The <<trigger,trigger>> that defines when
                       the watch should run.
 
-| `input`           | The {stack-ov}/input.html[input] that defines the input
+| `input`           | The <<input,input>> that defines the input
                       that loads the data for the watch.
 
-| `condition`       | The {stack-ov}/condition.html[condition] that defines if
+| `condition`       | The <<condition,condition>> that defines if
                       the actions should be run.
 
-| `actions`         | The list of {stack-ov}/actions.html[actions] that will be
+| `actions`         | The list of <<actions,actions>> that will be
                       run if the condition matches
 
 | `metadata`        | Metadata json that will be copied into the history entries.
 
 | `throttle_period` | The minimum time between actions being run, the default
                       for this is 5 seconds. This default can be changed in the
-                      config file with the setting `xpack.watcher.throttle.period.default_period`.
+                      config file with the setting
+                      `xpack.watcher.throttle.period.default_period`. If both
+                      this value and the `throttle_period_in_millis` parameter
+                      are specified, {watcher} uses the last parameter
+                      included in the request.
+
+| `throttle_period_in_millis` | Minimum time in milliseconds between actions
+                                being run. Defaults to `5000`. If both this
+                                value and the `throttle_period` parameter are
+                                specified, {watcher} uses the last parameter
+                                included in the request.
+
 |======
 
-[float]
-==== Authorization
+//[[watcher-api-put-watch-response-body]]
+//==== {api-response-body-title}
 
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security Privileges].
+//[[watcher-api-put-watch-response-codes]]
+//==== {api-response-codes-title}
 
-[float]
-==== Security Integration
-
-When {es} {security-features} are enabled, your watch can index or search only
-on indices for which the user that stored the watch has privileges. If the user
-is able to read index `a`, but not index `b`, the same will apply, when the watch
-is executed.
-
-[float]
-==== Examples
+[[watcher-api-put-watch-example]]
+==== {api-examples-title}
 
 The following example adds a watch with the `my-watch` id that has the following
 characteristics:
@@ -97,7 +113,7 @@ characteristics:
 * The watch condition checks if any search hits where found.
 * When found, the watch action sends an email to an administrator.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/my-watch
 {
@@ -145,10 +161,9 @@ PUT _watcher/watch/my-watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 When you add a watch you can also define its initial
-{stack-ov}/how-watcher-works.html#watch-active-state[active state]. You do that
+<<watch-active-state,active state>>. You do that
 by setting the `active` parameter. The following command adds a watch and sets
 it to be inactive by default:
 

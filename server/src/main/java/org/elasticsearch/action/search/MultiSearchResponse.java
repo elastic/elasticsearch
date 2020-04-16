@@ -120,7 +120,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private final Item[] items;
     private final long tookInMillis;
 
-    MultiSearchResponse(StreamInput in) throws IOException {
+    public MultiSearchResponse(StreamInput in) throws IOException {
         super(in);
         items = new Item[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
@@ -154,13 +154,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(items.length);
         for (Item item : items) {
             item.writeTo(out);

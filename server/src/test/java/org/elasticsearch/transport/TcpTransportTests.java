@@ -19,26 +19,40 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
+import java.net.BindException;
 import java.net.InetSocketAddress;
+import java.nio.channels.CancelledKeyException;
+import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
@@ -187,28 +201,26 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    public void testDecodeWithIncompleteHeader() throws IOException {
+    public void testReadMessageLengthWithIncompleteHeader() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.write(1);
         streamOutput.write(1);
 
-        assertNull(TcpTransport.decodeFrame(streamOutput.bytes()));
+        assertEquals(-1, TcpTransport.readMessageLength(streamOutput.bytes()));
     }
 
-    public void testDecodePing() throws IOException {
+    public void testReadPingMessageLength() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
         streamOutput.writeInt(-1);
 
-        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
-
-        assertEquals(0, message.length());
+        assertEquals(0, TcpTransport.readMessageLength(streamOutput.bytes()));
     }
 
-    public void testDecodePingWithStartOfSecondMessage() throws IOException {
+    public void testReadPingMessageLengthWithStartOfSecondMessage() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
@@ -216,12 +228,10 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write('E');
         streamOutput.write('S');
 
-        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
-
-        assertEquals(0, message.length());
+        assertEquals(0, TcpTransport.readMessageLength(streamOutput.bytes()));
     }
 
-    public void testDecodeMessage() throws IOException {
+    public void testReadMessageLength() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
         streamOutput.write('E');
         streamOutput.write('S');
@@ -229,22 +239,8 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
+        assertEquals(2, TcpTransport.readMessageLength(streamOutput.bytes()));
 
-        assertEquals(streamOutput.bytes().slice(6, 2), message);
-    }
-
-    public void testDecodeIncompleteMessage() throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
-        streamOutput.write('E');
-        streamOutput.write('S');
-        streamOutput.writeInt(3);
-        streamOutput.write('M');
-        streamOutput.write('A');
-
-        BytesReference message = TcpTransport.decodeFrame(streamOutput.bytes());
-
-        assertNull(message);
     }
 
     public void testInvalidLength() throws IOException {
@@ -256,7 +252,7 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write('A');
 
         try {
-            TcpTransport.decodeFrame(streamOutput.bytes());
+            TcpTransport.readMessageLength(streamOutput.bytes());
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -277,7 +273,7 @@ public class TcpTransportTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            TcpTransport.decodeFrame(streamOutput.bytes());
+            TcpTransport.readMessageLength(streamOutput.bytes());
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -288,7 +284,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    public void testHTTPHeader() throws IOException {
+    public void testHTTPRequest() throws IOException {
         String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
 
         for (String httpHeader : httpHeaders) {
@@ -300,13 +296,136 @@ public class TcpTransportTests extends ESTestCase {
             streamOutput.write(new byte[6]);
 
             try {
-                BytesReference bytes = streamOutput.bytes();
-                TcpTransport.decodeFrame(bytes);
+                TcpTransport.readMessageLength(streamOutput.bytes());
                 fail("Expected exception");
             } catch (Exception ex) {
-                assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
+                assertThat(ex, instanceOf(TcpTransport.HttpRequestOnTransportException.class));
                 assertEquals("This is not an HTTP port", ex.getMessage());
             }
+        }
+    }
+
+    public void testTLSHeader() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+
+        streamOutput.write(0x16);
+        streamOutput.write(0x03);
+        byte byte1 = randomByte();
+        streamOutput.write(byte1);
+        byte byte2 = randomByte();
+        streamOutput.write(byte2);
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            TcpTransport.readMessageLength(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            String expected = "SSL/TLS request received but SSL/TLS is not enabled on this node, got (16,3,"
+                    + Integer.toHexString(byte1 & 0xFF) + ","
+                    + Integer.toHexString(byte2 & 0xFF) + ")";
+            assertEquals(expected, ex.getMessage());
+        }
+    }
+
+    public void testHTTPResponse() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('H');
+        streamOutput.write('T');
+        streamOutput.write('T');
+        streamOutput.write('P');
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            TcpTransport.readMessageLength(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            assertEquals("received HTTP response on transport port, ensure that transport port " +
+                    "(not HTTP port) of a remote node is specified in the configuration", ex.getMessage());
+        }
+    }
+
+    @TestLogging(reason = "testing logging", value = "org.elasticsearch.transport.TcpTransport:DEBUG")
+    public void testExceptionHandling() throws IllegalAccessException {
+        testExceptionHandling(false, new ElasticsearchException("simulated"), true,
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.ERROR, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.WARN, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.INFO, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.DEBUG, "*"));
+        testExceptionHandling(new ElasticsearchException("simulated"),
+            new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
+                Level.WARN, "exception caught on transport layer [*], closing connection"));
+        testExceptionHandling(new ClosedChannelException(),
+            new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
+                Level.DEBUG, "close connection exception caught on transport layer [*], disconnecting from relevant node"));
+        testExceptionHandling(new ElasticsearchException("Connection reset"),
+            new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
+                Level.DEBUG, "close connection exception caught on transport layer [*], disconnecting from relevant node"));
+        testExceptionHandling(new BindException(),
+            new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
+                Level.DEBUG, "bind exception caught on transport layer [*]"));
+        testExceptionHandling(new CancelledKeyException(),
+            new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
+                Level.DEBUG, "cancelled key exception caught on transport layer [*], disconnecting from relevant node"));
+        testExceptionHandling(true, new TcpTransport.HttpRequestOnTransportException("test"), false,
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.ERROR, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.WARN, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.INFO, "*"),
+            new MockLogAppender.UnseenEventExpectation("message", "org.elasticsearch.transport.TcpTransport", Level.DEBUG, "*"));
+        testExceptionHandling(new StreamCorruptedException("simulated"),
+            new MockLogAppender.SeenEventExpectation("message", "org.elasticsearch.transport.TcpTransport",
+                Level.WARN, "simulated, [*], closing connection"));
+    }
+
+    private void testExceptionHandling(Exception exception,
+                                       MockLogAppender.LoggingExpectation... expectations) throws IllegalAccessException {
+        testExceptionHandling(true, exception, true, expectations);
+    }
+
+    private void testExceptionHandling(boolean startTransport, Exception exception, boolean expectClosed,
+                                       MockLogAppender.LoggingExpectation... expectations) throws IllegalAccessException {
+        final TestThreadPool testThreadPool = new TestThreadPool("test");
+        MockLogAppender appender = new MockLogAppender();
+
+        try {
+            appender.start();
+
+            Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+            for (MockLogAppender.LoggingExpectation expectation : expectations) {
+                appender.addExpectation(expectation);
+            }
+
+            final Lifecycle lifecycle = new Lifecycle();
+
+            if (startTransport) {
+                lifecycle.moveToStarted();
+            }
+
+            final FakeTcpChannel channel = new FakeTcpChannel();
+            final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+            channel.addCloseListener(listener);
+
+            TcpTransport.handleException(channel, exception, lifecycle,
+                new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, new StatsTracker(), testThreadPool,
+                    BigArrays.NON_RECYCLING_INSTANCE));
+
+            if (expectClosed) {
+                assertTrue(listener.isDone());
+                assertThat(listener.actionGet(), nullValue());
+            } else {
+                assertFalse(listener.isDone());
+            }
+
+            appender.assertAllExpectationsMatched();
+
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
+            appender.stop();
+            ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }
     }
 }

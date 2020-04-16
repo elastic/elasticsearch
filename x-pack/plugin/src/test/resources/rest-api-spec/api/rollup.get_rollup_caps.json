@@ -1,17 +1,31 @@
 {
-  "rollup.get_rollup_caps": {
-    "documentation": "",
-    "stability" : "experimental",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_rollup/data/{id}", "/_rollup/data/" ],
-      "parts": {
-        "id": {
-          "type": "string",
-          "required": false,
-          "description": "The ID of the index to check rollup capabilities on, or left blank for all jobs"
+  "rollup.get_rollup_caps":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-caps.html",
+      "description":"Returns the capabilities of any rollup jobs that have been configured for a specific index or index pattern."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/data/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the index to check rollup capabilities on, or left blank for all jobs"
+            }
+          }
+        },
+        {
+          "path":"/_rollup/data/",
+          "methods":[
+            "GET"
+          ]
         }
-      }
+      ]
     }
   }
 }

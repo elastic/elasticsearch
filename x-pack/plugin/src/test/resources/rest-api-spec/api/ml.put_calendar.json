@@ -1,20 +1,29 @@
 {
-  "ml.put_calendar": {
-    "stability": "stable",
-    "methods": [ "PUT" ],
-    "url": {
-      "paths": [ "/_ml/calendars/{calendar_id}" ],
-      "parts": {
-        "calendar_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the calendar to create"
-        }
-      }
+  "ml.put_calendar":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar.html",
+      "description":"Instantiates a calendar."
     },
-    "body": {
-      "description" : "The calendar details",
-      "required" : false
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The calendar details",
+      "required":false
     }
   }
 }

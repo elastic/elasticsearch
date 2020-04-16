@@ -58,7 +58,7 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
         return maxSeqNo;
     }
 
-    /** the maximum sequence number for which all previous operations (including) have been completed */
+    /** the maximum sequence number for which all previous operations (including) have been persisted */
     public long getLocalCheckpoint() {
         return localCheckpoint;
     }

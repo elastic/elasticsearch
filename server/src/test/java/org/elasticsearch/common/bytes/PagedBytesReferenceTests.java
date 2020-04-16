@@ -20,7 +20,6 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.ByteArray;
 import org.hamcrest.Matchers;
 
@@ -35,13 +34,12 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
     @Override
     protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
-        // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
-        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
+        ByteArray byteArray = bigarrays.newByteArray(length);
         for (int i = 0; i < length; i++) {
-            out.writeByte((byte) random().nextInt(1 << 8));
+            byteArray.set(i, (byte) random().nextInt(1 << 8));
         }
-        assertThat(out.size(), Matchers.equalTo(length));
-        BytesReference ref = out.bytes();
+        assertThat(byteArray.size(), Matchers.equalTo((long) length));
+        BytesReference ref = new PagedBytesReference(byteArray, length);
         assertThat(ref.length(), Matchers.equalTo(length));
         assertThat(ref, Matchers.instanceOf(PagedBytesReference.class));
         return ref;

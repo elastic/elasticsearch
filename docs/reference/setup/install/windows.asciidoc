@@ -342,11 +342,10 @@ Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=
 for additional rules related to values containing quotation marks.
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[msi-installer-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-
-The {stack} features try to automatically create a number of indices within {es}.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]

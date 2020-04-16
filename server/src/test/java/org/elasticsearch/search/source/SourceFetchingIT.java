@@ -31,7 +31,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        index("test", "type1", "1", "field", "value");
+        indexDoc("test", "1", "field", "value");
         refresh();
 
         SearchResponse response = client().prepareSearch("test").get();
@@ -49,7 +49,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value", "field2", "value2").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(false).get();
@@ -82,7 +82,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(new String[]{"*.notexisting","field"}, null).get();

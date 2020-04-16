@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[set-up-lifecycle-policy]]
-== Set up {ilm} policy
+== Create lifecycle policy
 
 In order for an index to use an {ilm} policy to manage its lifecycle we must
 first define a lifecycle policy for it to use. The following request creates a
 policy called `my_policy` in Elasticsearch which we can later use to manage our
 indexes.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_policy
 {
@@ -31,7 +31,7 @@ PUT _ilm/policy/my_policy
   }
 }
 ------------------------
-// CONSOLE
+
 <1> Rollover the index when it reaches 25GB in size
 <2> Delete the index when its 30 days old
 
@@ -44,13 +44,18 @@ To set the policy for an index there are two options:
 1. Apply the policy to an index template and bootstrap creating the first index
 2. Apply the policy to a new index in a create index request
 
+NOTE: ILM policies are stored in global cluster state which can be backed up using Snapshot with the 
+`include_global_state` parameter set to `true`.
+Restoring ILM policies from global state in a Snapshot is all-or-nothing that will overwrite the entire global
+state using the snapshot's point in time copy including all ILM policies.
+
 [[applying-policy-to-template]]
 === Applying a policy to an index template
 
 The `index.lifecycle.name` setting can be set in an index template so that it
 is automatically applied to indexes matching the templates index pattern:
 
-[source,js]
+[source,console]
 -----------------------
 PUT _template/my_template
 {
@@ -63,15 +68,25 @@ PUT _template/my_template
   }
 }
 -----------------------
-// CONSOLE
+
 <1> This template will be applied to all indexes which have a name starting
 with `test-`
 <2> The template will set the policy to be used to `my_policy`
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 Now that a policy exists and is used in an index template we can create an
 initial index which will be managed by our policy:
 
-[source,js]
+[source,console]
 -----------------------
 PUT test-000001
 {
@@ -82,7 +97,7 @@ PUT test-000001
   }
 }
 -----------------------
-// CONSOLE
+
 <1> Set this initial index to be the write index for this alias.
 
 We can now write data to the `test-alias` alias. Because we have a rollover
@@ -94,7 +109,7 @@ create a new index and roll the alias over to use the new index automatically.
 The `index.lifecycle.name` setting can be set on an individual create index
 request so {ilm} immediately starts managing the index:
 
-[source,js]
+[source,console]
 -----------------------
 PUT test-index
 {
@@ -105,7 +120,7 @@ PUT test-index
   }
 }
 -----------------------
-// CONSOLE
+
 
 IMPORTANT: Do not to use the create index API with a policy that
 defines a rollover action. If you do so, the new index as the result of the

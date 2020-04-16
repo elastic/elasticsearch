@@ -1,19 +1,26 @@
 {
-  "ilm.retry": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-retry-policy.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": ["/{index}/_ilm/retry"],
-      "parts": {
-        "index": {
-          "type" : "string",
-          "description" : "The name of the indices (comma-separated) whose failed lifecycle step is to be retry"
-        }
-      },
-      "params": {
-      }
+  "ilm.retry":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-retry-policy.html",
+      "description":"Retries executing the policy for an index that is in the ERROR step."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ilm/retry",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the indices (comma-separated) whose failed lifecycle step is to be retry"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
   }
 }

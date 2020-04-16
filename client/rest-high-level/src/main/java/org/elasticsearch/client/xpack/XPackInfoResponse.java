@@ -326,6 +326,11 @@ public class XPackInfoResponse {
                 return enabled;
             }
 
+            /**
+             * Return native code info
+             * @deprecated Use ML info api to find native code info
+             */
+            @Deprecated
             @Nullable
             public Map<String, Object> nativeCodeInfo() {
                 return nativeCodeInfo;

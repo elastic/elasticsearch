@@ -42,12 +42,12 @@ import java.util.function.Function;
  */
 public class HttpClient {
 
-    private static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
-
     private final ConnectionConfiguration cfg;
+    private final XContentType requestBodyContentType;
 
     public HttpClient(ConnectionConfiguration cfg) {
         this.cfg = cfg;
+        this.requestBodyContentType = cfg.binaryCommunication() ? XContentType.CBOR : XContentType.JSON;
     }
 
     private NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
@@ -70,9 +70,10 @@ public class HttpClient {
                 null,
                 Boolean.FALSE,
                 null,
-                new RequestInfo(Mode.CLI),
+                new RequestInfo(Mode.CLI, ClientVersion.CURRENT),
                 false,
-                false);
+                false,
+                cfg.binaryCommunication());
         return query(sqlRequest);
     }
 
@@ -83,7 +84,7 @@ public class HttpClient {
     public SqlQueryResponse nextPage(String cursor) throws SQLException {
         // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(cfg.queryTimeout()),
-                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.CLI));
+                TimeValue.timeValueMillis(cfg.pageTimeout()), new RequestInfo(Mode.CLI), cfg.binaryCommunication());
         return post(Protocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, SqlQueryResponse::fromXContent);
     }
 
@@ -105,7 +106,8 @@ public class HttpClient {
                     con.request(
                         (out) -> out.write(requestBytes),
                         this::readFrom,
-                        "POST"
+                        "POST",
+                        requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
                     )
                 )).getResponseOrThrowException();
         return fromXContent(response.v1(), response.v2(), responseParser);
@@ -113,7 +115,7 @@ public class HttpClient {
 
     private boolean head(String path, long timeoutInMs) throws SQLException {
         ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(), cfg.validateProperties(),
-            cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
+            cfg.binaryCommunication(), cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
             cfg.authUser(), cfg.authPass(), cfg.sslConfig(), cfg.proxyConfig());
         try {
             return AccessController.doPrivileged((PrivilegedAction<Boolean>) () ->
@@ -137,9 +139,9 @@ public class HttpClient {
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
-    private static <Request extends ToXContent> byte[] toXContent(Request xContent) {
+    private <Request extends ToXContent> byte[] toXContent(Request xContent) {
         try(ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
-            try (XContentBuilder xContentBuilder = new XContentBuilder(REQUEST_BODY_CONTENT_TYPE.xContent(), buffer)) {
+            try (XContentBuilder xContentBuilder = new XContentBuilder(requestBodyContentType.xContent(), buffer)) {
                 if (xContent.isFragment()) {
                     xContentBuilder.startObject();
                 }

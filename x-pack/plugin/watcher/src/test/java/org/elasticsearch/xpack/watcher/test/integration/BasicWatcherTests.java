@@ -16,7 +16,6 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
@@ -62,14 +61,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
-             "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testIndexWatch() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx", "type").setSource("field", "foo").get();
+        client().prepareIndex("idx").setSource("field", "foo").get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foo")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name")
@@ -102,7 +99,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithNoActionNeeded("_name", 1);
 
         // Index sample doc after we register the watch and the watch's condition should meet
-        client().prepareIndex("idx", "type").setSource("field", "value").get();
+        client().prepareIndex("idx").setSource("field", "value").get();
         refresh();
 
         timeWarp().clock().fastForwardSeconds(5);
@@ -137,7 +134,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testMalformedWatch() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx", "type").setSource("field", "value").get();
+        client().prepareIndex("idx").setSource("field", "value").get();
         XContentBuilder watchSource = jsonBuilder();
 
         watchSource.startObject();
@@ -167,7 +164,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.xpack.watcher:DEBUG")
     public void testModifyWatches() throws Exception {
         createIndex("idx");
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(matchAllQuery()), "idx");
@@ -227,7 +223,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .get());
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());
-        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
+        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"},
                 SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
         testConditionSearch(searchRequest);
     }
@@ -235,7 +231,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testInputFiltering() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx", "type").setSource(jsonBuilder().startObject().field("field", "foovalue").endObject()).get();
+        client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("field", "foovalue").endObject()).get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foovalue")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name1")
@@ -340,7 +336,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().clock().setTime(ZonedDateTime.now(Clock.systemUTC()));
 
         String watchName = "_name";
-        assertAcked(prepareCreate("events").addMapping("event", "level", "type=text"));
+        assertAcked(prepareCreate("events").setMapping("level", "type=text"));
 
         new PutWatchRequestBuilder(client()).setId(watchName)
                 .setSource(watchBuilder()
@@ -351,10 +347,10 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         logger.info("created watch [{}] at [{}]", watchName, ZonedDateTime.now(Clock.systemUTC()));
 
-        client().prepareIndex("events", "event")
+        client().prepareIndex("events")
                 .setSource("level", "a")
                 .get();
-        client().prepareIndex("events", "event")
+        client().prepareIndex("events")
                 .setSource("level", "a")
                 .get();
 
@@ -363,7 +359,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 1);
 
-        client().prepareIndex("events", "event")
+        client().prepareIndex("events")
                 .setSource("level", "b")
                 .get();
         refresh();
@@ -371,7 +367,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 2);
 
-        client().prepareIndex("events", "event")
+        client().prepareIndex("events")
                 .setSource("level", "a")
                 .get();
         refresh();

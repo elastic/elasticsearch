@@ -1,26 +1,25 @@
 {
-  "ml.open_job": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/anomaly_detectors/{job_id}/_open" ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to open"
-        },
-        "ignore_downtime": {
-          "type": "boolean",
-          "description": "Controls if gaps in data are treated as anomalous or as a maintenance window after a job re-start"
-        },
-        "timeout": {
-          "type": "time",
-          "description": "Controls the time to wait until a job has opened. Default to 30 minutes"
-        }
-      }
+  "ml.open_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
+      "description":"Opens one or more anomaly detection jobs."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_open",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to open"
+            }
+          }
+        }
+      ]
+    }
   }
 }

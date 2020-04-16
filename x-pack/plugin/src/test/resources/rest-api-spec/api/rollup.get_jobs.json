@@ -1,17 +1,31 @@
 {
-  "rollup.get_jobs": {
-    "documentation": "",
-    "stability" : "experimental",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_rollup/job/{id}", "/_rollup/job/" ],
-      "parts": {
-        "id": {
-          "type": "string",
-          "required": false,
-          "description": "The ID of the job(s) to fetch. Accepts glob patterns, or left blank for all jobs"
+  "rollup.get_jobs":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-job.html",
+      "description":"Retrieves the configuration, stats, and status of rollup jobs."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/job/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job(s) to fetch. Accepts glob patterns, or left blank for all jobs"
+            }
+          }
+        },
+        {
+          "path":"/_rollup/job/",
+          "methods":[
+            "GET"
+          ]
         }
-      }
+      ]
     }
   }
 }

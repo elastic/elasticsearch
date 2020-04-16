@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -44,6 +46,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Information about a snapshot
@@ -250,10 +253,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             Collections.emptyList(), null, null);
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, Boolean includeGlobalState,
-                        Map<String, Object> userMetadata) {
-        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L,
-            0, 0, Collections.emptyList(), includeGlobalState, userMetadata);
+    public SnapshotInfo(SnapshotsInProgress.Entry entry) {
+        this(entry.snapshot().getSnapshotId(),
+            entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()), SnapshotState.IN_PROGRESS, null, Version.CURRENT,
+            entry.startTime(), 0L, 0, 0, Collections.emptyList(), entry.includeGlobalState(), entry.userMetadata());
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, String reason, long endTime,
@@ -301,7 +304,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (size > 0) {
             List<SnapshotShardFailure> failureBuilder = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                failureBuilder.add(SnapshotShardFailure.readSnapshotShardFailure(in));
+                failureBuilder.add(new SnapshotShardFailure(in));
             }
             shardFailures = Collections.unmodifiableList(failureBuilder);
         } else {
@@ -314,17 +317,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             userMetadata = null;
         }
-    }
-
-    /**
-     * Gets a new {@link SnapshotInfo} instance for a snapshot that is incompatible with the
-     * current version of the cluster.
-     */
-    public static SnapshotInfo incompatible(SnapshotId snapshotId) {
-        return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
-                                "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
-                                null, 0L, 0L, 0, 0,
-                                Collections.emptyList(), null, null);
     }
 
     /**
@@ -537,7 +529,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (verbose || endTime != 0) {
             builder.field(END_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));
             builder.field(END_TIME_IN_MILLIS, endTime);
-            builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));
+            builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(Math.max(0L, endTime - startTime)));
         }
         if (verbose || !shardFailures.isEmpty()) {
             builder.startArray(FAILURES);

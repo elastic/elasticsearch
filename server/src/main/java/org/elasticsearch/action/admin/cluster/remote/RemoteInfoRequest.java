@@ -27,11 +27,9 @@ import java.io.IOException;
 
 public final class RemoteInfoRequest extends ActionRequest {
 
-    public RemoteInfoRequest() {
+    public RemoteInfoRequest() {}
 
-    }
-
-    public RemoteInfoRequest(StreamInput in) throws IOException {
+    RemoteInfoRequest(StreamInput in) throws IOException {
         super(in);
     }
 

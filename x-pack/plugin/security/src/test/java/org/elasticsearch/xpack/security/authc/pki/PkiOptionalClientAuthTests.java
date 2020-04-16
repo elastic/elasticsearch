@@ -57,7 +57,7 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
             .put("xpack.security.http.ssl.certificate",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .put("xpack.security.authc.realms.file.file.order", "0")
-            .put("xpack.security.authc.realms.pki.pki1.order", "1")
+            .put("xpack.security.authc.realms.pki.pki1.order", "2")
             .put("xpack.security.authc.realms.pki.pki1.truststore.path",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
             .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))

@@ -19,7 +19,7 @@
 package org.apache.lucene.queries;
 
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 
 public class LongRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
@@ -29,8 +29,8 @@ public class LongRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDo
     }
 
     @Override
-    protected RangeFieldMapper.RangeType rangeType() {
-        return RangeFieldMapper.RangeType.LONG;
+    protected RangeType rangeType() {
+        return RangeType.LONG;
     }
 
     @Override

@@ -15,7 +15,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.is;
  * @see RestrictedTrustManager
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-@TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
@@ -215,6 +213,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private void tryConnect(CertificateInfo certificate, boolean shouldFail) throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
                 .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
                 .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
@@ -222,7 +221,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .build();
 
         String node = randomFrom(internalCluster().getNodeNames());
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
         SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();

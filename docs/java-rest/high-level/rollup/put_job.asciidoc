@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-x-pack-rollup-put-job]]
 === Put Rollup Job API
 
@@ -20,7 +21,7 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 ==== Rollup Job Configuration
 
 The `RollupJobConfig` object contains all the details about the rollup job
-configuration. See {ref}/rollup-job-config.html[Rollup configuration] to learn more
+configuration. See {ref}/rollup-put-job.html[create rollup job API] to learn more
 about the various configuration settings.
 
 A `RollupJobConfig` requires the following arguments:
@@ -44,7 +45,7 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 
 The grouping configuration of the Rollup job is defined in the `RollupJobConfig`
 using a `GroupConfig` instance. `GroupConfig` reflects all the configuration
-settings that can be defined using the REST API. See {ref}/rollup-job-config.html#rollup-groups-config[Grouping Config]
+settings that can be defined using the REST API. See {ref}/rollup-put-job.html#rollup-groups-config[Grouping config]
 to learn more about these settings.
 
 Using the REST API, we could define this grouping configuration:
@@ -88,7 +89,7 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 After defining which groups should be generated for the data, you next configure
 which metrics should be collected. The list of metrics is defined in the `RollupJobConfig`
 using a `List<MetricConfig>` instance. `MetricConfig` reflects all the configuration
-settings that can be defined using the REST API. See {ref}/rollup-job-config.html#rollup-metrics-config[Metrics Config]
+settings that can be defined using the REST API. See {ref}/rollup-put-job.html#rollup-metrics-config[Metrics config]
 to learn more about these settings.
 
 Using the REST API, we could define this metrics configuration:

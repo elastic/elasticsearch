@@ -11,16 +11,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 
-import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -29,15 +27,11 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    public RestWatcherStatsAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/stats", this,
-            GET, "/_xpack/watcher/stats", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/stats/{metric}", this,
-            GET, "/_xpack/watcher/stats/{metric}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_watcher/stats"),
+            new Route(GET, "/_watcher/stats/{metric}"));
     }
 
     @Override
@@ -46,7 +40,7 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, NodeClient client) {
         Set<String> metrics = Strings.tokenizeByCommaToSet(restRequest.param("metric", ""));
 
         WatcherStatsRequest request = new WatcherStatsRequest();

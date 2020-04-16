@@ -1,10 +1,13 @@
 [[query-dsl-span-or-query]]
-=== Span Or Query
+=== Span or query
+++++
+<titleabbrev>Span or</titleabbrev>
+++++
 
 Matches the union of its span clauses. The span or query maps to Lucene
 `SpanOrQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -19,6 +22,5 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `clauses` element is a list of one or more other span type queries.

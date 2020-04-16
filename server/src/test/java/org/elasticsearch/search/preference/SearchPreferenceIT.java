@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -65,7 +65,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").get();
+            client().prepareIndex("test").setId(""+i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
@@ -97,7 +97,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -113,7 +113,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
@@ -143,12 +143,12 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
             Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))));
         ensureGreen();
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
-        SearchRequestBuilder request = client.prepareSearch("test")
-            .setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*"); // multiple wildchar  to cover multi-param usecase
+        // multiple wildchar to cover multi-param usecase
+        SearchRequestBuilder request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*");
         assertSearchOnRandomNodes(request);
 
         request = client.prepareSearch("test")
@@ -209,7 +209,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
             .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         ensureGreen();
-        client().prepareIndex("test", "_doc").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final String customPreference = randomAlphaOfLength(10);
@@ -233,7 +233,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test2").setSettings(Settings.builder()
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
                 internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey()))));
 
         ensureGreen();

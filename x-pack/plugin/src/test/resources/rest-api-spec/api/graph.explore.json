@@ -1,40 +1,39 @@
 {
-  "graph.explore": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
-    "stability": "stable",
-    "methods": ["GET", "POST"],
-    "url": {
-      "paths": ["/{index}/_graph/explore"],
-      "deprecated_paths" : [
+  "graph.explore":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
+      "description": "Explore extracted and summarized information about the documents and terms in an index."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
         {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/_graph/explore",
-          "description" : "Specifying types in urls has been deprecated"
+          "path": "/{index}/_graph/explore",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+            }
+          }
         }
-      ],
-      "parts" : {
-        "index": {
-         "type" : "list",
-         "description" : "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
-        },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
-        }
+      ]
+    },
+    "params":{
+      "routing":{
+        "type":"string",
+        "description":"Specific routing value"
       },
-      "params": {
-        "routing": {
-          "type" : "string",
-          "description" : "Specific routing value"
-        },
-        "timeout": {
-          "type" : "time",
-          "description" : "Explicit operation timeout"
-        }
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
       }
     },
-    "body": {
-      "description" : "Graph Query DSL"
+    "body":{
+      "description":"Graph Query DSL"
     }
   }
 }

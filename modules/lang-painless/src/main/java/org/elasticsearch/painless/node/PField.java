@@ -19,31 +19,29 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a field load/store and defers to a child subnode.
  */
-public final class PField extends AStoreable {
+public class PField extends AExpression {
 
-    private final boolean nullSafe;
-    private final String value;
-
-    private AStoreable sub = null;
+    protected final boolean nullSafe;
+    protected final String value;
 
     public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
         super(location, prefix);
@@ -53,56 +51,61 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
+        }
 
-    @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        Output output = new Output();
 
-        if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
-        } else if (prefix.actual == def.class) {
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
+
+        AExpression sub = null;
+
+        if (prefixOutput.actual.isArray()) {
+            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), value);
+        } else if (prefixOutput.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            PainlessField field = locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
+            PainlessField field = scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefix instanceof EStatic, value);
 
             if (field == null) {
                 PainlessMethod getter;
                 PainlessMethod setter;
 
-                getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                         "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter == null) {
-                    getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                    getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                             "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                         "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(
+                            location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(locals);
+                    index.analyze(classNode, scriptRoot, scope, new Input());
 
-                    if (Map.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubMapShortcut(location, prefix.actual, index);
+                    if (Map.class.isAssignableFrom(prefixOutput.actual)) {
+                        sub = new PSubMapShortcut(location, prefixOutput.actual, index);
                     }
 
-                    if (List.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubListShortcut(location, prefix.actual, index);
+                    if (List.class.isAssignableFrom(prefixOutput.actual)) {
+                        sub = new PSubListShortcut(location, prefixOutput.actual, index);
                     }
                 }
 
                 if (sub == null) {
                     throw createError(new IllegalArgumentException(
-                            "field [" + typeToCanonicalTypeName(prefix.actual) + ", " + value + "] not found"));
+                            "field [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + value + "] not found"));
                 }
             } else {
                 sub = new PSubField(location, field);
@@ -113,57 +116,25 @@ public final class PField extends AStoreable {
             sub = new PSubNullSafeField(location, sub);
         }
 
-        sub.write = write;
-        sub.read = read;
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(locals);
-        actual = sub.actual;
-    }
+        Input subInput = new Input();
+        subInput.write = input.write;
+        subInput.read = input.read;
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
+        output.isDefOptimized = subOutput.isDefOptimized;
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
-    }
+        DotNode dotNode = new DotNode();
 
-    @Override
-    boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
+        dotNode.setLeftNode(prefix.cast(prefixOutput));
+        dotNode.setRightNode(subOutput.expressionNode);
 
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.actual = actual;
-    }
+        dotNode.setLocation(location);
+        dotNode.setExpressionType(output.actual);
 
-    @Override
-    int accessElementCount() {
-        return sub.accessElementCount();
-    }
+        output.expressionNode = dotNode;
 
-    @Override
-    void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.setup(writer, globals);
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
-        sub.load(writer, globals);
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        sub.store(writer, globals);
-    }
-
-    @Override
-    public String toString() {
-        if (nullSafe) {
-            return singleLineToString("nullSafe", prefix, value);
-        }
-        return singleLineToString(prefix, value);
+        return output;
     }
 }

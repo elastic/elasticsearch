@@ -302,6 +302,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
+    public long getParentLimit() {
+        return this.parentSettings.getLimit();
+    }
+
     /**
      * Checks whether the parent breaker has been tripped
      */
@@ -325,21 +329,21 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 message.append("/");
                 message.append(new ByteSizeValue(newBytesReserved));
                 message.append("]");
-            } else {
-                message.append(", usages [");
-                message.append(String.join(", ",
-                    this.breakers.entrySet().stream().map(e -> {
-                        final CircuitBreaker breaker = e.getValue();
-                        final long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
-                        return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
-                    })
-                        .collect(Collectors.toList())));
-                message.append("]");
             }
+            message.append(", usages [");
+            message.append(String.join(", ",
+                this.breakers.entrySet().stream().map(e -> {
+                    final CircuitBreaker breaker = e.getValue();
+                    final long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
+                    return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
+                })
+                    .collect(Collectors.toList())));
+            message.append("]");
             // derive durability of a tripped parent breaker depending on whether the majority of memory tracked by
             // child circuit breakers is categorized as transient or permanent.
             CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage ?
                 CircuitBreaker.Durability.TRANSIENT : CircuitBreaker.Durability.PERMANENT;
+            logger.debug("{}", message);
             throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
         }
     }

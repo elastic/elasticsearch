@@ -74,10 +74,12 @@ public final class InvalidateApiKeyResponse {
     }
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key_response",
-            args -> {
-                return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
-            });
+    static final ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "invalidate_api_key_response",
+        args -> {
+            return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
+        }
+    );
     static {
         PARSER.declareStringArray(constructorArg(), new ParseField("invalidated_api_keys"));
         PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));

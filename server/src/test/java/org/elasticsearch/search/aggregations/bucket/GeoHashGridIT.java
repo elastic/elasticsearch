@@ -24,7 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,8 +44,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.geo.utils.Geohash.PRECISION;
-import static org.elasticsearch.geo.utils.Geohash.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.PRECISION;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -75,7 +75,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
             source = source.field("location", latLon);
         }
         source = source.endObject();
-        return client().prepareIndex(index, "type").setSource(source);
+        return client().prepareIndex(index).setSource(source);
     }
 
     private static IndexRequestBuilder indexCity(String index, String name, String latLon) throws Exception {
@@ -86,10 +86,10 @@ public class GeoHashGridIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx_unmapped");
 
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(prepareCreate("idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+                .setMapping("location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = random();
@@ -114,7 +114,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         indexRandom(true, cities);
 
         assertAcked(prepareCreate("multi_valued_idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+                .setMapping("location", "type=geo_point", "city", "type=keyword"));
 
         cities = new ArrayList<>();
         multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);

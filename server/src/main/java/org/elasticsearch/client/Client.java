@@ -100,7 +100,7 @@ public interface Client extends ElasticsearchClient, Releasable {
 
 
     /**
-     * Index a JSON source associated with a given index and type.
+     * Index a JSON source associated with a given index.
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      *
@@ -111,7 +111,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<IndexResponse> index(IndexRequest request);
 
     /**
-     * Index a document associated with a given index and type.
+     * Index a document associated with a given index.
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      *
@@ -122,11 +122,20 @@ public interface Client extends ElasticsearchClient, Releasable {
     void index(IndexRequest request, ActionListener<IndexResponse> listener);
 
     /**
-     * Index a document associated with a given index and type.
+     * Index a document associated with a given index.
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      */
     IndexRequestBuilder prepareIndex();
+
+    /**
+     * Index a document associated with a given index.
+     * <p>
+     * The id is optional, if it is not provided, one will be generated automatically.
+     *
+     * @param index The index to index the document to
+     */
+    IndexRequestBuilder prepareIndex(String index);
 
     /**
      * Updates a document based on a script.
@@ -152,31 +161,10 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Updates a document based on a script.
      */
-    UpdateRequestBuilder prepareUpdate(String index, String type, String id);
+    UpdateRequestBuilder prepareUpdate(String index, String id);
 
     /**
-     * Index a document associated with a given index and type.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param index The index to index the document to
-     * @param type  The type to index the document to
-     */
-    IndexRequestBuilder prepareIndex(String index, String type);
-
-    /**
-     * Index a document associated with a given index and type.
-     * <p>
-     * The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param index The index to index the document to
-     * @param type  The type to index the document to
-     * @param id    The id of the document
-     */
-    IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id);
-
-    /**
-     * Deletes a document from the index based on the index, type and id.
+     * Deletes a document from the index based on the index and id.
      *
      * @param request The delete request
      * @return The result future
@@ -185,7 +173,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<DeleteResponse> delete(DeleteRequest request);
 
     /**
-     * Deletes a document from the index based on the index, type and id.
+     * Deletes a document from the index based on the index and id.
      *
      * @param request  The delete request
      * @param listener A listener to be notified with a result
@@ -194,18 +182,17 @@ public interface Client extends ElasticsearchClient, Releasable {
     void delete(DeleteRequest request, ActionListener<DeleteResponse> listener);
 
     /**
-     * Deletes a document from the index based on the index, type and id.
+     * Deletes a document from the index based on the index and id.
      */
     DeleteRequestBuilder prepareDelete();
 
     /**
-     * Deletes a document from the index based on the index, type and id.
+     * Deletes a document from the index based on the index and id.
      *
      * @param index The index to delete the document from
-     * @param type  The type of the document to delete
      * @param id    The id of the document to delete
      */
-    DeleteRequestBuilder prepareDelete(String index, String type, String id);
+    DeleteRequestBuilder prepareDelete(String index, String id);
 
     /**
      * Executes a bulk of index / delete operations.
@@ -231,12 +218,12 @@ public interface Client extends ElasticsearchClient, Releasable {
     BulkRequestBuilder prepareBulk();
 
     /**
-     * Executes a bulk of index / delete operations with default index and/or type
+     * Executes a bulk of index / delete operations with default index
      */
-    BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType);
+    BulkRequestBuilder prepareBulk(@Nullable String globalIndex);
 
     /**
-     * Gets the document that was indexed from an index with a type and id.
+     * Gets the document that was indexed from an index with an id.
      *
      * @param request The get request
      * @return The result future
@@ -245,7 +232,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<GetResponse> get(GetRequest request);
 
     /**
-     * Gets the document that was indexed from an index with a type and id.
+     * Gets the document that was indexed from an index with an id.
      *
      * @param request  The get request
      * @param listener A listener to be notified with a result
@@ -254,14 +241,14 @@ public interface Client extends ElasticsearchClient, Releasable {
     void get(GetRequest request, ActionListener<GetResponse> listener);
 
     /**
-     * Gets the document that was indexed from an index with a type and id.
+     * Gets the document that was indexed from an index with an id.
      */
     GetRequestBuilder prepareGet();
 
     /**
-     * Gets the document that was indexed from an index with a type (optional) and id.
+     * Gets the document that was indexed from an index with an id.
      */
-    GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
+    GetRequestBuilder prepareGet(String index, String id);
 
     /**
      * Multi get documents.
@@ -279,7 +266,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     MultiGetRequestBuilder prepareMultiGet();
 
     /**
-     * Search across one or more indices and one or more types with a query.
+     * Search across one or more indices with a query.
      *
      * @param request The search request
      * @return The result future
@@ -288,7 +275,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<SearchResponse> search(SearchRequest request);
 
     /**
-     * Search across one or more indices and one or more types with a query.
+     * Search across one or more indices with a query.
      *
      * @param request  The search request
      * @param listener A listener to be notified of the result
@@ -297,7 +284,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     void search(SearchRequest request, ActionListener<SearchResponse> listener);
 
     /**
-     * Search across one or more indices and one or more types with a query.
+     * Search across one or more indices with a query.
      */
     SearchRequestBuilder prepareSearch(String... indices);
 
@@ -386,10 +373,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Computes a score explanation for the specified request.
      *
      * @param index The index this explain is targeted for
-     * @param type  The type this explain is targeted for
      * @param id    The document identifier this explain is targeted for
      */
-    ExplainRequestBuilder prepareExplain(String index, String type, String id);
+    ExplainRequestBuilder prepareExplain(String index, String id);
 
     /**
      * Computes a score explanation for the specified request.

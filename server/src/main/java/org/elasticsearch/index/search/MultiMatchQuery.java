@@ -138,9 +138,11 @@ public class MultiMatchQuery extends MatchQuery {
         for (Map.Entry<Analyzer, List<FieldAndBoost>> group : groups.entrySet()) {
             final MatchQueryBuilder builder;
             if (group.getValue().size() == 1) {
-                builder = new MatchQueryBuilder(group.getKey(), group.getValue().get(0).fieldType);
+                builder = new MatchQueryBuilder(group.getKey(), group.getValue().get(0).fieldType,
+                    enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             } else {
-                builder = new BlendedQueryBuilder(group.getKey(), group.getValue(), tieBreaker);
+                builder = new BlendedQueryBuilder(group.getKey(), group.getValue(), tieBreaker,
+                    enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             }
 
             /*
@@ -170,28 +172,29 @@ public class MultiMatchQuery extends MatchQuery {
         private final List<FieldAndBoost> blendedFields;
         private final float tieBreaker;
 
-        BlendedQueryBuilder(Analyzer analyzer, List<FieldAndBoost> blendedFields, float tieBreaker) {
-            super(analyzer, blendedFields.get(0).fieldType);
+        BlendedQueryBuilder(Analyzer analyzer, List<FieldAndBoost> blendedFields, float tieBreaker,
+                                boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
+            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
         }
 
         @Override
-        protected Query newSynonymQuery(Term[] terms) {
+        protected Query newSynonymQuery(TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].bytes();
+                values[i] = terms[i].term.bytes();
             }
             return blendTerms(context, values, tieBreaker, lenient, blendedFields);
         }
 
         @Override
-        protected Query newTermQuery(Term term) {
+        protected Query newTermQuery(Term term, float boost) {
             return blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
         }
 
         @Override
-        protected Query newPrefixQuery(String field, Term term) {
+        protected Query newPrefixQuery(Term term) {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
                 Query query = fieldType.fieldType.prefixQuery(term.text(), null, context);

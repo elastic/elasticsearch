@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,8 +42,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -91,13 +94,13 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void setupSourceIndex() {
-        client().prepareIndex("source", "test").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
     }
 
     @Before
     public void fetchTransportAddress() {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
-        address = nodeInfo.getHttp().getAddress().publishAddress();
+        address = nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress();
     }
 
     /**
@@ -150,7 +153,8 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                                   IndexNameExpressionResolver expressionResolver) {
             testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
             return Collections.emptyList();
         }
@@ -161,8 +165,9 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Collection<String> getRestHeaders() {
-            return Arrays.asList(TestFilter.AUTHORIZATION_HEADER, TestFilter.EXAMPLE_HEADER);
+        public Collection<RestHeaderDefinition> getRestHeaders() {
+            return Arrays.asList(new RestHeaderDefinition(TestFilter.AUTHORIZATION_HEADER, false),
+                new RestHeaderDefinition(TestFilter.EXAMPLE_HEADER, false));
         }
     }
 

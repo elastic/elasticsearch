@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyUtils;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
 
 /**
  * Describes an index lifecycle policy to be loaded from a resource file for use with an {@link IndexTemplateRegistry}.

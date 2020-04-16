@@ -30,9 +30,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
     public void testExecuteWithAggs() throws Exception {
         String index = "test-index";
-        String type = "test-type";
         client().admin().indices().prepareCreate(index)
-                .addMapping(type)
                 .get();
 
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
@@ -40,8 +38,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         int numberOfDocuments = randomIntBetween(1, 100);
         int numberOfDocumentsWatchingFor = 1 + numberOfDocuments;
         for (int i = 0; i < numberOfDocuments; i++) {
-            client().prepareIndex(index, type).setSource(source("elastic", "you know, for search", i)).get();
-            client().prepareIndex(index, type).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
+            client().prepareIndex(index).setSource(source("elastic", "you know, for search", i)).get();
+            client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
         }
 
         refresh();
@@ -71,7 +69,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets",
                 (Object) Arrays.asList(elastic, fightsForTheUsers)));
 
-        client().prepareIndex(index, type).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
+        client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
         refresh();
 
         response = client().prepareSearch(index)

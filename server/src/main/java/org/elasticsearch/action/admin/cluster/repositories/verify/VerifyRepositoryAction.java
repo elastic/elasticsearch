@@ -19,23 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
  * Unregister repository action
  */
-public class VerifyRepositoryAction extends Action<VerifyRepositoryResponse> {
+public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse> {
 
     public static final VerifyRepositoryAction INSTANCE = new VerifyRepositoryAction();
     public static final String NAME = "cluster:admin/repository/verify";
 
     private VerifyRepositoryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public VerifyRepositoryResponse newResponse() {
-        return new VerifyRepositoryResponse();
+        super(NAME, VerifyRepositoryResponse::new);
     }
 }
 

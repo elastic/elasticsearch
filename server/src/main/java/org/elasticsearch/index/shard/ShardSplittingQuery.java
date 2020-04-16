@@ -19,11 +19,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -41,9 +39,10 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -59,12 +58,12 @@ import java.util.function.Predicate;
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
  */
 final class ShardSplittingQuery extends Query {
-    private final IndexMetaData indexMetaData;
+    private final IndexMetadata indexMetadata;
     private final int shardId;
     private final BitSetProducer nestedParentBitSetProducer;
 
-    ShardSplittingQuery(IndexMetaData indexMetaData, int shardId, boolean hasNested) {
-        this.indexMetaData = indexMetaData;
+    ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
+        this.indexMetadata = indexMetadata;
         this.shardId = shardId;
         this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer() : null;
     }
@@ -82,7 +81,7 @@ final class ShardSplittingQuery extends Query {
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
                 Predicate<BytesRef> includeInShard = ref -> {
-                    int targetShardId = OperationRouting.generateShardId(indexMetaData,
+                    int targetShardId = OperationRouting.generateShardId(indexMetadata,
                         Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
                     return shardId == targetShardId;
                 };
@@ -90,7 +89,7 @@ final class ShardSplittingQuery extends Query {
                     // this is the common case - no partitioning and no _routing values
                     // in this case we also don't do anything special with regards to nested docs since we basically delete
                     // by ID and parent and nested all have the same id.
-                    assert indexMetaData.isRoutingPartitionedIndex() == false;
+                    assert indexMetadata.isRoutingPartitionedIndex() == false;
                     findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
                 } else {
                     final BitSet parentBitSet;
@@ -102,7 +101,7 @@ final class ShardSplittingQuery extends Query {
                             return null; // no matches
                         }
                     }
-                    if (indexMetaData.isRoutingPartitionedIndex()) {
+                    if (indexMetadata.isRoutingPartitionedIndex()) {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
                         // this this index is routing partitioned.
                         Visitor visitor = new Visitor(leafReader);
@@ -126,7 +125,7 @@ final class ShardSplittingQuery extends Query {
                         };
                         // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to delete
                         findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                            int targetShardId = OperationRouting.generateShardId(indexMetaData, null, ref.utf8ToString());
+                            int targetShardId = OperationRouting.generateShardId(indexMetadata, null, ref.utf8ToString());
                             return shardId == targetShardId;
                         }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
@@ -187,12 +186,12 @@ final class ShardSplittingQuery extends Query {
         ShardSplittingQuery that = (ShardSplittingQuery) o;
 
         if (shardId != that.shardId) return false;
-        return indexMetaData.equals(that.indexMetaData);
+        return indexMetadata.equals(that.indexMetadata);
     }
 
     @Override
     public int hashCode() {
-        int result = indexMetaData.hashCode();
+        int result = indexMetadata.hashCode();
         result = 31 * result + shardId;
         return classHash() ^ result;
     }
@@ -270,7 +269,7 @@ final class ShardSplittingQuery extends Query {
             leftToVisit = 2;
             leafReader.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            int targetShardId = OperationRouting.generateShardId(indexMetaData, id, routing);
+            int targetShardId = OperationRouting.generateShardId(indexMetadata, id, routing);
             return targetShardId != shardId;
         }
     }
@@ -339,15 +338,7 @@ final class ShardSplittingQuery extends Query {
      * executed on a recovery-private index writer. There is no point in caching it and it won't have a cache hit either.
      */
     private static BitSetProducer newParentDocBitSetProducer() {
-        return context -> {
-                Query query = Queries.newNonNestedFilter();
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                Scorer s = weight.scorer(context);
-                return s == null ? null : BitSet.of(s.iterator(), context.reader().maxDoc());
-            };
+        return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(), context);
     }
 }
 

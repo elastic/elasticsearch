@@ -26,7 +26,7 @@ import java.io.IOException;
 
 public class ParsedGeoHashGrid extends ParsedGeoGrid {
 
-    private static ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedGeoHashGrid::new,
+    private static final ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedGeoHashGrid::new,
         ParsedGeoHashGridBucket::fromXContent, ParsedGeoHashGridBucket::fromXContent);
 
     public static ParsedGeoGrid fromXContent(XContentParser parser, String name) throws IOException {

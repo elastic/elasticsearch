@@ -1,10 +1,13 @@
 [[ip]]
 === IP datatype
+++++
+<titleabbrev>IP</titleabbrev>
+++++
 
 An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
 https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -31,7 +34,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 NOTE: You can also store ip ranges in a single field using an <<range,ip_range datatype>>.
@@ -42,11 +44,6 @@ NOTE: You can also store ip ranges in a single field using an <<range,ip_range d
 The following parameters are accepted by `ip` fields:
 
 [horizontal]
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<doc-values,`doc_values`>>::
 
@@ -76,7 +73,7 @@ The most common way to query ip addresses is to use the
 https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 notation: `[ip_address]/[prefix_length]`. For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -87,11 +84,10 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 or
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -102,14 +98,13 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Also beware that colons are special characters to the
 <<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
 need to be escaped. The easiest way to do so is to put quotes around the
 searched value:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -120,4 +115,3 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE

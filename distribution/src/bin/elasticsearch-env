@@ -38,19 +38,21 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 # now set the path to java
 if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
+  JAVA_TYPE="JAVA_HOME"
 else
   if [ "$(uname -s)" = "Darwin" ]; then
-    # OSX has a different structure
-    JAVA="$ES_HOME/jdk/Contents/Home/bin/java"
+    # macOS has a different structure
+    JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
+  JAVA_TYPE="bundled jdk"
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java in JAVA_HOME or bundled at $JAVA" >&2
-  exit 1
-fi
+    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+    exit 1
+  fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
@@ -65,8 +67,14 @@ if [ ! -z "$JAVA_OPTS" ]; then
   echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
+if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
+  XSHARE="-Xshare:off"
+else
+  XSHARE="-Xshare:auto"
+fi
+
 # check the Java version
-"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 
 export HOSTNAME=$HOSTNAME
 
@@ -83,5 +91,52 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
 ES_BUNDLED_JDK=${es.bundled_jdk}
+
+if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
+  # Allow environment variables to be set by creating a file with the
+  # contents, and setting an environment variable with the suffix _FILE to
+  # point to it. This can be used to provide secrets to a container, without
+  # the values being specified explicitly when running the container.
+  source "$ES_HOME/bin/elasticsearch-env-from-file"
+
+  # Parse Docker env vars to customize Elasticsearch
+  #
+  # e.g. Setting the env var cluster.name=testcluster
+  #
+  # will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
+  #
+  # see https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#_setting_default_settings
+
+  declare -a es_arg_array
+
+  while IFS='=' read -r envvar_key envvar_value
+  do
+    # Elasticsearch settings need to have at least two dot separated lowercase
+    # words, e.g. `cluster.name`
+    if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
+      if [[ ! -z $envvar_value ]]; then
+        es_opt="-E${envvar_key}=${envvar_value}"
+        es_arg_array+=("${es_opt}")
+      fi
+    fi
+  done < <(env)
+
+  # Reset the positional parameters to the es_arg_array values and any existing positional params
+  set -- "$@" "${es_arg_array[@]}"
+
+  # The virtual file /proc/self/cgroup should list the current cgroup
+  # membership. For each hierarchy, you can follow the cgroup path from
+  # this file to the cgroup filesystem (usually /sys/fs/cgroup/) and
+  # introspect the statistics for the cgroup for the given
+  # hierarchy. Alas, Docker breaks this by mounting the container
+  # statistics at the root while leaving the cgroup paths as the actual
+  # paths. Therefore, Elasticsearch provides a mechanism to override
+  # reading the cgroup path from /proc/self/cgroup and instead uses the
+  # cgroup path defined the JVM system property
+  # es.cgroups.hierarchy.override. Therefore, we set this value here so
+  # that cgroup statistics are available for the container this process
+  # will run in.
+  export ES_JAVA_OPTS="-Des.cgroups.hierarchy.override=/ $ES_JAVA_OPTS"
+fi
 
 cd "$ES_HOME"

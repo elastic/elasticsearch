@@ -7,25 +7,23 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
+import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction.Request;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestForgetFollowerAction extends BaseRestHandler {
 
-    public RestForgetFollowerAction(final Settings settings, final RestController restController) {
-        super(Objects.requireNonNull(settings));
-        Objects.requireNonNull(restController);
-        restController.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/forget_follower", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_ccr/forget_follower"));
     }
 
     @Override
@@ -34,18 +32,14 @@ public class RestForgetFollowerAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
-        final String leaderIndex = restRequest.param("index");
-
-        return channel -> {
-            try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-                final ForgetFollowerAction.Request request = ForgetFollowerAction.Request.fromXContent(parser, leaderIndex);
-                client.execute(ForgetFollowerAction.INSTANCE, request, new RestToXContentListener<>(channel));
-            } catch (final IOException e) {
-                channel.sendResponse(new BytesRestResponse(channel, RestStatus.INTERNAL_SERVER_ERROR, e));
-            }
-        };
-
+    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
+        final Request request = createRequest(restRequest, restRequest.param("index"));
+        return channel -> client.execute(ForgetFollowerAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
+    private static Request createRequest(final RestRequest restRequest, final String leaderIndex) throws IOException {
+        try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
+            return Request.fromXContent(parser, leaderIndex);
+        }
+    }
 }

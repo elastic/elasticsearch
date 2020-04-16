@@ -19,31 +19,23 @@
 
 package org.elasticsearch.client.watcher.hlrc;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 
 import java.io.IOException;
 
-public class ExecuteWatchResponseTests
-    extends AbstractHlrcXContentTestCase<ExecuteWatchResponse, org.elasticsearch.client.watcher.ExecuteWatchResponse> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class ExecuteWatchResponseTests extends AbstractResponseTestCase<
+    ExecuteWatchResponse, org.elasticsearch.client.watcher.ExecuteWatchResponse> {
 
     @Override
-    public org.elasticsearch.client.watcher.ExecuteWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.watcher.ExecuteWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    public ExecuteWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.ExecuteWatchResponse instance) {
-        return new ExecuteWatchResponse(instance.getRecordId(), instance.getRecord(), XContentType.JSON);
-    }
-
-    @Override
-    protected ExecuteWatchResponse createTestInstance() {
+    protected ExecuteWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = "my_watch_0-2015-06-02T23:17:55.124Z";
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -66,12 +58,14 @@ public class ExecuteWatchResponseTests
     }
 
     @Override
-    protected ExecuteWatchResponse doParseInstance(XContentParser parser) throws IOException {
-        return ExecuteWatchResponse.fromXContent(parser);
+    protected org.elasticsearch.client.watcher.ExecuteWatchResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.watcher.ExecuteWatchResponse.fromXContent(parser);
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected void assertInstances(ExecuteWatchResponse serverTestInstance,
+                                   org.elasticsearch.client.watcher.ExecuteWatchResponse clientInstance) {
+        assertThat(clientInstance.getRecordId(), equalTo(serverTestInstance.getRecordId()));
+        assertThat(clientInstance.getRecordAsMap(), equalTo(serverTestInstance.getRecordSource().getAsMap()));
     }
 }

@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class UpdateAction extends Action<UpdateResponse> {
+public class UpdateAction extends ActionType<UpdateResponse> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
     public static final String NAME = "indices:data/write/update";
 
     private UpdateAction() {
-        super(NAME);
-    }
-
-    @Override
-    public UpdateResponse newResponse() {
-        return new UpdateResponse();
+        super(NAME, UpdateResponse::new);
     }
 }

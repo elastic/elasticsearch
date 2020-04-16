@@ -110,8 +110,31 @@ setup:
   - is_true: ''
 
 ---
-"Test job with pre 6.4 rules":
+"Test get old cluster job's timing stats":
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job-with-ts
+  - match: { jobs.0.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.timing_stats.bucket_count: 1 }
+  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-job-with-ts
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-job-with-ts
+
+---
+"Test job with pre 6.4 rules":
   - do:
       ml.get_jobs:
         job_id: job-with-old-rules
@@ -121,7 +144,6 @@ setup:
 
 ---
 "Test get job with function shortcut should expand":
-
   - do:
       ml.get_jobs:
         job_id: old-cluster-function-shortcut-expansion

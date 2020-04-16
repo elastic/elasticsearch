@@ -7,36 +7,36 @@
 
 Evicts roles from the native role cache. 
 
-==== Request
+[[security-api-clear-role-cache-request]]
+==== {api-request-title}
 
 `POST /_security/role/<name>/_clear_cache` 
 
-==== Description
+[[security-api-clear-role-cache-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster
+privilege.
+
+[[security-api-clear-role-cache-desc]]
+==== {api-description-title}
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
-==== Path Parameters
+[[security-api-clear-role-cache-path-params]]
+==== {api-path-parms-title}
 
 `name`::
   (string) The name of the role. 
 
-
-//==== Request Body
-
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster
-privilege.
-
-
-==== Examples
+[[security-api-clear-role-cache-example]]
+==== {api-examples-title}
 
 The clear roles cache API evicts roles from the native role cache. For example, 
 to clear the cache for `my_admin_role`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/my_admin_role/_clear_cache
 --------------------------------------------------
-// CONSOLE

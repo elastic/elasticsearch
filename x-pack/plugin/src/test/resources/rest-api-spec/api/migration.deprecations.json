@@ -1,19 +1,32 @@
 {
-  "migration.deprecations": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": ["/_migration/deprecations", "/{index}/_migration/deprecations"],
-      "parts": {
-        "index": {
-          "type" : "string",
-          "description" : "Index pattern"
-        }
-      },
-      "params": {
-      }
+  "migration.deprecations":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html",
+      "description":"Retrieves information about different cluster, node, and index level settings that use deprecated features that will be removed or changed in the next major version."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_migration/deprecations",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/{index}/_migration/deprecations",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"Index pattern"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
   }
 }

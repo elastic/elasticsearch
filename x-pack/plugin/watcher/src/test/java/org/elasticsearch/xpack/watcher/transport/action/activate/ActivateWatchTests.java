@@ -3,8 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.transport.action.activate;
 
+package org.elasticsearch.xpack.watcher.transport.action.activate;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
@@ -43,8 +42,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.core.watcher:DEBUG," +
-    "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -87,13 +84,8 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(sum, is(0));
         });
 
-        logger.info("Ensured no more watches are being executed");
         refresh();
         long count1 = docCount(".watcher-history*", matchAllQuery());
-
-        refresh();
-        //ensure no new watch history
-        awaitBusy(() -> count1 != docCount(".watcher-history*", matchAllQuery()), 5, TimeUnit.SECONDS);
 
         // lets activate it again
         logger.info("Activating watch again");
@@ -163,4 +155,5 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.getStatus().state(), notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
     }
+
 }

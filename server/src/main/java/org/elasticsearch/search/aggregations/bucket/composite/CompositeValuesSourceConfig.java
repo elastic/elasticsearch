@@ -33,23 +33,28 @@ class CompositeValuesSourceConfig {
     private final DocValueFormat format;
     private final int reverseMul;
     private final boolean missingBucket;
+    private final boolean hasScript;
 
     /**
      * Creates a new {@link CompositeValuesSourceConfig}.
+     *
      * @param name The name of the source.
      * @param fieldType The field type or null if the source is a script.
      * @param vs The underlying {@link ValuesSource}.
      * @param format The {@link DocValueFormat} of this source.
      * @param order The sort order associated with this source.
+     * @param missingBucket If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
+     * @param hasScript <code>true</code> if the source contains a script that can change the value.
      */
     CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format,
-                                SortOrder order, boolean missingBucket) {
+                                SortOrder order, boolean missingBucket, boolean hasScript) {
         this.name = name;
         this.fieldType = fieldType;
         this.vs = vs;
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
         this.missingBucket = missingBucket;
+        this.hasScript = hasScript;
     }
 
     /**
@@ -86,6 +91,13 @@ class CompositeValuesSourceConfig {
      */
     boolean missingBucket() {
         return missingBucket;
+    }
+
+    /**
+     * Returns true if the source contains a script that can change the value.
+     */
+    boolean hasScript() {
+        return hasScript;
     }
 
     /**

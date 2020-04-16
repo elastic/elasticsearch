@@ -13,3 +13,17 @@ Instead, please specify the index-name without any encoding.
 ==== Removal of types
 
 The `/{index}/{type}/_delete_by_query` and `/{index}/{type}/_update_by_query` REST endpoints have been removed in favour of `/{index}/_delete_by_query` and `/{index}/_update_by_query`, since indexes no longer contain types, these typed endpoints are obsolete.
+
+[float]
+==== Removal of size parameter
+
+Previously, a `_reindex` request had two different size specifications in the body:
+
+- Outer level, determining the maximum number of documents to process
+- Inside the `source` element, determining the scroll/batch size.
+
+The outer level `size` parameter has now been renamed to `max_docs` to
+avoid confusion and clarify its semantics.
+
+Similarly, the `size` parameter has been renamed to `max_docs` for
+`_delete_by_query` and `_update_by_query` to keep the 3 interfaces consistent.

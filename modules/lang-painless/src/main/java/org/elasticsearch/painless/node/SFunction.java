@@ -19,210 +19,203 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Parameter;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Scope.FunctionScope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
+import org.elasticsearch.painless.ir.FunctionNode;
+import org.elasticsearch.painless.ir.NullNode;
+import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.node.SSource.Reserved;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.node.AStatement.Input;
+import org.elasticsearch.painless.node.AStatement.Output;
+import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.painless.Scope.newFunctionScope;
 
 /**
  * Represents a user-defined function.
  */
-public final class SFunction extends AStatement {
-    public static final class FunctionReserved implements Reserved {
-        private final Set<String> usedVariables = new HashSet<>();
-        private int maxLoopCounter = 0;
+public class SFunction extends ANode {
 
-        @Override
-        public void markUsedVariable(String name) {
-            usedVariables.add(name);
-        }
+    protected final String rtnTypeStr;
+    protected final String name;
+    protected final List<String> paramTypeStrs;
+    protected final List<String> paramNameStrs;
+    protected final SBlock block;
+    protected final boolean isInternal;
+    protected final boolean isStatic;
+    protected final boolean synthetic;
 
-        @Override
-        public Set<String> getUsedVariables() {
-            return unmodifiableSet(usedVariables);
-        }
+    /**
+     * If set to {@code true} default return values are inserted if
+     * not all paths return a value.
+     */
+    protected final boolean isAutoReturnEnabled;
 
-        @Override
-        public void addUsedVariables(FunctionReserved reserved) {
-            usedVariables.addAll(reserved.getUsedVariables());
-        }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
-    }
-
-    final FunctionReserved reserved;
-    private final String rtnTypeStr;
-    public final String name;
-    private final List<String> paramTypeStrs;
-    private final List<String> paramNameStrs;
-    private final List<AStatement> statements;
-    public final boolean synthetic;
-
-    Class<?> returnType;
-    List<Class<?>> typeParameters;
-    MethodType methodType;
-
-    org.objectweb.asm.commons.Method method;
-    List<Parameter> parameters = new ArrayList<>();
-
-    private Variable loop = null;
-
-    public SFunction(FunctionReserved reserved, Location location, String rtnType, String name,
-                     List<String> paramTypes, List<String> paramNames, List<AStatement> statements,
-                     boolean synthetic) {
+    public SFunction(Location location, String rtnType, String name,
+            List<String> paramTypes, List<String> paramNames,
+            SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean isAutoReturnEnabled) {
         super(location);
 
-        this.reserved = Objects.requireNonNull(reserved);
         this.rtnTypeStr = Objects.requireNonNull(rtnType);
         this.name = Objects.requireNonNull(name);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.statements = Collections.unmodifiableList(statements);
+        this.block = Objects.requireNonNull(block);
+        this.isInternal = isInternal;
         this.synthetic = synthetic;
+        this.isStatic = isStatic;
+        this.isAutoReturnEnabled = isAutoReturnEnabled;
     }
 
-    @Override
-    void extractVariables(Set<String> variables) {
-        // we should never be extracting from a function, as functions are top-level!
-        throw new IllegalStateException("Illegal tree structure");
-    }
+    void buildClassScope(ScriptRoot scriptRoot) {
+        if (paramTypeStrs.size() != paramNameStrs.size()) {
+            throw createError(new IllegalStateException(
+                "parameter types size [" + paramTypeStrs.size() + "] is not equal to " +
+                "parameter names size [" + paramNameStrs.size() + "]"));
+        }
 
-    void generateSignature(PainlessLookup painlessLookup) {
-        returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
+        PainlessLookup painlessLookup = scriptRoot.getPainlessLookup();
+        FunctionTable functionTable = scriptRoot.getFunctionTable();
+
+        String functionKey = FunctionTable.buildLocalFunctionKey(name, paramTypeStrs.size());
+
+        if (functionTable.getFunction(functionKey) != null) {
+            throw createError(new IllegalArgumentException("illegal duplicate functions [" + functionKey + "]."));
+        }
+
+        Class<?> returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
 
         if (returnType == null) {
-            throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
+            throw createError(new IllegalArgumentException(
+                "return type [" + rtnTypeStr + "] not found for function [" + functionKey + "]"));
         }
 
-        if (paramTypeStrs.size() != paramNameStrs.size()) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        List<Class<?>> typeParameters = new ArrayList<>();
 
-        Class<?>[] paramClasses = new Class<?>[this.paramTypeStrs.size()];
-        List<Class<?>> paramTypes = new ArrayList<>();
-
-        for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
-            Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
+        for (String typeParameter : paramTypeStrs) {
+            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
 
             if (paramType == null) {
                 throw createError(new IllegalArgumentException(
-                    "Illegal parameter type [" + this.paramTypeStrs.get(param) + "] for function [" + name + "]."));
+                    "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
             }
 
-            paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
-            paramTypes.add(paramType);
-            parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
+            typeParameters.add(paramType);
         }
 
-        typeParameters = paramTypes;
-        methodType = MethodType.methodType(PainlessLookupUtility.typeToJavaType(returnType), paramClasses);
-        method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
-                PainlessLookupUtility.typeToJavaType(returnType), paramClasses).toMethodDescriptorString());
+        functionTable.addFunction(name, returnType, typeParameters, isInternal, isStatic);
     }
 
-    @Override
-    void analyze(Locals locals) {
-        if (statements == null || statements.isEmpty()) {
+    FunctionNode writeFunction(ClassNode classNode, ScriptRoot scriptRoot) {
+        FunctionTable.LocalFunction localFunction = scriptRoot.getFunctionTable().getFunction(name, paramTypeStrs.size());
+        Class<?> returnType = localFunction.getReturnType();
+        List<Class<?>> typeParameters = localFunction.getTypeParameters();
+        FunctionScope functionScope = newFunctionScope(localFunction.getReturnType());
+
+        for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
+            Class<?> typeParameter = localFunction.getTypeParameters().get(index);
+            String parameterName = paramNameStrs.get(index);
+            functionScope.defineVariable(location, typeParameter, parameterName, false);
+        }
+
+        int maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
+
+        if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
 
-        locals = Locals.newLocalScope(locals);
+        Input blockInput = new Input();
+        blockInput.lastSource = true;
+        Output blockOutput = block.analyze(classNode, scriptRoot, functionScope.newLocalScope(), blockInput);
+        boolean methodEscape = blockOutput.methodEscape;
 
-        AStatement last = statements.get(statements.size() - 1);
-
-        for (AStatement statement : statements) {
-            // Note that we do not need to check after the last statement because
-            // there is no statement that can be unreachable after the last.
-            if (allEscape) {
-                throw createError(new IllegalArgumentException("Unreachable statement."));
-            }
-
-            statement.lastSource = statement == last;
-
-            statement.analyze(locals);
-
-            methodEscape = statement.methodEscape;
-            allEscape = statement.allEscape;
+        if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
+            throw createError(new IllegalArgumentException("not all paths provide a return value " +
+                    "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
         }
 
-        if (!methodEscape && returnType != void.class) {
-            throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
+        // TODO: do not specialize for execute
+        // TODO: https://github.com/elastic/elasticsearch/issues/51841
+        if ("execute".equals(name)) {
+            scriptRoot.setUsedVariables(functionScope.getUsedVariables());
         }
+        // TODO: end
 
-        if (reserved.getMaxLoopCounter() > 0) {
-            loop = locals.getVariable(null, Locals.LOOP);
-        }
-    }
+        BlockNode blockNode = (BlockNode)blockOutput.statementNode;
 
-    /** Writes the function to given ClassVisitor. */
-    void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
-        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
-        if (synthetic) {
-            access |= Opcodes.ACC_SYNTHETIC;
-        }
-        final MethodWriter function = new MethodWriter(access, method, writer, globals.getStatements(), settings);
-        function.visitCode();
-        write(function, globals);
-        function.endMethod();
-    }
+        if (methodEscape == false) {
+            ExpressionNode expressionNode;
 
-    @Override
-    void write(MethodWriter function, Globals globals) {
-        if (reserved.getMaxLoopCounter() > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-            function.push(reserved.getMaxLoopCounter());
-            function.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        for (AStatement statement : statements) {
-            statement.write(function, globals);
-        }
-
-        if (!methodEscape) {
             if (returnType == void.class) {
-                function.returnValue();
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
+                expressionNode = null;
+            } else if (isAutoReturnEnabled) {
+                if (returnType.isPrimitive()) {
+                    ConstantNode constantNode = new ConstantNode();
+                    constantNode.setLocation(location);
+                    constantNode.setExpressionType(returnType);
 
-    @Override
-    public String toString() {
-        List<Object> description = new ArrayList<>();
-        description.add(rtnTypeStr);
-        description.add(name);
-        if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
-            description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
+                    if (returnType == boolean.class) {
+                        constantNode.setConstant(false);
+                    } else if (returnType == byte.class
+                            || returnType == char.class
+                            || returnType == short.class
+                            || returnType == int.class) {
+                        constantNode.setConstant(0);
+                    } else if (returnType == long.class) {
+                        constantNode.setConstant(0L);
+                    } else if (returnType == float.class) {
+                        constantNode.setConstant(0f);
+                    } else if (returnType == double.class) {
+                        constantNode.setConstant(0d);
+                    } else {
+                        throw createError(new IllegalStateException("unexpected automatic return type " +
+                                "[" + PainlessLookupUtility.typeToCanonicalTypeName(returnType) + "] " +
+                                "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+                    }
+
+                    expressionNode = constantNode;
+                } else {
+                    expressionNode = new NullNode();
+                    expressionNode.setLocation(location);
+                    expressionNode.setExpressionType(returnType);
+                }
+            } else {
+                throw createError(new IllegalStateException("not all paths provide a return value " +
+                        "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+            }
+
+            ReturnNode returnNode = new ReturnNode();
+            returnNode.setLocation(location);
+            returnNode.setExpressionNode(expressionNode);
+
+            blockNode.addStatementNode(returnNode);
         }
-        return multilineToString(description, statements);
+
+        FunctionNode functionNode = new FunctionNode();
+
+        functionNode.setBlockNode(blockNode);
+
+        functionNode.setLocation(location);
+        functionNode.setName(name);
+        functionNode.setReturnType(returnType);
+        functionNode.getTypeParameters().addAll(typeParameters);
+        functionNode.getParameterNames().addAll(paramNameStrs);
+        functionNode.setStatic(isStatic);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(synthetic);
+        functionNode.setMaxLoopCounter(maxLoopCounter);
+
+        return functionNode;
     }
 }

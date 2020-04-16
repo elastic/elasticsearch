@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,7 +69,6 @@ public class BucketSortIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(INDEX, INDEX_WITH_GAPS);
         client().admin().indices().preparePutMapping(INDEX)
-                .setType("doc")
                 .setSource("time", "type=date", "foo", "type=keyword", "value_1", "type=float", "value_2", "type=float")
                 .get();
 
@@ -86,16 +85,16 @@ public class BucketSortIT extends ESIntegTestCase {
             for (String term : terms) {
                 int termCount = randomIntBetween(3, 6);
                 for (int i = 0; i < termCount; ++i) {
-                    builders.add(client().prepareIndex(INDEX, "doc")
+                    builders.add(client().prepareIndex(INDEX)
                             .setSource(newDocBuilder(time, term, randomIntBetween(1, 10) * randomDouble())));
                 }
             }
             time += TimeValue.timeValueHours(1).millis();
         }
 
-        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(1, "foo", 1.0, 42.0)));
-        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(2, "foo", null, 42.0)));
-        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(3, "foo", 3.0, 42.0)));
+        builders.add(client().prepareIndex(INDEX_WITH_GAPS).setSource(newDocBuilder(1, "foo", 1.0, 42.0)));
+        builders.add(client().prepareIndex(INDEX_WITH_GAPS).setSource(newDocBuilder(2, "foo", null, 42.0)));
+        builders.add(client().prepareIndex(INDEX_WITH_GAPS).setSource(newDocBuilder(3, "foo", 3.0, 42.0)));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -460,21 +459,21 @@ public class BucketSortIT extends ESIntegTestCase {
     }
 
     public void testInvalidPath() {
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+        Exception e = expectThrows(ActionRequestValidationException.class,
                 () -> client().prepareSearch(INDEX)
                 .addAggregation(terms("foos").field(TERM_FIELD)
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(new FieldSortBuilder("invalid")))))
                 .get());
-        assertThat(e.getCause().getMessage(), containsString("No aggregation found for path [invalid]"));
+        assertThat(e.getMessage(), containsString("No aggregation found for path [invalid]"));
     }
 
     public void testNeitherSortsNorSizeSpecifiedAndFromIsDefault_ShouldThrowValidation() {
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+        Exception e = expectThrows(ActionRequestValidationException.class,
                 () -> client().prepareSearch(INDEX)
                         .addAggregation(terms("foos").field(TERM_FIELD)
                                 .subAggregation(bucketSort("bucketSort", Collections.emptyList())))
                         .get());
-        assertThat(e.getCause().getMessage(), containsString("[bucketSort] is configured to perform nothing." +
+        assertThat(e.getMessage(), containsString("[bucketSort] is configured to perform nothing." +
                 " Please set either of [sort, size, from] to use bucket_sort"));
     }
 }

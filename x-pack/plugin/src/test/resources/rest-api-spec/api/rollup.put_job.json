@@ -1,21 +1,29 @@
 {
-  "rollup.put_job": {
-    "documentation": "",
-    "stability" : "experimental",
-    "methods": [ "PUT" ],
-    "url": {
-      "paths": [ "/_rollup/job/{id}" ],
-      "parts": {
-        "id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to create"
-        }
-      }
+  "rollup.put_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-put-job.html",
+      "description":"Creates a rollup job."
     },
-    "body": {
-      "description" : "The job configuration",
-      "required" : true
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/job/{id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The job configuration",
+      "required":true
     }
   }
 }

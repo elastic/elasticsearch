@@ -22,9 +22,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -36,13 +36,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -59,12 +57,11 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray maxes;
 
     MaxAggregator(String name,
-                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSourceConfig config,
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
-                    Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                    Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             maxes = context.bigArrays().newDoubleArray(1, false);
@@ -98,7 +95,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (pointConverter != null) {
             Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
             if (segMax != null) {
-                /**
+                /*
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
@@ -146,12 +143,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, pipelineAggregators(),  metaData());
+        return new InternalMax(name, maxes.get(bucket), formatter, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metadata());
     }
 
     @Override
@@ -174,7 +171,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         }
         int numBytes = pointValues.getBytesPerDimension();
         final byte[] maxValue = pointValues.getMaxPackedValue();
-        final Number[] result = new Number[1];
+        final byte[][] result = new byte[1][];
         pointValues.intersect(new PointValues.IntersectVisitor() {
             @Override
             public void visit(int docID) {
@@ -186,7 +183,10 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 if (liveDocs.get(docID)) {
                     // we need to collect all values in this leaf (the sort is ascending) where
                     // the last live doc is guaranteed to contain the max value for the segment.
-                    result[0] = converter.apply(packedValue);
+                    if (result[0] == null) {
+                        result[0] = new byte[packedValue.length];
+                    }
+                    System.arraycopy(packedValue, 0, result[0], 0, packedValue.length);
                 }
             }
 
@@ -200,6 +200,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 }
             }
         });
-        return result[0];
+        return result[0] != null ? converter.apply(result[0]) : null;
     }
 }

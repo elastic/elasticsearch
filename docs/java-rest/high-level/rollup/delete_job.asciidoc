@@ -3,7 +3,7 @@
 :request: DeleteRollupJobRequest
 :response: DeleteRollupJobResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Rollup Job API
 

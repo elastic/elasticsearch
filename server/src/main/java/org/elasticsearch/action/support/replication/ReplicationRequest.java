@@ -169,7 +169,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
      */
     @SuppressWarnings("unchecked")
-    Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+    protected Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
         this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
         return (Request) this;
     }
@@ -185,11 +185,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

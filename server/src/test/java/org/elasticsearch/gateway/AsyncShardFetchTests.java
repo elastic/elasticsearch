@@ -46,6 +46,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
     private final Response response1 = new Response(node1);
+    private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
     private final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
@@ -274,6 +275,85 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(fetchData.getData().get(node2), sameInstance(response2));
     }
 
+    public void testClearCache() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        test.addSimulation(node1.getId(), response1);
+
+        // must work also with no data
+        test.clearCacheForNode(node1.getId());
+
+        // no fetched data, request still on going
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(0));
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.reroute.get(), equalTo(1));
+
+        // verify we get back right data from node
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(true));
+        assertThat(fetchData.getData().size(), equalTo(1));
+        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+
+        // second fetch gets same data
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(true));
+        assertThat(fetchData.getData().size(), equalTo(1));
+        assertThat(fetchData.getData().get(node1), sameInstance(response1));
+
+        test.clearCacheForNode(node1.getId());
+
+        // prepare next request
+        test.addSimulation(node1.getId(), response1_2);
+
+        // no fetched data, new request on going
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.reroute.get(), equalTo(2));
+
+        // verify we get new data back
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(true));
+        assertThat(fetchData.getData().size(), equalTo(1));
+        assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
+    }
+
+    public void testConcurrentRequestAndClearCache() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        test.addSimulation(node1.getId(), response1);
+
+        // no fetched data, request still on going
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(0));
+
+        // clear cache while request is still on going, before it is processed
+        test.clearCacheForNode(node1.getId());
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.reroute.get(), equalTo(1));
+
+        // prepare next request
+        test.addSimulation(node1.getId(), response1_2);
+
+        // verify still no fetched data, request still on going
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.reroute.get(), equalTo(2));
+
+        // verify we get new data back
+        fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(true));
+        assertThat(fetchData.getData().size(), equalTo(1));
+        assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
+
+    }
+
     static class TestFetch extends AsyncShardFetch<Response> {
 
         static class Entry {
@@ -293,7 +373,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         private AtomicInteger reroute = new AtomicInteger();
 
         TestFetch(ThreadPool threadPool) {
-            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), null);
+            super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "", null);
             this.threadPool = threadPool;
         }
 
@@ -328,7 +408,7 @@ public class AsyncShardFetchTests extends ESTestCase {
                             entry = simulations.get(nodeId);
                             if (entry == null) {
                                 // we are simulating a master node switch, wait for it to not be null
-                                awaitBusy(() ->  simulations.containsKey(nodeId));
+                                assertBusy(() -> assertTrue(simulations.containsKey(nodeId)));
                             }
                             assert entry != null;
                             entry.executeLatch.await();

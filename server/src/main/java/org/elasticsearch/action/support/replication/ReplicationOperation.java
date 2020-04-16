@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
@@ -110,7 +111,6 @@ public class ReplicationOperation<
 
     private void handlePrimaryResult(final PrimaryResultT primaryResult) {
         this.primaryResult = primaryResult;
-        primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             if (logger.isTraceEnabled()) {
@@ -123,7 +123,7 @@ public class ReplicationOperation<
             // is valid for this replication group. If we would sample in the reverse, the global checkpoint might be based on a subset
             // of the sampled replication group, and advanced further than what the given replication group would allow it to.
             // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
-            final long globalCheckpoint = primary.globalCheckpoint();
+            final long globalCheckpoint = primary.computedGlobalCheckpoint();
             // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
             // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed
             // on.
@@ -133,8 +133,26 @@ public class ReplicationOperation<
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
             performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
         }
-        successfulShards.incrementAndGet();  // mark primary as successful
-        decPendingAndFinishIfNeeded();
+        primaryResult.runPostReplicationActions(new ActionListener<>() {
+
+            @Override
+            public void onResponse(Void aVoid) {
+                successfulShards.incrementAndGet();
+                try {
+                    updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
+                } finally {
+                    decPendingAndFinishIfNeeded();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
+                // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
+                // go out of sync with the primary
+                finishAsFailed(e);
+            }
+        });
     }
 
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
@@ -175,16 +193,10 @@ public class ReplicationOperation<
                 public void onResponse(ReplicaResponse response) {
                     successfulShards.incrementAndGet();
                     try {
-                        primary.updateLocalCheckpointForShard(shard.allocationId().getId(), response.localCheckpoint());
-                        primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), response.globalCheckpoint());
-                    } catch (final AlreadyClosedException e) {
-                        // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
-                    } catch (final Exception e) {
-                        // fail the primary but fall through and let the rest of operation processing complete
-                        final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
-                        primary.failShard(message, e);
+                        updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
+                    } finally {
+                        decPendingAndFinishIfNeeded();
                     }
-                    decPendingAndFinishIfNeeded();
                 }
 
                 @Override
@@ -210,11 +222,22 @@ public class ReplicationOperation<
             });
     }
 
+    private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
+        try {
+            primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
+            primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
+        } catch (final AlreadyClosedException e) {
+            // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
+        } catch (final Exception e) {
+            // fail the primary but fall through and let the rest of operation processing complete
+            final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
+            primary.failShard(message, e);
+        }
+    }
+
     private void onNoLongerPrimary(Exception failure) {
         final Throwable cause = ExceptionsHelper.unwrapCause(failure);
-        final boolean nodeIsClosing =
-                cause instanceof NodeClosedException
-                        || ExceptionsHelper.isTransportStoppedForAction(cause, "internal:cluster/shard/failure");
+        final boolean nodeIsClosing = cause instanceof NodeClosedException;
         final String message;
         if (nodeIsClosing) {
             message = String.format(Locale.ROOT,
@@ -341,16 +364,23 @@ public class ReplicationOperation<
         void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint);
 
         /**
-         * Returns the local checkpoint on the primary shard.
+         * Returns the persisted local checkpoint on the primary shard.
          *
          * @return the local checkpoint
          */
         long localCheckpoint();
 
         /**
-         * Returns the global checkpoint on the primary shard.
+         * Returns the global checkpoint computed on the primary shard.
          *
-         * @return the global checkpoint
+         * @return the computed global checkpoint
+         */
+        long computedGlobalCheckpoint();
+
+        /**
+         * Returns the persisted global checkpoint on the primary shard.
+         *
+         * @return the persisted global checkpoint
          */
         long globalCheckpoint();
 
@@ -419,16 +449,16 @@ public class ReplicationOperation<
     public interface ReplicaResponse {
 
         /**
-         * The local checkpoint for the shard.
+         * The persisted local checkpoint for the shard.
          *
-         * @return the local checkpoint
+         * @return the persisted local checkpoint
          **/
         long localCheckpoint();
 
         /**
-         * The global checkpoint for the shard.
+         * The persisted global checkpoint for the shard.
          *
-         * @return the global checkpoint
+         * @return the persisted global checkpoint
          **/
         long globalCheckpoint();
 
@@ -458,5 +488,11 @@ public class ReplicationOperation<
         @Nullable RequestT replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
+
+        /**
+         * Run actions to be triggered post replication
+         * @param listener calllback that is invoked after post replication actions have completed
+         * */
+        void runPostReplicationActions(ActionListener<Void> listener);
     }
 }

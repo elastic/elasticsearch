@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
@@ -51,10 +50,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -70,10 +67,8 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
-        mocks.remove(MockEngineFactoryPlugin.class);
-        return mocks;
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -85,7 +80,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         String mapping = Strings // {}
                 .toString(XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type")
                         .startObject("properties")
                         .startObject("test-str")
                         .field("type", "keyword")
@@ -96,7 +90,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                         .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
                         .endObject() // test-num
                         .endObject() // properties
-                        .endObject() // type
                         .endObject());
         final double topLevelRate;
         final double lowLevelRate;
@@ -127,7 +120,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         logger.info("creating index: [test] using settings: [{}]", settings.build());
         CreateIndexResponse response = client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+                .setMapping(mapping).execute().actionGet();
         final int numDocs;
         if (response.isShardsAcknowledged() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
@@ -145,7 +138,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
         for (int i = 0; i < numDocs; i++) {
             try {
-                client().prepareIndex("test", "type", "" + i)
+                client().prepareIndex("test").setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
                     .get();

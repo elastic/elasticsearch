@@ -19,14 +19,12 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test_2
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -35,38 +33,7 @@ setup:
         index: [test_1, test_2]
 
 ---
-"Indices boost using object":
-  - skip:
-      features: "warnings"
-
-  - do:
-      warnings:
-        - 'Object format in indices_boost is deprecated, please use array format instead'
-      search:
-        rest_total_hits_as_int: true
-        index: _all
-        body:
-          indices_boost: {test_1: 2.0, test_2: 1.0}
-
-  - match: { hits.total: 2 }
-  - match: { hits.hits.0._index: test_1 }
-  - match: { hits.hits.1._index: test_2 }
-
-  - do:
-      warnings:
-        - 'Object format in indices_boost is deprecated, please use array format instead'
-      search:
-        rest_total_hits_as_int: true
-        index: _all
-        body:
-          indices_boost: {test_1: 1.0, test_2: 2.0}
-
-  - match: { hits.total: 2 }
-  - match: { hits.hits.0._index: test_2 }
-  - match: { hits.hits.1._index: test_1 }
-
----
-"Indices boost using array":
+"Basic indices boost":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -90,7 +57,7 @@ setup:
   - match: { hits.hits.1._index: test_1 }
 
 ---
-"Indices boost using array with alias":
+"Indices boost with alias":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -114,7 +81,7 @@ setup:
   - match: { hits.hits.1._index: test_1 }
 
 ---
-"Indices boost using array with wildcard":
+"Indices boost with wildcard":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -138,7 +105,7 @@ setup:
   - match: { hits.hits.1._index: test_1 }
 
 ---
-"Indices boost using array multiple match":
+"Indices boost multiple match":
   - do:
       search:
         rest_total_hits_as_int: true

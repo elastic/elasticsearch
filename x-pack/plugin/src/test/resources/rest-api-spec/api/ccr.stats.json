@@ -1,12 +1,19 @@
 {
-  "ccr.stats": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html",
-    "stability" : "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_ccr/stats" ],
-      "parts": {},
-      "body": null
+  "ccr.stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html",
+      "description": "Gets all stats related to cross-cluster replication."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ccr/stats",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
     }
   }
 }

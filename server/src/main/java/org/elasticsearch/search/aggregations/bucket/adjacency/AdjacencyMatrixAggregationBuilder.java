@@ -19,22 +19,22 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,8 +46,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
-public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder> {
     public static final String NAME = "adjacency_matrix";
 
     private static final String DEFAULT_SEPARATOR = "&";
@@ -57,15 +56,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, Void> PARSER = new ObjectParser<>(
-            AdjacencyMatrixAggregationBuilder.NAME);
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, AdjacencyMatrixAggregationBuilder::new);
     static {
         PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, new AdjacencyMatrixAggregationBuilder(aggregationName), null);
+    public static AggregationBuilder parse(XContentParser parser, String name) throws IOException {
+        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, name);
         result.checkConsistency();
         return result;
     }
@@ -75,7 +74,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
             throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
         }
     }
-
 
     protected void setFiltersAsMap(Map<String, QueryBuilder> filters) {
         // Convert uniquely named objects into internal KeyedFilters
@@ -116,15 +114,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     protected AdjacencyMatrixAggregationBuilder(AdjacencyMatrixAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                                Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.separator = clone.separator;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -196,24 +194,29 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        int maxFilters = context.indexShard().indexSettings().getMaxAdjacencyMatrixFilters();
+        int maxFilters = BooleanQuery.getMaxClauseCount();
         if (filters.size() > maxFilters){
             throw new IllegalArgumentException(
                     "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
                             + filters.size() + "]."
-                            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
-                            + "] index level setting.");
+                            + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
+                            + "] setting.");
         }
 
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), context.getQueryShardContext(), true)));
+            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), queryShardContext, true)));
         }
 
-        return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, context, parent,
-                subFactoriesBuilder, metaData);
+        return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, queryShardContext, parent,
+                subFactoriesBuilder, metadata);
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override
@@ -230,12 +233,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(filters, separator);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), filters, separator);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         AdjacencyMatrixAggregationBuilder other = (AdjacencyMatrixAggregationBuilder) obj;
         return Objects.equals(filters, other.filters) && Objects.equals(separator, other.separator);
     }

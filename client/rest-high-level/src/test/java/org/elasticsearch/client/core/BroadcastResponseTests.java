@@ -22,6 +22,7 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
 
 public class BroadcastResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.broadcast.BroadcastResponse,
     BroadcastResponse> {
@@ -43,7 +44,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     private Set<Integer> shardIds;
 
     @Override
-    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance() {
+    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance(XContentType xContentType) {
         index = randomAlphaOfLength(8);
         id = randomAlphaOfLength(8);
         final int total = randomIntBetween(1, 16);
@@ -79,7 +80,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
         if (clientInstance.shards().failed() > 0) {
             final DefaultShardOperationFailedException groupedFailure = clientInstance.shards().failures().iterator().next();
             assertThat(groupedFailure.index(), equalTo(index));
-            assertThat(groupedFailure.shardId(), isIn(shardIds));
+            assertThat(groupedFailure.shardId(), in(shardIds));
             assertThat(groupedFailure.reason(), containsString("reason=retention lease with ID [" + id + "] not found"));
         }
     }

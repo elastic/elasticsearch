@@ -66,7 +66,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -148,11 +148,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
-            KeywordFieldMapper.Builder queryMetaDataFieldBuilder = new KeywordFieldMapper.Builder(name);
-            queryMetaDataFieldBuilder.docValues(false);
-            queryMetaDataFieldBuilder.store(false);
-            queryMetaDataFieldBuilder.indexOptions(IndexOptions.DOCS);
-            return queryMetaDataFieldBuilder.build(context);
+            KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name);
+            queryMetadataFieldBuilder.docValues(false);
+            queryMetadataFieldBuilder.store(false);
+            queryMetadataFieldBuilder.indexOptions(IndexOptions.DOCS);
+            return queryMetadataFieldBuilder.build(context);
         }
 
         static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
@@ -394,6 +394,8 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
+        configureContext(queryShardContext, isMapUnmappedFieldAsText());
+
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder = parseQueryBuilder(
                 parser, parser.getTokenLocation()
@@ -407,14 +409,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext) {
-
-            @Override
-            public boolean convertNowRangeToMatchAll() {
-                return true;
-            }
-        });
-        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilderForProcessing);
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
+        Query query = queryBuilderForProcessing.toQuery(queryShardContext);
         processQuery(query, context);
     }
 
@@ -434,10 +430,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         ParseContext.Document doc = context.doc();
         FieldType pft = (FieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        try {
-            Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
-            result = QueryAnalyzer.analyze(query, indexVersion);
-        } catch (QueryAnalyzer.UnsupportedQueryException e) {
+        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        result = QueryAnalyzer.analyze(query, indexVersion);
+        if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             return;
         }
@@ -455,7 +450,6 @@ public class PercolatorFieldMapper extends FieldMapper {
             }
         }
 
-        Version indexVersionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
         if (result.matchAllDocs) {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
             if (result.verified) {
@@ -474,11 +468,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
-    static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {
-        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(parser, parser.getTokenLocation()));
-    }
-
-    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {
+    static void configureContext(QueryShardContext context, boolean mapUnmappedFieldsAsString) {
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //
@@ -493,7 +483,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-        return queryBuilder.toQuery(context);
     }
 
     private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {

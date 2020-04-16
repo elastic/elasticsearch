@@ -33,16 +33,13 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    public BroadcastRequest() {
-    }
-
     public BroadcastRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    protected BroadcastRequest(String[] indices) {
+    protected BroadcastRequest(String... indices) {
         this.indices = indices;
     }
 
@@ -84,12 +81,5 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

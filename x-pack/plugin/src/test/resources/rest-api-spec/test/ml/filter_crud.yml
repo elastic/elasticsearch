@@ -86,7 +86,13 @@ setup:
         from: 1
         size: 1
 
-  - match: { count:   1 }
+  - match: { count:   2 }
+
+  - match:
+      filters.0:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
 
 ---
 "Test get filters API with expression ID":
@@ -122,28 +128,6 @@ setup:
         filter_id: "filter-foo2"
         description: "This filter has a description"
         items: ["123", "lmnop"]
-
----
-"Test invalid param combinations":
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        size: 1
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-        size: 1
 
 ---
 "Test create filter given invalid filter_id":

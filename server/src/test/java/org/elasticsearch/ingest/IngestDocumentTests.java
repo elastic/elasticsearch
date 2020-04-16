@@ -75,7 +75,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, document);
+        ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -84,7 +84,6 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_source.foo", String.class), equalTo("bar"));
         assertThat(ingestDocument.getFieldValue("_source.int", Integer.class), equalTo(123));
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
-        assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
         assertThat(ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
             both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
@@ -218,7 +217,6 @@ public class IngestDocumentTests extends ESTestCase {
     public void testHasField() {
         assertTrue(ingestDocument.hasField("fizz"));
         assertTrue(ingestDocument.hasField("_index"));
-        assertTrue(ingestDocument.hasField("_type"));
         assertTrue(ingestDocument.hasField("_id"));
         assertTrue(ingestDocument.hasField("_source.fizz"));
         assertTrue(ingestDocument.hasField("_ingest.timestamp"));
@@ -753,23 +751,23 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveField() {
         ingestDocument.removeField("foo");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("foo"), equalTo(false));
         ingestDocument.removeField("_index");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         ingestDocument.removeField("_source.fizz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(4));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(1));
         ingestDocument.removeField("_ingest.timestamp");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(4));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(0));
     }
 
     public void testRemoveInnerField() {
         ingestDocument.removeField("fizz.buzz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
@@ -778,17 +776,17 @@ public class IngestDocumentTests extends ESTestCase {
 
         ingestDocument.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(2));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.1");
         assertThat(map.size(), equalTo(1));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
     }
 
@@ -822,7 +820,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveIngestObject() {
         ingestDocument.removeField("_ingest");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
     }
 
@@ -844,7 +842,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListRemoveField() {
         ingestDocument.removeField("list.0.field");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
@@ -914,9 +912,9 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
+        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -934,9 +932,9 @@ public class IngestDocumentTests extends ESTestCase {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
         }
         if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestDocument.MetaData.values().length);
+            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
             }
             changed = true;
         }

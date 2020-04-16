@@ -31,10 +31,8 @@
   - is_true: _shards.total
   - is_true: hits.total
   - is_true: hits.hits.0._index
-  - is_true: hits.hits.0._type
   - is_true: hits.hits.0._id
   - is_true: hits.hits.1._index
-  - is_true: hits.hits.1._type
   - is_true: hits.hits.1._id
 
   - do:
@@ -48,10 +46,8 @@
   - is_false: _shards.total
   - is_false: hits.total
   - is_false: hits.hits.0._index
-  - is_false: hits.hits.0._type
   - is_false: hits.hits.0._id
   - is_false: hits.hits.1._index
-  - is_false: hits.hits.1._type
   - is_false: hits.hits.1._id
 
   - do:
@@ -65,10 +61,8 @@
   - is_true:  _shards.total
   - is_false: hits.total
   - is_false: hits.hits.0._index
-  - is_false: hits.hits.0._type
   - is_false: hits.hits.0._id
   - is_false: hits.hits.1._index
-  - is_false: hits.hits.1._type
   - is_false: hits.hits.1._id
 
   - do:
@@ -82,10 +76,8 @@
   - is_true:  _shards.total
   - is_true:  hits.total
   - is_true:  hits.hits.0._index
-  - is_false: hits.hits.0._type
   - is_true:  hits.hits.0._id
   - is_true:  hits.hits.1._index
-  - is_false: hits.hits.1._type
   - is_true:  hits.hits.1._id
 
 ---

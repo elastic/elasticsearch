@@ -1,31 +1,38 @@
 {
-  "ml.revert_model_snapshot": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert" ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to fetch"
-        },
-        "snapshot_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the snapshot to revert to"
+  "ml.revert_model_snapshot":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html",
+      "description":"Reverts to a specific snapshot."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to fetch"
+            },
+            "snapshot_id":{
+              "type":"string",
+              "description":"The ID of the snapshot to revert to"
+            }
+          }
         }
-      },
-      "params": {
-        "delete_intervening_results": {
-          "type": "boolean",
-          "description": "Should we reset the results back to the time of the snapshot?"
-        }
+      ]
+    },
+    "params":{
+      "delete_intervening_results":{
+        "type":"boolean",
+        "description":"Should we reset the results back to the time of the snapshot?"
       }
     },
-    "body": {
-      "description": "Reversion options"
+    "body":{
+      "description":"Reversion options"
     }
   }
 }

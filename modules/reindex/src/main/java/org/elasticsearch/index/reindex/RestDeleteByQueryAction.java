@@ -20,21 +20,25 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
-    public RestDeleteByQueryAction(Settings settings, RestController controller) {
-        super(settings, DeleteByQueryAction.INSTANCE);
-        controller.registerHandler(POST, "/{index}/_delete_by_query", this);
+
+    public RestDeleteByQueryAction() {
+        super(DeleteByQueryAction.INSTANCE);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_delete_by_query"));
     }
 
     @Override

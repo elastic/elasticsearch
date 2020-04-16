@@ -39,9 +39,9 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
         createIndex("test", Settings.EMPTY, "test", "title", "type=text");
-        client().prepareIndex("test", "test", "1").setSource("title", "foo bar baz").get();
-        client().prepareIndex("test", "test", "2").setSource("title", "foo foo foo").get();
-        client().prepareIndex("test", "test", "3").setSource("title", "bar baz bax").get();
+        client().prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
+        client().prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
+        client().prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
         client().admin().indices().prepareRefresh("test").get();
 
         XContentType xContentType = randomFrom(XContentType.values());
@@ -62,12 +62,12 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
                 new WrapperQueryBuilder(bytesReference)));
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        builder.setMetaData(metadata);
+        builder.setMetadata(metadata);
         SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(builder).get();
         assertEquals(3, searchResponse.getHits().getTotalHits().value);
         InternalFilters filters = searchResponse.getAggregations().get("titles");
         assertEquals(1, filters.getBuckets().size());
         assertEquals(2, filters.getBuckets().get(0).getDocCount());
-        assertEquals(metadata, filters.getMetaData());
+        assertEquals(metadata, filters.getMetadata());
     }
 }

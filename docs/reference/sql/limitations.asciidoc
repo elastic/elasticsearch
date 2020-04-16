@@ -32,6 +32,34 @@ SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
 --------------------------------------------------
 
 [float]
+=== Scalar functions on nested fields are not allowed in `WHERE` and `ORDER BY` clauses
+{es-sql} doesn't support the usage of scalar functions on top of nested fields in `WHERE`
+and `ORDER BY` clauses with the exception of comparison and logical operators.
+
+For example:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE LENGTH(dep.dep_name.keyword) > 5;
+--------------------------------------------------
+
+and
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp ORDER BY YEAR(dep.start_date);
+--------------------------------------------------
+
+are not supported but:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE dep.start_date >= CAST('2020-01-01' AS DATE) OR dep.dep_end_date IS NULL;
+--------------------------------------------------
+
+is supported.
+
+[float]
 === Multi-nested fields
 
 {es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
@@ -89,6 +117,17 @@ SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 
 It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
 an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
+
+Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
+functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
+functions can be used for ordering. Here are some examples of queries that are *not allowed*:
+
+[source, sql]
+--------------------------------------------------
+SELECT age, ROUND(AVG(salary)) AS avg FROM test GROUP BY age ORDER BY avg;
+
+SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY diff;
+--------------------------------------------------
 
 [float]
 === Using aggregation functions on top of scalar functions
@@ -161,3 +200,45 @@ By default,`geo_points` fields are indexed and have doc values. However only lat
 indexed with some loss of precision from the original values (4.190951585769653E-8 for the latitude and
 8.381903171539307E-8 for longitude). The altitude component is accepted but not stored in doc values nor indexed.
 Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.
+
+[float]
+[[fields-from-source]]
+=== Retrieving from `_source`
+
+Most of {es-sql}'s columns are retrieved from the document's `_source` and there is no attempt to get the columns content from
+`docvalue_fields` not even in the case <<mapping-source-field,`_source`>> field is disabled in the mapping explicitly.
+If a column, for which there is no source stored, is asked for in a query, {es-sql} will not return it. Field types that don't follow
+this restriction are: `keyword`, `date`, `scaled_float`, `geo_point`, `geo_shape` since they are NOT returned from `_source` but
+from `docvalue_fields`.
+
+[float]
+[[fields-from-docvalues]]
+=== Retrieving from `docvalue_fields`
+
+When the number of columns retrievable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
+the query will fail with `IllegalArgumentException: Trying to retrieve too many docvalue_fields` error. Either the mentioned {es}
+setting needs to be adjusted or fewer columns retrievable from `docvalue_fields` need to be selected.
+
+[float]
+[[aggs-in-pivot]]
+=== Aggregations in the <<sql-syntax-pivot, `PIVOT`>> clause
+
+The aggregation expression in <<sql-syntax-pivot, `PIVOT`>> will currently accept only one aggregation. It is thus not possible to obtain multiple aggregations for any one pivoted column.
+
+[float]
+[[subquery-in-pivot]]
+=== Using a subquery in <<sql-syntax-pivot, `PIVOT`>>'s `IN`-subclause
+
+The values that the <<sql-syntax-pivot, `PIVOT`>> query could pivot must be provided in the query as a list of literals; providing a subquery instead to build this list is not currently supported. For example, in this query:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2))
+-------------------------------------------------------------
+
+the `languages` of interest must be listed explicitly: `IN (1, 2)`. On the other hand, this example would **not work**:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (SELECT languages FROM test_emp WHERE languages <=2 GROUP BY languages))
+-------------------------------------------------------------

@@ -28,19 +28,20 @@ import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTe
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -61,7 +62,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .addMapping("type", STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword").get());
+                .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         String[] randomStrings = new String[randomIntBetween(2, 10)];
@@ -70,7 +71,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
 
         for (int i = 0; i < 5; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(
+            builders.add(client().prepareIndex("idx").setSource(
                     jsonBuilder().startObject()
                         .field(STRING_FIELD, randomFrom(randomStrings))
                         .field(NUMBER_FIELD, randomIntBetween(0, 9))
@@ -100,7 +101,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
@@ -145,7 +146,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -215,7 +216,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -346,7 +347,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();

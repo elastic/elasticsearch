@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for retrieving one or more application privileges from the security index
+ * ActionType for retrieving one or more application privileges from the security index
  */
-public final class GetPrivilegesAction extends Action<GetPrivilegesResponse> {
+public final class GetPrivilegesAction extends ActionType<GetPrivilegesResponse> {
 
     public static final GetPrivilegesAction INSTANCE = new GetPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/get";
 
     private GetPrivilegesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetPrivilegesResponse newResponse() {
-        return new GetPrivilegesResponse();
+        super(NAME, GetPrivilegesResponse::new);
     }
 }

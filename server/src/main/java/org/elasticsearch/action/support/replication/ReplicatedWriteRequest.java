@@ -62,11 +62,6 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         refreshPolicy.writeTo(out);

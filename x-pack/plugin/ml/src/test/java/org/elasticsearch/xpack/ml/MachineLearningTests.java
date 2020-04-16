@@ -97,8 +97,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testMachineMemory_givenStatsFailure() throws IOException {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(-1, -1));
-        assertEquals(-1L, MachineLearning.machineMemoryFromStats(stats));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(0, 0));
+        assertEquals(0L, MachineLearning.machineMemoryFromStats(stats));
     }
 
     public void testMachineMemory_givenNoCgroup() throws IOException {

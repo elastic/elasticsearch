@@ -6,16 +6,17 @@
 
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
+abstract class DateTimeArithmeticOperation extends SqlArithmeticOperation {
 
     DateTimeArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(source, left, right, operation);
@@ -41,8 +42,8 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
             return TypeResolution.TYPE_RESOLVED;
         }
         // 2. 3. 4. intervals
-        if ((DataTypes.isInterval(l) || DataTypes.isInterval(r))) {
-            if (DataTypeConversion.commonType(l, r) == null) {
+        if (SqlDataTypes.isInterval(l) || SqlDataTypes.isInterval(r)) {
+            if (SqlDataTypeConverter.commonType(l, r) == null) {
                 return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
                 return resolveWithIntervals();
@@ -57,7 +58,8 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
         DataType l = left().dataType();
         DataType r = right().dataType();
 
-        if (!(r.isDateOrTimeBased() || DataTypes.isInterval(r))|| !(l.isDateOrTimeBased() || DataTypes.isInterval(l))) {
+        if ((SqlDataTypes.isDateOrTimeBased(r) || SqlDataTypes.isInterval(r) || DataTypes.isNull(r)) == false
+                || (SqlDataTypes.isDateOrTimeBased(l) || SqlDataTypes.isInterval(l) || DataTypes.isNull(l)) == false) {
             return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
         }
         return TypeResolution.TYPE_RESOLVED;

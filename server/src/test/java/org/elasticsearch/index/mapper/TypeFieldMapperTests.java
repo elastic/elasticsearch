@@ -30,7 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -59,7 +59,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     public static void testDocValues(Function<String, IndexService> createIndex) throws IOException {
         MapperService mapperService = createIndex.apply("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -67,10 +67,10 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         DirectoryReader r = DirectoryReader.open(w);
         w.close();
 
-        MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
+        MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
         IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
-        AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
+        LeafOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
         assertEquals(0, values.nextOrd());
@@ -84,7 +84,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(TypeFieldMapper.NAME)));
     }
 }

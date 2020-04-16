@@ -21,9 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -32,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -39,9 +38,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
-    public RestUpdateByQueryAction(Settings settings, RestController controller) {
-        super(settings, UpdateByQueryAction.INSTANCE);
-        controller.registerHandler(POST, "/{index}/_update_by_query", this);
+
+    public RestUpdateByQueryAction() {
+        super(UpdateByQueryAction.INSTANCE);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_update_by_query"));
     }
 
     @Override

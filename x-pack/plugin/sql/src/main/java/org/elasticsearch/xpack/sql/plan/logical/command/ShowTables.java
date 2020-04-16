@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -54,7 +53,7 @@ public class ShowTables extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public final void execute(SqlSession session, ActionListener<Page> listener) {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
@@ -63,7 +62,7 @@ public class ShowTables extends Command {
                 IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
         
         session.indexResolver().resolveNames(idx, regex, withFrozen, ActionListener.wrap(result -> {
-            listener.onResponse(Rows.of(output(), result.stream()
+            listener.onResponse(of(session, result.stream()
                  .map(t -> asList(t.name(), t.type().toSql(), t.type().toNative()))
                 .collect(toList())));
         }, listener::onFailure));

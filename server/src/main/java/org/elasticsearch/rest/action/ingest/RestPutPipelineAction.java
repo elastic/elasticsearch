@@ -23,20 +23,22 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 
 public class RestPutPipelineAction extends BaseRestHandler {
-    public RestPutPipelineAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ingest/pipeline/{id}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(PUT, "/_ingest/pipeline/{id}"));
     }
 
     @Override

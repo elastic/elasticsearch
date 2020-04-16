@@ -19,20 +19,16 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -65,7 +61,7 @@ public class Queries {
     }
 
     public static Query newNestedFilter() {
-        return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
+        return not(newNonNestedFilter());
     }
 
     /**

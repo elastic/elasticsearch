@@ -1,23 +1,29 @@
 {
-  "license.post_start_trial": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trial.html",
-    "stability": "stable",
-    "methods": ["POST"],
-    "url": {
-      "paths": ["/_license/start_trial"],
-      "parts" : {
-      },
-      "params": {
-        "type": {
-          "type" : "string",
-          "description" : "The type of trial license to generate (default: \"trial\")"
-        },
-        "acknowledge": {
-          "type" : "boolean",
-          "description" : "whether the user has acknowledged acknowledge messages (default: false)"
-        }
-      }
+  "license.post_start_trial":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trial.html",
+      "description":"starts a limited time trial license."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_license/start_trial",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "type":{
+        "type":"string",
+        "description":"The type of trial license to generate (default: \"trial\")"
+      },
+      "acknowledge":{
+        "type":"boolean",
+        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      }
+    }
   }
 }

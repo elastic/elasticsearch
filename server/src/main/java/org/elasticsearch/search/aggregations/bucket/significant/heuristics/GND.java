@@ -21,17 +21,24 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public class GND extends NXYSignificanceHeuristic {
     public static final String NAME = "gnd";
+    public static final ConstructingObjectParser<GND, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+        boolean backgroundIsSuperset = args[0] == null ? true : (boolean) args[0];
+        return new GND(backgroundIsSuperset);
+    });
+    static {
+        PARSER.declareBoolean(optionalConstructorArg(), BACKGROUND_IS_SUPERSET);
+    }
 
     public GND(boolean backgroundIsSuperset) {
         super(true, backgroundIsSuperset);
@@ -105,33 +112,7 @@ public class GND extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static final SignificanceHeuristicParser PARSER = new NXYParser() {
-        @Override
-        protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
-            return new GND(backgroundIsSuperset);
-        }
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryShardException {
-            String givenName = parser.currentName();
-            boolean backgroundIsSuperset = true;
-            XContentParser.Token token = parser.nextToken();
-            while (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (BACKGROUND_IS_SUPERSET.match(parser.currentName(), parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    backgroundIsSuperset = parser.booleanValue();
-                } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]",
-                            givenName, parser.currentName());
-                }
-                token = parser.nextToken();
-            }
-            return newHeuristic(true, backgroundIsSuperset);
-        }
-    };
-
     public static class GNDBuilder extends NXYBuilder {
-
         public GNDBuilder(boolean backgroundIsSuperset) {
             super(true, backgroundIsSuperset);
         }

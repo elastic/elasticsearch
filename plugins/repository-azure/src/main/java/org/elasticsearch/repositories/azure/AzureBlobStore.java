@@ -21,21 +21,22 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -50,7 +51,7 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
 
-    public AzureBlobStore(RepositoryMetaData metadata, AzureStorageService service, ThreadPool threadPool) {
+    public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, ThreadPool threadPool) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
@@ -65,6 +66,10 @@ public class AzureBlobStore implements BlobStore {
     @Override
     public String toString() {
         return container;
+    }
+
+    public AzureStorageService getService() {
+        return service;
     }
 
     /**
@@ -83,34 +88,35 @@ public class AzureBlobStore implements BlobStore {
     public void close() {
     }
 
-    public boolean containerExist() throws URISyntaxException, StorageException {
-        return service.doesContainerExist(clientName, container);
-    }
-
-    public boolean blobExists(String blob) throws URISyntaxException, StorageException {
+    public boolean blobExists(String blob) throws URISyntaxException, StorageException, IOException {
         return service.blobExists(clientName, container, blob);
     }
 
-    public void deleteBlob(String blob) throws URISyntaxException, StorageException {
+    public void deleteBlob(String blob) throws URISyntaxException, StorageException, IOException {
         service.deleteBlob(clientName, container, blob);
     }
 
-    public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException {
-        return service.getInputStream(clientName, container, blob);
+    public DeleteResult deleteBlobDirectory(String path, Executor executor)
+            throws URISyntaxException, StorageException, IOException {
+        return service.deleteBlobDirectory(clientName, container, path, executor);
     }
 
-    public Map<String, BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
-        throws URISyntaxException, StorageException {
+    public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
+        return service.getInputStream(clientName, container, blob, position, length);
+    }
+
+    public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix)
+        throws URISyntaxException, StorageException, IOException {
         return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
     }
 
-    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
+    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException, IOException {
         return Collections.unmodifiableMap(service.children(clientName, container, path).stream().collect(
             Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this, threadPool))));
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+        throws URISyntaxException, StorageException, IOException {
         service.writeBlob(this.clientName, container, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 }

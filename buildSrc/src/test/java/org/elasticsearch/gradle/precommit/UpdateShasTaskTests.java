@@ -2,11 +2,13 @@ package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,8 +45,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void whenDependencyDoesntExistThenShouldDeleteDependencySha()
-        throws IOException, NoSuchAlgorithmException {
+    public void whenDependencyDoesntExistThenShouldDeleteDependencySha() throws IOException, NoSuchAlgorithmException {
 
         File unusedSha = createFileIn(getLicensesDir(project), "test.sha1", "");
         task.updateShas();
@@ -53,23 +54,19 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile()
-        throws IOException, NoSuchAlgorithmException {
+    public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile() throws IOException, NoSuchAlgorithmException {
         project.getDependencies().add("compile", dependency);
 
         getLicensesDir(project).mkdir();
         task.updateShas();
 
-        Path groovySha = Files
-            .list(getLicensesDir(project).toPath())
-            .findFirst().get();
+        Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
 
         assertTrue(groovySha.toFile().getName().startsWith("groovy-all"));
     }
 
     @Test
-    public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile()
-        throws IOException, NoSuchAlgorithmException {
+    public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile() throws IOException, NoSuchAlgorithmException {
         project.getDependencies().add("compile", dependency);
 
         File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
@@ -82,8 +79,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void whenLicensesDirDoesntExistThenShouldThrowException()
-        throws IOException, NoSuchAlgorithmException {
+    public void whenLicensesDirDoesntExistThenShouldThrowException() throws IOException, NoSuchAlgorithmException {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("isn't a valid directory"));
 
@@ -117,20 +113,21 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     private UpdateShasTask createUpdateShasTask(Project project) {
-        UpdateShasTask task =  project.getTasks()
-            .register("updateShas", UpdateShasTask.class)
-            .get();
+        UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
 
         task.setParentTask(createDependencyLicensesTask(project));
         return task;
     }
 
-    private DependencyLicensesTask createDependencyLicensesTask(Project project) {
-        DependencyLicensesTask task =  project.getTasks()
-            .register("dependencyLicenses", DependencyLicensesTask.class)
-            .get();
+    private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
+        TaskProvider<DependencyLicensesTask> task = project.getTasks()
+            .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
+                @Override
+                public void execute(DependencyLicensesTask dependencyLicensesTask) {
+                    dependencyLicensesTask.setDependencies(getDependencies(project));
+                }
+            });
 
-        task.setDependencies(getDependencies(project));
         return task;
     }
 

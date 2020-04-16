@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -183,9 +183,8 @@ public final class InternalBinaryRange
     protected final boolean keyed;
     private final List<Bucket> buckets;
 
-    public InternalBinaryRange(String name, DocValueFormat format, boolean keyed, List<Bucket> buckets,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalBinaryRange(String name, DocValueFormat format, boolean keyed, List<Bucket> buckets, Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = format;
         this.keyed = keyed;
         this.buckets = buckets;
@@ -220,7 +219,7 @@ public final class InternalBinaryRange
 
     @Override
     public InternalBinaryRange create(List<Bucket> buckets) {
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData);
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override
@@ -229,7 +228,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
         long[] docCounts = new long[buckets.size()];
         InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
@@ -253,7 +252,15 @@ public final class InternalBinaryRange
             buckets.add(new Bucket(format, keyed, b.key, b.from, b.to, docCounts[i],
                     InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData);
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
+    }
+
+    @Override
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(aggs, buckets.get(0));
     }
 
     @Override
@@ -275,16 +282,20 @@ public final class InternalBinaryRange
         return builder;
     }
 
+
     @Override
-    public boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalBinaryRange that = (InternalBinaryRange) obj;
         return Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)
             && Objects.equals(keyed, that.keyed);
     }
 
-    @Override
-    public int doHashCode() {
-        return Objects.hash(buckets, format, keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, keyed);
     }
 }

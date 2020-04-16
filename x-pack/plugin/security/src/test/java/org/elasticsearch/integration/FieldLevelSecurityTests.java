@@ -156,12 +156,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text",
             "field2", "type=text",
             "field3", "type=text",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -313,17 +313,17 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .get();
 
         boolean realtime = randomBoolean();
         // user1 is granted access to field1 only:
         GetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -333,7 +333,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user2 is granted access to field2 only:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -343,7 +343,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user3 is granted access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -354,7 +354,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user4 is granted access to no fields, so the get response does say the doc exist, but no fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -363,7 +363,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user5 has no field level security configured, so all fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -375,7 +375,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user6 has access to field*
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -387,7 +387,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user7 has roles with field level security and without field level security
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -399,7 +399,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         // user8 has roles with field level security with access to field1 and field2
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -411,16 +411,16 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMGetApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
 
         boolean realtime = randomBoolean();
         // user1 is granted access to field1 only:
         MultiGetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -432,7 +432,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user2 is granted access to field2 only:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -444,7 +444,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user3 is granted access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -457,7 +457,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user4 is granted access to no fields, so the get response does say the doc exist, but no fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -468,7 +468,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user5 has no field level security configured, so all fields are returned:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -482,7 +482,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user6 has access to field*
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -496,7 +496,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user7 has roles with field level security and without field level security
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -510,7 +510,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user8 has roles with field level security with access to field1 and field2
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -523,15 +523,15 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMSearchApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
         assertAcked(client().admin().indices().prepareCreate("test2")
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
-        client().prepareIndex("test1", "type1", "1")
+        client().prepareIndex("test1").setId("1")
                 .setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
-        client().prepareIndex("test2", "type1", "1")
+        client().prepareIndex("test2").setId("1")
                 .setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
         client().admin().indices().prepareRefresh("test1", "test2").get();
 
@@ -673,12 +673,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testScroll() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
         final int numDocs = scaledRandomIntBetween(2, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "type1", String.valueOf(i))
+            client().prepareIndex("test").setId(String.valueOf(i))
                     .setSource("field1", "value1", "field2", "value2", "field3", "value3")
                     .get();
         }
@@ -725,9 +725,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -763,9 +763,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testRequestCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -803,12 +803,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testFields() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text,store=true",
             "field2", "type=text,store=true",
             "field3", "type=text,store=true",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -919,9 +919,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -991,11 +991,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testSort() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=long",
             "field2", "type=long",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", 1d, "field2", 2d)
+        client().prepareIndex("test").setId("1").setSource("field1", 1d, "field2", 2d)
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1045,12 +1045,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
      public void testHighlighting() {
-         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+         assertAcked(client().admin().indices().prepareCreate("test").setMapping(
              "field1", "type=text",
              "field2", "type=text",
              "field3", "type=text",
              "alias", "type=alias,path=field1"));
-         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
              .setRefreshPolicy(IMMEDIATE)
              .get();
 
@@ -1098,11 +1098,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
      }
 
     public void testAggs() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text,fielddata=true",
             "field2", "type=text,fielddata=true",
             "alias", "type=alias,path=field1"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1153,11 +1153,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                        .setMapping("field1", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field2", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1237,11 +1237,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testMTVApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets_payloads",
+                        .setMapping("field1", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field2", "type=text,term_vector=with_positions_offsets_payloads",
                                 "field3", "type=text,term_vector=with_positions_offsets_payloads")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1346,22 +1346,22 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("test")
-              .addMapping("doc", mapping));
+              .setMapping(mapping));
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test", "doc", "p1").setSource("join_field", "parent").get();
+        client().prepareIndex("test").setId("p1").setSource("join_field", "parent").get();
         Map<String, Object> source = new HashMap<>();
         source.put("field1", "red");
         Map<String, Object> joinField = new HashMap<>();
         joinField.put("name", "child");
         joinField.put("parent", "p1");
         source.put("join_field", joinField);
-        client().prepareIndex("test", "doc", "c1").setSource(source).setRouting("p1").get();
+        client().prepareIndex("test").setId("c1").setSource(source).setRouting("p1").get();
         source = new HashMap<>();
         source.put("field1", "yellow");
         source.put("join_field", joinField);
-        client().prepareIndex("test", "doc", "c2").setSource(source).setRouting("p1").get();
+        client().prepareIndex("test").setId("c2").setSource(source).setRouting("p1").get();
         refresh();
         verifyParentChild();
     }
@@ -1403,9 +1403,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testUpdateApiIsBlocked() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type", "field1", "type=text", "field2", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource("field1", "value1", "field2", "value1")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -1413,25 +1413,25 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // With field level security enabled the update is not allowed:
         try {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                    .prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
+                    .prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
                     .get();
             fail("failed, because update request shouldn't be allowed if field level security is enabled");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(), equalTo("Can't execute an update request if field or document level security is enabled"));
         }
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value1"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value1"));
 
         // With no field level security enabled the update is allowed:
-        client().prepareUpdate("test", "type", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
+        client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
                 .get();
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
         // With field level security enabled the update in bulk is not allowed:
         BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue
                 ("user1", USERS_PASSWD)))
                 .prepareBulk()
-                .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
+                .add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
                 .get();
         assertEquals(1, bulkResponse.getItems().length);
         BulkItemResponse bulkItem = bulkResponse.getItems()[0];
@@ -1442,18 +1442,18 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(securityException.getMessage(),
                 equalTo("Can't execute a bulk item request with update requests embedded if field or document level security is enabled"));
 
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
         client().prepareBulk()
-                .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
+                .add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
                 .get();
-        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value3"));
+        assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value3"));
     }
 
     public void testQuery_withRoleWithFieldWildcards() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+                        .setMapping("field1", "type=text", "field2", "type=text"));
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -1479,13 +1479,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testExistQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1",
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(
             "field1", "type=text",
             "field2", "type=text",
             "field3", "type=text",
             "alias", "type=alias,path=field1"));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 

@@ -1,21 +1,29 @@
 {
-  "ml.put_job": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html",
-    "stability": "stable",
-    "methods": [ "PUT" ],
-    "url": {
-      "paths": [ "/_ml/anomaly_detectors/{job_id}" ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to create"
-        }
-      }
+  "ml.put_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html",
+      "description":"Instantiates an anomaly detection job."
     },
-    "body": {
-      "description" : "The job",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The job",
+      "required":true
     }
   }
 }

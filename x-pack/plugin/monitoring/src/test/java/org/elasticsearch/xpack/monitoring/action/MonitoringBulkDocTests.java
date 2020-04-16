@@ -147,7 +147,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
         final int iterations = randomIntBetween(5, 50);
         for (int i = 0; i < iterations; i++) {
             final MonitoringBulkDoc original = randomMonitoringBulkDoc(random());
-            final MonitoringBulkDoc deserialized = copyWriteable(original, registry, MonitoringBulkDoc::readFrom);
+            final MonitoringBulkDoc deserialized = copyWriteable(original, registry, MonitoringBulkDoc::new);
 
             assertEquals(original, deserialized);
             assertEquals(original.hashCode(), deserialized.hashCode());

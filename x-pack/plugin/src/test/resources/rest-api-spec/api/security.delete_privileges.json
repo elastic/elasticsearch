@@ -1,32 +1,40 @@
 {
-  "security.delete_privileges": {
-    "documentation": "TODO",
-    "stability": "stable",
-    "methods": [ "DELETE" ],
-    "url": {
-      "paths": [
-        "/_security/privilege/{application}/{name}"
-      ],
-      "parts": {
-        "application": {
-          "type" : "string",
-          "description" : "Application name",
-          "required" : true
-        },
-        "name": {
-          "type" : "string",
-          "description" : "Privilege name",
-          "required" : true
-        }
-      },
-      "params": {
-        "refresh": {
-          "type" : "enum",
-          "options": ["true", "false", "wait_for"],
-          "description" : "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
-        }
-      }
+  "security.delete_privileges":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html",
+      "description":"Removes application privileges."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/privilege/{application}/{name}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "application":{
+              "type":"string",
+              "description":"Application name"
+            },
+            "name":{
+              "type":"string",
+              "description":"Privilege name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    }
   }
 }

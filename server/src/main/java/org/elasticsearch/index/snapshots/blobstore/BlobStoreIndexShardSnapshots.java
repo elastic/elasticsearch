@@ -44,6 +44,8 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
 
+    public static final BlobStoreIndexShardSnapshots EMPTY = new BlobStoreIndexShardSnapshots(Collections.emptyList());
+
     private final List<SnapshotFiles> shardSnapshots;
     private final Map<String, FileInfo> files;
     private final Map<String, List<FileInfo>> physicalFiles;
@@ -133,6 +135,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     static final class ParseFields {
         static final ParseField FILES = new ParseField("files");
+        static final ParseField SHARD_STATE_ID = new ParseField("shard_state_id");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
 
@@ -205,6 +208,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 builder.value(fileInfo.name());
             }
             builder.endArray();
+            if (snapshot.shardStateIdentifier() != null) {
+                builder.field(ParseFields.SHARD_STATE_ID.getPreferredName(), snapshot.shardStateIdentifier());
+            }
             builder.endObject();
         }
         builder.endObject();
@@ -217,6 +223,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             token = parser.nextToken();
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
+        Map<String, String> historyUUIDs = new HashMap<>();
+        Map<String, Long> globalCheckpoints = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -248,15 +256,16 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
-                                if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                    if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                                        throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
-                                    }
+                                if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) &&
+                                    parser.nextToken() == XContentParser.Token.START_ARRAY) {
                                     List<String> fileNames = new ArrayList<>();
                                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                         fileNames.add(parser.text());
                                     }
                                     snapshotsMap.put(snapshot, fileNames);
+                                } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                                    parser.nextToken();
+                                    historyUUIDs.put(snapshot, parser.text());
                                 }
                             }
                         }
@@ -275,7 +284,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 assert fileInfo != null;
                 fileInfosBuilder.add(fileInfo);
             }
-            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder)));
+            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder),
+                historyUUIDs.get(entry.getKey())));
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
     }

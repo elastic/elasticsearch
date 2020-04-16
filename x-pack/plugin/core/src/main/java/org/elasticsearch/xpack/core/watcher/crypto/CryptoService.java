@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.watcher.crypto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -22,7 +22,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
@@ -79,11 +78,16 @@ public class CryptoService {
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        SecretKey systemKey = readSystemKey(WatcherField.ENCRYPTION_KEY_SETTING.get(settings));
-        try {
-            encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
-        } catch (NoSuchAlgorithmException nsae) {
-            throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+        try (InputStream in = WatcherField.ENCRYPTION_KEY_SETTING.get(settings)) {
+            if (in == null) {
+                throw new ElasticsearchException("setting [" + WatcherField.ENCRYPTION_KEY_SETTING.getKey() + "] must be set in keystore");
+            }
+            SecretKey systemKey = readSystemKey(in);
+            try {
+                encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+            } catch (NoSuchAlgorithmException nsae) {
+                throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+            }
         }
         assert encryptionKey != null : "the encryption key should never be null";
     }

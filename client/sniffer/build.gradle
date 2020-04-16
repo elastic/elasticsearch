@@ -18,7 +18,6 @@
  */
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -49,12 +48,12 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //client does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
@@ -69,7 +68,7 @@ dependencyLicenses {
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
-jarHell.enabled=false
+jarHell.enabled = false
 
 testingConventions {
   naming.clear()
@@ -80,14 +79,13 @@ testingConventions {
   }
 }
 
-
 dependencyLicenses {
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',

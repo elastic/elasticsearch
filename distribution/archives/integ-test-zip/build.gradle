@@ -17,7 +17,7 @@
  * under the License.
  */
 
-integTestRunner {
+integTest.runner {
   /*
    * There are two unique things going on here:
    * 1. These tests can be run against an external cluster with
@@ -27,7 +27,7 @@ integTestRunner {
    */
   if (System.getProperty("tests.rest.cluster") == null) {
     nonInputProperties.systemProperty 'tests.logfile',
-      "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_server.json"
+      "${-> testClusters.integTest.singleNode().getServerLog()}"
   } else {
     systemProperty 'tests.logfile', '--external--'
   }

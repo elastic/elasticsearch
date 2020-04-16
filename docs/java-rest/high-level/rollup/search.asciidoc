@@ -3,7 +3,7 @@
 :request: SearchRequest
 :response: SearchResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Rollup Search API
 

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-metricbeat]]
-=== Collecting {es} monitoring data with {metricbeat}
+== Collecting {es} monitoring data with {metricbeat}
 
 [subs="attributes"]
 ++++
@@ -14,9 +14,6 @@ as described in <<collecting-monitoring-data>>.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 
-To learn about monitoring in general, see 
-{stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 
-
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
 . Enable the collection of monitoring data. +
@@ -28,7 +25,7 @@ production cluster. By default, it is is disabled (`false`).
 
 You can use the following APIs to review and change this setting:
 
-[source,js]
+[source,console]
 ----------------------------------
 GET _cluster/settings
 
@@ -38,8 +35,7 @@ PUT _cluster/settings
     "xpack.monitoring.collection.enabled": true
   }
 }
-----------------------------------
-// CONSOLE 
+---------------------------------- 
 
 If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
 view the cluster settings and `manage` cluster privileges to change them.
@@ -107,9 +103,9 @@ If Elastic {security-features} are enabled, you must also provide a user ID
 and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the
-{stack-ov}/built-in-roles.html[`remote_monitoring_collector` built-in role]. 
+<<built-in-roles,`remote_monitoring_collector` built-in role>>. 
 Alternatively, use the
-{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+<<built-in-users,`remote_monitoring_user` built-in user>>.
 
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
@@ -172,9 +168,9 @@ provide a valid user ID and password so that {metricbeat} can send metrics
 successfully: 
 
 .. Create a user on the monitoring cluster that has the 
-{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
 Alternatively, use the 
-{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+<<built-in-users,`remote_monitoring_user` built-in user>>.
 
 .. Add the `username` and `password` settings to the {es} output information in 
 the {metricbeat} configuration file.
@@ -194,7 +190,7 @@ production cluster.
 
 You can use the following API to change this setting:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _cluster/settings
 {
@@ -203,7 +199,6 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
-// CONSOLE
 
 If {es} {security-features} are enabled, you must have `monitor` cluster
 privileges to  view the cluster settings and `manage` cluster privileges

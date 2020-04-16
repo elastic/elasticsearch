@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -55,12 +55,26 @@ import java.util.Map;
 /**
  * Global information on indices stats running on a specific node.
  */
-public class NodeIndicesStats implements Streamable, ToXContentFragment {
+public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     private CommonStats stats;
     private Map<Index, List<IndexShardStats>> statsByShard;
 
-    NodeIndicesStats() {
+    public NodeIndicesStats(StreamInput in) throws IOException {
+        stats = new CommonStats(in);
+        if (in.readBoolean()) {
+            int entries = in.readVInt();
+            statsByShard = new HashMap<>();
+            for (int i = 0; i < entries; i++) {
+                Index index = new Index(in);
+                int indexShardListSize = in.readVInt();
+                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
+                for (int j = 0; j < indexShardListSize; j++) {
+                    indexShardStats.add(new IndexShardStats(in));
+                }
+                statsByShard.put(index, indexShardStats);
+            }
+        }
     }
 
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard) {
@@ -156,30 +170,6 @@ public class NodeIndicesStats implements Streamable, ToXContentFragment {
     @Nullable
     public RecoveryStats getRecoveryStats() {
         return stats.getRecoveryStats();
-    }
-
-    public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {
-        NodeIndicesStats stats = new NodeIndicesStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        stats = new CommonStats(in);
-        if (in.readBoolean()) {
-            int entries = in.readVInt();
-            statsByShard = new HashMap<>();
-            for (int i = 0; i < entries; i++) {
-                Index index = new Index(in);
-                int indexShardListSize = in.readVInt();
-                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
-                for (int j = 0; j < indexShardListSize; j++) {
-                    indexShardStats.add(IndexShardStats.readIndexShardStats(in));
-                }
-                statsByShard.put(index, indexShardStats);
-            }
-        }
     }
 
     @Override

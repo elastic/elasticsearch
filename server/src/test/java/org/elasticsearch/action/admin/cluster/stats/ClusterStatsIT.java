@@ -66,6 +66,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -76,9 +77,13 @@ public class ClusterStatsIT extends ESIntegTestCase {
             boolean isDataNode = randomBoolean();
             boolean isMasterNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            Settings settings = Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
-                    .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode).put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
-                    .build();
+            boolean isRemoteClusterClientNode = randomBoolean();
+            Settings settings = Settings.builder()
+                .put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
+                .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode)
+                .put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
+                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), isRemoteClusterClientNode)
+                .build();
             internalCluster().startNode(settings);
             total++;
             waitForNodes(total);
@@ -92,7 +97,10 @@ public class ClusterStatsIT extends ESIntegTestCase {
             if (isIngestNode) {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
-            if (!isDataNode && !isMasterNode && !isIngestNode) {
+            if (isRemoteClusterClientNode) {
+                incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
+            }
+            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
@@ -134,7 +142,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         // add another node, replicas should get assigned
         internalCluster().startNode();
         ensureGreen();
-        index("test1", "type", "1", "f", "f");
+        indexDoc("test1", "1", "f", "f");
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
@@ -164,7 +172,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startNodes(randomIntBetween(1, 3));
-        index("test1", "type", "1", "f", "f");
+        indexDoc("test1", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();
@@ -203,7 +211,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
-        internalCluster().startNode(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build());
+        internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

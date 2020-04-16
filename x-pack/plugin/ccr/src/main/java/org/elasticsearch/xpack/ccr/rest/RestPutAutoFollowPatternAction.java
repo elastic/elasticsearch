@@ -6,23 +6,23 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.Request;
 
 import java.io.IOException;
+import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction.INSTANCE;
 
 public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
-    public RestPutAutoFollowPatternAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ccr/auto_follow/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(PUT, "/_ccr/auto_follow/{name}"));
     }
 
     @Override
@@ -36,7 +36,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
-    static Request createRequest(RestRequest restRequest) throws IOException {
+    private static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
             return Request.fromXContent(parser, restRequest.param("name"));
         }

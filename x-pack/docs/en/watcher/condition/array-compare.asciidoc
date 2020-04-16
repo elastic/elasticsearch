@@ -1,19 +1,20 @@
+[role="xpack"]
 [[condition-array-compare]]
-=== Array Compare Condition
+=== Array compare condition
 
 Use `array_compare` to compare an array of values in the execution context to a 
-given value. See <<condition-compare-operators, Supported Comparison Operators>>
+given value. See <<condition-compare-operators>>
 for the operators you can use. 
 
 
 
-==== Using an Array Compare Condition
+==== Using an array compare condition
 
 To use the `array_compare` condition, you specify the array in the execution 
-context that you want to evaluate, a <<condition-compare-operators,comparison 
-operator>>, and the value you want to compare against. Optionally, you 
-can specify the path to the field in each array element that you want to 
-evaluate. 
+context that you want to evaluate, a
+<<condition-compare-operators,comparison operator>>, and the value you want to
+compare against. Optionally, you can specify the path to the field in each array
+element that you want to evaluate. 
 
 For example, the following `array_compare` condition returns `true` if there 
 is at least one bucket in the aggregation that has a `doc_count` greater
@@ -38,14 +39,14 @@ than or equal to 25:
 <1> The path to the array in the execution
     context that you want to evaluate, specified in dot notation.
 <2> The path to the field in each array element that you want to evaluate.
-<3> The <<condition-compare-operators, comparison operator>> to use.
+<3> The <<condition-compare-operators,comparison operator>> to use.
 <4> The comparison value. Supports date math like the 
-    <<compare-condition-date-math, compare condition>>.
+    <<compare-condition-date-math,compare condition>>.
 
 NOTE: When using fieldnames that contain a dot this condition will not
 work, use a <<condition-script,script condition>> instead.
 
-==== Array-Compare Condition Attributes
+==== Array-compare condition attributes
 
 [options="header"]
 |======

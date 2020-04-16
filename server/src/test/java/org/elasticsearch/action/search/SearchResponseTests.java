@@ -21,14 +21,14 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -180,7 +180,7 @@ public class SearchResponseTests extends ESTestCase {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
+            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetadata.INDEX_UUID_NA_VALUE);
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
@@ -207,7 +207,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {
@@ -233,7 +233,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -268,7 +268,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -291,5 +291,14 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
         assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+    }
+
+    public void testToXContentEmptyClusters() throws IOException {
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, 1,
+            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(0, Strings.toString(builder).length());
     }
 }

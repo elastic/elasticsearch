@@ -26,9 +26,7 @@ an _ELSE *default_result_* clause. Every *condition* should be a boolean express
 the *default_result* if all _WHEN *condition_* clauses evaluate to `false`. If the optional _ELSE *default_result_*
 clause is missing and all _WHEN *condition_* clauses evaluate to `false` then `null` is returned.
 
-.Description
-
-The CASE expression is a generic conditional expression which simulates if/else statements of other programming languages
+*Description*: The CASE expression is a generic conditional expression which simulates if/else statements of other programming languages
 If the condition’s result is true, the value of the result expression that follows the condition will be the returned
 the subsequent when clauses will be skipped and not processed.
 
@@ -148,9 +146,7 @@ COALESCE can take an arbitrary number of arguments.
 
 *Output*: one of the expressions or `null`
 
-.Description
-
-Returns the first of its arguments that is not null.
+*Description*: Returns the first of its arguments that is not null.
 If all arguments are null, then it returns `null`.
 
 
@@ -192,9 +188,7 @@ all of them must be of the same data type.
 
 *Output*: one of the expressions or `null`
 
-.Description
-
-Returns the argument that has the largest value which is not null.
+*Description*: Returns the argument that has the largest value which is not null.
 If all arguments are null, then it returns `null`.
 
 
@@ -229,9 +223,7 @@ IFNULL(
 
 *Output*: 2nd expression if 1st expression is null, otherwise 1st expression.
 
-.Description
-
-Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
+*Description*: Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
 Returns the first of its arguments that is not null.
 If all arguments are null, then it returns `null`.
 
@@ -248,7 +240,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnSecond]
 ----
 
 [[sql-functions-conditional-iif]]
-==== `IFF`
+==== `IIF`
 
 .Synopsis:
 [source, sql]
@@ -270,9 +262,7 @@ IIF(
 *Output*: 2nd expression if 1st expression (condition) evaluates to `true`. If it evaluates to `false`
 return 3rd expression. If 3rd expression is not provided return `null`.
 
-.Description
-
-Conditional function that implements the standard _IF <condition> THEN <result1> ELSE <result2>_
+*Description*: Conditional function that implements the standard _IF <condition> THEN <result1> ELSE <result2>_
 logic of programming languages. If the 3rd expression is not provided and the condition evaluates to `false`,
 `null` is returned.
 
@@ -317,9 +307,7 @@ ISNULL(
 
 *Output*: 2nd expression if 1st expression is null, otherwise 1st expression.
 
-.Description
-
-Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
+*Description*: Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
 Returns the first of its arguments that is not null.
 If all arguments are null, then it returns `null`.
 
@@ -363,9 +351,7 @@ all of them must be of the same data type.
 
 *Output*: one of the expressions or `null`
 
-.Description
-
-Returns the argument that has the smallest value which is not null.
+*Description*: Returns the argument that has the smallest value which is not null.
 If all arguments are null, then it returns `null`.
 
 
@@ -401,9 +387,7 @@ NULLIF(
 
 *Output*: `null` if the 2 expressions are equal, otherwise the 1st expression.
 
-.Description
-
-Returns `null` when the two input expressions are equal and
+*Description*: Returns `null` when the two input expressions are equal and
 if not, it returns the 1st expression.
 
 
@@ -438,9 +422,7 @@ NVL(
 
 *Output*: 2nd expression if 1st expression is null, otherwise 1st expression.
 
-.Description
-
-Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
+*Description*: Variant of <<sql-functions-conditional-coalesce>> with only two arguments.
 Returns the first of its arguments that is not null.
 If all arguments are null, then it returns `null`.
 

@@ -31,6 +31,29 @@ public class TimeValue implements Comparable<TimeValue> {
     public static final TimeValue MINUS_ONE = timeValueMillis(-1);
     public static final TimeValue ZERO = timeValueMillis(0);
 
+    private static final long C0 = 1L;
+    private static final long C1 = C0 * 1000L;
+    private static final long C2 = C1 * 1000L;
+    private static final long C3 = C2 * 1000L;
+    private static final long C4 = C3 * 60L;
+    private static final long C5 = C4 * 60L;
+    private static final long C6 = C5 * 24L;
+
+    private final long duration;
+    private final TimeUnit timeUnit;
+
+    public TimeValue(long millis) {
+        this(millis, TimeUnit.MILLISECONDS);
+    }
+
+    public TimeValue(long duration, TimeUnit timeUnit) {
+        if (duration < -1) {
+            throw new IllegalArgumentException("duration cannot be negative, was given [" + duration + "]");
+        }
+        this.duration = duration;
+        this.timeUnit = timeUnit;
+    }
+
     public static TimeValue timeValueNanos(long nanos) {
         return new TimeValue(nanos, TimeUnit.NANOSECONDS);
     }
@@ -51,16 +74,13 @@ public class TimeValue implements Comparable<TimeValue> {
         return new TimeValue(hours, TimeUnit.HOURS);
     }
 
-    private final long duration;
-
-    /**
-     * @return the number of {@link #timeUnit()} units this value contains
-     */
-    public long duration() {
-        return duration;
+    public static TimeValue timeValueDays(long days) {
+        // 106751.9 days is Long.MAX_VALUE nanoseconds, so we cannot store 106752 days
+        if (days > 106751) {
+            throw new IllegalArgumentException("time value cannot store values greater than 106751 days");
+        }
+        return new TimeValue(days, TimeUnit.DAYS);
     }
-
-    private final TimeUnit timeUnit;
 
     /**
      * @return the unit used for the this time value, see {@link #duration()}
@@ -69,13 +89,11 @@ public class TimeValue implements Comparable<TimeValue> {
         return timeUnit;
     }
 
-    public TimeValue(long millis) {
-        this(millis, TimeUnit.MILLISECONDS);
-    }
-
-    public TimeValue(long duration, TimeUnit timeUnit) {
-        this.duration = duration;
-        this.timeUnit = timeUnit;
+    /**
+     * @return the number of {@link #timeUnit()} units this value contains
+     */
+    public long duration() {
+        return duration;
     }
 
     public long nanos() {
@@ -186,10 +204,32 @@ public class TimeValue implements Comparable<TimeValue> {
      * Returns a {@link String} representation of the current {@link TimeValue}.
      *
      * Note that this method might produce fractional time values (ex 1.6m) which cannot be
-     * parsed by method like {@link TimeValue#parse(String, String, String)}.
+     * parsed by method like {@link TimeValue#parse(String, String, String, String)}.
+     *
+     * Also note that the maximum string value that will be generated is
+     * {@code 106751.9d} due to the way that values are internally converted
+     * to nanoseconds (106751.9 days is Long.MAX_VALUE nanoseconds)
      */
     @Override
     public String toString() {
+        return this.toHumanReadableString(1);
+    }
+
+    /**
+     * Returns a {@link String} representation of the current {@link TimeValue}.
+     *
+     * Note that this method might produce fractional time values (ex 1.6m) which cannot be
+     * parsed by method like {@link TimeValue#parse(String, String, String, String)}. The number of
+     * fractional decimals (up to 10 maximum) are truncated to the number of fraction pieces
+     * specified.
+     *
+     * Also note that the maximum string value that will be generated is
+     * {@code 106751.9d} due to the way that values are internally converted
+     * to nanoseconds (106751.9 days is Long.MAX_VALUE nanoseconds)
+     *
+     * @param fractionPieces the number of decimal places to include
+     */
+    public String toHumanReadableString(int fractionPieces) {
         if (duration < 0) {
             return Long.toString(duration);
         }
@@ -218,25 +258,68 @@ public class TimeValue implements Comparable<TimeValue> {
             value = microsFrac();
             suffix = "micros";
         }
-        return formatDecimal(value) + suffix;
+        // Limit fraction pieces to a min of 0 and maximum of 10
+        return formatDecimal(value, Math.min(10, Math.max(0, fractionPieces))) + suffix;
     }
 
-    private static String formatDecimal(double value) {
+    private static String formatDecimal(double value, int fractionPieces) {
         String p = String.valueOf(value);
+        int totalLength = p.length();
         int ix = p.indexOf('.') + 1;
         int ex = p.indexOf('E');
-        char fraction = p.charAt(ix);
-        if (fraction == '0') {
+        // Location where the fractional values end
+        int fractionEnd = ex == -1 ? Math.min(ix + fractionPieces, totalLength) : ex;
+
+        // Determine the value of the fraction, so if it were .000 the
+        // actual long value is 0, in which case, it can be elided.
+        long fractionValue;
+        try {
+            fractionValue = Long.parseLong(p.substring(ix, fractionEnd));
+        } catch (NumberFormatException e) {
+            fractionValue = 0;
+        }
+
+        if (fractionValue == 0 || fractionPieces <= 0) {
+            // Either the part of the fraction we were asked to report is
+            // zero, or the user requested 0 fraction pieces, so return
+            // only the integral value
             if (ex != -1) {
                 return p.substring(0, ix - 1) + p.substring(ex);
             } else {
                 return p.substring(0, ix - 1);
             }
         } else {
+            // Build up an array of fraction characters, without going past
+            // the end of the string. This keeps track of trailing '0' chars
+            // that should be truncated from the end to avoid getting a
+            // string like "1.3000d" (returning "1.3d" instead) when the
+            // value is 1.30000009
+            char[] fractions = new char[fractionPieces];
+            int fracCount = 0;
+            int truncateCount = 0;
+            for (int i = 0; i < fractionPieces; i++) {
+                int position = ix + i;
+                if (position >= fractionEnd) {
+                    // No more pieces, the fraction has ended
+                    break;
+                }
+                char fraction = p.charAt(position);
+                if (fraction == '0') {
+                    truncateCount++;
+                } else {
+                    truncateCount = 0;
+                }
+                fractions[i] = fraction;
+                fracCount++;
+            }
+
+            // Generate the fraction string from the char array, truncating any trailing zeros
+            String fractionStr = new String(fractions, 0, fracCount - truncateCount);
+
             if (ex != -1) {
-                return p.substring(0, ix) + fraction + p.substring(ex);
+                return p.substring(0, ix) + fractionStr + p.substring(ex);
             } else {
-                return p.substring(0, ix) + fraction;
+                return p.substring(0, ix) + fractionStr;
             }
         }
     }
@@ -278,20 +361,20 @@ public class TimeValue implements Comparable<TimeValue> {
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, "nanos"), TimeUnit.NANOSECONDS);
+            return new TimeValue(parse(sValue, normalized, "nanos", settingName), TimeUnit.NANOSECONDS);
         } else if (normalized.endsWith("micros")) {
-            return new TimeValue(parse(sValue, normalized, "micros"), TimeUnit.MICROSECONDS);
+            return new TimeValue(parse(sValue, normalized, "micros", settingName), TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, "ms"), TimeUnit.MILLISECONDS);
+            return new TimeValue(parse(sValue, normalized, "ms", settingName), TimeUnit.MILLISECONDS);
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, "s"), TimeUnit.SECONDS);
+            return new TimeValue(parse(sValue, normalized, "s", settingName), TimeUnit.SECONDS);
         } else if (sValue.endsWith("m")) {
             // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
-            return new TimeValue(parse(sValue, normalized, "m"), TimeUnit.MINUTES);
+            return new TimeValue(parse(sValue, normalized, "m", settingName), TimeUnit.MINUTES);
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, "h"), TimeUnit.HOURS);
+            return new TimeValue(parse(sValue, normalized, "h", settingName), TimeUnit.HOURS);
         } else if (normalized.endsWith("d")) {
-            return new TimeValue(parse(sValue, normalized, "d"), TimeUnit.DAYS);
+            return new TimeValue(parse(sValue, normalized, "d", settingName), TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {
@@ -303,10 +386,16 @@ public class TimeValue implements Comparable<TimeValue> {
         }
     }
 
-    private static long parse(final String initialInput, final String normalized, final String suffix) {
+    private static long parse(final String initialInput, final String normalized, final String suffix, String settingName) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
-            return Long.parseLong(s);
+            final long value = Long.parseLong(s);
+            if (value < -1) {
+                // -1 is magic, but reject any other negative values
+                throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + initialInput +
+                    "] as a time value: negative durations are not supported");
+            }
+            return value;
         } catch (final NumberFormatException e) {
             try {
                 @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);
@@ -316,14 +405,6 @@ public class TimeValue implements Comparable<TimeValue> {
             }
         }
     }
-
-    private static final long C0 = 1L;
-    private static final long C1 = C0 * 1000L;
-    private static final long C2 = C1 * 1000L;
-    private static final long C3 = C2 * 1000L;
-    private static final long C4 = C3 * 60L;
-    private static final long C5 = C4 * 60L;
-    private static final long C6 = C5 * 24L;
 
     @Override
     public boolean equals(Object o) {

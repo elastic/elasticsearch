@@ -51,12 +51,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,7 +84,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         byte[] bytes = new byte[256];
         for (int i = 0; i < 256; ++i) {
-            bytes[i] = (byte)i;
+            bytes[i] = (byte) i;
         }
         keystore.setFile("foo", bytes);
         keystore.save(env.configFile(), new char[0]);
@@ -108,9 +111,21 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.save(env.configFile(), new char[0]);
         final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
-        final SecurityException exception = expectThrows(SecurityException.class,
-            () -> loadedkeystore.decrypt(new char[]{'i', 'n', 'v', 'a', 'l', 'i', 'd'}));
-        assertThat(exception.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+        final SecurityException exception = expectThrows(
+            SecurityException.class,
+            () -> loadedkeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
+        );
+        if (inFipsJvm()) {
+            assertThat(
+                exception.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {
@@ -121,9 +136,32 @@ public class KeyStoreWrapperTests extends ESTestCase {
         keystore.close();
 
         assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
-        final IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()));
+        final IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey())
+        );
         assertThat(exception.getMessage(), containsString("closed"));
+    }
+
+    public void testValueSHA256Digest() throws Exception {
+        final KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        final String stringSettingKeyName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT) + "1";
+        final String stringSettingValue = randomAlphaOfLength(32);
+        keystore.setString(stringSettingKeyName, stringSettingValue.toCharArray());
+        final String fileSettingKeyName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT) + "2";
+        final byte[] fileSettingValue = randomByteArrayOfLength(32);
+        keystore.setFile(fileSettingKeyName, fileSettingValue);
+
+        final byte[] stringSettingHash = MessageDigest.getInstance("SHA-256").digest(stringSettingValue.getBytes(StandardCharsets.UTF_8));
+        assertThat(keystore.getSHA256Digest(stringSettingKeyName), equalTo(stringSettingHash));
+        final byte[] fileSettingHash = MessageDigest.getInstance("SHA-256").digest(fileSettingValue);
+        assertThat(keystore.getSHA256Digest(fileSettingKeyName), equalTo(fileSettingHash));
+
+        keystore.close();
+
+        // value hashes accessible even when the keystore is closed
+        assertThat(keystore.getSHA256Digest(stringSettingKeyName), equalTo(stringSettingHash));
+        assertThat(keystore.getSHA256Digest(fileSettingKeyName), equalTo(fileSettingHash));
     }
 
     public void testUpgradeNoop() throws Exception {
@@ -269,9 +307,13 @@ public class KeyStoreWrapperTests extends ESTestCase {
         output.write(secret_value);
     }
 
-    private void possiblyAlterEncryptedBytes(IndexOutput indexOutput, byte[] salt, byte[] iv, byte[] encryptedBytes, int
-        truncEncryptedDataLength)
-        throws Exception {
+    private void possiblyAlterEncryptedBytes(
+        IndexOutput indexOutput,
+        byte[] salt,
+        byte[] iv,
+        byte[] encryptedBytes,
+        int truncEncryptedDataLength
+    ) throws Exception {
         indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
         indexOutput.writeInt(salt.length);
         indexOutput.writeBytes(salt, salt.length);
@@ -294,12 +336,12 @@ public class KeyStoreWrapperTests extends ESTestCase {
     }
 
     public void testIllegalSettingName() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> KeyStoreWrapper.validateSettingName("UpperCase"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> KeyStoreWrapper.validateSettingName("*"));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        e = expectThrows(IllegalArgumentException.class, () -> keystore.setString("UpperCase", new char[0]));
+        e = expectThrows(IllegalArgumentException.class, () -> keystore.setString("*", new char[0]));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
-        e = expectThrows(IllegalArgumentException.class, () -> keystore.setFile("UpperCase", new byte[0]));
+        e = expectThrows(IllegalArgumentException.class, () -> keystore.setFile("*", new byte[0]));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
@@ -364,7 +406,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             byte[] base64Bytes = Base64.getEncoder().encode(fileBytes);
             char[] chars = new char[base64Bytes.length];
             for (int i = 0; i < chars.length; ++i) {
-                chars[i] = (char)base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
+                chars[i] = (char) base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
             }
             secretKey = secretFactory.generateSecret(new PBEKeySpec(chars));
             keystore.setEntry("file_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
@@ -414,8 +456,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testLegacyV3() throws GeneralSecurityException, IOException {
         final Path configDir = createTempDir();
         final Path keystore = configDir.resolve("elasticsearch.keystore");
-        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-             OutputStream os = Files.newOutputStream(keystore)) {
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
             final byte[] buffer = new byte[4096];
             int readBytes;
             while ((readBytes = is.read(buffer)) > 0) {

@@ -1,32 +1,40 @@
 {
-  "ml.post_data": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/anomaly_detectors/{job_id}/_data" ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The name of the job receiving the data"
+  "ml.post_data":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html",
+      "description":"Sends data to an anomaly detection job for analysis."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_data",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The name of the job receiving the data"
+            }
+          }
         }
+      ]
+    },
+    "params":{
+      "reset_start":{
+        "type":"string",
+        "description":"Optional parameter to specify the start of the bucket resetting range"
       },
-      "params": {
-        "reset_start": {
-          "type": "string",
-          "description": "Optional parameter to specify the start of the bucket resetting range"
-        },
-        "reset_end": {
-          "type": "string",
-          "description": "Optional parameter to specify the end of the bucket resetting range"
-        }
+      "reset_end":{
+        "type":"string",
+        "description":"Optional parameter to specify the end of the bucket resetting range"
       }
     },
-    "body": {
-      "description" : "The data to process",
-      "required" : true,
-      "serialize" : "bulk"
+    "body":{
+      "description":"The data to process",
+      "required":true,
+      "serialize":"bulk"
     }
   }
 }

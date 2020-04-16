@@ -1,27 +1,34 @@
 {
-  "ml.update_model_snapshot": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_update" ],
-      "parts": {
-        "job_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the job to fetch"
-        },
-        "snapshot_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the snapshot to update"
-        }
-      },
-      "params": {}
+  "ml.update_model_snapshot":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-snapshot.html",
+      "description":"Updates certain properties of a snapshot."
     },
-    "body": {
-      "description" : "The model snapshot properties to update",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to fetch"
+            },
+            "snapshot_id":{
+              "type":"string",
+              "description":"The ID of the snapshot to update"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The model snapshot properties to update",
+      "required":true
     }
   }
 }

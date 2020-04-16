@@ -1,21 +1,26 @@
 {
-  "security.clear_cached_roles": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html",
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [
-        "/_security/role/{name}/_clear_cache"
-      ],
-      "parts": {
-        "name": {
-          "type" : "list",
-          "description" : "Role name",
-          "required" : true
-        }
-      },
-      "params": {}
+  "security.clear_cached_roles":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html",
+      "description":"Evicts roles from the native role cache."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/role/{name}/_clear_cache",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"Role name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
   }
 }

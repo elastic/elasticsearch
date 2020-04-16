@@ -24,7 +24,9 @@ import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.Reader;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -39,8 +41,16 @@ import java.util.Locale;
 */
 public abstract class Terminal {
 
+    /** Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses */
+    private static final PrintWriter ERROR_WRITER = newErrorWriter();
+
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+
+    @SuppressForbidden(reason = "Writer for System.err")
+    private static PrintWriter newErrorWriter() {
+        return new PrintWriter(System.err);
+    }
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -70,8 +80,23 @@ public abstract class Terminal {
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public abstract char[] readSecret(String prompt);
 
-    /** Returns a Writer which can be used to write to the terminal directly. */
+    /** Read password text form terminal input up to a maximum length. */
+    public char[] readSecret(String prompt, int maxLength) {
+        char[] result = readSecret(prompt);
+        if (result.length > maxLength) {
+            Arrays.fill(result, '\0');
+            throw new IllegalStateException("Secret exceeded maximum length of " + maxLength);
+        }
+        return result;
+    }
+
+    /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
+
+    /** Returns a Writer which can be used to write to the terminal directly using standard error. */
+    public PrintWriter getErrorWriter() {
+        return ERROR_WRITER;
+    }
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
     public final void println(String msg) {
@@ -83,12 +108,33 @@ public abstract class Terminal {
         print(verbosity, msg + lineSeparator);
     }
 
-    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
     public final void print(Verbosity verbosity, String msg) {
+        print(verbosity, msg, false);
+    }
+
+    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    private void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
-            getWriter().print(msg);
-            getWriter().flush();
+            PrintWriter writer = isError ? getErrorWriter() : getWriter();
+            writer.print(msg);
+            writer.flush();
         }
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
+    public final void errorPrint(Verbosity verbosity, String msg) {
+        print(verbosity, msg, true);
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
+    public final void errorPrintln(String msg) {
+        errorPrintln(Verbosity.NORMAL, msg);
+    }
+
+    /** Prints a line to the terminal's standard error at {@code verbosity} level. */
+    public final void errorPrintln(Verbosity verbosity, String msg) {
+        errorPrint(verbosity, msg + lineSeparator);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -110,11 +156,55 @@ public abstract class Terminal {
             answer = answer.toLowerCase(Locale.ROOT);
             boolean answerYes = answer.equals("y");
             if (answerYes == false && answer.equals("n") == false) {
-                println("Did not understand answer '" + answer + "'");
+                errorPrintln("Did not understand answer '" + answer + "'");
                 continue;
             }
             return answerYes;
         }
+    }
+
+    /**
+     * Read from the reader until we find a newline. If that newline
+     * character is immediately preceded by a carriage return, we have
+     * a Windows-style newline, so we discard the carriage return as well
+     * as the newline.
+     */
+    public static char[] readLineToCharArray(Reader reader, int maxLength) {
+        char[] buf = new char[maxLength + 2];
+        try {
+            int len = 0;
+            int next;
+            while ((next = reader.read()) != -1) {
+                char nextChar = (char) next;
+                if (nextChar == '\n') {
+                    break;
+                }
+                if (len < buf.length) {
+                    buf[len] = nextChar;
+                }
+                len++;
+            }
+
+            if (len > 0 && len < buf.length && buf[len-1] == '\r') {
+                len--;
+            }
+
+            if (len > maxLength) {
+                Arrays.fill(buf, '\0');
+                throw new RuntimeException("Input exceeded maximum length of " + maxLength);
+            }
+
+            char[] shortResult = Arrays.copyOf(buf, len);
+            Arrays.fill(buf, '\0');
+            return shortResult;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void flush() {
+        this.getWriter().flush();
+        this.getErrorWriter().flush();
     }
 
     private static class ConsoleTerminal extends Terminal {
@@ -145,9 +235,12 @@ public abstract class Terminal {
         }
     }
 
-    private static class SystemTerminal extends Terminal {
+    /** visible for testing */
+    static class SystemTerminal extends Terminal {
 
         private static final PrintWriter WRITER = newWriter();
+
+        private BufferedReader reader;
 
         SystemTerminal() {
             super(System.lineSeparator());
@@ -158,6 +251,14 @@ public abstract class Terminal {
             return new PrintWriter(System.out);
         }
 
+        /** visible for testing */
+        BufferedReader getReader() {
+            if (reader == null) {
+                reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
+            }
+            return reader;
+        }
+
         @Override
         public PrintWriter getWriter() {
             return WRITER;
@@ -165,10 +266,9 @@ public abstract class Terminal {
 
         @Override
         public String readText(String text) {
-            getWriter().print(text);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
+            getErrorWriter().print(text); // prompts should go to standard error to avoid mixing with list output
             try {
-                final String line = reader.readLine();
+                final String line = getReader().readLine();
                 if (line == null) {
                     throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
                 }
@@ -181,6 +281,12 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text) {
             return readText(text).toCharArray();
+        }
+
+        @Override
+        public char[] readSecret(String text, int maxLength) {
+            getErrorWriter().println(text);
+            return readLineToCharArray(getReader(), maxLength);
         }
     }
 }

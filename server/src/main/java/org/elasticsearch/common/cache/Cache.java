@@ -336,7 +336,8 @@ public class Cache<K, V> {
     }
 
     public static final int NUMBER_OF_SEGMENTS = 256;
-    @SuppressWarnings("unchecked") private final CacheSegment<K, V>[] segments = new CacheSegment[NUMBER_OF_SEGMENTS];
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private final CacheSegment<K, V>[] segments = new CacheSegment[NUMBER_OF_SEGMENTS];
 
     {
         for (int i = 0; i < segments.length; i++) {

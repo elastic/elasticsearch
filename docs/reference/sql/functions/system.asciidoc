@@ -18,9 +18,7 @@ DATABASE()
 
 *Output*: string
 
-.Description:
-
-Returns the name of the database being queried. In the case of Elasticsearch SQL, this
+*Description*: Returns the name of the database being queried. In the case of Elasticsearch SQL, this
 is the name of the Elasticsearch cluster. This function should always return a non-null
 value.
 
@@ -41,10 +39,8 @@ USER()
 
 *Output*: string
 
-.Description:
-
-Returns the username of the authenticated user executing the query. This function can
-return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
+*Description*: Returns the username of the authenticated user executing the query. This function can
+return `null` in case <<elasticsearch-security,security>> is disabled.
 
 [source, sql]
 --------------------------------------------------

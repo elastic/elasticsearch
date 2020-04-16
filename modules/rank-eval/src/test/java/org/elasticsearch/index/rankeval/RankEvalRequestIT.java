@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.rankeval.PrecisionAtK.Detail;
@@ -61,21 +60,21 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         createIndex(TEST_INDEX);
         ensureGreen();
 
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("1")
-                .setSource("text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("1")
+                .setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
+        client().prepareIndex(TEST_INDEX).setId("2").setSource("id", 2, "text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("3").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("3").setSource("id", 3, "text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("4").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("4").setSource("id", 4, "text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("5").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("5").setSource("id", 5, "text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("6").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("6").setSource("id", 6, "text", "amsterdam", "population", 851573)
                 .get();
 
         // add another index for testing closed indices etc...
-        client().prepareIndex("test2", MapperService.SINGLE_MAPPING_NAME).setId("7").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573)
                 .get();
         refresh();
 
@@ -92,7 +91,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        testQuery.sort("_id");
+        testQuery.sort("id");
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
@@ -169,7 +168,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     public void testDCGRequest() {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        testQuery.sort("_id");
+        testQuery.sort("id");
 
         List<RatedRequest> specifications = new ArrayList<>();
         List<RatedDocument> ratedDocs = Arrays.asList(
@@ -203,7 +202,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     public void testMRRRequest() {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        testQuery.sort("_id");
+        testQuery.sort("id");
 
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(new RatedRequest("amsterdam_query", createRelevant("5"), testQuery));

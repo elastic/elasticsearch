@@ -10,12 +10,16 @@ maybe there are scheduled maintenance windows when cluster topology
 changes are desired that may impact running ILM actions. For this reason,
 ILM has two ways to disable operations.
 
+When stopping ILM, snapshot lifecycle management operations are also stopped,
+this means that no scheduled snapshots are created (currently ongoing snapshots
+are unaffected).
+
 Normally, ILM will be running by default.
 To see the current operating status of ILM, use the <<ilm-get-status,Get Status API>>
 to see the current state of ILM.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -46,25 +50,21 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/status
 --------------------------------------------------
-// CONSOLE
 
 If the request does not encounter errors, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 The operating modes of ILM:
 
@@ -79,62 +79,57 @@ The operating modes of ILM:
 |===
 
 [float]
-=== Stopping ILM=
+=== Stopping ILM
 
 The ILM service can be paused such that no further steps will be executed
 using the <<ilm-stop,Stop API>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/stop
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 When stopped, all further policy actions will be halted. This will
 be reflected in the Status API
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/status
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "STOPPING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
+// TESTRESPONSE[s/"STOPPING"/$body.operation_mode/]
 
 The ILM service will then, asynchronously, run all policies to a point
 where it is safe to stop. After ILM verifies that it is safe, it will
 move to the `STOPPED` mode.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT trigger_ilm_cs_action
 
 GET _ilm/status
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "STOPPED"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
+// TESTRESPONSE[s/"STOPPED"/$body.operation_mode/]
 
 [float]
 === Starting ILM
@@ -142,30 +137,26 @@ GET _ilm/status
 To start ILM and continue executing policies, use the <<ilm-start, Start API>>.
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/start
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/status
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
 The Start API will send a request to the ILM service to immediately begin
 normal operations.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

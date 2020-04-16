@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -398,10 +398,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             this.multivariateByFields = analysisConfig.multivariateByFields;
         }
 
-        public void setDetectors(List<Detector> detectors) {
+        public Builder setDetectors(List<Detector> detectors) {
             if (detectors == null) {
                 this.detectors = null;
-                return;
+                return this;
             }
             // We always assign sequential IDs to the detectors that are correct for this analysis config
             int detectorIndex = 0;
@@ -412,42 +412,52 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 sequentialIndexDetectors.add(builder.build());
             }
             this.detectors = sequentialIndexDetectors;
+            return this;
         }
 
-        public void setDetector(int detectorIndex, Detector detector) {
+        public Builder setDetector(int detectorIndex, Detector detector) {
             detectors.set(detectorIndex, detector);
+            return this;
         }
 
-        public void setBucketSpan(TimeValue bucketSpan) {
+        public Builder setBucketSpan(TimeValue bucketSpan) {
             this.bucketSpan = bucketSpan;
+            return this;
         }
 
-        public void setLatency(TimeValue latency) {
+        public Builder setLatency(TimeValue latency) {
             this.latency = latency;
+            return this;
         }
 
-        public void setCategorizationFieldName(String categorizationFieldName) {
+        public Builder setCategorizationFieldName(String categorizationFieldName) {
             this.categorizationFieldName = categorizationFieldName;
+            return this;
         }
 
-        public void setCategorizationFilters(List<String> categorizationFilters) {
+        public Builder setCategorizationFilters(List<String> categorizationFilters) {
             this.categorizationFilters = categorizationFilters;
+            return this;
         }
 
-        public void setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
+        public Builder setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
             this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
+            return this;
         }
 
-        public void setSummaryCountFieldName(String summaryCountFieldName) {
+        public Builder setSummaryCountFieldName(String summaryCountFieldName) {
             this.summaryCountFieldName = summaryCountFieldName;
+            return this;
         }
 
-        public void setInfluencers(List<String> influencers) {
+        public Builder setInfluencers(List<String> influencers) {
             this.influencers = ExceptionsHelper.requireNonNull(influencers, INFLUENCERS.getPreferredName());
+            return this;
         }
 
-        public void setMultivariateByFields(Boolean multivariateByFields) {
+        public Builder setMultivariateByFields(Boolean multivariateByFields) {
             this.multivariateByFields = multivariateByFields;
+            return this;
         }
 
         /**

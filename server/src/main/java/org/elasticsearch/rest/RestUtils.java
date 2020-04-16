@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
 
@@ -29,6 +30,11 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class RestUtils {
+
+    /**
+     * Sets whether we decode a '+' in an url as a space or not.
+     */
+    private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
     public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
@@ -55,7 +61,7 @@ public class RestUtils {
             c = s.charAt(i);
             if (c == '=' && name == null) {
                 if (pos != i) {
-                    name = decodeComponent(s.substring(pos, i));
+                    name = decodeQueryStringParam(s.substring(pos, i));
                 }
                 pos = i + 1;
             } else if (c == '&' || c == ';') {
@@ -63,9 +69,9 @@ public class RestUtils {
                     // We haven't seen an `=' so far but moved forward.
                     // Must be a param of the form '&a&' so add it with
                     // an empty value.
-                    addParam(params, decodeComponent(s.substring(pos, i)), "");
+                    addParam(params, decodeQueryStringParam(s.substring(pos, i)), "");
                 } else if (name != null) {
-                    addParam(params, name, decodeComponent(s.substring(pos, i)));
+                    addParam(params, name, decodeQueryStringParam(s.substring(pos, i)));
                     name = null;
                 }
                 pos = i + 1;
@@ -74,13 +80,17 @@ public class RestUtils {
 
         if (pos != i) {  // Are there characters we haven't dealt with?
             if (name == null) {     // Yes and we haven't seen any `='.
-                addParam(params, decodeComponent(s.substring(pos, i)), "");
+                addParam(params, decodeQueryStringParam(s.substring(pos, i)), "");
             } else {                // Yes and this must be the last value.
-                addParam(params, name, decodeComponent(s.substring(pos, i)));
+                addParam(params, name, decodeQueryStringParam(s.substring(pos, i)));
             }
         } else if (name != null) {  // Have we seen a name without value?
             addParam(params, name, "");
         }
+    }
+
+    private static String decodeQueryStringParam(final String s) {
+        return decodeComponent(s, StandardCharsets.UTF_8, true);
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
@@ -90,7 +100,7 @@ public class RestUtils {
     /**
      * Decodes a bit of an URL encoded by a browser.
      * <p>
-     * This is equivalent to calling {@link #decodeComponent(String, Charset)}
+     * This is equivalent to calling {@link #decodeComponent(String, Charset, boolean)}
      * with the UTF-8 charset (recommended to comply with RFC 3986, Section 2).
      *
      * @param s The string to decode (can be empty).
@@ -100,7 +110,7 @@ public class RestUtils {
      *                                  escape sequence.
      */
     public static String decodeComponent(final String s) {
-        return decodeComponent(s, StandardCharsets.UTF_8);
+        return decodeComponent(s, StandardCharsets.UTF_8, DECODE_PLUS_AS_SPACE);
     }
 
     /**
@@ -119,52 +129,50 @@ public class RestUtils {
      * Actually this function doesn't allocate any memory if there's nothing
      * to decode, the argument itself is returned.
      *
-     * @param s       The string to decode (can be empty).
-     * @param charset The charset to use to decode the string (should really
-     *                be {@link StandardCharsets#UTF_8}.
+     * @param s           The string to decode (can be empty).
+     * @param charset     The charset to use to decode the string (should really
+     *                    be {@link StandardCharsets#UTF_8}.
+     * @param plusAsSpace Whether to decode a {@code '+'} to a single space {@code ' '}
      * @return The decoded string, or {@code s} if there's nothing to decode.
      *         If the string to decode is {@code null}, returns an empty string.
      * @throws IllegalArgumentException if the string contains a malformed
      *                                  escape sequence.
      */
-    public static String decodeComponent(final String s, final Charset charset) {
+    private static String decodeComponent(final String s, final Charset charset, boolean plusAsSpace) {
         if (s == null) {
             return "";
         }
         final int size = s.length();
-        if (!decodingNeeded(s, size)) {
+        if (!decodingNeeded(s, size, plusAsSpace)) {
             return s;
         }
         final byte[] buf = new byte[size];
-        int pos = decode(s, size, buf);
+        int pos = decode(s, size, buf, plusAsSpace);
         return new String(buf, 0, pos, charset);
     }
 
-    @SuppressWarnings("fallthrough")
-    private static boolean decodingNeeded(String s, int size) {
+    private static boolean decodingNeeded(String s, int size, boolean plusAsSpace) {
         boolean decodingNeeded = false;
         for (int i = 0; i < size; i++) {
             final char c = s.charAt(i);
-            switch (c) {
-                case '%':
-                    i++;  // We can skip at least one char, e.g. `%%'.
-                    // Fall through.
-                case '+':
-                    decodingNeeded = true;
-                    break;
+            if (c == '%') {
+                i++;  // We can skip at least one char, e.g. `%%'.
+                decodingNeeded = true;
+            } else if (plusAsSpace && c == '+') {
+                decodingNeeded = true;
             }
         }
         return decodingNeeded;
     }
 
     @SuppressWarnings("fallthrough")
-    private static int decode(String s, int size, byte[] buf) {
+    private static int decode(String s, int size, byte[] buf, boolean plusAsSpace) {
         int pos = 0;  // position in `buf'.
         for (int i = 0; i < size; i++) {
             char c = s.charAt(i);
             switch (c) {
                 case '+':
-                    buf[pos++] = ' ';  // "+" -> " "
+                    buf[pos++] = (byte) (plusAsSpace ? ' ' : '+');  // "+" -> " "
                     break;
                 case '%':
                     if (i == size - 1) {

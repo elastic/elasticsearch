@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -257,8 +258,16 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         startTask(task, 63, -1);
 
         int max = randomIntBetween(1, 30);
+        final Exception[] exceptions = new Exception[max];
         for (int i = 0; i < max; i++) {
-            readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
+            final Exception exception;
+            if (randomBoolean()) {
+                exception = new ShardNotFoundException(new ShardId("leader_index", "", 0));
+            } else {
+                exception = new EsRejectedExecutionException("leader_index rejected");
+            }
+            exceptions[i] = exception;
+            readFailures.add(exception);
         }
         mappingVersions.add(1L);
         leaderGlobalCheckpoints.add(63L);
@@ -274,10 +283,17 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry = status.readExceptions().entrySet().iterator().next();
                 assertThat(entry.getValue().v1(), equalTo(Math.toIntExact(retryCounter.get())));
                 assertThat(entry.getKey(), equalTo(0L));
-                assertThat(entry.getValue().v2(), instanceOf(ShardNotFoundException.class));
-                final ShardNotFoundException shardNotFoundException = (ShardNotFoundException) entry.getValue().v2();
-                assertThat(shardNotFoundException.getShardId().getIndexName(), equalTo("leader_index"));
-                assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
+                if (exceptions[Math.toIntExact(retryCounter.get()) - 1] instanceof ShardNotFoundException) {
+                    assertThat(entry.getValue().v2(), instanceOf(ShardNotFoundException.class));
+                    final ShardNotFoundException shardNotFoundException = (ShardNotFoundException) entry.getValue().v2();
+                    assertThat(shardNotFoundException.getShardId().getIndexName(), equalTo("leader_index"));
+                    assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
+                } else {
+                    assertThat(entry.getValue().v2().getCause(), instanceOf(EsRejectedExecutionException.class));
+                    final EsRejectedExecutionException rejectedExecutionException =
+                        (EsRejectedExecutionException) entry.getValue().v2().getCause();
+                    assertThat(rejectedExecutionException.getMessage(), equalTo("leader_index rejected"));
+                }
             }
             retryCounter.incrementAndGet();
         };
@@ -1263,7 +1279,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
             byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-            ops.add(new Translog.Index("doc", id, seqNo, 0, source));
+            ops.add(new Translog.Index(id, seqNo, 0, source));
         }
         return new ShardChangesAction.Response(
             mappingVersion,

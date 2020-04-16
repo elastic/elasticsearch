@@ -26,14 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -135,14 +131,13 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metadata);
     }
-    
+
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {        
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+    protected void validate(ValidationContext context) {
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override
@@ -228,11 +223,15 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format, gapPolicy, lag);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, gapPolicy, lag);
     }
+
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         SerialDiffPipelineAggregationBuilder other = (SerialDiffPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)

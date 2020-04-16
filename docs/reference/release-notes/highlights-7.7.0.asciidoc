@@ -82,7 +82,7 @@ keystore in order to benefit from the new behavior.
 The new {ref}//search-aggregations-metrics-top-metrics.html[`top_metrics` aggregation] "selects" a metric from a document according
 to a criteria on a given, different field. That criteria is currently the
 largest or smallest "sort" value. It is fairly similar to `top_hits` in spirit,
-but because it is more limited it is able to do its job using less memory and
+but because it is more limited, `top_metrics` uses less memory and
 is often faster.
 
 // end::notable-highlights[]

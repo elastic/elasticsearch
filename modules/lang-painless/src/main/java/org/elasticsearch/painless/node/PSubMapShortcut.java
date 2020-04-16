@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Represents a map load/store shortcut. (Internal only.)
  */
-public class PSubMapShortcut extends AStoreable {
+public class PSubMapShortcut extends AExpression {
 
     protected final Class<?> targetClass;
     protected final AExpression index;
@@ -45,7 +45,7 @@ public class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
@@ -91,10 +91,5 @@ public class PSubMapShortcut extends AStoreable {
         output.expressionNode = mapSubShortcutNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
     }
 }

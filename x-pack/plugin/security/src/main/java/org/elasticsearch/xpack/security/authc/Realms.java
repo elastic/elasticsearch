@@ -110,7 +110,7 @@ public class Realms implements Iterable<Realm> {
     public List<Realm> getUnlicensedRealms() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         // If auth is not allowed, then everything is unlicensed
-        if (licenseStateSnapshot.isAuthAllowed() == false) {
+        if (licenseStateSnapshot.isSecurityEnabled() == false) {
             return Collections.unmodifiableList(realms);
         }
 
@@ -136,7 +136,7 @@ public class Realms implements Iterable<Realm> {
 
     public List<Realm> asList() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
-        if (licenseStateSnapshot.isAuthAllowed() == false) {
+        if (licenseStateSnapshot.isSecurityEnabled() == false) {
             return Collections.emptyList();
         }
         if (licenseStateSnapshot.areAllRealmsAllowed()) {

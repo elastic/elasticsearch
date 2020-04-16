@@ -63,7 +63,7 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map and a mapping from the specified key to the specified value
      */
-    public static <K, V> Map<K, V> copyMayWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
+    public static <K, V> Map<K, V> copyMapWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);

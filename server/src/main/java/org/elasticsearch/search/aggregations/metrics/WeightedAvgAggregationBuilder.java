@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -52,8 +53,8 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
             ObjectParser.fromBuilder(NAME, WeightedAvgAggregationBuilder::new);
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false);
-        MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false);
+        MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false);
+        MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false, false);
     }
 
     public WeightedAvgAggregationBuilder(String name) {
@@ -106,6 +107,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     @Override
     protected MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                             Map<String, ValuesSourceConfig> configs,
+                                                            Map<String, QueryBuilder> filters,
                                                             DocValueFormat format,
                                                             AggregatorFactory parent,
                                                             Builder subFactoriesBuilder) throws IOException {

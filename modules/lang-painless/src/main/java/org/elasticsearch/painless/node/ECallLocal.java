@@ -44,21 +44,29 @@ import java.util.Objects;
  */
 public class ECallLocal extends AExpression {
 
-    protected final String name;
-    protected final List<AExpression> arguments;
+    private final String methodName;
+    private final List<AExpression> argumentNodes;
 
-    public ECallLocal(Location location, String name, List<AExpression> arguments) {
-        super(location);
+    public ECallLocal(int identifier, Location location, String methodName, List<AExpression> argumentNodes) {
+        super(identifier, location);
 
-        this.name = Objects.requireNonNull(name);
-        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
+        this.methodName = Objects.requireNonNull(methodName);
+        this.argumentNodes = Collections.unmodifiableList(Objects.requireNonNull(argumentNodes));
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public List<AExpression> getArgumentNodes() {
+        return argumentNodes;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to function call [" + name + "/" + arguments.size() + "]"));
+                    "invalid assignment: cannot assign a value to function call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
 
         FunctionTable.LocalFunction localFunction = null;
@@ -70,7 +78,7 @@ public class ECallLocal extends AExpression {
 
         Output output = new Output();
 
-        localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
+        localFunction = scriptRoot.getFunctionTable().getFunction(methodName, argumentNodes.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
         if (localFunction != null && localFunction.isInternal()) {
@@ -78,10 +86,10 @@ public class ECallLocal extends AExpression {
         }
 
         if (localFunction == null) {
-            importedMethod = scriptRoot.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
+            importedMethod = scriptRoot.getPainlessLookup().lookupImportedPainlessMethod(methodName, argumentNodes.size());
 
             if (importedMethod == null) {
-                classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
+                classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size());
 
                 // check to see if this class binding requires an implicit this reference
                 if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
@@ -96,7 +104,7 @@ public class ECallLocal extends AExpression {
                     // will likely involve adding a class instance binding where any instance can have a class binding
                     // as part of its API.  However, the situation at run-time is difficult and will modifications that
                     // are a substantial change if even possible to do.
-                    classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
+                    classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size() + 1);
 
                     if (classBinding != null) {
                         if (classBinding.typeParameters.isEmpty() == false &&
@@ -108,11 +116,11 @@ public class ECallLocal extends AExpression {
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = scriptRoot.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+                        instanceBinding = scriptRoot.getPainlessLookup().lookupPainlessInstanceBinding(methodName, argumentNodes.size());
 
                         if (instanceBinding == null) {
                             throw createError(new IllegalArgumentException(
-                                    "Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                                    "Unknown call [" + methodName + "] with [" + argumentNodes.size() + "] arguments."));
                         }
                     }
                 }
@@ -135,7 +143,7 @@ public class ECallLocal extends AExpression {
             bindingName = scriptRoot.getNextSyntheticName("class_binding");
 
             FieldNode fieldNode = new FieldNode();
-            fieldNode.setLocation(location);
+            fieldNode.setLocation(getLocation());
             fieldNode.setModifiers(Modifier.PRIVATE);
             fieldNode.setFieldType(classBinding.javaConstructor.getDeclaringClass());
             fieldNode.setName(bindingName);
@@ -147,7 +155,7 @@ public class ECallLocal extends AExpression {
             bindingName = scriptRoot.getNextSyntheticName("instance_binding");
 
             FieldNode fieldNode = new FieldNode();
-            fieldNode.setLocation(location);
+            fieldNode.setLocation(getLocation());
             fieldNode.setModifiers(Modifier.PUBLIC | Modifier.STATIC);
             fieldNode.setFieldType(instanceBinding.targetInstance.getClass());
             fieldNode.setName(bindingName);
@@ -159,31 +167,31 @@ public class ECallLocal extends AExpression {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
-        List<Output> argumentOutputs = new ArrayList<>(arguments.size());
-        List<PainlessCast> argumentCasts = new ArrayList<>(arguments.size());
+        List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
+        List<PainlessCast> argumentCasts = new ArrayList<>(argumentNodes.size());
         // if the class binding is using an implicit this reference then the arguments counted must
         // be incremented by 1 as the this reference will not be part of the arguments passed into
         // the class binding call
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int argument = 0; argument < argumentNodes.size(); ++argument) {
+            AExpression expression = argumentNodes.get(argument);
 
             Input argumentInput = new Input();
             argumentInput.expected = typeParameters.get(argument + classBindingOffset);
             argumentInput.internal = true;
             Output argumentOutput = analyze(expression, classNode, scriptRoot, scope, argumentInput);
             argumentOutputs.add(argumentOutput);
-            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     argumentOutput.actual, argumentInput.expected, argumentInput.explicit, argumentInput.internal));
 
         }
 
         MemberCallNode memberCallNode = new MemberCallNode();
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
+        for (int argument = 0; argument < argumentNodes.size(); ++argument) {
             memberCallNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
         }
 
-        memberCallNode.setLocation(location);
+        memberCallNode.setLocation(getLocation());
         memberCallNode.setExpressionType(output.actual);
         memberCallNode.setLocalFunction(localFunction);
         memberCallNode.setImportedMethod(importedMethod);

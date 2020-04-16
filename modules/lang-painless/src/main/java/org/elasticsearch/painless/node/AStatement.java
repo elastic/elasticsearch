@@ -105,8 +105,8 @@ public abstract class AStatement extends ANode {
     /**
      * Standard constructor with location used for error tracking.
      */
-    AStatement(Location location) {
-        super(location);
+    AStatement(int identifier, Location location) {
+        super(identifier, location);
     }
 
     /**

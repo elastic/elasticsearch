@@ -54,11 +54,11 @@ public class SIfElse extends AStatement {
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
         AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
 
-        if (condition.getChildIf(EBoolean.class) != null) {
+        if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -99,7 +99,7 @@ public class SIfElse extends AStatement {
         ifElseNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         ifElseNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
         ifElseNode.setElseBlockNode((BlockNode)elseblockOutput.statementNode);
-        ifElseNode.setLocation(location);
+        ifElseNode.setLocation(getLocation());
 
         output.statementNode = ifElseNode;
 

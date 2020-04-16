@@ -48,31 +48,49 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class ECall extends AExpression {
 
-    protected final AExpression prefix;
-    protected final String name;
-    protected final List<AExpression> arguments;
-    protected final boolean nullSafe;
+    private final AExpression prefixNode;
+    private final String methodName;
+    private final List<AExpression> argumentNodes;
+    private final boolean isNullSafe;
 
-    public ECall(Location location, AExpression prefix, String name, List<AExpression> arguments, boolean nullSafe) {
-        super(location);
+    public ECall(int identifier, Location location,
+            AExpression prefixNode, String methodName, List<AExpression> argumentNodes, boolean isNullSafe) {
 
-        this.prefix = Objects.requireNonNull(prefix);
-        this.name = Objects.requireNonNull(name);
-        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
-        this.nullSafe = nullSafe;
+        super(identifier, location);
+
+        this.prefixNode = Objects.requireNonNull(prefixNode);
+        this.methodName = Objects.requireNonNull(methodName);
+        this.argumentNodes = Collections.unmodifiableList(Objects.requireNonNull(argumentNodes));
+        this.isNullSafe = isNullSafe;
+    }
+
+    public AExpression getPrefixNode() {
+        return prefixNode;
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public List<AExpression> getArgumentNodes() {
+        return argumentNodes;
+    }
+
+    public boolean isNullSafe() {
+        return isNullSafe;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to method call [" + name + "/" + arguments.size() + "]"));
+                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
 
         Output output = new Output();
 
         Input prefixInput = new Input();
-        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        Output prefixOutput = prefixNode.analyze(classNode, scriptRoot, scope, prefixInput);
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
@@ -86,9 +104,9 @@ public class ECall extends AExpression {
                         "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
             }
 
-            List<Output> argumentOutputs = new ArrayList<>(arguments.size());
+            List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
 
-            for (AExpression argument : arguments) {
+            for (AExpression argument : argumentNodes) {
                 Input expressionInput = new Input();
                 expressionInput.internal = true;
                 Output expressionOutput = analyze(argument, classNode, scriptRoot, scope, expressionInput);
@@ -96,7 +114,7 @@ public class ECall extends AExpression {
 
                 if (expressionOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException(
-                            "Argument(s) cannot be of [void] type when calling method [" + name + "]."));
+                            "Argument(s) cannot be of [void] type when calling method [" + methodName + "]."));
                 }
             }
 
@@ -109,34 +127,34 @@ public class ECall extends AExpression {
                 callSubDefNode.addArgumentNode(argumentOutput.expressionNode);
             }
 
-            callSubDefNode.setLocation(location);
+            callSubDefNode.setLocation(getLocation());
             callSubDefNode.setExpressionType(output.actual);
-            callSubDefNode.setName(name);
+            callSubDefNode.setName(methodName);
 
             expressionNode = callSubDefNode;
         } else {
             PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
-                    prefixOutput.actual, prefixOutput.isStaticType, name, arguments.size());
+                    prefixOutput.actual, prefixOutput.isStaticType, methodName, argumentNodes.size());
 
             if (method == null) {
-                throw createError(new IllegalArgumentException(
-                        "method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+                throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " +
+                        "" + methodName + "/" + argumentNodes.size() + "] not found"));
             }
 
             scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            List<Output> argumentOutputs = new ArrayList<>(arguments.size());
-            List<PainlessCast> argumentCasts = new ArrayList<>(arguments.size());
+            List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
+            List<PainlessCast> argumentCasts = new ArrayList<>(argumentOutputs.size());
 
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                AExpression expression = arguments.get(argument);
+            for (int argument = 0; argument < argumentNodes.size(); ++argument) {
+                AExpression expression = argumentNodes.get(argument);
 
                 Input expressionInput = new Input();
                 expressionInput.expected = method.typeParameters.get(argument);
                 expressionInput.internal = true;
                 Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
                 argumentOutputs.add(expressionOutput);
-                argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                         expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
             }
@@ -145,25 +163,25 @@ public class ECall extends AExpression {
 
             CallSubNode callSubNode = new CallSubNode();
 
-            for (int argument = 0; argument < arguments.size(); ++argument) {
+            for (int argument = 0; argument < argumentNodes.size(); ++argument) {
                 callSubNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
             }
 
-            callSubNode.setLocation(location);
+            callSubNode.setLocation(getLocation());
             callSubNode.setExpressionType(output.actual);
             callSubNode.setMethod(method);
             callSubNode.setBox(prefixOutput.actual);
             expressionNode = callSubNode;
         }
 
-        if (nullSafe) {
+        if (isNullSafe) {
             if (output.actual.isPrimitive()) {
                 throw new IllegalArgumentException("Result of null safe operator must be nullable");
             }
 
             NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
             nullSafeSubNode.setChildNode(expressionNode);
-            nullSafeSubNode.setLocation(location);
+            nullSafeSubNode.setLocation(getLocation());
             nullSafeSubNode.setExpressionType(output.actual);
             expressionNode = nullSafeSubNode;
         }
@@ -173,7 +191,7 @@ public class ECall extends AExpression {
         callNode.setLeftNode(prefixOutput.expressionNode);
         callNode.setRightNode(expressionNode);
 
-        callNode.setLocation(location);
+        callNode.setLocation(getLocation());
         callNode.setExpressionType(output.actual);
 
         output.expressionNode = callNode;

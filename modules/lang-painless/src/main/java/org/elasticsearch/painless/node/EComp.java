@@ -37,16 +37,28 @@ import java.util.Objects;
  */
 public class EComp extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression left;
-    protected final AExpression right;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final Operation operation;
 
-    public EComp(Location location, Operation operation, AExpression left, AExpression right) {
-        super(location);
+    public EComp(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+        super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
@@ -66,10 +78,10 @@ public class EComp extends AExpression {
         Output output = new Output();
 
         Input leftInput = new Input();
-        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
-        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
 
         if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
             promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);
@@ -95,13 +107,13 @@ public class EComp extends AExpression {
         }
 
         if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && left.getChildIf(ENull.class) != null && right.getChildIf(ENull.class) != null) {
+                && leftNode instanceof ENull && rightNode instanceof ENull) {
             throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
                 leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         output.actual = boolean.class;
@@ -111,7 +123,7 @@ public class EComp extends AExpression {
         comparisonNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
         comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        comparisonNode.setLocation(location);
+        comparisonNode.setLocation(getLocation());
         comparisonNode.setExpressionType(output.actual);
         comparisonNode.setComparisonType(promotedType);
         comparisonNode.setOperation(operation);

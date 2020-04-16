@@ -30,12 +30,16 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 public class EBoolean extends AExpression {
 
-    protected boolean constant;
+    private final boolean constant;
 
-    public EBoolean(Location location, boolean constant) {
-        super(location);
+    public EBoolean(int identifier, Location location, boolean constant) {
+        super(identifier, location);
 
         this.constant = constant;
+    }
+
+    public boolean getConstant() {
+        return constant;
     }
 
     @Override
@@ -54,7 +58,7 @@ public class EBoolean extends AExpression {
         output.actual = boolean.class;
 
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 

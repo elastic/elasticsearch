@@ -106,19 +106,8 @@ public abstract class AExpression extends ANode {
     /**
      * Standard constructor with location used for error tracking.
      */
-    AExpression(Location location) {
-        super(location);
-    }
-
-    /**
-     * Replaces standard instanceof to ignore precedence within the tree.
-     */
-    AExpression getChildIf(Class<? extends AExpression> type) {
-        if (type.isAssignableFrom(getClass())) {
-            return this;
-        }
-
-        return null;
+    AExpression(int indentifier, Location location) {
+        super(indentifier, location);
     }
 
     /**

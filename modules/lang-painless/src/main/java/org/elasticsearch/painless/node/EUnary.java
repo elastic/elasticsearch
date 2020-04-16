@@ -40,8 +40,8 @@ public class EUnary extends AExpression {
     protected final Operation operation;
     protected final AExpression child;
 
-    public EUnary(Location location, Operation operation, AExpression child) {
-        super(location);
+    public EUnary(int identifier, Location location, Operation operation, AExpression child) {
+        super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
         this.child = Objects.requireNonNull(child);
@@ -67,21 +67,22 @@ public class EUnary extends AExpression {
         Input childInput = new Input();
         Output childOutput;
 
-        ENumeric numeric = (ENumeric)child.getChildIf(ENumeric.class);
-        EDecimal decimal = (EDecimal)child.getChildIf(EDecimal.class);
-
-        if ((operation == Operation.SUB || operation == Operation.ADD) && (numeric != null || decimal != null)) {
+        if ((operation == Operation.SUB || operation == Operation.ADD) && (child instanceof ENumeric || child instanceof EDecimal)) {
             childInput.expected = input.expected;
             childInput.explicit = input.explicit;
             childInput.internal = input.internal;
 
-            if (numeric != null) {
+            if (child instanceof ENumeric) {
+                ENumeric numeric = (ENumeric)child;
+
                 if (operation == Operation.SUB) {
                     childOutput = numeric.analyze(classNode, scriptRoot, scope, childInput, numeric.value.charAt(0) != '-');
                 } else {
                     childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
                 }
-            } else if (decimal != null) {
+            } else if (child instanceof EDecimal) {
+                EDecimal decimal = (EDecimal)child;
+
                 if (operation == Operation.SUB) {
                     childOutput = decimal.analyze(classNode, scriptRoot, scope, childInput, decimal.value.charAt(0) != '-');
                 } else {
@@ -99,7 +100,7 @@ public class EUnary extends AExpression {
             if (operation == Operation.NOT) {
                 childInput.expected = boolean.class;
                 childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
-                childCast = AnalyzerCaster.getLegalCast(child.location,
+                childCast = AnalyzerCaster.getLegalCast(child.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 output.actual = boolean.class;
@@ -115,7 +116,7 @@ public class EUnary extends AExpression {
                 }
 
                 childInput.expected = promote;
-                childCast = AnalyzerCaster.getLegalCast(child.location,
+                childCast = AnalyzerCaster.getLegalCast(child.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 if (promote == def.class && input.expected != null) {
@@ -129,7 +130,7 @@ public class EUnary extends AExpression {
 
             UnaryMathNode unaryMathNode = new UnaryMathNode();
             unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
-            unaryMathNode.setLocation(location);
+            unaryMathNode.setLocation(getLocation());
             unaryMathNode.setExpressionType(output.actual);
             unaryMathNode.setUnaryType(promote);
             unaryMathNode.setOperation(operation);

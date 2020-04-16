@@ -66,13 +66,13 @@ public class SDo extends AStatement {
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
         AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
 
         boolean continuous = false;
 
-        if (condition.getChildIf(EBoolean.class) != null) {
+        if (condition instanceof EBoolean) {
             continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
@@ -90,7 +90,7 @@ public class SDo extends AStatement {
         DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
         doWhileLoopNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         doWhileLoopNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setLocation(getLocation());
         doWhileLoopNode.setContinuous(continuous);
 
         output.statementNode = doWhileLoopNode;

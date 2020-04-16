@@ -33,14 +33,22 @@ import java.util.Objects;
  */
 public class EExplicit extends AExpression {
 
-    protected final DType type;
-    protected final AExpression child;
+    private final DType type;
+    private final AExpression childNode;
 
-    public EExplicit(Location location, DType type, AExpression child) {
-        super(location);
+    public EExplicit(int identifier, Location location, DType type, AExpression childNode) {
+        super(identifier, location);
 
         this.type = Objects.requireNonNull(type);
-        this.child = Objects.requireNonNull(child);
+        this.childNode = Objects.requireNonNull(childNode);
+    }
+
+    public DType getType() {
+        return type;
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
     }
 
     @Override
@@ -63,8 +71,8 @@ public class EExplicit extends AExpression {
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        Output childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
-        PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
+        Output childOutput = analyze(childNode, classNode, scriptRoot, scope, childInput);
+        PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                 childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
         output.expressionNode = cast(childOutput.expressionNode, childCast);

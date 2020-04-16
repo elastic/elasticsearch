@@ -77,10 +77,10 @@ public class SFor extends AStatement {
             AExpression.Input conditionInput = new AExpression.Input();
             conditionInput.expected = boolean.class;
             conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-            conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+            conditionCast = AnalyzerCaster.getLegalCast(condition.getLocation(),
                     conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
-            if (condition.getChildIf(EBoolean.class) != null) {
+            if (condition instanceof EBoolean) {
                 continuous = ((EBoolean)condition).constant;
 
                 if (!continuous) {
@@ -134,7 +134,7 @@ public class SFor extends AStatement {
                 null : AExpression.cast(conditionOutput.expressionNode, conditionCast));
         forLoopNode.setAfterthoughtNode(afterthoughtOutput == null ? null : afterthoughtOutput.expressionNode);
         forLoopNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        forLoopNode.setLocation(location);
+        forLoopNode.setLocation(getLocation());
         forLoopNode.setContinuous(continuous);
 
         output.statementNode = forLoopNode;

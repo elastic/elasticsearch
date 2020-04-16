@@ -53,13 +53,13 @@ public class SWhile extends AStatement {
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
         AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
 
         boolean continuous = false;
 
-        if (condition.getChildIf(EBoolean.class) != null) {
+        if (condition instanceof EBoolean) {
             continuous = ((EBoolean)condition).constant;
 
             if (!continuous) {
@@ -97,7 +97,7 @@ public class SWhile extends AStatement {
         WhileNode whileNode = new WhileNode();
         whileNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         whileNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        whileNode.setLocation(location);
+        whileNode.setLocation(getLocation());
         whileNode.setContinuous(continuous);
 
         output.statementNode = whileNode;

@@ -63,7 +63,7 @@ request parameter, `keep_alive`.
 
 {es} uses a custom on-disk {ref}/secure-settings.html[keystore] for secure settings such as
 passwords and SSL certificates. Up until now, this prevented users with
-command-line access from viewing secure files by listing commands, but nothing
+{ref}/elasticsearch-keystore.html[command-line access] from viewing secure files by listing commands, but nothing
 prevented such users from changing values in the keystore, or removing values
 from it. Furthermore, the values were only obfuscated by a hash; no
 user-specific secret protected the secure settings.

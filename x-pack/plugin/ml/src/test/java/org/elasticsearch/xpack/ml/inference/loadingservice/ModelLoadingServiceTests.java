@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
@@ -122,7 +121,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         String[] modelIds = new String[]{model1, model2, model3};
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
             modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -135,7 +134,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
             modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -179,7 +178,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for(int i = 0; i < 10; i++) {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)
             String model = modelIds[i%2];
-            PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
             modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -199,7 +198,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model<? extends InferenceConfig>> future3 = new PlainActionFuture<>();
+            PlainActionFuture<Model> future3 = new PlainActionFuture<>();
             modelLoadingService.getModel(model3, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
@@ -220,7 +219,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model<? extends InferenceConfig>> future1 = new PlainActionFuture<>();
+            PlainActionFuture<Model> future1 = new PlainActionFuture<>();
             modelLoadingService.getModel(model1, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
@@ -234,7 +233,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 2
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model<? extends InferenceConfig>> future2 = new PlainActionFuture<>();
+            PlainActionFuture<Model> future2 = new PlainActionFuture<>();
             modelLoadingService.getModel(model2, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
@@ -245,7 +244,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
             modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -273,7 +272,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
 
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
             modelLoadingService.getModel(model1, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -296,7 +295,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             "test-node");
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
-        PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+        PlainActionFuture<Model> future = new PlainActionFuture<>();
         modelLoadingService.getModel(model, future);
 
         try {
@@ -323,7 +322,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node");
 
-        PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+        PlainActionFuture<Model> future = new PlainActionFuture<>();
         modelLoadingService.getModel(model, future);
         try {
             future.get();
@@ -347,7 +346,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             "test-node");
 
         for(int i = 0; i < 3; i++) {
-            PlainActionFuture<Model<? extends InferenceConfig>> future = new PlainActionFuture<>();
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
             modelLoadingService.getModel(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }

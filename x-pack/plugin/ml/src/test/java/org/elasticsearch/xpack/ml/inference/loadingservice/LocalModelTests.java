@@ -11,13 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
@@ -28,8 +30,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedM
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.mockito.ArgumentMatcher;
@@ -63,7 +63,7 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model<ClassificationConfig> model = new LocalModel<>(modelId,
+        Model model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -92,7 +92,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(true))
             .build();
-        model = new LocalModel<>(modelId,
+        model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -134,7 +134,7 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(true))
             .build();
 
-        Model<ClassificationConfig> model = new LocalModel<>(modelId,
+        Model model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -189,7 +189,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model<RegressionConfig> model = new LocalModel<>("regression_model",
+        Model model = new LocalModel("regression_model",
             "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
@@ -215,7 +215,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model<RegressionConfig> model = new LocalModel<>(
+        Model model = new LocalModel(
             "regression_model",
             "test-node",
             trainedModelDefinition,
@@ -246,7 +246,7 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model<ClassificationConfig> model = new LocalModel<>(modelId,
+        Model model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -276,16 +276,16 @@ public class LocalModelTests extends ESTestCase {
         }));
     }
 
-    private static <T extends InferenceConfig> SingleValueInferenceResults getSingleValue(Model<T> model,
+    private static <T extends InferenceConfig> SingleValueInferenceResults getSingleValue(Model model,
                                                                                           Map<String, Object> fields,
-                                                                                          InferenceConfigUpdate<T> config)
+                                                                                          InferenceConfigUpdate config)
         throws Exception {
         return (SingleValueInferenceResults)getInferenceResult(model, fields, config);
     }
 
-    private static <T extends InferenceConfig> InferenceResults getInferenceResult(Model<T> model,
+    private static <T extends InferenceConfig> InferenceResults getInferenceResult(Model model,
                                                                                    Map<String, Object> fields,
-                                                                                   InferenceConfigUpdate<T> config) throws Exception {
+                                                                                   InferenceConfigUpdate config) throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();
         model.infer(fields, config, future);
         return future.get();

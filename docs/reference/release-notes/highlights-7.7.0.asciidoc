@@ -47,7 +47,7 @@ the server will wait until it sends back a response. The first response
 contains among others a search unique ID, a response version, an indication if
 this response is partial or not, plus the usual metadata (shards involved,
 number of hits etc) and potentially results. If the response is not complete
-and final, the client can continue polling for results issuing a new request
+and final, the client can continue polling for results, issuing a new request
 using the provided search ID; if new results are available, the returned
 version is incremented and the new results batch returned. This can go on until
 all the results are fetched.

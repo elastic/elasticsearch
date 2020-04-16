@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.text.NumberFormat;
 import java.text.ParsePosition;
 import java.util.Objects;
 
@@ -45,7 +44,7 @@ public class ToNumberFunctionProcessor implements Processor {
     }
 
     private static Number parseDecimal(String source) {
-        DecimalFormat df = (DecimalFormat) NumberFormat.getNumberInstance();
+        DecimalFormat df = new DecimalFormat();
         DecimalFormatSymbols otherSymbols = new DecimalFormatSymbols();
         ParsePosition position = new ParsePosition(0);
 

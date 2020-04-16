@@ -93,6 +93,17 @@ public class ToNumberProcessorTests extends ESTestCase {
         assertEquals(expected, process(number  + "e-" + exponent, 10));
     }
 
+    public void toNumberWithLocales() {
+        assertEquals("Unable to convert [1,000] to number of base [10]",
+            error("1,000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]",
+            error("1,000,000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]",
+            error("1.000.000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]",
+            error("1,000.000.000", 7));
+    }
+
     public void toNumberWithUnsupportedDoubleBase() {
         // test that only base 10 fractions are supported
         double decimal = randomDouble();

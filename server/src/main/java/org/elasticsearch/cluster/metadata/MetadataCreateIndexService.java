@@ -526,7 +526,7 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newQueryShardContext(0, null, () -> 0L, null)),
-            List.of(), metadataTransformer);
+            org.elasticsearch.common.collect.List.of(), metadataTransformer);
     }
 
     /**

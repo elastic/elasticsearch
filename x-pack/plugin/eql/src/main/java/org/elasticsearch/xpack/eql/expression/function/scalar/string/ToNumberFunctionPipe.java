@@ -18,11 +18,11 @@ import java.util.Objects;
 
 public class ToNumberFunctionPipe extends Pipe {
 
-    private final Pipe source, base;
+    private final Pipe value, base;
 
     public ToNumberFunctionPipe(Source source, Expression expression, Pipe src, Pipe base) {
         super(source, expression, Arrays.asList(src, base));
-        this.source = src;
+        this.value = src;
         this.base = base;
 
     }
@@ -37,8 +37,8 @@ public class ToNumberFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
-        if (newSource == source) {
+        Pipe newSource = value.resolveAttributes(resolver);
+        if (newSource == value) {
             return this;
         }
         return replaceChildren(Collections.singletonList(newSource));
@@ -46,36 +46,36 @@ public class ToNumberFunctionPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery();
+        return value.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved();
+        return value.resolved();
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        value.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<ToNumberFunctionPipe> info() {
-        return NodeInfo.create(this, ToNumberFunctionPipe::new, expression(), source, base);
+        return NodeInfo.create(this, ToNumberFunctionPipe::new, expression(), value, base);
     }
 
     @Override
     public ToNumberFunctionProcessor asProcessor() {
-        return new ToNumberFunctionProcessor(source.asProcessor(), base.asProcessor());
+        return new ToNumberFunctionProcessor(value.asProcessor(), base.asProcessor());
     }
 
     public Pipe src() {
-        return source;
+        return value;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source);
+        return Objects.hash(value);
     }
 
     @Override
@@ -88,6 +88,6 @@ public class ToNumberFunctionPipe extends Pipe {
             return false;
         }
 
-        return Objects.equals(source, ((ToNumberFunctionPipe) obj).source);
+        return Objects.equals(value, ((ToNumberFunctionPipe) obj).value);
     }
 }

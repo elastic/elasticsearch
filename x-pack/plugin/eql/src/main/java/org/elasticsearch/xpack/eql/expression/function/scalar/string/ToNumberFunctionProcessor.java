@@ -11,9 +11,11 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
-import java.util.Locale;
+import java.text.ParsePosition;
 import java.util.Objects;
 
 public class ToNumberFunctionProcessor implements Processor {
@@ -42,9 +44,24 @@ public class ToNumberFunctionProcessor implements Processor {
         return doProcess(value.process(input), base.process(input));
     }
 
-    public static Integer parseHexadecimal(String source) {
-        source = source.startsWith("0x") ? source.substring(2) : source;
-        return Integer.parseInt(source, 16);
+    private static Number parseDecimal(String source) {
+        DecimalFormat df = (DecimalFormat) NumberFormat.getNumberInstance();
+        DecimalFormatSymbols otherSymbols = new DecimalFormatSymbols();
+        ParsePosition position = new ParsePosition(0);
+
+        otherSymbols.setDecimalSeparator('.');
+        df.setGroupingUsed(false);
+        df.setDecimalFormatSymbols(otherSymbols);
+        df.setNegativePrefix("-");
+
+        // base 10 has to allow for doubles, but others are integer only
+        Number parsed = df.parse(source, position);
+
+        if (parsed == null || position.getIndex() < source.length()) {
+            throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", source, 10);
+        }
+
+        return parsed;
     }
 
     public static Object doProcess(Object source, Object base) {
@@ -65,7 +82,7 @@ public class ToNumberFunctionProcessor implements Processor {
         if (base == null) {
             base = detectedHexPrefix ? 16 : 10;
         } else if (base instanceof Number == false) {
-            throw new EqlIllegalArgumentException("An integer base is required; received [{}]", source);
+            throw new EqlIllegalArgumentException("An integer base is required; received [{}]", base);
         }
 
         int radix = ((Number) base).intValue();
@@ -74,15 +91,13 @@ public class ToNumberFunctionProcessor implements Processor {
             source = source.toString().substring(2);
         }
 
-        // custom bases need to use parseInt
-        if (radix != 10) {
-            return Integer.parseInt(source.toString(), radix);
-        }
-
-        // otherwise, we should allow for doubles
         try {
-            return NumberFormat.getNumberInstance(Locale.US).parse(source.toString());
-        } catch (ParseException e) {
+            if (radix == 10) {
+                return parseDecimal(source.toString());
+            } else {
+                return Integer.parseInt(source.toString(), radix);
+            }
+        } catch (NumberFormatException e) {
             throw new EqlIllegalArgumentException("Unable to convert [{}] to number of base [{}]", source, radix);
         }
 

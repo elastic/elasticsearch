@@ -50,10 +50,13 @@ public class SecurityContext {
         if (currentAuthentication == null) {
             return Map.of();
         }
-        Authentication authenticationWithJobId = currentAuthentication.withJobOriginAndId(jobOrigin, jobId);
         try {
-            String encodedJobAuthenticationHeader = authenticationWithJobId.encode();
-            return Map.of(AuthenticationField.AUTHENTICATION_KEY, encodedJobAuthenticationHeader);
+            if (currentAuthentication.hasJobOrigin()) {
+                return Map.of(AuthenticationField.AUTHENTICATION_KEY, currentAuthentication.encode());
+            } else {
+                Authentication authenticationWithJobId = currentAuthentication.withJobOriginAndId(jobOrigin, jobId);
+                return Map.of(AuthenticationField.AUTHENTICATION_KEY, authenticationWithJobId.encode());
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

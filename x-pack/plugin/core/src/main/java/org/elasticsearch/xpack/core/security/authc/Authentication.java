@@ -146,6 +146,14 @@ public class Authentication implements ToXContentObject {
         return new Authentication(this.user, this.authenticatedBy, this.lookedUpBy, this.version, this.type, metadata);
     }
 
+    public boolean hasJobOrigin() {
+        if (metadata.containsKey(JOB_AUTHN_ORIGIN_METADATA_KEY)) {
+            assert metadata.containsKey(JOB_AUTHN_ID_METADATA_KEY);
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

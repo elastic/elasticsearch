@@ -112,6 +112,10 @@ public class ToNumberProcessorTests extends ESTestCase {
     public void testNumberInvalidDataType() {
         assertEquals("A string/char is required; received [false]",
             error(false, null));
+        assertEquals("A string/char is required; received [1.0]",
+            error(1.0, null));
+        assertEquals("A string/char is required; received [1]",
+            error(1, null));
     }
 
     public void testInvalidBase() {
@@ -119,6 +123,8 @@ public class ToNumberProcessorTests extends ESTestCase {
 
         assertEquals("An integer base is required; received [foo]",
             error(Integer.toString(number), "foo"));
+        assertEquals("An integer base is required; received [1.0]",
+            error(Integer.toString(number), 1.0));
         assertEquals("An integer base is required; received [false]",
             error(Integer.toString(number), false));
     }
@@ -136,21 +142,5 @@ public class ToNumberProcessorTests extends ESTestCase {
             error("1.2.3.4", 10));
         assertEquals("Unable to convert [1.2.3.4] to number of base [16]",
             error("1.2.3.4", 16));
-    }
-
-    public void testAlreadyNumber() {
-        // numbers are rejected by the verifier, but if one does show up, we just pass it back
-        int intNum = randomIntBetween(-100, 100);
-        double floatNum = randomDoubleBetween(-100.0, 100.0, true);
-
-        assertEquals(intNum, process(intNum, null));
-        assertEquals(intNum, process(intNum, 8));
-        assertEquals(intNum, process(intNum, 10));
-        assertEquals(intNum, process(intNum, 16));
-
-        assertEquals(floatNum, process(floatNum, null));
-        assertEquals(floatNum, process(floatNum, 8));
-        assertEquals(floatNum, process(floatNum, 10));
-        assertEquals(floatNum, process(floatNum, 16));
     }
 }

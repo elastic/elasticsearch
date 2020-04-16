@@ -69,10 +69,6 @@ public class ToNumberFunctionProcessor implements Processor {
             return null;
         }
 
-        if (source instanceof Number) {
-            return source;
-        }
-
         if (!(source instanceof String || source instanceof Character)) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
         }
@@ -81,11 +77,11 @@ public class ToNumberFunctionProcessor implements Processor {
 
         if (base == null) {
             base = detectedHexPrefix ? 16 : 10;
-        } else if (base instanceof Number == false) {
+        } else if (base instanceof Integer == false) {
             throw new EqlIllegalArgumentException("An integer base is required; received [{}]", base);
         }
 
-        int radix = ((Number) base).intValue();
+        int radix = (Integer) base;
 
         if (detectedHexPrefix && radix == 16) {
             source = source.toString().substring(2);

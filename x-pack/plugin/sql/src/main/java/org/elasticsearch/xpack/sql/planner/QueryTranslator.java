@@ -612,7 +612,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, MatrixStats m) {
-            if (isFieldOrLiteral(m)) {
+            if (isFieldOrLiteral(m.field())) {
                 return new MatrixStatsAgg(id, singletonList(field(m, m.field())));
             }
             throw new SqlIllegalArgumentException(

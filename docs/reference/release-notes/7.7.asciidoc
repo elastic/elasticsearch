@@ -108,6 +108,9 @@ Infra/Packaging::
 
 Machine Learning::
 * Implement ILM policy for .ml-state* indices {pull}52356[#52356] (issue: {issue}29938[#29938])
+* Add instrumentation to report statistics related to {dfanalytics-jobs} such as
+progress, memory usage, etc. {ml-pull}906[#906]
+* Multiclass classification {ml-pull}1037[#1037]
 
 Mapping::
 * Introduce a `constant_keyword` field. {pull}49713[#49713]
@@ -283,8 +286,32 @@ Machine Learning::
 * Add tags url param to GET {pull}51330[#51330]
 * Add parsers for inference configuration classes {pull}51300[#51300]
 * Make datafeeds work with nanosecond time fields {pull}51180[#51180] (issue: {issue}49889[#49889])
-* Add audit warning for 1000 categories found early in job {pull}51146[#51146] (issue: {issue}50749[#50749])
 * Adds support for a global calendars {pull}50372[#50372] (issue: {issue}45013[#45013])
+* Speed up computation of feature importance
+{ml-pull}1005[1005]
+* Improve initialization of learn rate for better and more stable results in
+regression and classification {ml-pull}948[#948]
+* Add number of processed training samples to the definition of decision tree
+nodes {ml-pull}991[#991]
+* Add new model_size_stats fields to instrument categorization
+{ml-pull}948[#948], {pull}51879[#51879] (issue: {issue}50794[#50749])
+* Improve upfront memory estimation for all data frame analyses, which were
+higher than necessary. This will improve the allocation of data frame analyses
+to cluster nodes {ml-pull}1003[#1003]
+* Upgrade the compiler used on Linux from gcc 7.3 to gcc 7.5, and the binutils
+used in the build from version 2.20 to 2.34 {ml-pull}1013[#1013]
+* Add instrumentation of the peak memory consumption for {dfanalytics-jobs}
+{ml-pull}1022[#1022]
+* Remove all memory overheads for computing tree SHAP values {ml-pull}1023[#1023]
+* Distinguish between empty and missing categorical fields in classification and
+regression model training {ml-pull}1034[#1034]
+* Add instrumentation information for supervised learning {dfanalytics-jobs}
+{ml-pull}1031[#1031]
+* Add instrumentation information for {oldetection} data frame analytics jobs
+{ml-pull}1068[#1068]
+* Write out feature importance for multi-class models {ml-pull}1071[#1071]
+* Enable system call filtering to the native process used with {dfanalytics}
+{ml-pull}1098[#1098]
 
 Mapping::
 * Wildcard field - add normalizer support {pull}53851[#53851]
@@ -493,16 +520,17 @@ Machine Learning::
 * Perform evaluation in multiple steps when necessary {pull}53295[#53295]
 * Specifying missing_field_value value and using it instead of empty_string {pull}53108[#53108] (issue: {issue}1034[#1034])
 * Use event.timezone in ingest pipeline from find_file_structure {pull}52720[#52720] (issue: {issue}9458[#9458])
-* Don't return inflated definition when storing trained models {pull}52573[#52573]
-* Validate tree feature index is within range {pull}52460[#52460]
 * Better error when persistent task assignment disabled {pull}52014[#52014] (issue: {issue}51956[#51956])
 * Fix possible race condition starting datafeed {pull}51646[#51646] (issues: {issue}50886[#50886], {issue}51302[#51302])
-* Fix 2 digit year regex in find_file_structure {pull}51469[#51469]
 * Fix possible race condition when starting datafeed {pull}51302[#51302] (issue: {issue}51285[#51285])
-* Validate classification dependent_variable cardinality is at least two {pull}51232[#51232]
-* Do not copy mapping from dependent variable to prediction field in regression analysis {pull}51227[#51227]
 * Address two edge cases for categorization.GrokPatternCreator#findBestGrokMatchFromExamples {pull}51168[#51168]
 * Calculate results and snapshot retention using latest bucket timestamps {pull}51061[#51061]
+* Use largest ordered subset of categorization tokens for category reverse
+search regex {ml-pull}970[#970] (issue: {ml-issue}949[#949])
+* Account for the data frame's memory when estimating the peak memory used by
+classification and regression model training {ml-pull}996[#996]
+* Rename classification and regression parameter maximum_number_trees to
+max_trees {ml-pull}1047[#1047]
 
 Mapping::
 * Throw better exception on wrong `dynamic_templates` syntax {pull}51783[#51783] (issue: {issue}51486[#51486])

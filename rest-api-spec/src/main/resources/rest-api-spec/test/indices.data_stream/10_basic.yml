@@ -2,7 +2,7 @@
 "Create data stream":
   - skip:
       version: " - 7.99.99"
-      reason: "enable in 7.8+ after back-porting https://github.com/elastic/elasticsearch/pull/54467"
+      reason: "enable in 7.8+ after backporting https://github.com/elastic/elasticsearch/pull/54726 (Make data streams in APIs resolvable)"
 
   - do:
       indices.create_data_stream:
@@ -29,6 +29,23 @@
   - match: { 1.timestamp_field: '@timestamp2' }
   - length: { 1.indices: 1 }
   - match: { 1.indices.0.index_name: 'simple-data-stream2-000001' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      search:
+        index: simple-data-stream1
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: simple-data-stream1-000001 }
+  - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
       indices.delete_data_stream:
@@ -143,8 +160,7 @@
 
   - do:
       indices.get:
-        index: "*"
-        expand_wildcards: all
+        index: ['delete-data-stream1-000001', 'test_index']
 
   - is_true: test_index.settings
   - is_true: delete-data-stream1-000001.settings
@@ -165,4 +181,3 @@
       catch: missing
       indices.get:
         index: "delete-data-stream1-000001"
-        expand_wildcards: all

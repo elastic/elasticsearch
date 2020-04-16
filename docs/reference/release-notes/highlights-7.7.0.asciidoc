@@ -35,10 +35,12 @@ error, a parent circuit breaker check is performed on allocation.
 [float]
 === A new way of searching: asynchronously
 
-Searches can now be submitted to a new endpoint, `_async_search`, that works
-exactly the same as the `_search` endpoint, except that instead of blocking and
-returning the final response only once it's entirely available, it will pan the
-results as they become available, asynchronously.
+You can now submit {ref}/async-search-intro.html[long-running searches] using
+the new {ref}/async-search.html[`_async_search` API]. The new API accepts the
+same parameters and request body as the {ref}/search-search.html[Search API].
+However, instead of blocking and returning the final response only when it's 
+entirely finished, you can retrieve results from an async search as they become 
+available.
 
 The request takes a parameter, `wait_for_completion`, which controls how long
 the server will wait until it sends back a response. The first response

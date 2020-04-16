@@ -52,7 +52,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -67,6 +69,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 public class AvgAggregatorTests extends AggregatorTestCase {
@@ -708,5 +711,15 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         multiReader.close();
         directory.close();
         unmappedDirectory.close();
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return singletonList(CoreValuesSourceType.NUMERIC);
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new AvgAggregationBuilder("foo").field(fieldName);
     }
 }

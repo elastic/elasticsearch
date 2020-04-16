@@ -165,7 +165,7 @@ public class CompositeRolesStore {
                                     rolesRetrievalResult.getMissingRoles()));
                         }
                         final Set<RoleDescriptor> effectiveDescriptors;
-                        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                        if (licenseState.isSecurityEnabled() && licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
                         } else {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors().stream()
@@ -319,8 +319,9 @@ public class CompositeRolesStore {
 
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
+        boolean allAllowed = licenseState.isSecurityEnabled() && licenseState.isCustomRoleProvidersAllowed();
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders =
-            licenseState.isCustomRoleProvidersAllowed() ? allRoleProviders : builtInRoleProviders;
+            allAllowed ? allRoleProviders : builtInRoleProviders;
 
         final ActionListener<RoleRetrievalResult> descriptorsListener =
             ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {

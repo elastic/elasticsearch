@@ -188,7 +188,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+        if (licenseState.isSecurityEnabled() && licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             innerPutRole(request, role, listener);
         } else if (role.isUsingDocumentOrFieldLevelSecurity()) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
@@ -369,7 +369,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
             RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
-            if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            if (licenseState.isSecurityEnabled() && licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
                 return roleDescriptor;
             } else {
                 final boolean dlsEnabled =

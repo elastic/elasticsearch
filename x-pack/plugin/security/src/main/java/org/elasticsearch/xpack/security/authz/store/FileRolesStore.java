@@ -175,7 +175,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                final boolean flsDlsLicensed = licenseState.isDocumentAndFieldLevelSecurityAllowed();
+                final boolean flsDlsLicensed = licenseState.isSecurityEnabled() && licenseState.isDocumentAndFieldLevelSecurityAllowed();
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {

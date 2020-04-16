@@ -267,25 +267,25 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
 
-        final ResourceWatcherService resourceWatcher = new ResourceWatcherService(settings, threadPool);
-        SSLConfigurationReloader.startWatching(environment, sslService::reloadSSLContext, resourceWatcher,
-            SSLService.getSSLConfigurations(environment.settings()).values());
+        try (ResourceWatcherService resourceWatcher = new ResourceWatcherService(settings, threadPool)) {
+            SSLConfigurationReloader.startWatching(environment, sslService::reloadSSLContext, resourceWatcher,
+                SSLService.getSSLConfigurations(environment.settings()).values());
+            Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+            resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
-        Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
-        resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
+            UncategorizedExecutionException e =
+                expectThrows(UncategorizedExecutionException.class, () -> session(sessionFactory, user, userPass));
+            assertThat(e.getCause(), instanceOf(ExecutionException.class));
+            assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
+            assertThat(e.getCause().getCause().getMessage(), containsString("SSLPeerUnverifiedException"));
 
-        UncategorizedExecutionException e =
-            expectThrows(UncategorizedExecutionException.class, () -> session(sessionFactory, user, userPass));
-        assertThat(e.getCause(), instanceOf(ExecutionException.class));
-        assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
-        assertThat(e.getCause().getCause().getMessage(), containsString("SSLPeerUnverifiedException"));
+            Files.copy(realCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+            resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
-        Files.copy(realCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
-        resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
+            final LdapSession session = session(sessionFactory, user, userPass);
+            assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
 
-        final LdapSession session = session(sessionFactory, user, userPass);
-        assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
-
-        session.close();
+            session.close();
+        }
     }
 }

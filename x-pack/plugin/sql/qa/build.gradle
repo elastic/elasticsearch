@@ -39,7 +39,7 @@ dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 

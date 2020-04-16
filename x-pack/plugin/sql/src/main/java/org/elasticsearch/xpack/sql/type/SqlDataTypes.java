@@ -81,7 +81,7 @@ public class SqlDataTypes {
     public static final DataType INTERVAL_MINUTE_TO_SECOND =
                    new DataType("INTERVAL_MINUTE_TO_SECOND", null, Long.BYTES,    false, false, false);
     // geo
-    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
+    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
     public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2,  false, false, false);
     public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
     // @formatter:on

@@ -19,11 +19,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.eql.action.EqlSearchAction;
-import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
-import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.Configuration;
@@ -70,7 +70,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .implicitJoinKey(request.implicitJoinKeyField());
 
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-                includeFrozen, clientId, new TaskId(nodeId, task.getId()), task::isCancelled);
+                includeFrozen, clientId, new TaskId(nodeId, task.getId()), task::isCancelled, task.getProgressListener());
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 

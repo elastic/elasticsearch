@@ -22,14 +22,14 @@ import static org.elasticsearch.xpack.search.GetAsyncSearchRequestTests.randomSe
 
 // TODO: test CRUD operations
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
-    private AsyncTaskIndexService indexService;
+    private AsyncTaskIndexService<AsyncSearchResponse> indexService;
 
     @Before
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncTaskIndexService(AsyncSearch.INDEX, clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), ASYNC_SEARCH_ORIGIN, writableRegistry());
+        indexService = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, transportService.getThreadPool().getThreadContext(),
+            client(), ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, writableRegistry());
     }
 
     public void testEncodeSearchResponse() throws IOException {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchRequest;
 
 import java.io.IOException;
 import java.util.List;

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
@@ -24,7 +25,7 @@ import java.util.concurrent.ExecutionException;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
-    private AsyncTaskIndexService indexService;
+    private AsyncTaskIndexService<AsyncSearchResponse> indexService;
 
     public String index = ".async-search";
 
@@ -32,8 +33,9 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncTaskIndexService(index, clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), "test_origin", writableRegistry());
+        indexService = new AsyncTaskIndexService<>(index, clusterService,
+            transportService.getThreadPool().getThreadContext(),
+            client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {

@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchRequest;
 import org.junit.Before;
 
 import java.io.IOException;

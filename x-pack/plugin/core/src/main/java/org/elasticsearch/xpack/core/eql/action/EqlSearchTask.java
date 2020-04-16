@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.xpack.core.eql.action;
 
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class EqlSearchTask extends CancellableTask {
+    private EqlSearchProgressListener progressListener = EqlSearchProgressListener.NOOP;
+
     private final Supplier<String> descriptionSupplier;
 
     public EqlSearchTask(long id, String type, String action, Supplier<String> descriptionSupplier, TaskId parentTaskId,
@@ -29,5 +31,19 @@ public class EqlSearchTask extends CancellableTask {
     @Override
     public String getDescription() {
         return descriptionSupplier.get();
+    }
+
+    /**
+     * Attach a {@link EqlSearchProgressListener} to this task.
+     */
+    public void setProgressListener(EqlSearchProgressListener progressListener) {
+        this.progressListener = progressListener;
+    }
+
+    /**
+     * Return the {@link EqlSearchProgressListener} attached to this task.
+     */
+    public EqlSearchProgressListener getProgressListener() {
+        return progressListener;
     }
 }

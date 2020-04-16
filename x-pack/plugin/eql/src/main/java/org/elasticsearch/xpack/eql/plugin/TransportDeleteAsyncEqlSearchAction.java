@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.eql.plugin;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,36 +28,37 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.eql.action.AsyncEqlSearchResponse;
+import org.elasticsearch.xpack.eql.action.AsyncEqlSearchTask;
+import org.elasticsearch.xpack.core.eql.action.DeleteAsyncEqlSearchAction;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
-public class TransportDeleteAsyncSearchAction extends HandledTransportAction<DeleteAsyncSearchAction.Request, AcknowledgedResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportDeleteAsyncSearchAction.class);
+public class TransportDeleteAsyncEqlSearchAction extends HandledTransportAction<DeleteAsyncEqlSearchAction.Request, AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportDeleteAsyncEqlSearchAction.class);
 
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AsyncTaskIndexService<AsyncSearchResponse> store;
+    private final AsyncTaskIndexService<AsyncEqlSearchResponse> store;
 
     @Inject
-    public TransportDeleteAsyncSearchAction(TransportService transportService,
-                                            ActionFilters actionFilters,
-                                            ClusterService clusterService,
-                                            ThreadPool threadPool,
-                                            NamedWriteableRegistry registry,
-                                            Client client) {
-        super(DeleteAsyncSearchAction.NAME, transportService, actionFilters, DeleteAsyncSearchAction.Request::new);
-        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client,
-            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
+    public TransportDeleteAsyncEqlSearchAction(TransportService transportService,
+                                               ActionFilters actionFilters,
+                                               ClusterService clusterService,
+                                               ThreadPool threadPool,
+                                               NamedWriteableRegistry registry,
+                                               Client client) {
+        super(DeleteAsyncEqlSearchAction.NAME, transportService, actionFilters, DeleteAsyncEqlSearchAction.Request::new);
+        this.store = new AsyncTaskIndexService<>(EqlPlugin.INDEX, clusterService, threadPool.getThreadContext(), client,
+            ASYNC_SEARCH_ORIGIN, AsyncEqlSearchResponse::new, registry);
         this.clusterService = clusterService;
         this.transportService = transportService;
     }
 
     @Override
-    protected void doExecute(Task task, DeleteAsyncSearchAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(Task task, DeleteAsyncEqlSearchAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         try {
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
@@ -65,7 +66,7 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
                 cancelTaskAndDeleteResult(searchId, listener);
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                transportService.sendRequest(node, DeleteAsyncSearchAction.NAME, request, builder.build(),
+                transportService.sendRequest(node, DeleteAsyncEqlSearchAction.NAME, request, builder.build(),
                     new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::new, ThreadPool.Names.SAME));
             }
         } catch (Exception exc) {
@@ -74,7 +75,7 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
     }
 
     void cancelTaskAndDeleteResult(AsyncExecutionId searchId, ActionListener<AcknowledgedResponse> listener) throws IOException {
-        AsyncSearchTask task = store.getTask(taskManager, searchId, AsyncSearchTask.class);
+        AsyncEqlSearchTask task = store.getTask(taskManager, searchId, AsyncEqlSearchTask.class);
         if (task != null) {
             //the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
             task.cancelTask(() -> store.deleteResponse(searchId,

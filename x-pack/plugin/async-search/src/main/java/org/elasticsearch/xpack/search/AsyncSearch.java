@@ -29,7 +29,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
-import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -84,12 +84,11 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         if (DiscoveryNode.isDataNode(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
-            AsyncTaskIndexService indexService =
-                new AsyncTaskIndexService(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
-                    namedWriteableRegistry);
-            AsyncTaskMaintenanceService maintenanceService =
-                new AsyncTaskMaintenanceService(AsyncSearch.INDEX, nodeEnvironment.nodeId(), threadPool, indexService,
-                    TimeValue.timeValueHours(1));
+            AsyncTaskIndexService<AsyncSearchResponse> indexService =
+                new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
+                    AsyncSearchResponse::new, namedWriteableRegistry);
+            AsyncSearchMaintenanceService maintenanceService =
+                new AsyncSearchMaintenanceService(nodeEnvironment.nodeId(), threadPool, indexService, TimeValue.timeValueHours(1));
             clusterService.addListener(maintenanceService);
             return Collections.singletonList(maintenanceService);
         } else {

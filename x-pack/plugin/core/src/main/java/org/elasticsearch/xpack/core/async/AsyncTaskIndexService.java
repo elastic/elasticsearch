@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +56,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AU
 /**
  * A service that exposes the CRUD operations for the async-task index.
  */
-public class AsyncTaskIndexService {
+public class AsyncTaskIndexService<R extends AsyncResponse> {
     private static final Logger logger = LogManager.getLogger(AsyncTaskIndexService.class);
 
     public static final String HEADERS_FIELD = "headers";
@@ -105,6 +106,7 @@ public class AsyncTaskIndexService {
     private final Client client;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
+    private final Writeable.Reader<R> reader;
 
 
     public AsyncTaskIndexService(String index,
@@ -112,12 +114,14 @@ public class AsyncTaskIndexService {
                                  ThreadContext threadContext,
                                  Client client,
                                  String origin,
+                                 Writeable.Reader<R> reader,
                                  NamedWriteableRegistry registry) {
         this.index = index;
         this.clusterService = clusterService;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = new OriginSettingClient(client, origin);
         this.registry = registry;
+        this.reader = reader;
     }
 
     /**
@@ -161,7 +165,7 @@ public class AsyncTaskIndexService {
      */
     public void storeInitialResponse(String docId,
                               Map<String, String> headers,
-                              AsyncSearchResponse response,
+                              R response,
                               ActionListener<IndexResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(HEADERS_FIELD, headers);
@@ -179,7 +183,7 @@ public class AsyncTaskIndexService {
      */
     public void storeFinalResponse(String docId,
                             Map<String, List<String>> responseHeaders,
-                            AsyncSearchResponse response,
+                            R response,
                             ActionListener<UpdateResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
@@ -247,7 +251,7 @@ public class AsyncTaskIndexService {
      */
     public void getResponse(AsyncExecutionId asyncExecutionId,
                             boolean restoreResponseHeaders,
-                            ActionListener<AsyncSearchResponse> listener) {
+                            ActionListener<R> listener) {
         final Authentication current = securityContext.getAuthentication();
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
@@ -322,7 +326,7 @@ public class AsyncTaskIndexService {
     /**
      * Encode the provided response in a binary form using base64 encoding.
      */
-    public String encodeResponse(AsyncSearchResponse response) throws IOException {
+    public String encodeResponse(R response) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Version.writeVersion(Version.CURRENT, out);
             response.writeTo(out);
@@ -333,11 +337,11 @@ public class AsyncTaskIndexService {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    public AsyncSearchResponse decodeResponse(String value) throws IOException {
+    public R decodeResponse(String value) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
-                return new AsyncSearchResponse(in);
+                return reader.read(in);
             }
         }
     }

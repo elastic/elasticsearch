@@ -60,6 +60,7 @@ public class Querier {
         if (cfg.isCancelled()) {
             throw new TaskCancelledException("cancelled");
         }
+        cfg.getEqlSearchProgressListener().notifyPlanCreated();
         SearchRequest search = prepareRequest(client, sourceBuilder, cfg.requestTimeout(), false,
                 Strings.commaDelimitedListToStringArray(index));
 

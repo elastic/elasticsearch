@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.xpack.core.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionResponse;
@@ -475,5 +475,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         public TotalHits totalHits() {
             return this.totalHits;
         }
+    }
+
+    public EqlSearchResponse merge(EqlSearchResponse partial) {
+        return partial;
     }
 }

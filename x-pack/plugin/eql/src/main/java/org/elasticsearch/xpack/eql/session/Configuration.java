@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchProgressListener;
 
 import java.time.ZoneId;
 import java.util.function.Supplier;
@@ -23,12 +24,14 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
     private final boolean includeFrozenIndices;
     private final Supplier<Boolean> isCancelled;
     private final TaskId taskId;
+    private final EqlSearchProgressListener eqlSearchProgressListener;
 
     @Nullable
     private final QueryBuilder filter;
 
     public Configuration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                         int size, boolean includeFrozen, String clientId, TaskId taskId, Supplier<Boolean> isCancelled) {
+                         int size, boolean includeFrozen, String clientId, TaskId taskId, Supplier<Boolean> isCancelled,
+                         EqlSearchProgressListener eqlSearchProgressListener) {
 
         super(zi, username, clusterName);
 
@@ -40,6 +43,7 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;
         this.isCancelled = isCancelled;
+        this.eqlSearchProgressListener = eqlSearchProgressListener;
     }
 
     public String[] indices() {
@@ -72,5 +76,9 @@ public class Configuration extends org.elasticsearch.xpack.ql.session.Configurat
 
     public TaskId getTaskId() {
         return taskId;
+    }
+
+    public EqlSearchProgressListener getEqlSearchProgressListener() {
+        return eqlSearchProgressListener;
     }
 }

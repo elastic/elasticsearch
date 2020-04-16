@@ -31,7 +31,8 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequest, org.elasticsearch.xpack.eql.action.EqlSearchRequest> {
+public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequest,
+    org.elasticsearch.xpack.core.eql.action.EqlSearchRequest> {
 
     @Override
     protected EqlSearchRequest createClientTestInstance() {
@@ -65,12 +66,12 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
     }
 
     @Override
-    protected org.elasticsearch.xpack.eql.action.EqlSearchRequest doParseToServerInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.xpack.eql.action.EqlSearchRequest.fromXContent(parser).indices("testindex");
+    protected org.elasticsearch.xpack.core.eql.action.EqlSearchRequest doParseToServerInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.xpack.core.eql.action.EqlSearchRequest.fromXContent(parser).indices("testindex");
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
+    protected void assertInstances(org.elasticsearch.xpack.core.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
         clientTestInstance) {
         assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
         assertThat(serverInstance.implicitJoinKeyField(), equalTo(clientTestInstance.implicitJoinKeyField()));

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,11 +36,7 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
 
     @Override
     protected EqlSearchResponse createTestInstance() {
-        TotalHits totalHits = null;
-        if (randomBoolean()) {
-            totalHits = new TotalHits(randomIntBetween(100, 1000), TotalHits.Relation.EQUAL_TO);
-        }
-        return createRandomInstance(totalHits);
+        return randomEqlSearchResponse();
     }
 
     @Override
@@ -112,5 +109,13 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
     @Override
     protected EqlSearchResponse doParseInstance(XContentParser parser) {
         return EqlSearchResponse.fromXContent(parser);
+    }
+
+    public static EqlSearchResponse randomEqlSearchResponse() {
+        TotalHits totalHits = null;
+        if (randomBoolean()) {
+            totalHits = new TotalHits(randomIntBetween(100, 1000), TotalHits.Relation.EQUAL_TO);
+        }
+        return createRandomInstance(totalHits);
     }
 }

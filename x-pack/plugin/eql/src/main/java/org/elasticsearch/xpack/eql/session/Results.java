@@ -10,8 +10,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Count;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse.Count;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse.Sequence;
 
 import java.util.List;
 
@@ -24,7 +24,7 @@ public class Results {
         SEQUENCE,
         COUNT;
     }
-    
+
     public static final Results EMPTY = new Results(new TotalHits(0, Relation.EQUAL_TO), TimeValue.MINUS_ONE, false, emptyList());
 
     private final TotalHits totalHits;

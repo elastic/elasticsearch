@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.eql.plugin;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,33 +26,34 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.eql.action.AsyncEqlSearchResponse;
+import org.elasticsearch.xpack.core.eql.action.GetAsyncEqlSearchAction;
+import org.elasticsearch.xpack.eql.action.AsyncEqlSearchTask;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
-public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncSearchAction.Request, AsyncSearchResponse> {
-    private final Logger logger = LogManager.getLogger(TransportGetAsyncSearchAction.class);
+public class TransportGetAsyncEqlSearchAction extends HandledTransportAction<GetAsyncEqlSearchAction.Request, AsyncEqlSearchResponse> {
+    private final Logger logger = LogManager.getLogger(TransportGetAsyncEqlSearchAction.class);
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final AsyncTaskIndexService<AsyncSearchResponse> store;
+    private final AsyncTaskIndexService<AsyncEqlSearchResponse> store;
 
     @Inject
-    public TransportGetAsyncSearchAction(TransportService transportService,
-                                         ActionFilters actionFilters,
-                                         ClusterService clusterService,
-                                         NamedWriteableRegistry registry,
-                                         Client client,
-                                         ThreadPool threadPool) {
-        super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncSearchAction.Request::new);
+    public TransportGetAsyncEqlSearchAction(TransportService transportService,
+                                            ActionFilters actionFilters,
+                                            ClusterService clusterService,
+                                            NamedWriteableRegistry registry,
+                                            Client client,
+                                            ThreadPool threadPool) {
+        super(GetAsyncEqlSearchAction.NAME, transportService, actionFilters, GetAsyncEqlSearchAction.Request::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadPool.getThreadContext(), client,
-            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
+        this.store = new AsyncTaskIndexService<>(EqlPlugin.INDEX, clusterService, threadPool.getThreadContext(), client,
+            ASYNC_SEARCH_ORIGIN, AsyncEqlSearchResponse::new, registry);
     }
 
     @Override
-    protected void doExecute(Task task, GetAsyncSearchAction.Request request, ActionListener<AsyncSearchResponse> listener) {
+    protected void doExecute(Task task, GetAsyncEqlSearchAction.Request request, ActionListener<AsyncEqlSearchResponse> listener) {
         try {
             long nowInMillis = System.currentTimeMillis();
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
@@ -79,8 +80,8 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                transportService.sendRequest(node, GetAsyncSearchAction.NAME, request, builder.build(),
-                    new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));
+                transportService.sendRequest(node, GetAsyncEqlSearchAction.NAME, request, builder.build(),
+                    new ActionListenerResponseHandler<>(listener, AsyncEqlSearchResponse::new, ThreadPool.Names.SAME));
             }
         } catch (Exception exc) {
             listener.onFailure(exc);
@@ -88,12 +89,12 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     }
 
     private void getSearchResponseFromTask(AsyncExecutionId searchId,
-                                           GetAsyncSearchAction.Request request,
+                                           GetAsyncEqlSearchAction.Request request,
                                            long nowInMillis,
                                            long expirationTimeMillis,
-                                           ActionListener<AsyncSearchResponse> listener) {
+                                           ActionListener<AsyncEqlSearchResponse> listener) {
         try {
-            final AsyncSearchTask task = store.getTask(taskManager, searchId, AsyncSearchTask.class);
+            final AsyncEqlSearchTask task = store.getTask(taskManager, searchId, AsyncEqlSearchTask.class);
             if (task == null) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
@@ -109,7 +110,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
             }
             task.addCompletionListener(new ActionListener<>() {
                 @Override
-                public void onResponse(AsyncSearchResponse response) {
+                public void onResponse(AsyncEqlSearchResponse response) {
                     sendFinalResponse(request, response, nowInMillis, listener);
                 }
 
@@ -123,14 +124,14 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         }
     }
 
-   private void getSearchResponseFromIndex(AsyncExecutionId searchId,
-                                           GetAsyncSearchAction.Request request,
-                                           long nowInMillis,
-                                           ActionListener<AsyncSearchResponse> listener) {
+    private void getSearchResponseFromIndex(AsyncExecutionId searchId,
+                                            GetAsyncEqlSearchAction.Request request,
+                                            long nowInMillis,
+                                            ActionListener<AsyncEqlSearchResponse> listener) {
         store.getResponse(searchId, true,
             new ActionListener<>() {
                 @Override
-                public void onResponse(AsyncSearchResponse response) {
+                public void onResponse(AsyncEqlSearchResponse response) {
                     sendFinalResponse(request, response, nowInMillis, listener);
                 }
 
@@ -141,10 +142,10 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
             });
     }
 
-    private void sendFinalResponse(GetAsyncSearchAction.Request request,
-                                   AsyncSearchResponse response,
+    private void sendFinalResponse(GetAsyncEqlSearchAction.Request request,
+                                   AsyncEqlSearchResponse response,
                                    long nowInMillis,
-                                   ActionListener<AsyncSearchResponse> listener) {
+                                   ActionListener<AsyncEqlSearchResponse> listener) {
         // check if the result has expired
         if (response.getExpirationTime() < nowInMillis) {
             listener.onFailure(new ResourceNotFoundException(request.getId()));

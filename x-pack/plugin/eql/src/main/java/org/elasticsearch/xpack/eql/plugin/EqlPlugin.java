@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -32,20 +34,27 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
+import org.elasticsearch.xpack.core.eql.action.AsyncEqlSearchResponse;
+import org.elasticsearch.xpack.core.eql.action.DeleteAsyncEqlSearchAction;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.core.eql.action.GetAsyncEqlSearchAction;
+import org.elasticsearch.xpack.core.eql.action.SubmitAsyncEqlSearchAction;
 import org.elasticsearch.xpack.eql.EqlInfoTransportAction;
 import org.elasticsearch.xpack.eql.EqlUsageTransportAction;
-import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class EqlPlugin extends Plugin implements ActionPlugin {
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_EQL_SEARCH_ORIGIN;
 
+public class EqlPlugin extends Plugin implements ActionPlugin {
+    public static final String INDEX = ".async-eql-search";
     private final boolean enabled;
 
     private static final boolean EQL_FEATURE_FLAG_REGISTERED;
@@ -81,14 +90,21 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver) {
-        return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
-    }
-
-    private Collection<Object> createComponents(Client client, String clusterName,
-                                                NamedWriteableRegistry namedWriteableRegistry) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
+        List<Object> components = new ArrayList<>();
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, namedWriteableRegistry);
-        return Arrays.asList(planExecutor);
+        components.add(planExecutor);
+        if (DiscoveryNode.isDataNode(environment.settings())) {
+            // only data nodes should be eligible to run the maintenance service.
+            AsyncTaskIndexService<AsyncEqlSearchResponse> indexService =
+                new AsyncTaskIndexService<>(INDEX, clusterService, threadPool.getThreadContext(), client,
+                    ASYNC_EQL_SEARCH_ORIGIN, AsyncEqlSearchResponse::new, namedWriteableRegistry);
+            AsyncEqlSearchMaintenanceService maintenanceService =
+                new AsyncEqlSearchMaintenanceService(nodeEnvironment.nodeId(), threadPool, indexService, TimeValue.timeValueHours(1));
+            clusterService.addListener(maintenanceService);
+            components.add(maintenanceService);
+        }
+        return components;
     }
 
     /**
@@ -111,7 +127,10 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
                 new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
                 new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
-                new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+                new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class),
+                new ActionHandler<>(SubmitAsyncEqlSearchAction.INSTANCE, TransportSubmitAsyncEqlSearchAction.class),
+                new ActionHandler<>(GetAsyncEqlSearchAction.INSTANCE, TransportGetAsyncEqlSearchAction.class),
+                new ActionHandler<>(DeleteAsyncEqlSearchAction.INSTANCE, TransportDeleteAsyncEqlSearchAction.class)
             );
         }
         return List.of(
@@ -139,7 +158,13 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
         if (enabled) {
-            return List.of(new RestEqlSearchAction(), new RestEqlStatsAction());
+            return List.of(new RestEqlSearchAction(),
+                new RestEqlStatsAction(),
+                new RestSubmitAsyncEqlSearchAction(),
+                new RestGetAsyncEqlSearchAction(),
+                new RestDeleteAsyncEqlSearchAction()
+            );
+
         }
         return List.of();
     }

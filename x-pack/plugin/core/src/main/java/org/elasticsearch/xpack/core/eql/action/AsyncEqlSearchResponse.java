@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.search.action;
+package org.elasticsearch.xpack.core.eql.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
@@ -17,17 +17,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse {
+public class AsyncEqlSearchResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse {
     @Nullable
     private final String id;
     @Nullable
-    private final SearchResponse searchResponse;
+    private final EqlSearchResponse eqlSearchResponse;
     @Nullable
     private final ElasticsearchException error;
     private final boolean isRunning;
@@ -37,47 +38,47 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final long expirationTimeMillis;
 
     /**
-     * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
+     * Creates an {@link AsyncEqlSearchResponse} with meta-information only (not-modified).
      */
-    public AsyncSearchResponse(String id,
-                               boolean isPartial,
-                               boolean isRunning,
-                               long startTimeMillis,
-                               long expirationTimeMillis) {
+    public AsyncEqlSearchResponse(String id,
+                                  boolean isPartial,
+                                  boolean isRunning,
+                                  long startTimeMillis,
+                                  long expirationTimeMillis) {
         this(id, null, null, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
     /**
-     * Creates a new {@link AsyncSearchResponse}
+     * Creates a new {@link AsyncEqlSearchResponse}
      *
      * @param id The id of the search for further retrieval, <code>null</code> if not stored.
-     * @param searchResponse The actual search response.
+     * @param eqlSearchResponse The actual search response.
      * @param error The error if the search failed, <code>null</code> if the search is running
      *                or has completed without failure.
      * @param isPartial Whether the <code>searchResponse</code> contains partial results.
      * @param isRunning Whether the search is running in the cluster.
      * @param startTimeMillis The start date of the search in milliseconds since epoch.
      */
-    public AsyncSearchResponse(String id,
-                               SearchResponse searchResponse,
-                               ElasticsearchException error,
-                               boolean isPartial,
-                               boolean isRunning,
-                               long startTimeMillis,
-                               long expirationTimeMillis) {
+    public AsyncEqlSearchResponse(String id,
+                                  EqlSearchResponse eqlSearchResponse,
+                                  ElasticsearchException error,
+                                  boolean isPartial,
+                                  boolean isRunning,
+                                  long startTimeMillis,
+                                  long expirationTimeMillis) {
         this.id = id;
         this.error = error;
-        this.searchResponse = searchResponse;
+        this.eqlSearchResponse = eqlSearchResponse;
         this.isPartial = isPartial;
         this.isRunning = isRunning;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
     }
 
-    public AsyncSearchResponse(StreamInput in) throws IOException {
+    public AsyncEqlSearchResponse(StreamInput in) throws IOException {
         this.id = in.readOptionalString();
         this.error = in.readOptionalWriteable(ElasticsearchException::new);
-        this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
+        this.eqlSearchResponse = in.readOptionalWriteable(EqlSearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
         this.startTimeMillis = in.readLong();
@@ -88,15 +89,15 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
         out.writeOptionalWriteable(error);
-        out.writeOptionalWriteable(searchResponse);
+        out.writeOptionalWriteable(eqlSearchResponse);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
         out.writeLong(startTimeMillis);
         out.writeLong(expirationTimeMillis);
     }
 
-    public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, searchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
+    public AsyncEqlSearchResponse clone(String id) {
+        return new AsyncEqlSearchResponse(id, eqlSearchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
     }
 
     /**
@@ -113,8 +114,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      * See {@link #isPartial()} to determine whether the response contains partial or complete
      * results.
      */
-    public SearchResponse getSearchResponse() {
-        return searchResponse;
+    public EqlSearchResponse getEqlSearchResponse() {
+        return eqlSearchResponse;
     }
 
     /**
@@ -154,20 +155,19 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * When this response will expired as a timestamp in milliseconds since epoch.
      */
-    @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
     }
 
     @Override
     public RestStatus status() {
-        if (searchResponse == null || isPartial) {
+        if (eqlSearchResponse == null || isPartial) {
             // shard failures are not considered fatal for partial results so
             // we return OK until we get the final response even if we don't have
             // a single successful shard.
             return error != null ? error.status() : OK;
         } else {
-            return searchResponse.status();
+            return OK;
         }
     }
 
@@ -182,9 +182,9 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
         builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
 
-        if (searchResponse != null) {
+        if (eqlSearchResponse != null) {
             builder.field("response");
-            searchResponse.toXContent(builder, params);
+            eqlSearchResponse.toXContent(builder, params);
         }
         if (error != null) {
             builder.startObject("error");
@@ -193,5 +193,24 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AsyncEqlSearchResponse response = (AsyncEqlSearchResponse) o;
+        return isRunning == response.isRunning &&
+            isPartial == response.isPartial &&
+            startTimeMillis == response.startTimeMillis &&
+            expirationTimeMillis == response.expirationTimeMillis &&
+            Objects.equals(id, response.id) &&
+            Objects.equals(eqlSearchResponse, response.eqlSearchResponse) &&
+            Objects.equals(error, response.error);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, eqlSearchResponse, error, isRunning, isPartial, startTimeMillis, expirationTimeMillis);
     }
 }

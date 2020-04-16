@@ -17,9 +17,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
-import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchProgressListener;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -71,6 +72,7 @@ public class CancellationTests extends ESTestCase {
         countDownLatch.await();
         verify(task, times(1)).isCancelled();
         verify(task, times(1)).getId();
+        verify(task, times(1)).getProgressListener();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client, task);
@@ -99,6 +101,7 @@ public class CancellationTests extends ESTestCase {
         long taskId = randomNonNegativeLong();
         when(task.isCancelled()).then(invocationOnMock -> cancelled.get());
         when(task.getId()).thenReturn(taskId);
+        when(task.getProgressListener()).thenReturn(EqlSearchProgressListener.NOOP);
 
         String[] indices = new String[]{"endgame"};
 
@@ -135,6 +138,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).fieldCaps(any(), any());
         verify(task, times(2)).isCancelled();
         verify(task, times(1)).getId();
+        verify(task, times(1)).getProgressListener();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client, task);
@@ -148,6 +152,7 @@ public class CancellationTests extends ESTestCase {
         long taskId = randomNonNegativeLong();
         when(task.isCancelled()).thenReturn(false);
         when(task.getId()).thenReturn(taskId);
+        when(task.getProgressListener()).thenReturn(EqlSearchProgressListener.NOOP);
 
         String[] indices = new String[]{"endgame"};
 
@@ -201,6 +206,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).execute(any(), any(), any());
         verify(task, times(2)).isCancelled();
         verify(task, times(1)).getId();
+        verify(task, times(1)).getProgressListener();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client, task);

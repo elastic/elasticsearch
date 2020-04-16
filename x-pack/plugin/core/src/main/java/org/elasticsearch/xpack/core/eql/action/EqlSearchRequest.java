@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.xpack.core.eql.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -30,10 +30,10 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
+import static org.elasticsearch.xpack.core.eql.action.RequestDefaults.FETCH_SIZE;
+import static org.elasticsearch.xpack.core.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
+import static org.elasticsearch.xpack.core.eql.action.RequestDefaults.FIELD_TIMESTAMP;
+import static org.elasticsearch.xpack.core.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
@@ -68,7 +68,20 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
     public EqlSearchRequest() {
-        super();
+    }
+
+    public EqlSearchRequest(EqlSearchRequest request) {
+        this.setParentTask(request.getParentTask());
+        this.indices = request.indices;
+        this.indicesOptions = request.indicesOptions;
+        this.filter = request.filter;
+        this.timestampField = request.timestampField;
+        this.eventCategoryField = request.eventCategoryField;
+        this.implicitJoinKeyField = request.implicitJoinKeyField;
+        this.fetchSize = request.fetchSize;
+        this.searchAfterBuilder = request.searchAfterBuilder;
+        this.query = request.query;
+
     }
 
     public EqlSearchRequest(StreamInput in) throws IOException {

@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.eql.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse;
 
 public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchRequest, EqlSearchResponse> {
     public EqlSearchRequestBuilder(ElasticsearchClient client, EqlSearchAction action) {

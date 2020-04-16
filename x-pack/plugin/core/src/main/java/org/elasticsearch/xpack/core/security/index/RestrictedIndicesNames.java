@@ -24,6 +24,7 @@ public final class RestrictedIndicesNames {
 
     // public for tests
     public static final String ASYNC_SEARCH_PREFIX = ".async-search";
+    public static final String ASYNC_EQL_SEARCH_PREFIX = ".async-eql-search";
     private static final Automaton ASYNC_SEARCH_AUTOMATON = Automatons.patterns(ASYNC_SEARCH_PREFIX + "*");
 
     // public for tests

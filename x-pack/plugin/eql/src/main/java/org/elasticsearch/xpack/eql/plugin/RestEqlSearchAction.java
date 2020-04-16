@@ -17,9 +17,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
-import org.elasticsearch.xpack.eql.action.EqlSearchAction;
-import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchAction;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.core.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,12 +41,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
         throws IOException {
 
-        EqlSearchRequest eqlRequest;
-        try (XContentParser parser = request.contentOrSourceParamParser()) {
-            eqlRequest = EqlSearchRequest.fromXContent(parser);
-            eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-            eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
-        }
+        EqlSearchRequest eqlRequest = prepareEqlSearchRequest(request);
 
         return channel -> client.execute(EqlSearchAction.INSTANCE, eqlRequest, new RestResponseListener<>(channel) {
             @Override
@@ -56,6 +51,16 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
+    }
+
+    static EqlSearchRequest prepareEqlSearchRequest(RestRequest request) throws IOException {
+        EqlSearchRequest eqlRequest;
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            eqlRequest = EqlSearchRequest.fromXContent(parser);
+            eqlRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+            eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
+        }
+        return eqlRequest;
     }
 
     @Override

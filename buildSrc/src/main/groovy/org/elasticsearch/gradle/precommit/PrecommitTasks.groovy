@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.precommit
 
-
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
@@ -31,6 +30,7 @@ import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -144,18 +144,21 @@ class PrecommitTasks {
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
 
-            //  use the runtime classpath if we have it, but some qa projects don't have one...
-            if (name.endsWith('Test')) {
-                FileCollection runtime = project.sourceSets.test.runtimeClasspath
-                if (runtime != null) {
-                    classpath = runtime.plus(project.sourceSets.test.compileClasspath)
-                }
+            assert name.startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
+            String sourceSetName
+            if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(name)) {
+                sourceSetName = "main"
             } else {
-                FileCollection runtime = project.sourceSets.main.runtimeClasspath
-                if (runtime != null) {
-                    classpath = runtime.plus(project.sourceSets.main.compileClasspath)
-                }
+                //parse out the sourceSetName
+                char[] chars = name.substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray()
+                chars[0] = Character.toLowerCase(chars[0])
+                sourceSetName = new String(chars)
             }
+
+            SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
+            FileCollection runtime = sourceSet.runtimeClasspath
+            classpath = runtime.plus(sourceSet.compileClasspath)
+
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
                 project.logger.warn(

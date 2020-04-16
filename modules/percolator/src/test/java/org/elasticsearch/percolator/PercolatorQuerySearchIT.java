@@ -328,8 +328,8 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                         .must(matchQuery("field2", "value"))).endObject()).get();
 
         client().prepareIndex("test").setId("4").setSource("{\"id\": \"4\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("5").setSource("id", "5", "field1", "value").get();
-        client().prepareIndex("test").setId("6").setSource("id", "6", "field1", "value", "field2", "value").get();
+        client().prepareIndex("test").setId("5").setSource(XContentType.JSON, "id", "5", "field1", "value").get();
+        client().prepareIndex("test").setId("6").setSource(XContentType.JSON, "id", "6", "field1", "value", "field2", "value").get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc");

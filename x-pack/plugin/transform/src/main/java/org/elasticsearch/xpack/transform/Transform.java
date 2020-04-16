@@ -287,7 +287,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
         TransformCheckpointService checkpointService = new TransformCheckpointService(
-            client,
             settings,
             clusterService,
             configManager,
@@ -391,7 +390,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
         );

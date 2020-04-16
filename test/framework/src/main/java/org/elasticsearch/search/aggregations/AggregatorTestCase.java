@@ -729,7 +729,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
                 // Respect half float range
-                float f = (randomFloat() * 2 - 1) * 70000;
+                float f = Math.abs((randomFloat() * 2 - 1) * 70000);
                 v = HalfFloatPoint.halfFloatToSortableShort(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {

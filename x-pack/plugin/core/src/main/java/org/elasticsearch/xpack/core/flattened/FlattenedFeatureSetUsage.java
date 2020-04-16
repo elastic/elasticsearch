@@ -16,7 +16,10 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
-// For backward compatibility with 7.x
+/**
+ * @deprecated used for backward compatibility with 7.x only
+ */
+@Deprecated
 public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
     private final int fieldCount;
 

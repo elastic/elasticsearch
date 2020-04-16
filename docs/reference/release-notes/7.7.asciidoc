@@ -287,7 +287,7 @@ Machine Learning::
 * Add parsers for inference configuration classes {pull}51300[#51300]
 * Make datafeeds work with nanosecond time fields {pull}51180[#51180] (issue: {issue}49889[#49889])
 * Adds support for a global calendars {pull}50372[#50372] (issue: {issue}45013[#45013])
-* Improve computational performance of the feature importance computation
+* Speed up computation of feature importance
 {ml-pull}1005[1005]
 * Improve initialization of learn rate for better and more stable results in
 regression and classification {ml-pull}948[#948]

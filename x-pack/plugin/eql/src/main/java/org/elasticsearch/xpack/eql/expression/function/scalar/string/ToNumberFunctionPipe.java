@@ -68,26 +68,4 @@ public class ToNumberFunctionPipe extends Pipe {
     public ToNumberFunctionProcessor asProcessor() {
         return new ToNumberFunctionProcessor(value.asProcessor(), base.asProcessor());
     }
-
-    public Pipe src() {
-        return value;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(value);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        return Objects.equals(value, ((ToNumberFunctionPipe) obj).value);
-    }
 }

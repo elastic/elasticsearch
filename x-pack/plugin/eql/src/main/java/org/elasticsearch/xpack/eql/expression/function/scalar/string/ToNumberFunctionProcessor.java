@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
-import java.text.ParseException;
 import java.text.ParsePosition;
 import java.util.Objects;
 
@@ -37,6 +36,7 @@ public class ToNumberFunctionProcessor implements Processor {
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(value);
+        out.writeNamedWriteable(base);
     }
 
     @Override
@@ -99,8 +99,12 @@ public class ToNumberFunctionProcessor implements Processor {
 
     }
 
-    protected Processor source() {
+    protected Processor value() {
         return value;
+    }
+
+    protected Processor base() {
+        return base;
     }
 
     @Override
@@ -114,12 +118,12 @@ public class ToNumberFunctionProcessor implements Processor {
         }
 
         ToNumberFunctionProcessor other = (ToNumberFunctionProcessor) obj;
-        return Objects.equals(source(), other.source());
+        return Objects.equals(value(), other.value()) && Objects.equals(base(), other.base());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source());
+        return Objects.hash(value, base);
     }
 
 

@@ -86,6 +86,7 @@ public final class SecurityMocks {
         when(securityIndexManager.indexExists()).thenReturn(exists);
         when(securityIndexManager.isAvailable()).thenReturn(available);
         when(securityIndexManager.aliasName()).thenReturn(alias);
+        when(securityIndexManager.freeze()).thenReturn(securityIndexManager);
         return securityIndexManager;
     }
 

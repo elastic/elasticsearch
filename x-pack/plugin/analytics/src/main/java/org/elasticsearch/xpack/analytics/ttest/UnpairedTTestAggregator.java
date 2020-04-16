@@ -7,7 +7,11 @@
 package org.elasticsearch.xpack.analytics.ttest;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -20,6 +24,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_FIELD;
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_FIELD;
@@ -28,14 +33,16 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
     private final TTestStatsBuilder a;
     private final TTestStatsBuilder b;
     private final boolean homoscedastic;
+    private final Supplier<Tuple<Weight, Weight>> weightsSupplier;
 
     UnpairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, boolean homoscedastic,
-                            DocValueFormat format, SearchContext context, Aggregator parent,
-                            Map<String, Object> metadata) throws IOException {
+                            Supplier<Tuple<Weight, Weight>> weightsSupplier, DocValueFormat format, SearchContext context,
+                            Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, metadata);
         BigArrays bigArrays = context.bigArrays();
         a = new TTestStatsBuilder(bigArrays);
         b = new TTestStatsBuilder(bigArrays);
+        this.weightsSupplier = weightsSupplier;
         this.homoscedastic = homoscedastic;
     }
 
@@ -67,6 +74,9 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
         final CompensatedSum compSumOfSqrA = new CompensatedSum(0, 0);
         final CompensatedSum compSumB = new CompensatedSum(0, 0);
         final CompensatedSum compSumOfSqrB = new CompensatedSum(0, 0);
+        final Tuple<Weight, Weight> weights = weightsSupplier.get();
+        final Bits bitsA = getBits(ctx, weights.v1());
+        final Bits bitsB = getBits(ctx, weights.v2());
 
         return new LeafBucketCollectorBase(sub, docAValues) {
 
@@ -82,12 +92,23 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                a.grow(bigArrays, bucket + 1);
-                b.grow(bigArrays, bucket + 1);
-                processValues(doc, bucket, docAValues, compSumA, compSumOfSqrA, a);
-                processValues(doc, bucket, docBValues, compSumB, compSumOfSqrB, b);
+                if (bitsA == null || bitsA.get(doc)) {
+                    a.grow(bigArrays, bucket + 1);
+                    processValues(doc, bucket, docAValues, compSumA, compSumOfSqrA, a);
+                }
+                if (bitsB == null || bitsB.get(doc)) {
+                    processValues(doc, bucket, docBValues, compSumB, compSumOfSqrB, b);
+                    b.grow(bigArrays, bucket + 1);
+                }
             }
         };
+    }
+
+    private Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
+        if (weight == null) {
+            return null;
+        }
+        return Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), weight.scorerSupplier(ctx));
     }
 
     @Override

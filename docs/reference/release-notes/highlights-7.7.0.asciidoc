@@ -110,8 +110,10 @@ Compared to the standard deviation, the IQR is less sensitive to outliers in
 the data, with a breakdown point of 0.25. Along with the median, it is often
 used in creating a box plot, a simple yet common way to summarize data and
 identify potential outliers.
-The new `boxplot` aggregation calculates min, max, medium, the first and the
-third quartiles of a given data set.
+
+The new {ref}/search-aggregations-metrics-boxplot-aggregation.html[`boxplot`
+aggregation] calculates the min, max, and medium as well as the first and third
+quartiles of a given data set.
 
 // end::notable-highlights[]
 

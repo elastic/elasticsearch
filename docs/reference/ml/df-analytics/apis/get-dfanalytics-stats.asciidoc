@@ -73,7 +73,7 @@ ascending order.
 //Begin analysis_stats
 `analysis_stats`:::
 (object)
-An object containing statistical data about the analysis.
+An object containing information about the analysis job.
 +
 .Properties of `analysis_stats`
 [%collapsible%open]

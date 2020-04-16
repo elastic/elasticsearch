@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -421,24 +420,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                                     Task task) throws IOException {
             try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final RecoveryTarget recoveryTarget = recoveryRef.target();
-                final ActionListener<RecoveryTranslogOperationsResponse> channelListener =
-                    new ChannelActionListener<>(channel, Actions.TRANSLOG_OPS, request);
-                final ActionListener<Void> listenerWithCheckpoint = ActionListener.map(channelListener,
-                    nullVal -> new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
-                final ActionListener<Void> listener;
-
-                final long requestSeqNo = request.requestSeqNo();
-                if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    listener = recoveryTarget.markRequestReceivedAndCreateListener(requestSeqNo, listenerWithCheckpoint);
-                    if (listener == null) {
-                        return;
-                    }
-                } else {
-                    listener = listenerWithCheckpoint;
-                }
-
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+                final RecoveryTarget recoveryTarget = recoveryRef.target();
+                final ActionListener<RecoveryTranslogOperationsResponse> listener =
+                    new ChannelActionListener<>(channel, Actions.TRANSLOG_OPS, request);
                 final Consumer<Exception> retryOnMappingException = exception -> {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
                     // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
@@ -479,7 +464,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         request.retentionLeases(),
                         request.mappingVersionOnPrimary(),
                         ActionListener.wrap(
-                                checkpoint -> listener.onResponse(null),
+                                checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
                                 e -> {
                                     // do not retry if the mapping on replica is at least as recent as the mapping
                                     // that the primary used to index the operations in the request.
@@ -528,20 +513,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
-                final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
-                final ActionListener<Void> voidListener = ActionListener.map(channelListener, nullVal -> TransportResponse.Empty.INSTANCE);
-
-                final long requestSeqNo = request.requestSeqNo();
-                final ActionListener<Void> listener;
-                if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    listener = recoveryTarget.markRequestReceivedAndCreateListener(requestSeqNo, voidListener);
-                    if (listener == null) {
-                        return;
-                    }
-                } else {
-                    listener = voidListener;
-                }
-
                 final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
                 if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
                     indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
@@ -558,8 +529,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         recoveryTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
+                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
                 recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(),
-                    request.totalTranslogOps(), listener);
+                    request.totalTranslogOps(), ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
             }
         }
     }

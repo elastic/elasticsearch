@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -677,10 +678,12 @@ public class TokenServiceTests extends ESTestCase {
             tokensIndex = securityMainIndex;
             when(securityTokensIndex.isAvailable()).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
+            when(securityTokensIndex.freeze()).thenReturn(securityTokensIndex);
         } else {
             tokensIndex = securityTokensIndex;
             when(securityMainIndex.isAvailable()).thenReturn(false);
             when(securityMainIndex.indexExists()).thenReturn(false);
+            when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -688,6 +691,7 @@ public class TokenServiceTests extends ESTestCase {
             assertNull(future.get());
 
             when(tokensIndex.isAvailable()).thenReturn(false);
+            when(tokensIndex.getUnavailableReason()).thenReturn(new UnavailableShardsException(null, "unavailable"));
             when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);

@@ -427,14 +427,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         expectThrows(InvalidIndexTemplateException.class, () ->
             metadataIndexTemplateService.putIndexTemplateV2("testing", true, "template-referencing-ct-with-hidden-index-setting",
-                TimeValue.timeValueSeconds(30L), globalIndexTemplate, new ActionListener<AcknowledgedResponse>() {
+                TimeValue.timeValueSeconds(30L), globalIndexTemplate, new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
+                        fail("the listener should not be invoked as the validation should be executed before any cluster state updates " +
+                            "are issued");
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-
+                        fail("the listener should not be invoked as the validation should be executed before any cluster state updates " +
+                            "are issued");
                     }
                 }));
     }

@@ -88,7 +88,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
 
     @After
     public void shutdown() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
     }
 

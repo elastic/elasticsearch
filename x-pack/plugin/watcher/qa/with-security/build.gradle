@@ -5,6 +5,7 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testCompile project(':x-pack:qa')
   testCompile project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'testArtifacts')
+  restXpackTestConfig project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
 }
 
 restResources {

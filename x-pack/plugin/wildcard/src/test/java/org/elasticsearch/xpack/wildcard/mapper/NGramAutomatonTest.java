@@ -157,7 +157,6 @@ public class NGramAutomatonTest extends ESTestCase {
         assertTrigramExpression("[ac]*a[de]{50,80}", null);
     }
 
-    @Repeat(iterations=100)
     public void testRandomRegexp() {
         // Some of the regex strings don't actually compile so just retry until we get a good one.
         String str;
@@ -176,7 +175,6 @@ public class NGramAutomatonTest extends ESTestCase {
     /**
      * Tests that building the automaton doesn't blow up in unexpected ways.
      */
-    @Repeat(iterations=100)
     public void testRandomAutomaton() {
         Automaton automaton = AutomatonTestUtil.randomAutomaton(random());
         NGramAutomaton ngramAutomaton;

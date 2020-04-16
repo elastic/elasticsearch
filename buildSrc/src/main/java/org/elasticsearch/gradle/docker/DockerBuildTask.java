@@ -34,7 +34,7 @@ public class DockerBuildTask extends DefaultTask {
     @Inject
     public DockerBuildTask(WorkerExecutor workerExecutor) {
         this.workerExecutor = workerExecutor;
-        final String markerPath = "markers/" + this.getName() + "-" + Architecture.current().toString().toLowerCase() + ".marker";
+        final String markerPath = "markers/" + this.getName() + ".marker";
         this.markerFile.set(getProject().getLayout().getBuildDirectory().file(markerPath));
     }
 

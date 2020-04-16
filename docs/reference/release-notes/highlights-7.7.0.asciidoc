@@ -105,7 +105,7 @@ a partial merge is better than the values contained in this current shard.
 [float]
 === A new aggregation: `boxplot`
 
-The interquartile range is a common robust measure of statistical dispersion.
+The https://en.wikipedia.org/wiki/Interquartile_range[interquartile range (IQR)] is a common robust measure of statistical dispersion.
 Compared to the standard deviation, the IQR is less sensitive to outliers in
 the data, with a breakdown point of 0.25. Along with the median, it is often
 used in creating a box plot, a simple yet common way to summarize data and

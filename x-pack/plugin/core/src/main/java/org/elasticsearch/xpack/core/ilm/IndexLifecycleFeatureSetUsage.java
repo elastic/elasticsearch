@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         if (input.readBoolean()) {
             policyStats = input.readList(PolicyStats::new);
         }
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_6_6_0;
     }
 
     @Override

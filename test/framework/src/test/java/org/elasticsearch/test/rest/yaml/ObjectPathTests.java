@@ -34,9 +34,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ObjectPathTests extends ESTestCase {
 
@@ -216,7 +217,7 @@ public class ObjectPathTests extends ESTestCase {
             final Object object = objectPath.evaluate("metadata.templates.template_2._arbitrary_key_");
             assertThat(object, instanceOf(String.class));
             final String key = (String) object;
-            assertThat(key, isOneOf("field2", "field3"));
+            assertThat(key, is(oneOf("field2", "field3")));
         }
 
         {

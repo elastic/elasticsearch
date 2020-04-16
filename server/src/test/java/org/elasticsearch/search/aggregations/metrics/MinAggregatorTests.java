@@ -86,8 +86,10 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
@@ -950,5 +952,13 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return Collections.singletonList(CoreValuesSourceType.NUMERIC);
+    }
 
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new MinAggregationBuilder("foo").field(fieldName);
+    }
 }

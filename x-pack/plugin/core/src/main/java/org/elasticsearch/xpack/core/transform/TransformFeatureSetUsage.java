@@ -6,13 +6,14 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,6 +36,11 @@ public class TransformFeatureSetUsage extends Usage {
         super(XPackField.TRANSFORM, available, enabled);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.accumulatedStats = Objects.requireNonNull(accumulatedStats);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_5_0;
     }
 
     @Override

@@ -34,7 +34,7 @@ public class EConstant extends AExpression {
 
     protected Object constant;
 
-    EConstant(Location location, Object constant) {
+    public EConstant(Location location, Object constant) {
         super(location);
 
         this.constant = constant;

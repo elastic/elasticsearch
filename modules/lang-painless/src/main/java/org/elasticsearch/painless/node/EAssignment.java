@@ -45,16 +45,14 @@ public class EAssignment extends AExpression {
 
     protected final AExpression lhs;
     protected final AExpression rhs;
-    protected final boolean pre;
     protected final boolean post;
     protected final Operation operation;
 
-    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
+    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean post, Operation operation) {
         super(location);
 
         this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = rhs;
-        this.pre = pre;
+        this.rhs = Objects.requireNonNull(rhs);
         this.post = post;
         this.operation = operation;
     }
@@ -79,42 +77,6 @@ public class EAssignment extends AExpression {
 
         Input rightInput = new Input();
         Output rightOutput;
-
-        if (pre && post) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (pre || post) {
-            if (rhs != null) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-            if (operation == Operation.INCR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.ADD;
-            } else if (operation == Operation.DECR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.SUB;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
 
         if (operation != null) {
             rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
@@ -230,7 +192,6 @@ public class EAssignment extends AExpression {
         assignmentNode.setLocation(location);
         assignmentNode.setExpressionType(output.actual);
         assignmentNode.setCompoundType(promote);
-        assignmentNode.setPre(pre);
         assignmentNode.setPost(post);
         assignmentNode.setOperation(operation);
         assignmentNode.setRead(input.read);

@@ -126,6 +126,7 @@ import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
+import org.elasticsearch.painless.node.EConstant;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EDot;
 import org.elasticsearch.painless.node.EElvis;
@@ -743,7 +744,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
-        return new EAssignment(location(ctx), lhs, rhs, false, false, operation);
+        return new EAssignment(location(ctx), lhs, rhs, false, operation);
     }
 
     @Override
@@ -753,14 +754,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final Operation operation;
 
         if (ctx.INCR() != null) {
-            operation = Operation.INCR;
+            operation = Operation.ADD;
         } else if (ctx.DECR() != null) {
-            operation = Operation.DECR;
+            operation = Operation.SUB;
         } else {
             throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
-        return new EAssignment(location(ctx), expression, null, true, false, operation);
+        return new EAssignment(location(ctx), expression, new EConstant(location(ctx), 1), false, operation);
     }
 
     @Override
@@ -797,14 +798,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final Operation operation;
 
         if (ctx.INCR() != null) {
-            operation = Operation.INCR;
+            operation = Operation.ADD;
         } else if (ctx.DECR() != null) {
-            operation = Operation.DECR;
+            operation = Operation.SUB;
         } else {
             throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
-        return new EAssignment(location(ctx), expression, null, false, true, operation);
+        return new EAssignment(location(ctx), expression, new EConstant(location(ctx), 1), true, operation);
     }
 
     @Override

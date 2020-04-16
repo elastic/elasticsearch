@@ -51,9 +51,7 @@ public enum Operation {
     EQ      ( "=="  , "equals"                 ),
     EQR     ( "===" , "reference equals"       ),
     NE      ( "!="  , "not equals"             ),
-    NER     ( "!==" , "reference not equals"   ),
-    INCR    ( "++"  , "increment"              ),
-    DECR    ( "--"  , "decrement"              );
+    NER     ( "!==" , "reference not equals"   );
 
     public final String symbol;
     public final String name;

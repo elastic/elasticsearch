@@ -112,7 +112,7 @@ public class DeprecationLogger {
     }
 
     // LRU set of keys used to determine if a deprecation message should be emitted to the deprecation logs
-    private final Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
+    private final Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
         @Override
         protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
             return size() > 128;

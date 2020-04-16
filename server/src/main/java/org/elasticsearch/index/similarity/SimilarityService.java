@@ -67,7 +67,8 @@ public final class SimilarityService extends AbstractIndexComponent {
             } else {
                 final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
                 return () -> {
-                    deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                    deprecationLogger.deprecatedAndMaybeLog("classic_similarity",
+                        "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                             + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                             + "instead.");
                     return similarity;
@@ -90,7 +91,8 @@ public final class SimilarityService extends AbstractIndexComponent {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
-                        deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                        deprecationLogger.deprecatedAndMaybeLog("classic_similarity",
+                            "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                                 + "instead.");
                         return SimilarityProviders.createClassicSimilarity(settings, version);
@@ -271,7 +273,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException(message);
         } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            deprecationLogger.deprecated(message);
+            deprecationLogger.deprecatedAndMaybeLog("similarity_failure", message);
         }
     }
 

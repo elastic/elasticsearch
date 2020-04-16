@@ -954,7 +954,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return Collections.singletonList(CoreValuesSourceType.NUMERIC);
+        return Arrays.asList(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
     }
 
     @Override

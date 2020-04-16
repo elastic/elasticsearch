@@ -30,8 +30,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class S3ClientSettingsTests extends ESTestCase {
@@ -41,12 +41,12 @@ public class S3ClientSettingsTests extends ESTestCase {
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.credentials, nullValue());
-        assertThat(defaultSettings.endpoint, isEmptyString());
+        assertThat(defaultSettings.endpoint, is(emptyString()));
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
-        assertThat(defaultSettings.proxyHost, isEmptyString());
+        assertThat(defaultSettings.proxyHost, is(emptyString()));
         assertThat(defaultSettings.proxyPort, is(80));
-        assertThat(defaultSettings.proxyUsername, isEmptyString());
-        assertThat(defaultSettings.proxyPassword, isEmptyString());
+        assertThat(defaultSettings.proxyUsername, is(emptyString()));
+        assertThat(defaultSettings.proxyPassword, is(emptyString()));
         assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
         assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));

@@ -39,7 +39,7 @@
         body:
           query:
             exists:
-              field: metric._min
+              field: metric.min
 
   - match: { hits.total.value: 1 }
 
@@ -49,7 +49,7 @@
         body:
           query:
             exists:
-              field: metric._nonexistent_key
+              field: metric.nonexistent_key
 
   - match: { hits.total.value: 0 }
 
@@ -200,7 +200,7 @@
         body:
           query:
             range:
-              metric._min:
+              metric.min:
                 gte: 10
                 lte: 40
 

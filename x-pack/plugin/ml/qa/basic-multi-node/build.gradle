@@ -11,7 +11,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
   setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

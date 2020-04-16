@@ -80,8 +80,8 @@
 ---
 "Can create filtered alias with a date_nanos range query":
   - skip:
-      version: " - 6.8.99"
-      reason: "date_nanos introduced in 7.0.0"
+      version: " - 7.99.99"
+      reason: "skipping older version until backport"
 
   - do:
       indices.create:

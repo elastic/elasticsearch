@@ -86,11 +86,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         threadPool = new TestThreadPool("reload tests");
         resourceWatcherService =
                 new ResourceWatcherService(Settings.builder().put("resource.reload.interval.high", "1s").build(), threadPool);
-        resourceWatcherService.start();
     }
 
     @After
     public void cleanup() {
+        if (resourceWatcherService != null) {
+            resourceWatcherService.close();
+        }
         if (threadPool != null) {
             terminate(threadPool);
         }

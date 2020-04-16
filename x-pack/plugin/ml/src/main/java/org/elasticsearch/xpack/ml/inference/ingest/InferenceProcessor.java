@@ -74,7 +74,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final String modelId;
 
     private final String targetField;
-    private final InferenceConfigUpdate<? extends InferenceConfig> inferenceConfig;
+    private final InferenceConfigUpdate inferenceConfig;
     private final Map<String, String> fieldMap;
     private final InferenceAuditor auditor;
     private volatile boolean previouslyLicensed;
@@ -85,7 +85,7 @@ public class InferenceProcessor extends AbstractProcessor {
                               String tag,
                               String targetField,
                               String modelId,
-                              InferenceConfigUpdate<? extends InferenceConfig> inferenceConfig,
+                              InferenceConfigUpdate inferenceConfig,
                               Map<String, String> fieldMap) {
         super(tag);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
@@ -248,7 +248,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
-            InferenceConfigUpdate<? extends InferenceConfig> inferenceConfig =
+            InferenceConfigUpdate inferenceConfig =
                 inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
 
             return new InferenceProcessor(client,
@@ -266,7 +266,7 @@ public class InferenceProcessor extends AbstractProcessor {
             this.maxIngestProcessors = maxIngestProcessors;
         }
 
-        InferenceConfigUpdate<? extends InferenceConfig> inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
+        InferenceConfigUpdate inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
             if (inferenceConfig.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",

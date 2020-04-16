@@ -77,7 +77,7 @@
 "Get data stream":
   - skip:
       version: " - 7.7.99"
-        reason: available only in 7.8+
+      reason: available only in 7.8+
 
   - do:
       indices.create_data_stream:
@@ -141,7 +141,7 @@
 "Delete data stream with backing indices":
   - skip:
       version: " - 7.7.99"
-        reason: available only in 7.8+
+      reason: available only in 7.8+
 
   - do:
       indices.create_data_stream:

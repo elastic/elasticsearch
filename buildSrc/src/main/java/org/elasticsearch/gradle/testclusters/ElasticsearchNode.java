@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
@@ -145,6 +146,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path httpPortsFile;
     private final Path esStdoutFile;
     private final Path esStderrFile;
+    private final Path esStdinFile;
     private final Path tmpDir;
 
     private int currentDistro = 0;
@@ -156,6 +158,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String httpPort = "0";
     private String transportPort = "0";
     private Path confPathData;
+    private String keystorePassword = "";
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -171,6 +174,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         httpPortsFile = confPathLogs.resolve("http.ports");
         esStdoutFile = confPathLogs.resolve("es.stdout.log");
         esStderrFile = confPathLogs.resolve("es.stderr.log");
+        esStdinFile = workingDir.resolve("es.stdin");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 
@@ -219,6 +223,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         ElasticsearchDistribution distro = container.getByName(distroName);
         distro.setVersion(version);
+        distro.setArchitecture(Architecture.current());
         setDistributionType(distro, testDistribution);
         distributions.add(distro);
     }
@@ -325,6 +330,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void keystore(String key, FileSupplier valueSupplier) {
         keystoreFiles.put(key, valueSupplier);
+    }
+
+    @Override
+    public void keystorePassword(String password) {
+        keystorePassword = password;
     }
 
     @Override
@@ -453,13 +463,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logToProcessStdout("installed plugins");
         }
 
+        logToProcessStdout("Creating elasticsearch keystore with password set to [" + keystorePassword + "]");
+        if (keystorePassword.length() > 0) {
+            runElasticsearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, "elasticsearch-keystore", "create", "-p");
+        } else {
+            runElasticsearchBinScript("elasticsearch-keystore", "create");
+        }
+
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
-            runElasticsearchBinScript("elasticsearch-keystore", "create");
 
-            keystoreSettings.forEach(
-                (key, value) -> runElasticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
-            );
+            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", "-x", key));
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
                 File file = entry.getValue();
@@ -467,7 +481,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (file.exists() == false) {
                     throw new TestClustersException("supplied keystore file " + file + " does not exist, require for " + this);
                 }
-                runElasticsearchBinScript("elasticsearch-keystore", "add-file", entry.getKey(), file.getAbsolutePath());
+                runKeystoreCommandWithPassword(keystorePassword, "", "add-file", entry.getKey(), file.getAbsolutePath());
             }
         }
 
@@ -670,6 +684,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private void runKeystoreCommandWithPassword(String keystorePassword, String input, CharSequence... args) {
+        final String actualInput = keystorePassword.length() > 0 ? keystorePassword + "\n" + input : input;
+        runElasticsearchBinScriptWithInput(actualInput, "elasticsearch-keystore", args);
+    }
+
     private void runElasticsearchBinScript(String tool, CharSequence... args) {
         runElasticsearchBinScriptWithInput("", tool, args);
     }
@@ -746,6 +765,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
 
+        if (keystorePassword != null && keystorePassword.length() > 0) {
+            try {
+                Files.write(esStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+                processBuilder.redirectInput(esStdinFile.toFile());
+            } catch (IOException e) {
+                throw new TestClustersException("Failed to set the keystore password for " + this, e);
+            }
+        }
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();

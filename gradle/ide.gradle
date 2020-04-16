@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 import org.jetbrains.gradle.ext.Remote
 import org.jetbrains.gradle.ext.JUnit
 
@@ -37,10 +38,16 @@ if (System.getProperty('idea.active') == 'true') {
     }
   }
 
+  tasks.register('buildDependencyArtifacts') {
+    group = 'ide'
+    description = 'Builds artifacts needed as dependency for IDE modules'
+    dependsOn ':client:rest-high-level:shadowJar'
+  }
+
   idea {
     project {
       vcs = 'Git'
-      jdkName = '13'
+      jdkName = BuildParams.minimumCompilerVersion.majorVersion
 
       settings {
         delegateActions {
@@ -48,7 +55,7 @@ if (System.getProperty('idea.active') == 'true') {
           testRunner = 'choose_per_test'
         }
         taskTriggers {
-          afterSync tasks.named('configureIdeaGradleJvm')
+          afterSync tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
         }
         codeStyle {
           java {

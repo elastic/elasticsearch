@@ -83,7 +83,7 @@ public class TransportPutAutoFollowPatternAction extends
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ccr_follow", request.getName());
+        final Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ccr_autofollow", request.getName());
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);

@@ -95,8 +95,9 @@ public class TransformFeatureSetTests extends ESTestCase {
 
     public void testEnabledSettingFallbackMix() {
         Settings.Builder settings = Settings.builder();
-        // use the deprecated setting
+        // use the older deprecated setting
         settings.put("xpack.data_frame.enabled", false);
+        // ...and also the more recently deprecated setting
         settings.put("xpack.transform.enabled", true);
         TransformFeatureSet featureSet = new TransformFeatureSet(
             settings.build(),
@@ -107,6 +108,8 @@ public class TransformFeatureSetTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(true));
         assertWarnings(
             "[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.",
+            "[xpack.transform.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
                 + "See the breaking changes documentation for the next major version."
         );
     }

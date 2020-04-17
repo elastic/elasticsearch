@@ -54,14 +54,14 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
                 final String blobName = randomUnicodeOfLength(10);
-                final StoreFileMetadata metaData = new StoreFileMetadata(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
+                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
 
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
                     0L,
-                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(partSize))),
+                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(partSize))),
                     0L,
                     0L,
                     0,

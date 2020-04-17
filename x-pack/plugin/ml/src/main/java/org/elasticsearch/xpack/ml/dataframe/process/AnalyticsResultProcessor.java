@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -47,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -244,9 +246,11 @@ public class AnalyticsResultProcessor {
             case CLASSIFICATION:
                 assert analytics.getAnalysis() instanceof Classification;
                 Classification classification = ((Classification)analytics.getAnalysis());
+                PredictionFieldType predictionFieldType = getPredictionFieldType(classification);
                 return ClassificationConfig.builder()
                     .setNumTopClasses(classification.getNumTopClasses())
                     .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
+                    .setPredictionFieldType(predictionFieldType)
                     .build();
             case REGRESSION:
                 assert analytics.getAnalysis() instanceof Regression;
@@ -255,12 +259,22 @@ public class AnalyticsResultProcessor {
                     .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
                     .build();
             default:
-                setAndReportFailure(ExceptionsHelper.serverError(
+                throw ExceptionsHelper.serverError(
                     "process created a model with an unsupported target type [{}]",
                     null,
-                    targetType));
-                return null;
+                    targetType);
         }
+    }
+
+    PredictionFieldType getPredictionFieldType(Classification classification) {
+        String dependentVariable = classification.getDependentVariable();
+        Optional<ExtractedField> extractedField = fieldNames.stream()
+            .filter(f -> f.getName().equals(dependentVariable))
+            .findAny();
+        PredictionFieldType predictionFieldType = Classification.getPredictionFieldType(
+            extractedField.isPresent() ? extractedField.get().getTypes() : null
+        );
+        return predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
     }
 
     private String getDependentVariable() {

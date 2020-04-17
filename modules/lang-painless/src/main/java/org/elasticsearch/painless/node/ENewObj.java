@@ -52,6 +52,11 @@ public class ENewObj extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment cannot assign a value to new object with constructor [" + type + "/" + arguments.size() + "]"));
+        }
+
         Output output = new Output();
 
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
@@ -90,8 +95,6 @@ public class ENewObj extends AExpression {
             expression.cast(expressionInput, expressionOutput);
             argumentOutputs.add(expressionOutput);
         }
-
-        output.statement = true;
 
         NewObjectNode newObjectNode = new NewObjectNode();
 

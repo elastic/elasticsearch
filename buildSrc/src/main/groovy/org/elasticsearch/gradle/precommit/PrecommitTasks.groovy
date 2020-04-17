@@ -18,17 +18,19 @@
  */
 package org.elasticsearch.gradle.precommit
 
-
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -37,8 +39,6 @@ import org.gradle.api.tasks.TaskProvider
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
-
-    public static final String CHECKSTYLE_VERSION = '8.20'
 
     public static TaskProvider create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
@@ -100,11 +100,20 @@ class PrecommitTasks {
             }
         }
 
-        return project.tasks.register('precommit') {
+        TaskProvider precommit = project.tasks.register('precommit') {
             group = JavaBasePlugin.VERIFICATION_GROUP
             description = 'Runs all non-test checks.'
             dependsOn = precommitTasks
         }
+
+        // not all jar projects produce a pom (we don't ship all jars), so a pom validation
+        // task is only added on some projects, and thus we can't always have a task
+        // here to add to precommit tasks explicitly. Instead, we apply our internal
+        // pom validation plugin after the precommit task is created and let the
+        // plugin add the task if necessary
+        project.plugins.apply(PomValidationPlugin)
+
+        return precommit
     }
 
     static TaskProvider configureTestingConventions(Project project) {
@@ -143,16 +152,29 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
-            doFirst {
-                // we need to defer this configuration since we don't know the runtime java version until execution time
-                targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
-                if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                    project.logger.warn(
-                            "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
-                            BuildParams.runtimeJavaVersion
-                    )
-                    targetCompatibility = JavaVersion.VERSION_13.majorVersion
-                }
+
+            assert name.startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME)
+            String sourceSetName
+            if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(name)) {
+                sourceSetName = "main"
+            } else {
+                //parse out the sourceSetName
+                char[] chars = name.substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray()
+                chars[0] = Character.toLowerCase(chars[0])
+                sourceSetName = new String(chars)
+            }
+
+            SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
+            FileCollection runtime = sourceSet.runtimeClasspath
+            classpath = runtime.plus(sourceSet.compileClasspath)
+
+            targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
+            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
+                project.logger.warn(
+                        "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
+                        BuildParams.runtimeJavaVersion
+                )
+                targetCompatibility = JavaVersion.VERSION_13.majorVersion
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
@@ -235,7 +257,10 @@ class PrecommitTasks {
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             configDir = checkstyleDir
-            toolVersion = CHECKSTYLE_VERSION
+        }
+        project.dependencies {
+            checkstyle "com.puppycrawl.tools:checkstyle:${VersionProperties.versions.checkstyle}"
+            checkstyle project.files(Util.buildSrcCodeSource)
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->

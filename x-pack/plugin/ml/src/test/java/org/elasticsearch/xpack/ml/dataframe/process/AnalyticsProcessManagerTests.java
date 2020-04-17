@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -56,7 +57,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "config-id";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null);
+    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null);
 
     private Client client;
     private DataFrameAnalyticsAuditor auditor;
@@ -93,6 +94,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
         when(task.getStatsHolder()).thenReturn(new StatsHolder());
+        when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,
             OutlierDetectionTests.createRandom()).build();
@@ -133,6 +135,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(task).isStopping();
         inOrder.verify(task).getAllocationId();
         inOrder.verify(task).isStopping();
+        inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(task).isStopping();
         inOrder.verify(task).getAllocationId();
@@ -168,6 +171,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).collectDataSummary();
         inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
         inOrder.verify(process).isProcessAlive();
+        inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(dataExtractor).getAllExtractedFields();
         inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
@@ -226,6 +230,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).collectDataSummary();
         inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
         inOrder.verify(process).isProcessAlive();
+        inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
         inOrder.verify(dataExtractor).getAllExtractedFields();
         // stop

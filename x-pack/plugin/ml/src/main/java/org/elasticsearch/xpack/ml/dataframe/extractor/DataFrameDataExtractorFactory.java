@@ -7,11 +7,9 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.Arrays;
@@ -28,18 +26,18 @@ public class DataFrameDataExtractorFactory {
     private final QueryBuilder sourceQuery;
     private final ExtractedFields extractedFields;
     private final Map<String, String> headers;
-    private final boolean includeRowsWithMissingValues;
+    private final boolean supportsRowsWithMissingValues;
 
     private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, QueryBuilder sourceQuery,
                                           ExtractedFields extractedFields, Map<String, String> headers,
-                                          boolean includeRowsWithMissingValues) {
+                                          boolean supportsRowsWithMissingValues) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.indices = Objects.requireNonNull(indices);
         this.sourceQuery = Objects.requireNonNull(sourceQuery);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.headers = headers;
-        this.includeRowsWithMissingValues = includeRowsWithMissingValues;
+        this.supportsRowsWithMissingValues = supportsRowsWithMissingValues;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -47,34 +45,17 @@ public class DataFrameDataExtractorFactory {
                 analyticsId,
                 extractedFields,
                 indices,
-                createQuery(),
+                QueryBuilders.boolQuery().filter(sourceQuery),
                 1000,
                 headers,
                 includeSource,
-                includeRowsWithMissingValues
+                supportsRowsWithMissingValues
             );
         return new DataFrameDataExtractor(client, context);
     }
 
     public ExtractedFields getExtractedFields() {
         return extractedFields;
-    }
-
-    private QueryBuilder createQuery() {
-        BoolQueryBuilder query = QueryBuilders.boolQuery();
-        query.filter(sourceQuery);
-        if (includeRowsWithMissingValues == false) {
-            query.filter(allExtractedFieldsExistQuery());
-        }
-        return query;
-    }
-
-    private QueryBuilder allExtractedFieldsExistQuery() {
-        BoolQueryBuilder query = QueryBuilders.boolQuery();
-        for (ExtractedField field : extractedFields.getAllFields()) {
-            query.filter(QueryBuilders.existsQuery(field.getName()));
-        }
-        return query;
     }
 
     /**
@@ -109,6 +90,7 @@ public class DataFrameDataExtractorFactory {
         extractedFieldsDetectorFactory.createFromDest(config, ActionListener.wrap(
             extractedFieldsDetector -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
+
                 DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, config.getId(),
                     Collections.singletonList(config.getDest().getIndex()), config.getSource().getParsedQuery(), extractedFields,
                     config.getHeaders(), config.getAnalysis().supportsMissingValues());

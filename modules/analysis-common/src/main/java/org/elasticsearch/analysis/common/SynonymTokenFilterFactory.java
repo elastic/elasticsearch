@@ -59,7 +59,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.settings = settings;
 
         if (settings.get("ignore_case") != null) {
-            DEPRECATION_LOGGER.deprecated(
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog(
+                "synonym_ignore_case_option",
                 "The ignore_case option on the synonym_graph filter is deprecated. " +
                     "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter.");
         }

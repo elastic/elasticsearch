@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -21,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,6 +35,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ilm.UpdateSettingsStepTests.SettingsTestingService.INVALID_VALUE;
@@ -60,7 +62,8 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver) {
+                                                   IndexNameExpressionResolver expressionResolver,
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             return List.of(service);
         }
 
@@ -115,7 +118,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         ClusterState state = clusterService.state();
-        IndexMetaData indexMetaData = state.metaData().index("test");
+        IndexMetadata indexMetadata = state.metadata().index("test");
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
 
@@ -127,7 +130,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
             invalidValueSetting);
 
-        step.performAction(indexMetaData, state, observer, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, state, observer, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 latch.countDown();
@@ -144,7 +147,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                     new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
                     validIndexSetting);
 
-                step.performAction(indexMetaData, state, observer, new AsyncActionStep.Listener() {
+                step.performAction(indexMetadata, state, observer, new AsyncActionStep.Listener() {
                     @Override
                     public void onResponse(boolean complete) {
                         latch.countDown();

@@ -17,10 +17,8 @@ file.
 
 To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
-`kibana.yml`. To control how monitoring data is collected from
-Logstash, configure
-{logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
-in `logstash.yml`.
+`kibana.yml`. To control how monitoring data is collected from Logstash,
+configure monitoring settings in `logstash.yml`.
 
 For more information, see <<monitor-elasticsearch-cluster>>.
 
@@ -29,6 +27,7 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 ==== General Monitoring Settings
 
 `xpack.monitoring.enabled`::
+deprecated:[7.8.0,Basic License features should always be enabled] +
 Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
 +
 --

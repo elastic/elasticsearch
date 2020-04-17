@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -157,23 +157,23 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(RoleDescriptor roleDescriptor) {
-        final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
+        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = clusterService.state().metadata().getIndicesLookup();
         final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
         // sort answer by alias for tests
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
         // collate privileges by index and by alias separately
         for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
             final Predicate<String> namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
-            for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
+            for (final Map.Entry<String, IndexAbstraction> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                 final String aliasOrIndexName = aliasOrIndex.getKey();
                 if (namePatternPredicate.test(aliasOrIndexName)) {
-                    if (aliasOrIndex.getValue().isAlias()) {
+                    if (aliasOrIndex.getValue().getType() == IndexAbstraction.Type.ALIAS) {
                         final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
-                                k -> new HashSet<String>());
+                                k -> new HashSet<>());
                         privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                     } else {
                         final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
-                                k -> new HashSet<String>());
+                                k -> new HashSet<>());
                         privilegesByIndex.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                     }
                 }
@@ -187,7 +187,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
             // check if the alias grants superiors privileges than the indices it points to
-            for (IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
+            for (IndexMetadata indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
                 final String indexName = indexMetadata.getIndex().getName();
                 final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
                 // null iff the index does not have *any* privilege
@@ -206,7 +206,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             if (false == inferiorIndexNames.isEmpty()) {
                 final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                         aliasName, String.join(", ", inferiorIndexNames));
-                deprecationLogger.deprecated(logMessage);
+                deprecationLogger.deprecatedAndMaybeLog("index_permissions_on_alias", logMessage);
             }
         }
     }

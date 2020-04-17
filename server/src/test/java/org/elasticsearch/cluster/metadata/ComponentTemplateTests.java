@@ -66,7 +66,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
     public static ComponentTemplate randomInstance() {
         Settings settings = null;
         CompressedXContent mappings = null;
-        Map<String, AliasMetaData> aliases = null;
+        Map<String, AliasMetadata> aliases = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -76,7 +76,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        ComponentTemplate.Template template = new ComponentTemplate.Template(settings, mappings, aliases);
+        Template template = new Template(settings, mappings, aliases);
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
@@ -85,9 +85,9 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
     }
 
-    private static Map<String, AliasMetaData> randomAliases() {
+    public static Map<String, AliasMetadata> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
-        AliasMetaData aliasMeta = AliasMetaData.builder(aliasName)
+        AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
             .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())
@@ -98,7 +98,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     private static CompressedXContent randomMappings() {
         try {
-            return new CompressedXContent("{\"" + randomAlphaOfLength(3) + "\":\"" + randomAlphaOfLength(7) + "\"}");
+            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -107,7 +107,12 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
     private static Settings randomSettings() {
         return Settings.builder()
-            .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
+            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
     }
 
@@ -130,21 +135,21 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
             case 0:
                 switch (randomIntBetween(0, 2)) {
                     case 0:
-                        ComponentTemplate.Template ot = orig.template();
+                        Template ot = orig.template();
                         return new ComponentTemplate(
-                            new ComponentTemplate.Template(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
+                            new Template(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
                                 ot.mappings(), ot.aliases()),
                             orig.version(), orig.metadata());
                     case 1:
-                        ComponentTemplate.Template ot2 = orig.template();
+                        Template ot2 = orig.template();
                         return new ComponentTemplate(
-                            new ComponentTemplate.Template(ot2.settings(),
+                            new Template(ot2.settings(),
                                 randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings), ot2.aliases()),
                             orig.version(), orig.metadata());
                     case 2:
-                        ComponentTemplate.Template ot3 = orig.template();
+                        Template ot3 = orig.template();
                         return new ComponentTemplate(
-                            new ComponentTemplate.Template(ot3.settings(), ot3.mappings(),
+                            new Template(ot3.settings(), ot3.mappings(),
                                 randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)),
                             orig.version(), orig.metadata());
                     default:

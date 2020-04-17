@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -31,29 +31,28 @@ public class AnnotationIndex {
     public static final String WRITE_ALIAS_NAME = ".ml-annotations-write";
     // Exposed for testing, but always use the aliases in non-test code
     public static final String INDEX_NAME = ".ml-annotations-6";
-    public static final String INDEX_PATTERN = ".ml-annotations*";
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
     /**
-     * Create the .ml-annotations index with correct mappings if it does not already
-     * exist. This index is read and written by the UI results views, so needs to
-     * exist when there might be ML results to view.
+     * Create the .ml-annotations-6 index with correct mappings if it does not already exist. This index is read and written by the UI
+     * results views, so needs to exist when there might be ML results to view.
      */
-    public static void createAnnotationsIndexIfNecessary(Settings settings, Client client, ClusterState state,
-                                                         final ActionListener<Boolean> finalListener) {
+    public static void createAnnotationsIndexIfNecessary(Client client, ClusterState state, final ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
-            final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                .addAlias(INDEX_NAME, READ_ALIAS_NAME)
-                .addAlias(INDEX_NAME, WRITE_ALIAS_NAME).request();
+            final IndicesAliasesRequest request =
+                client.admin().indices().prepareAliases()
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true))
+                    .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                 ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
                 client.admin().indices()::aliases);
         }, finalListener::onFailure);
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
-        SortedMap<String, AliasOrIndex> mlLookup = state.getMetaData().getAliasAndIndexLookup().tailMap(".ml");
+        SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().getIndicesLookup().tailMap(".ml");
         if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.
@@ -63,9 +62,9 @@ public class AnnotationIndex {
                     new CreateIndexRequest(INDEX_NAME)
                         .mapping(annotationsMapping())
                         .settings(Settings.builder()
-                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                            .put(IndexMetaData.SETTING_INDEX_HIDDEN, true));
+                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(
@@ -95,8 +94,8 @@ public class AnnotationIndex {
         finalListener.onResponse(false);
     }
 
-    public static String annotationsMapping() {
-        return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json",
-            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+    private static String annotationsMapping() {
+        return TemplateUtils.loadTemplate(
+            "/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
     }
 }

@@ -75,6 +75,23 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
 
+    public void testDebugFlushAlways() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true&debug.flushAlways=false");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.debug(), is(true));
+        assertThat(ci.flushAlways(), is(false));
+
+        ci = ci("jdbc:es://a:1/?debug=true&debug.flushAlways=true");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.debug(), is(true));
+        assertThat(ci.flushAlways(), is(true));
+
+        ci = ci("jdbc:es://a:1/?debug=true");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.debug(), is(true));
+        assertThat(ci.flushAlways(), is(false));
+    }
+
     public void testTypeInParam() throws Exception {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.out=jdbc.out"));
         assertEquals("Unknown parameter [debug.out]; did you mean [debug.output]", e.getMessage());

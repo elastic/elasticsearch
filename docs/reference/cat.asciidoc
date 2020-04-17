@@ -255,16 +255,18 @@ include::cat/recovery.asciidoc[]
 
 include::cat/repositories.asciidoc[]
 
-include::cat/tasks.asciidoc[]
-
-include::cat/thread_pool.asciidoc[]
-
-include::cat/trainedmodel.asciidoc[]
-
 include::cat/shards.asciidoc[]
 
 include::cat/segments.asciidoc[]
 
 include::cat/snapshots.asciidoc[]
 
+include::cat/tasks.asciidoc[]
+
 include::cat/templates.asciidoc[]
+
+include::cat/thread_pool.asciidoc[]
+
+include::cat/trainedmodel.asciidoc[]
+
+include::cat/transforms.asciidoc[]

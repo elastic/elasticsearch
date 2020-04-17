@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -31,12 +30,10 @@ import java.util.Objects;
 /**
  * Represents a non-decimal numeric constant.
  */
-public final class ENumeric extends AExpression {
+public class ENumeric extends AExpression {
 
-    private final String value;
-    private int radix;
-
-    protected Object constant;
+    protected final String value;
+    protected final int radix;
 
     public ENumeric(Location location, String value, int radix) {
         super(location);
@@ -46,13 +43,18 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to numeric constant [" + value + "]"));
+        }
 
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+            throw createError(new IllegalArgumentException("not a statement: numeric constant [" + value + "] not used"));
         }
+
+        Output output = new Output();
+        Object constant;
 
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
@@ -114,24 +116,13 @@ public final class ENumeric extends AExpression {
             }
         }
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        if (radix != 10) {
-            return singleLineToString(value, radix);
-        }
-        return singleLineToString(value);
+        return output;
     }
 }

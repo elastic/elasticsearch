@@ -45,17 +45,20 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
+        //for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll,
+        // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
+        //them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(submit.getSearchRequest(), request, parser, setSize));
 
-        if (request.hasParam("wait_for_completion")) {
-            submit.setWaitForCompletion(request.paramAsTime("wait_for_completion", submit.getWaitForCompletion()));
+        if (request.hasParam("wait_for_completion_timeout")) {
+            submit.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout()));
         }
         if (request.hasParam("keep_alive")) {
             submit.setKeepAlive(request.paramAsTime("keep_alive", submit.getKeepAlive()));
         }
-        if (request.hasParam("clean_on_completion")) {
-            submit.setCleanOnCompletion(request.paramAsBoolean("clean_on_completion", submit.isCleanOnCompletion()));
+        if (request.hasParam("keep_on_completion")) {
+            submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
         return channel -> {
             RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);

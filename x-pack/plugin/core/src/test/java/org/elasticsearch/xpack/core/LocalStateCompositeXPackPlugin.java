@@ -16,7 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -59,6 +59,7 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -101,7 +102,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     private LicenseService licenseService;
     protected List<Plugin> plugins = new ArrayList<>();
 
-    public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) throws Exception {
+    public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
         super(settings, configPath);
     }
 
@@ -141,14 +142,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         List<Object> components = new ArrayList<>();
         components.addAll(super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver));
+                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier));
 
         filterPlugins(Plugin.class).stream().forEach(p ->
             components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver))
+                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, null))
         );
         return components;
     }
@@ -331,10 +333,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             for(Plugin p: plugins) {
-                templates = p.getIndexTemplateMetaDataUpgrader().apply(templates);
+                templates = p.getIndexTemplateMetadataUpgrader().apply(templates);
             }
             return templates;
         };

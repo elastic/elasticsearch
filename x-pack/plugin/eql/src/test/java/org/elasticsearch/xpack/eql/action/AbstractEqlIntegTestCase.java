@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.SQL_ENABLED.getKey(), false);
         settings.put(EqlPlugin.EQL_ENABLED_SETTING.getKey(), true);
         settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return settings.build();
@@ -35,7 +37,6 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(LocalStateEqlXPackPlugin.class);
+        return Collections.singletonList(LocalStateEQLXPackPlugin.class);
     }
 }
-

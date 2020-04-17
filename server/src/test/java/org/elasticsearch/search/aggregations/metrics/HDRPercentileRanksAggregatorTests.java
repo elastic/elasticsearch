@@ -53,7 +53,9 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
     }
 
     public void testEmpty() throws IOException {
@@ -117,5 +119,11 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.HDR));
 
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55360")
+    @Override
+    public void testSupportedFieldTypes() throws IOException {
+        super.testSupportedFieldTypes();
     }
 }

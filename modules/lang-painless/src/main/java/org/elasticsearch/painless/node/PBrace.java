@@ -34,11 +34,9 @@ import java.util.Objects;
 /**
  * Represents an array load/store and defers to a child subnode.
  */
-public final class PBrace extends AStoreable {
+public class PBrace extends AExpression {
 
-    private AExpression index;
-
-    private AStoreable sub = null;
+    protected final AExpression index;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
@@ -47,24 +45,19 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
-        AStoreable.Input storeableInput = new AStoreable.Input();
-        storeableInput.read = input.read;
-        storeableInput.expected = input.expected;
-        storeableInput.explicit = input.explicit;
-        storeableInput.internal = input.internal;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
+        }
 
-        return analyze(scriptRoot, scope, storeableInput);
-    }
+        Output output = new Output();
 
-    @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
 
-        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
-        prefix.input.expected = prefixOutput.actual;
-        prefix.cast();
+        AExpression sub;
 
         if (prefixOutput.actual.isArray()) {
             sub = new PSubBrace(location, prefixOutput.actual, index);
@@ -84,38 +77,20 @@ public final class PBrace extends AStoreable {
         subInput.read = input.read;
         subInput.expected = input.expected;
         subInput.explicit = input.explicit;
-        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
+        output.isDefOptimized = subOutput.isDefOptimized;
 
-        return output;
-    }
-
-    @Override
-    BraceNode write(ClassNode classNode) {
         BraceNode braceNode = new BraceNode();
 
-        braceNode.setLeftNode(prefix.cast(prefix.write(classNode)));
-        braceNode.setRightNode(sub.write(classNode));
+        braceNode.setLeftNode(prefix.cast(prefixOutput));
+        braceNode.setRightNode(subOutput.expressionNode);
 
         braceNode.setLocation(location);
         braceNode.setExpressionType(output.actual);
 
-        return braceNode;
-    }
+        output.expressionNode = braceNode;
 
-    @Override
-    boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.output.actual = actual;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
+        return output;
     }
 }

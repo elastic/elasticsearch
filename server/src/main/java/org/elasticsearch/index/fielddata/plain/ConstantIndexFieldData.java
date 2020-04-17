@@ -31,7 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -69,11 +69,11 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private static class ConstantAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class ConstantLeafFieldData extends AbstractLeafOrdinalsFieldData {
 
         private final String value;
 
-        ConstantAtomicFieldData(String value) {
+        ConstantLeafFieldData(String value) {
             super(DEFAULT_SCRIPT_FUNCTION);
             this.value = value;
         }
@@ -134,14 +134,14 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private final ConstantAtomicFieldData atomicFieldData;
+    private final ConstantLeafFieldData atomicFieldData;
 
     private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-        atomicFieldData = new ConstantAtomicFieldData(value);
+        atomicFieldData = new ConstantLeafFieldData(value);
     }
 
     @Override
@@ -149,12 +149,12 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public final AtomicOrdinalsFieldData load(LeafReaderContext context) {
+    public final LeafOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context)
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context)
             throws Exception {
         return atomicFieldData;
     }

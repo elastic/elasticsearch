@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -19,16 +21,10 @@ public class TransformTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         boolean transformEnabled = randomBoolean();
         boolean transformPluginEnabled = randomBoolean();
-        boolean remoteEnabled = randomBoolean();
 
         // randomly use explicit or default setting
         if ((transformEnabled && randomBoolean()) == false) {
             builder.put("node.transform", transformEnabled);
-        }
-
-        // randomly use explicit or default setting
-        if ((remoteEnabled && randomBoolean()) == false) {
-            builder.put("cluster.remote.connect", remoteEnabled);
         }
 
         if (transformPluginEnabled == false) {
@@ -42,23 +38,17 @@ public class TransformTests extends ESTestCase {
             transformPluginEnabled && transformEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
-        assertEquals(
-            transformPluginEnabled && remoteEnabled,
-            Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect"))
-        );
+        if (transformPluginEnabled == false) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.TRANSFORM_ENABLED});
+        }
     }
 
     public void testNodeAttributesDirectlyGiven() {
         Settings.Builder builder = Settings.builder();
-
-        if (randomBoolean()) {
-            builder.put("node.attr.transform.node", randomBoolean());
-        } else {
-            builder.put("node.attr.transform.remote_connect", randomBoolean());
-        }
+        builder.put("node.attr.transform.node", randomBoolean());
 
         Transform transform = createTransform(builder.build());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> transform.additionalSettings());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, transform::additionalSettings);
         assertThat(
             e.getMessage(),
             equalTo("Directly setting transform node attributes is not permitted, please use the documented node settings instead")

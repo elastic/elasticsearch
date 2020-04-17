@@ -26,7 +26,7 @@ import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -52,7 +52,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.gradle.Util.capitalize;
+import static org.elasticsearch.gradle.util.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
@@ -77,7 +77,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
 
-        Provider<DockerSupportService> dockerSupport = Boilerplate.getBuildService(
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
@@ -285,23 +285,43 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return projectPath;
     }
 
+    /**
+     * Works out the gradle project name that provides a distribution artifact.
+     *
+     * @param distribution the distribution from which to derive a project name
+     * @return the name of a project. It is not the full project path, only the name.
+     */
     private static String distributionProjectName(ElasticsearchDistribution distribution) {
+        Platform platform = distribution.getPlatform();
+        Architecture architecture = distribution.getArchitecture();
         String projectName = "";
+
+        final String archString = platform == Platform.WINDOWS || architecture == Architecture.X64
+            ? ""
+            : "-" + architecture.toString().toLowerCase();
+
         if (distribution.getFlavor() == Flavor.OSS) {
             projectName += "oss-";
         }
+
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
 
-        if (distribution.getType() == Type.ARCHIVE) {
-            Platform platform = distribution.getPlatform();
-            projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
-        } else if (distribution.getType() == Type.DOCKER) {
-            projectName += "docker-export";
-        } else {
-            projectName += distribution.getType();
+        switch (distribution.getType()) {
+            case ARCHIVE:
+                projectName += platform.toString() + archString + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+                break;
+
+            case DOCKER:
+                projectName += "docker" + archString + "-export";
+                break;
+
+            default:
+                projectName += distribution.getType();
+                break;
         }
+
         return projectName;
     }
 

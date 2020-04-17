@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class Classification implements DataFrameAnalysis {
     /**
      * The max number of classes classification supports
      */
-    private static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
+    public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
 
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Classification, Void> parser = new ConstructingObjectParser<>(
@@ -234,27 +235,45 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
-        String predictionFieldType = getPredictionFieldType(fieldInfo.getTypes(dependentVariable));
+        String predictionFieldType = getPredictionFieldTypeParamString(getPredictionFieldType(fieldInfo.getTypes(dependentVariable)));
         if (predictionFieldType != null) {
             params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
         }
         params.put(NUM_CLASSES, fieldInfo.getCardinality(dependentVariable));
+        params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         return params;
     }
 
-    private static String getPredictionFieldType(Set<String> dependentVariableTypes) {
+    private static String getPredictionFieldTypeParamString(PredictionFieldType predictionFieldType) {
+        if (predictionFieldType == null) {
+            return null;
+        }
+        switch(predictionFieldType)
+        {
+            case NUMBER:
+                // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
+                return "int";
+            case STRING:
+                return "string";
+            case BOOLEAN:
+                return "bool";
+            default:
+                return null;
+        }
+    }
+
+    public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {
         if (dependentVariableTypes == null) {
             return null;
         }
         if (Types.categorical().containsAll(dependentVariableTypes)) {
-            return "string";
+            return PredictionFieldType.STRING;
         }
         if (Types.bool().containsAll(dependentVariableTypes)) {
-            return "bool";
+            return PredictionFieldType.BOOLEAN;
         }
         if (Types.discreteNumerical().containsAll(dependentVariableTypes)) {
-            // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-            return "int";
+            return PredictionFieldType.NUMBER;
         }
         return null;
     }
@@ -286,9 +305,11 @@ public class Classification implements DataFrameAnalysis {
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + ".feature_importance", MapUtils.featureImportanceMapping());
         Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
         if ((dependentVariableMapping instanceof Map) == false) {
-            return Collections.emptyMap();
+            return additionalProperties;
         }
         Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
         // If the source field is an alias, fetch the concrete field that the alias points to.
@@ -299,9 +320,8 @@ public class Classification implements DataFrameAnalysis {
         // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
         // Hence, we need to check the "instanceof" condition again.
         if ((dependentVariableMapping instanceof Map) == false) {
-            return Collections.emptyMap();
+            return additionalProperties;
         }
-        Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
         additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
         return additionalProperties;

@@ -43,8 +43,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
@@ -83,7 +83,7 @@ public class QueryProfilerTests extends ESTestCase {
         reader = w.getReader();
         w.close();
         searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), ALWAYS_CACHE_POLICY);
+            IndexSearcher.getDefaultQueryCache(), ALWAYS_CACHE_POLICY, true);
     }
 
     @After

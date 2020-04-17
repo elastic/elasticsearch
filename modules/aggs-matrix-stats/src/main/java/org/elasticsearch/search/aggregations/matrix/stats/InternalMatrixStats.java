@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,8 +42,8 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
     /** per shard ctor */
     InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
-                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                                  Map<String, Object> metadata) {
+        super(name, metadata);
         assert count >= 0;
         this.stats = multiFieldStatsResults;
         this.results = results;
@@ -240,7 +239,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         // return empty result iff all stats are null
         if (aggs.isEmpty()) {
-            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), pipelineAggregators(), getMetaData());
+            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), getMetadata());
         }
 
         RunningStats runningStats = new RunningStats();
@@ -250,9 +249,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         if (reduceContext.isFinalReduce()) {
             MatrixStatsResults results = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
         }
-        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, pipelineAggregators(), getMetaData());
+        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
     }
 
     @Override

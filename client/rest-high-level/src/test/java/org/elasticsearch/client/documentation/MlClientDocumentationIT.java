@@ -49,6 +49,8 @@ import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
@@ -172,6 +174,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
@@ -3644,11 +3647,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setDescription("test model") // <5>
             .setMetadata(new HashMap<>()) // <6>
             .setTags("my_regression_models") // <7>
+            .setInferenceConfig(new RegressionConfig("value", 0)) // <8>
             .build();
         // end::put-trained-model-config
 
         trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
+            .setInferenceConfig(new RegressionConfig(null, null))
             .setModelId("my-new-trained-model")
             .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
             .setDescription("test model")
@@ -4133,6 +4138,65 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testEstimateModelMemory() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::estimate-model-memory-request
+            Detector.Builder detectorBuilder = new Detector.Builder()
+                .setFunction("count")
+                .setPartitionFieldName("status");
+            AnalysisConfig.Builder analysisConfigBuilder =
+                new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()))
+                .setBucketSpan(TimeValue.timeValueMinutes(10))
+                .setInfluencers(Collections.singletonList("src_ip"));
+            EstimateModelMemoryRequest request = new EstimateModelMemoryRequest(analysisConfigBuilder.build()); // <1>
+            request.setOverallCardinality(Collections.singletonMap("status", 50L));                             // <2>
+            request.setMaxBucketCardinality(Collections.singletonMap("src_ip", 30L));                           // <3>
+            // end::estimate-model-memory-request
+
+            // tag::estimate-model-memory-execute
+            EstimateModelMemoryResponse estimateModelMemoryResponse =
+                client.machineLearning().estimateModelMemory(request, RequestOptions.DEFAULT);
+            // end::estimate-model-memory-execute
+
+            // tag::estimate-model-memory-response
+            ByteSizeValue modelMemoryEstimate = estimateModelMemoryResponse.getModelMemoryEstimate(); // <1>
+            long estimateInBytes = modelMemoryEstimate.getBytes();
+            // end::estimate-model-memory-response
+            assertThat(estimateInBytes, greaterThan(10000000L));
+        }
+        {
+            AnalysisConfig analysisConfig =
+                AnalysisConfig.builder(Collections.singletonList(Detector.builder().setFunction("count").build())).build();
+            EstimateModelMemoryRequest request = new EstimateModelMemoryRequest(analysisConfig);
+
+            // tag::estimate-model-memory-execute-listener
+            ActionListener<EstimateModelMemoryResponse> listener = new ActionListener<EstimateModelMemoryResponse>() {
+                @Override
+                public void onResponse(EstimateModelMemoryResponse estimateModelMemoryResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::estimate-model-memory-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::estimate-model-memory-execute-async
+            client.machineLearning()
+                .estimateModelMemoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::estimate-model-memory-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     private String createFilter(RestHighLevelClient client) throws IOException {
         MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains")
             .setDescription("A list of safe domains")
@@ -4173,6 +4237,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
+            .setInferenceConfig(new RegressionConfig("value", 0))
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();

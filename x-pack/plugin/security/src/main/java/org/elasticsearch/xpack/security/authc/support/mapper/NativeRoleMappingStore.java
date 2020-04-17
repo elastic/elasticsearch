@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
@@ -165,6 +166,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      * Stores (create or update) a single mapping in the index
      */
     public void putRoleMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
+        // Validate all templates before storing the role mapping
+        for (TemplateRoleName templateRoleName : request.getRoleTemplates()) {
+            templateRoleName.validate(scriptService);
+        }
         modifyMapping(request.getName(), this::innerPutMapping, request, listener);
     }
 

@@ -483,8 +483,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try (SearchContext context = createContext(reader, reader.getShardSearchRequest(null), task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 if (request.scroll() != null && request.scroll().keepAlive() != null) {
-                    checkKeepAliveLimit(request.scroll().keepAlive().millis());
-                    reader.keepAlive(request.scroll().keepAlive().millis());
+                    final long keepAlive = request.scroll().keepAlive().millis();
+                    checkKeepAliveLimit(keepAlive);
+                    reader.keepAlive(keepAlive);
                 }
                 reader.indexShard().getSearchOperationListener().validateSearchContext(context, request);
                 context.searcher().setAggregatedDfs(reader.getAggregatedDfs(null));
@@ -613,8 +614,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
-            ReaderContext readerContext = findReaderContext(request.readerId());
-            final long keepAlive = getKeepAlive(request);
+            assert keepStatesInContext == false;
+            final ReaderContext readerContext = findReaderContext(request.readerId());
+            final long keepAlive = request.keepAlive().millis();
             checkKeepAliveLimit(keepAlive);
             readerContext.keepAlive(keepAlive);
             return readerContext;
@@ -627,6 +629,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final ReaderContext createAndPutReaderContext(ShardSearchRequest request, IndexShard shard,
                                                   Engine.Searcher engineSearcher, boolean keepStatesInContext) {
+        assert request.readerId() == null;
+        assert request.keepAlive() == null;
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -639,17 +643,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
                 }
             }
-            final long keepAlive = getKeepAlive(request);
-            checkKeepAliveLimit(keepAlive);
             if (keepStatesInContext || request.scroll() != null) {
+                long keepAlive = defaultKeepAlive;
+                if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                    keepAlive = request.scroll().keepAlive().millis();
+                    checkKeepAliveLimit(keepAlive);
+                }
                 readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, request, keepAlive);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);
                     decreaseScrollContexts = null;
                 }
             } else {
-                readerContext = new ReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, keepAlive,
-                    request.keepAlive() == null);
+                readerContext = new ReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, defaultKeepAlive, false);
             }
             engineSearcher = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -815,8 +821,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private long getKeepAlive(ShardSearchRequest request) {
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
             return request.scroll().keepAlive().millis();
-        } else if (request.keepAlive() != null) {
-            return request.keepAlive().millis();
         } else {
             return defaultKeepAlive;
         }

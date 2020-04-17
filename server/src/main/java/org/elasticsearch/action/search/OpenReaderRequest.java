@@ -45,7 +45,7 @@ public final class OpenReaderRequest extends ActionRequest implements IndicesReq
     @Nullable
     private final String preference;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     public OpenReaderRequest(String[] indices, IndicesOptions indicesOptions, TimeValue keepAlive, String routing, String preference) {
         this.indices = indices;

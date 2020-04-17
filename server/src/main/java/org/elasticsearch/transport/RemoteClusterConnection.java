@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -86,7 +87,7 @@ import java.util.stream.Collectors;
  * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection implements TransportConnectionListener, Closeable {
+public final class RemoteClusterConnection implements TransportConnectionListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterConnection.class);
 
@@ -102,7 +103,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private final TimeValue initialConnectionTimeout;
+    private final int maxPendingConnectionListeners;
+
     private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS =
+        Setting.intSetting("cluster.remote.max_pending_connection_listeners", 1000, Setting.Property.NodeScope);
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -142,6 +149,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         connectionManager.addListener(transportService);
         this.proxyAddress = proxyAddress;
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
+        this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
     }
 
 
@@ -393,14 +401,14 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * There is at most one connect job running at any time. If such a connect job is triggered
      * while another job is running the provided listeners are queued and batched up until the current running job returns.
      *
-     * The handler has a built-in queue that can hold up to 100 connect attempts and will reject requests once the queue is full.
+     * The handler has a built-in queue that can hold up to 1000 connect attempts and will reject requests once the queue is full.
      * In a scenario when a remote cluster becomes unavailable we will queue requests up but if we can't connect quick enough
      * we will just reject the connect trigger which will lead to failing searches.
      */
     private class ConnectHandler implements Closeable {
         private final Semaphore running = new Semaphore(1);
         private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final BlockingQueue<ActionListener<Void>> queue = new ArrayBlockingQueue<>(100);
+        private final BlockingQueue<ActionListener<Void>> queue = new ArrayBlockingQueue<>(maxPendingConnectionListeners);
         private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         /**

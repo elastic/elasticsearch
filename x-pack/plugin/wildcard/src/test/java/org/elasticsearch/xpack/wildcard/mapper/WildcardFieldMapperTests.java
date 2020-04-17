@@ -261,7 +261,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         // automatons and this would cause many transitions. Some of the expressions below would just throw 
         // in the towel and revert to "match all".
         String regexes[] = { ".*/etc/passw.*", ".*etc/passwd HTTP.*", ".*/etc/passwd.*", "/etc/passwd.*", 
-            ".*ietcipasswd.*", ".*jetcjpasswd.*", ".*\\.c", ".a", "b"};
+            ".*ietcipasswd.*", ".*jetcjpasswd.*", ".*\\.c", ".a", "b", "a.*bcgcgc", "a.*bcg(cg|ab)c"};
         for (String regex : regexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, 0, 20000, null, MOCK_QSC);
             assertTrue(regex+" pattern not accelerated", wildcardFieldQuery instanceof BooleanQuery);

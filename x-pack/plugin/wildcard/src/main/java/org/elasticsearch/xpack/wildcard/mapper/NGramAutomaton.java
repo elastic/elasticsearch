@@ -28,6 +28,14 @@ import java.util.Set;
  * ngrams we can't check for. Not thread safe one bit.
  */
 public class NGramAutomaton {
+    /**
+     * We use the 1 char to stand in for code points we can't match.
+     * We don't use 0 because that is reserved in the NGram index for 
+     * denoting value starts and ends.
+     */
+    public static final char INVALID_CHAR = 1;
+    public static final String INVALID_CHAR_STRING = new String(new int[] { INVALID_CHAR }, 0, 1);    
+    
     private final Automaton source;
     private final int gramSize;
     private final int maxExpand;
@@ -135,8 +143,8 @@ public class NGramAutomaton {
             int min, max;
             if (transition.max - transition.min >= maxExpand) {
                 // Consider this transition useless.
-                min = NGramState.INVALID_CHAR;
-                max = NGramState.INVALID_CHAR;
+                min = INVALID_CHAR;
+                max = INVALID_CHAR;
             } else {
                 min = transition.min;
                 max = transition.max;
@@ -179,8 +187,8 @@ public class NGramAutomaton {
                 int min, max;
                 if (transition.max - transition.min >= maxExpand) {
                     // Consider this transition useless.
-                    min = NGramState.INVALID_CHAR;
-                    max = NGramState.INVALID_CHAR;
+                    min = INVALID_CHAR;
+                    max = INVALID_CHAR;
                 } else {
                     min = transition.min;
                     max = transition.max;
@@ -191,7 +199,7 @@ public class NGramAutomaton {
                     NGramState next = buildOrFind(leftToProcess, transition.dest, ngram.substring(1));
                     // Transitions containing an invalid character contain no
                     // prefix.
-                    if (ngram.indexOf(NGramState.INVALID_CHAR) >= 0) {
+                    if (ngram.indexOf(INVALID_CHAR) >= 0) {
                         ngram = null;
                     }
                     if (currentTransitions >= maxTransitions) {
@@ -227,13 +235,7 @@ public class NGramAutomaton {
      */
     private static class NGramState implements ExpressionSource<String> {
         
-        /**
-         * We use the 1 char to stand in for code points we can't match.
-         * We don't use 0 because that is reserved in the NGram index for 
-         * denoting value starts and ends.
-         */
-        public static final char INVALID_CHAR = 1;
-        private static final String INVALID_CHAR_STRING = new String(new int[] { INVALID_CHAR }, 0, 1);
+
         /**
          * We print code points we can't match as double underscores.
          */

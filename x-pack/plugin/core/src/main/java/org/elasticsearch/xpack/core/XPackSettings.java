@@ -39,7 +39,10 @@ public class XPackSettings {
 
     /**
      * Setting for controlling whether or not enrich is enabled.
+     * <p>
+     * This setting is now a no-op: setting it to false is permitted, but does nothing.
      */
+    @Deprecated(since = "7.8.0")
     public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true,
         Property.NodeScope, Property.Deprecated);
 

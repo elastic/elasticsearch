@@ -522,25 +522,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(result, equalTo("my-template"));
     }
 
-    public void testFindV2TemplatesNullIsHiddenFlag() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ClusterState state = ClusterState.EMPTY_STATE;
-
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
-        state = service.addComponentTemplate(state, true, "ct", ct);
-
-        IndexTemplateV2 globalIndexTemplate = new IndexTemplateV2(List.of("*"), null, List.of("ct"), 15L, 1L, null);
-        state = service.addIndexTemplateV2(state, true, "global-template", globalIndexTemplate);
-
+    public void testFindV2InvalidGlobalTemplate() {
         Template templateWithHiddenSetting = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        IndexTemplateV2 idxTemplateWithHiddenSetting = new IndexTemplateV2(List.of("hidden*"), templateWithHiddenSetting, null, 5L, 1L,
-            null);
-        state = service.addIndexTemplateV2(state, true, "template-with-hidden-setting", idxTemplateWithHiddenSetting);
-
-        assertThat("the matching global template should not be shadowed by a template with lower priority",
-            MetadataIndexTemplateService.findV2Template(state.metadata(), "hidden-index-name", null),
-            is("global-template"));
-
         try {
             // add an invalid global template that specifies the `index.hidden` setting
             IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
@@ -551,7 +534,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", null);
             fail("expecting an exception as the matching global template is invalid");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("A global index V2 template [invalid_global_template], composed of component templates [ct] " +
+            assertThat(e.getMessage(), is("global index template [invalid_global_template], composed of component templates [ct] " +
                 "defined the index.hidden setting, which is not allowed"));
         }
     }

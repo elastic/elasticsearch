@@ -698,16 +698,14 @@ public class MetadataIndexTemplateService {
         IndexTemplateV2 winner = candidates.get(0);
         String winnerName = matchedTemplates.get(winner);
 
-        // if the index is not hidden in the create request but the winner template is a global template that specifies the `index.hidden`
-        // setting (which is not allowed, so it'd be due to a restored index cluster state that modified a component template used by this
-        // global template such that it has this setting) we will fail and the user will have to update the index template and remove
-        // this setting or update the corresponding component template that contributes to the index template resolved settings
-        if (isHidden == null) {
-            if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
-                IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
-                throw new IllegalStateException("global index template [" + winnerName + "], composed of component templates [" +
-                    String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
-            }
+        // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
+        // a restored index cluster state that modified a component template used by this global template such that it has this setting)
+        // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
+        // template that contributes to the index template resolved settings
+        if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
+            IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+            throw new IllegalStateException("global index template [" + winnerName + "], composed of component templates [" +
+                String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
         }
 
         return winnerName;

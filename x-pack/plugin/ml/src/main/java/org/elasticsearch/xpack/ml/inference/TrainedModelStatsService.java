@@ -186,9 +186,7 @@ public class TrainedModelStatsService {
 
     private static boolean verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
         String[] indices = expressionResolver.concreteIndexNames(clusterState,
-            new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE, IndicesOptions.Option.ALLOW_NO_INDICES),
-                EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.HIDDEN)),
+            IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
             MlStatsIndex.writeAlias());
         for (String index : indices) {
             if (clusterState.metadata().hasIndex(index) == false) {

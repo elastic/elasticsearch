@@ -274,7 +274,7 @@ public class LocalModelTests extends ESTestCase {
             public boolean matches(Object o) {
                 return ((InferenceStats)o).getInferenceCount() == 99L;
             }
-        }),anyBoolean());
+        }), anyBoolean());
     }
 
     private static <T extends InferenceConfig> SingleValueInferenceResults getSingleValue(Model model,

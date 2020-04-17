@@ -82,10 +82,10 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     public void testPathologicalPipelineCreationAndDeletion() throws Exception {
-        String classificationModelId = "test_pathalogical_classification";
+        String classificationModelId = "test_pathological_classification";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
 
-        String regressionModelId = "test_pathalogical_regression";
+        String regressionModelId = "test_pathological_regression";
         putModel(regressionModelId, REGRESSION_CONFIG);
 
         for (int i = 0; i < 10; i++) {

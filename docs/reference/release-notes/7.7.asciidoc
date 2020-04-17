@@ -213,9 +213,6 @@ Features/Monitoring::
 * Secure password for monitoring HTTP exporter {pull}50919[#50919] (issue: {issue}50197[#50197])
 * Validate SSL settings at parse time {pull}49196[#49196] (issue: {issue}47711[#47711])
 
-Features/Stats::
-* Add analysis components and mapping types to the usage API. {pull}51031[#51031]
-
 Features/Watcher::
 * Make watch history indices hidden {pull}52962[#52962] (issue: {issue}50251[#50251])
 * Upgrade to the latest OWASP HTML sanitizer {pull}50765[#50765] (issue: {issue}50395[#50395])

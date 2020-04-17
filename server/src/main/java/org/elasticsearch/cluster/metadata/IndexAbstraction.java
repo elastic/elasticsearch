@@ -268,11 +268,8 @@ public interface IndexAbstraction {
         public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices) {
             this.dataStream = dataStream;
             this.dataStreamIndices = List.copyOf(dataStreamIndices);
-            this.writeIndex =  dataStreamIndices.stream()
-                .filter(index -> index.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration())))
-                .findFirst()
-                .orElse(null);
-            assert writeIndex != null;
+            this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
+            assert writeIndex.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
 
         @Override

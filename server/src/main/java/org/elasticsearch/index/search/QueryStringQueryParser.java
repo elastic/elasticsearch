@@ -60,10 +60,8 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
@@ -99,9 +97,6 @@ public class QueryStringQueryParser extends XQueryParser {
     private MappedFieldType currentFieldType;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
-
-    // set of field names this parser targets, used to check limits on expanded field names
-    private Set<String> queriedFields = new HashSet<>();
 
     /**
      * @param context The query shard context.
@@ -290,7 +285,7 @@ public class QueryStringQueryParser extends XQueryParser {
         } else {
             extractedFields = fieldsAndWeights;
         }
-        this.queriedFields.addAll(extractedFields.keySet());
+        checkForTooManyFields(extractedFields.size(), this.context, field);
         return extractedFields;
     }
 
@@ -798,8 +793,6 @@ public class QueryStringQueryParser extends XQueryParser {
         if (query.trim().isEmpty()) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
-        Query result = super.parse(query);
-        checkForTooManyFields(this.queriedFields.size(), this.context);
-        return result;
+        return super.parse(query);
     }
 }

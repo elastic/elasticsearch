@@ -20,6 +20,7 @@
 package org.elasticsearch.index.search;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -97,7 +98,7 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
-        checkForTooManyFields(resolvedFields.size(), context);
+        checkForTooManyFields(resolvedFields.size(), context, null);
         return resolvedFields;
     }
 
@@ -157,10 +158,15 @@ public final class QueryParserHelper {
         return fields;
     }
 
-    static void checkForTooManyFields(int numberOfFields, QueryShardContext context) {
+    static void checkForTooManyFields(int numberOfFields, QueryShardContext context, @Nullable String inputPattern) {
         Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
         if (numberOfFields > limit) {
-            throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + numberOfFields);
+            StringBuilder errorMsg = new StringBuilder("field expansion ");
+            if (inputPattern != null) {
+                errorMsg.append("for [" + inputPattern + "] ");
+            }
+            errorMsg.append("matches too many fields, limit: " + limit + ", got: " + numberOfFields);
+            throw new IllegalArgumentException(errorMsg.toString());
         }
     }
 

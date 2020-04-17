@@ -301,11 +301,9 @@ public class QueryStringIT extends ESIntegTestCase {
                 builder.startObject("properties");
                 {
                     for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
-                        String fieldName = (i % 2 == 0) ? "field.A" + i : "field.B" + i;
-                        builder.startObject(fieldName).field("type", "text").endObject();
+                        builder.startObject("field_A" + i).field("type", "text").endObject();
+                        builder.startObject("field_B" + i).field("type", "text").endObject();
                     }
-                    builder.startObject("field.C").field("type", "text").endObject();
-                    builder.startObject("field.D").field("type", "text").endObject();
                     builder.endObject();
                 }
                 builder.endObject();
@@ -318,26 +316,23 @@ public class QueryStringIT extends ESIntegTestCase {
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
                 .setMapping(builder));
 
-        client().prepareIndex("testindex").setId("1").setSource("field.A0", "foo bar baz").get();
+        client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();
         refresh();
 
-        // single fields shouldn't trigger the limit
-        doAssertOneHitForQueryString("field.A0:foo");
-        doAssertOneHitForQueryString("field.A0:foo field.A2:bar");
-        // expanding to half of the limit should work
-        doAssertOneHitForQueryString("field.A\\*:foo");
-        // expanding to all fields inside the limit should still work
-        doAssertOneHitForQueryString("field.A\\*:foo field.B\\*:bar");
-        // adding a non-existing field on top shouldn't increase towards the limit
-        doAssertOneHitForQueryString("field.A\\*:foo field.B\\*:bar unmapped:something");
+        // single field shouldn't trigger the limit
+        doAssertOneHitForQueryString("field_A0:foo");
+        // expanding to the limit should work
+        doAssertOneHitForQueryString("field_A\\*:foo");
+        // expanding two blocks to the limit still works
+        doAssertOneHitForQueryString("field_A\\*:foo field_B\\*:bar");
 
-        // the following should all exceed the limit
-        doAssertLimitExceededException("field.A\\*:foo field.B\\*:bar field.C:something", CLUSTER_MAX_CLAUSE_COUNT + 1);
-        doAssertLimitExceededException("field.A\\*:foo field.B\\*:bar field.C:something field.D:something", CLUSTER_MAX_CLAUSE_COUNT + 2);
-        doAssertLimitExceededException("field.A\\*:foo field.B\\*:bar field.C:something field.D:>=10", CLUSTER_MAX_CLAUSE_COUNT + 2);
-        doAssertLimitExceededException("field.A\\*:foo field.B\\*:bar something", CLUSTER_MAX_CLAUSE_COUNT +2);
-        doAssertLimitExceededException("*:something", CLUSTER_MAX_CLAUSE_COUNT + 2);
-        doAssertLimitExceededException("something", CLUSTER_MAX_CLAUSE_COUNT + 2);
+        // adding a non-existing field on top shouldn't overshoot the limit
+        doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
+
+        // the following should exceed the limit
+        doAssertLimitExceededException("foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "*");
+        doAssertLimitExceededException("*:foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "*");
+        doAssertLimitExceededException("field_\\*:foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "field_*");
     }
 
     private void doAssertOneHitForQueryString(String queryString) {
@@ -349,7 +344,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(response, 1);
     }
 
-    private void doAssertLimitExceededException(String queryString, int exceedingFieldCount) {
+    private void doAssertLimitExceededException(String queryString, int exceedingFieldCount, String inputFieldPattern) {
         Exception e = expectThrows(Exception.class, () -> {
             QueryStringQueryBuilder qb = queryStringQuery(queryString);
             if (randomBoolean()) {
@@ -359,7 +354,9 @@ public class QueryStringIT extends ESIntegTestCase {
         });
         assertThat(
             ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
-            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: " + exceedingFieldCount)
+            containsString("field expansion for [" + inputFieldPattern + "] matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT
+                    + ", got: " + exceedingFieldCount
+            )
         );
     }
 

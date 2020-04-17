@@ -27,17 +27,13 @@ public class FlattenedFeatureSetUsageTests extends AbstractWireSerializingTestCa
     protected FlattenedFeatureSetUsage mutateInstance(FlattenedFeatureSetUsage instance) throws IOException {
 
         boolean available = instance.available();
-        boolean enabled = instance.enabled();
         int fieldCount = instance.fieldCount();
 
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0:
                 available = !available;
                 break;
             case 1:
-                enabled = !enabled;
-                break;
-            case 2:
                 fieldCount = randomValueOtherThan(instance.fieldCount(), () -> randomIntBetween(0, 1000));
                 break;
         }

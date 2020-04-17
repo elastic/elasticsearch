@@ -227,7 +227,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");

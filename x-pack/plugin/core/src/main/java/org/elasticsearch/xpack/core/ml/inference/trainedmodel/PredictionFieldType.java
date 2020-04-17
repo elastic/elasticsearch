@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -57,6 +58,19 @@ public enum PredictionFieldType implements Writeable {
                 }
                 return areClose(value, 1.0D);
             case NUMBER:
+                if (Strings.isNullOrEmpty(stringRep)) {
+                    return value;
+                }
+                // Quick check to verify that the string rep is LIKELY a number
+                // Still handles the case where it throws and then returns the underlying value
+                if (stringRep.charAt(0) == '-' || Character.isDigit(stringRep.charAt(0))) {
+                    try {
+                        return Long.parseLong(stringRep);
+                    } catch (NumberFormatException nfe) {
+                        return value;
+                    }
+                }
+                return value;
             default:
                 return value;
         }

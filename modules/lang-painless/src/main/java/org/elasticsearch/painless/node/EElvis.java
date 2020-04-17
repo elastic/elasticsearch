@@ -85,8 +85,7 @@ public class EElvis extends AExpression {
         if (leftNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (leftNode instanceof EBoolean || leftNode instanceof ENumeric || leftNode instanceof EDecimal
-                || leftNode instanceof EString || leftNode instanceof EConstant) {
+        if (leftNode instanceof EBoolean || leftNode instanceof ENumeric || leftNode instanceof EDecimal || leftNode instanceof EString) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (leftOutput.actual.isPrimitive()) {

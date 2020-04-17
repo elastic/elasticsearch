@@ -122,7 +122,6 @@ import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
-import org.elasticsearch.painless.node.EConstant;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EDot;
 import org.elasticsearch.painless.node.EElvis;
@@ -719,7 +718,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         }
 
         return new EAssignment(nextIdentifier(), location(ctx), expression,
-                new EConstant(nextIdentifier(), location(ctx), 1), false, operation);
+                new ENumeric(nextIdentifier(), location(ctx), "1", 10), false, operation);
     }
 
     @Override
@@ -764,7 +763,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         }
 
         return new EAssignment(nextIdentifier(), location(ctx), expression,
-                new EConstant(nextIdentifier(), location(ctx), 1), true, operation);
+                new ENumeric(nextIdentifier(), location(ctx), "1", 10), true, operation);
     }
 
     @Override

@@ -314,57 +314,39 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         startDatafeedRequest.addParameter("start", baseTime.format(DateTimeFormatter.ISO_DATE_TIME));
         startDatafeedRequest.addParameter("end", ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME));
         client().performRequest(startDatafeedRequest);
-        assertBusy(() -> {
-            try {
-                Response datafeedStatsResponse = client().performRequest(new Request("GET",
-                    MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_stats"));
-                assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()),
-                    containsString("\"state\":\"stopped\""));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, 60, TimeUnit.SECONDS);
 
+        waitUntilDatafeedIsStopped("hrd-split-datafeed");
         waitUntilJobIsClosed("hrd-split-job");
-        try {
-            assertBusy(() -> {
-                client().performRequest(new Request("POST", "/_refresh"));
 
-                Response response = client().performRequest(new Request("GET",
-                    MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
-                String responseBody = EntityUtils.toString(response.getEntity());
+        client().performRequest(new Request("POST", "/.ml-anomalies-*/_refresh"));
 
-                if (responseBody.contains("\"count\":2")) {
-                    Matcher m = pattern.matcher(responseBody);
+        Response records = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
+        String responseBody = EntityUtils.toString(records.getEntity());
+        assertThat("response body [" + responseBody + "] did not contain [\"count\":2]",
+            responseBody,
+            containsString("\"count\":2"));
 
-                    String actualSubDomain = "";
-                    String actualDomain = "";
-                    if (m.find()) {
-                        actualSubDomain = m.group(1).replace("\"", "");
-                        actualDomain = m.group(2).replace("\"", "");
-                    }
-
-                    String expectedTotal = "[" + test.subDomainExpected + "," + test.domainExpected + "]";
-                    String actualTotal = "[" + actualSubDomain + "," + actualDomain + "]";
-
-                    // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
-                    if (test.subDomainExpected != null) {
-                        assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
-                            + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
-                            equalTo(test.subDomainExpected));
-                    }
-
-                    assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
-                        + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
-                } else {
-                    logger.error(responseBody);
-                    fail("Response body didn't contain [\"count\":2]");
-                }
-            }, 5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.error(e.getMessage());
-            fail("Anomaly records were not found within 5 seconds");
+        Matcher m = pattern.matcher(responseBody);
+        String actualSubDomain = "";
+        String actualDomain = "";
+        if (m.find()) {
+            actualSubDomain = m.group(1).replace("\"", "");
+            actualDomain = m.group(2).replace("\"", "");
         }
+
+        String expectedTotal = "[" + test.subDomainExpected + "," + test.domainExpected + "]";
+        String actualTotal = "[" + actualSubDomain + "," + actualDomain + "]";
+
+        // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
+        if (test.subDomainExpected != null) {
+            assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
+                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
+                equalTo(test.subDomainExpected));
+        }
+
+        assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
+           + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
     }
 
     private void waitUntilJobIsClosed(String jobId) throws Exception {
@@ -377,5 +359,18 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private void waitUntilDatafeedIsStopped(String dfId) throws Exception {
+        assertBusy(() -> {
+            try {
+                Response datafeedStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "datafeeds/" + dfId + "/_stats"));
+                assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()),
+                    containsString("\"state\":\"stopped\""));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 }

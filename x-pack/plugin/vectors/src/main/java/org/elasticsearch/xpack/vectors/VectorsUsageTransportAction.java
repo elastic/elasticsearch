@@ -76,7 +76,7 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
             }
         }
         VectorsFeatureSetUsage usage =
-            new VectorsFeatureSetUsage(vectorsAvailable, true, numDenseVectorFields, avgDenseVectorDims);
+            new VectorsFeatureSetUsage(vectorsAvailable, numDenseVectorFields, avgDenseVectorDims);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

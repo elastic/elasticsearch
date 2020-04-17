@@ -20,7 +20,7 @@ public class FlattenedFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected FlattenedFeatureSetUsage createTestInstance() {
-        return new FlattenedFeatureSetUsage(randomBoolean(), randomBoolean(), randomIntBetween(0, 1000));
+        return new FlattenedFeatureSetUsage(randomBoolean(), randomIntBetween(0, 1000));
     }
 
     @Override
@@ -42,7 +42,7 @@ public class FlattenedFeatureSetUsageTests extends AbstractWireSerializingTestCa
                 break;
         }
 
-        return new FlattenedFeatureSetUsage(available, enabled, fieldCount);
+        return new FlattenedFeatureSetUsage(available, fieldCount);
     }
 
     @Override

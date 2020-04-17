@@ -96,7 +96,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         }
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(statSummations -> {
-            var usage = new TransformFeatureSetUsage(available, true, transformsCountByState, statSummations);
+            var usage = new TransformFeatureSetUsage(available, transformsCountByState, statSummations);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }, listener::onFailure);
 
@@ -109,7 +109,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
-                var usage = new TransformFeatureSetUsage(available, true, transformsCountByState, new TransformIndexerStats());
+                var usage = new TransformFeatureSetUsage(available, transformsCountByState, new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }

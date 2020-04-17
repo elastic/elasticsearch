@@ -52,6 +52,6 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         boolean available = licenseState.isEnrichAllowed();
-        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage(available, true)));
+        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage(available)));
     }
 }

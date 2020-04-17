@@ -40,8 +40,7 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isIndexLifecycleAllowed();
         final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, true,
-            slmMeta == null ? null : slmMeta.getStats());
+        final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

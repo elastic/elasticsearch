@@ -60,9 +60,21 @@ following header in addition to the basic authentication header:
 
 [source,shell]
 --------------------------------------------------
-es-secondary-authorization: basic <TOKEN> <1>
+es-secondary-authorization: Basic <TOKEN> <1>
 --------------------------------------------------
 <1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
+
+The `es-secondary-authorization` header has the same syntax as the
+`Authorization` authentication header. It therefore also supports the use of
+<<token-authentication-services,token-based authentication services>>. For
+example:
+
+[source,shell]
+--------------------------------------------------
+es-secondary-authorization: ApiKey <TOKEN> <1>
+--------------------------------------------------
+<1> The `<TOKEN>` is computed as `base64(<API key ID>:<API key>)`
+
 
 [discrete]
 [[http-clients-libraries]]

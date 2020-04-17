@@ -24,12 +24,12 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 /**
  * Filter out threads controlled by gradle that may be created during unit tests.
  *
- * Currently this is only the pooled threads for Exec.
+ * Currently this includes pooled threads for Exec as well as file system event watcher threads.
  */
 public class GradleThreadsFilter implements ThreadFilter {
 
     @Override
     public boolean reject(Thread t) {
-        return t.getName().startsWith("Exec process");
+        return t.getName().startsWith("Exec process") || t.getName().startsWith("File watcher consumer");
     }
 }

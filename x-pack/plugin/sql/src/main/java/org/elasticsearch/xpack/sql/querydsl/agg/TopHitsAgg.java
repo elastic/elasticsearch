@@ -84,10 +84,12 @@ public class TopHitsAgg extends LeafAgg {
 
         TopHitsAggregationBuilder builder = topHits(id());
         if (source().fieldName() != null) {
-            return builder.docValueField(source().fieldName(), SqlDataTypes.format(fieldDataType)).sorts(sortBuilderList).size(1);
+            builder.docValueField(source().fieldName(), SqlDataTypes.format(fieldDataType));
         } else {
-            return builder.scriptField(id(), source().script().toPainless()).sorts(sortBuilderList).size(1);
+            builder.scriptField(id(), source().script().toPainless());
         }
+
+        return builder.sorts(sortBuilderList).size(1);
     }
 
     @Override

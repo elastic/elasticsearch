@@ -60,7 +60,7 @@ following header in addition to the basic authentication header:
 
 [source,shell]
 --------------------------------------------------
-Authorization: es-secondary-authorization <TOKEN> <1>
+es-secondary-authorization: basic <TOKEN> <1>
 --------------------------------------------------
 <1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
 

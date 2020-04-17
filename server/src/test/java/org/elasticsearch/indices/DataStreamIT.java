@@ -138,14 +138,14 @@ public class DataStreamIT extends ESIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{}", XContentType.JSON)
                 .opType(DocWriteRequest.OpType.CREATE);
             IndexResponse indexResponse = client().index(indexRequest).actionGet();
-            assertThat(indexResponse.getIndex(), equalTo(dataStreamName + "-000001"));
+            assertThat(indexResponse.getIndex(), equalTo(DataStream.getBackingIndexName(dataStreamName, 1)));
         }
         {
             BulkRequest bulkRequest = new BulkRequest()
                 .add(new IndexRequest(dataStreamName).source("{}", XContentType.JSON)
                     .opType(DocWriteRequest.OpType.CREATE));
             BulkResponse bulkItemResponses  = client().bulk(bulkRequest).actionGet();
-            assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(dataStreamName + "-000001"));
+            assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getBackingIndexName(dataStreamName, 1)));
         }
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("*");
@@ -169,7 +169,7 @@ public class DataStreamIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
         Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> {
-            assertThat(hit.getIndex(), equalTo(dataStream + "-000001"));
+            assertThat(hit.getIndex(), equalTo(DataStream.getBackingIndexName(dataStream, 1)));
         });
     }
 

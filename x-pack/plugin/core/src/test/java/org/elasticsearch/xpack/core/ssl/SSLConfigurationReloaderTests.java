@@ -531,7 +531,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 reloadLatch.countDown();
             }
         };
-        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env.settings()).values());
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 

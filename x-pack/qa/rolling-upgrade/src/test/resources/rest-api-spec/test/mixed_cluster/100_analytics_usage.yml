@@ -19,8 +19,8 @@ setup:
 ---
 "Basic test for usage stats on analytics indices":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/55378"
+      version: " - 7.7.99"
+      reason:  "stats are not working in earlier versions"
   - do:
       xpack.info: {}
   - match: { features.analytics.available: true }

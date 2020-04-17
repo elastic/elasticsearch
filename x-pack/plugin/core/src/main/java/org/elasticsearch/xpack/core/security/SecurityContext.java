@@ -52,6 +52,7 @@ public class SecurityContext {
         }
         try {
             if (currentAuthentication.hasJobOrigin()) {
+                // if the current authentication is already a job context uphold that
                 return Map.of(AuthenticationField.AUTHENTICATION_KEY, currentAuthentication.encode());
             } else {
                 Authentication authenticationWithJobId = currentAuthentication.withJobOriginAndId(jobOrigin, jobId);

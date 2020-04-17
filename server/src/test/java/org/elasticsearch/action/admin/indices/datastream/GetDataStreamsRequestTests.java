@@ -22,12 +22,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -63,7 +64,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
-        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
+        IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
+        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", List.of(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
@@ -74,8 +76,11 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     public void testGetDataStreamsWithWildcards() {
         final String[] dataStreamNames = {"my-data-stream", "another-data-stream"};
-        DataStream ds1 = new DataStream(dataStreamNames[0], "timestamp", Collections.emptyList());
-        DataStream ds2 = new DataStream(dataStreamNames[1], "timestamp", Collections.emptyList());
+        IndexMetadata idx1 = DataStreamTestHelper.createFirstBackingIndex(dataStreamNames[0]).build();
+        IndexMetadata idx2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamNames[1]).build();
+
+        DataStream ds1 = new DataStream(dataStreamNames[0], "timestamp", List.of(idx1.getIndex()));
+        DataStream ds2 = new DataStream(dataStreamNames[1], "timestamp", List.of(idx2.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(
                 Map.of(dataStreamNames[0], ds1, dataStreamNames[1], ds2)).build())
@@ -111,4 +116,5 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
             () -> GetDataStreamsAction.TransportAction.getDataStreams(cs, req));
         assertThat(e.getMessage(), containsString("data_stream matching [" + dataStreamName + "] not found"));
     }
+
 }

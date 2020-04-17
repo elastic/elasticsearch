@@ -1348,16 +1348,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-            SortedMap<String, IndexAbstraction> aliasAndIndexLookup = new TreeMap<>();
+            SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
                 IndexMetadata indexMetadata = cursor.value;
                 IndexAbstraction existing =
-                    aliasAndIndexLookup.put(indexMetadata.getIndex().getName(), new IndexAbstraction.Index(indexMetadata));
+                    indicesLookup.put(indexMetadata.getIndex().getName(), new IndexAbstraction.Index(indexMetadata));
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
                     AliasMetadata aliasMetadata = aliasCursor.value;
-                    aliasAndIndexLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
+                    indicesLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
                             return new IndexAbstraction.Alias(aliasMetadata, indexMetadata);
                         } else {
@@ -1369,21 +1369,39 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
-            aliasAndIndexLookup.values().stream()
+            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
+            // If there are no indices then it doesn't make sense to to add data streams to indicesLookup,
+            // since there no concrete indices that a data stream can point to.
+            // (This occurs when only Metadata is read from disk.)
+            if (dataStreamMetadata != null && indices.size() > 0) {
+                for (Map.Entry<String, DataStream> entry : dataStreamMetadata.dataStreams().entrySet()) {
+                    DataStream dataStream = entry.getValue();
+                    List<IndexMetadata> backingIndices = dataStream.getIndices().stream()
+                        .map(index -> indices.get(index.getName()))
+                        .collect(Collectors.toList());
+                    assert backingIndices.isEmpty() == false;
+                    assert backingIndices.contains(null) == false;
+
+                    IndexMetadata writeIndex = backingIndices.get(backingIndices.size() - 1);
+                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
+                        new IndexAbstraction.DataStream(dataStream, backingIndices, writeIndex));
+                    if (existing != null) {
+                        throw new IllegalStateException("data stream [" + dataStream.getName() +
+                            "] conflicts with existing " + existing.getType().getDisplayName() + " [" + existing.getName() + "]");
+                    }
+                }
+            }
+
+            indicesLookup.values().stream()
                 .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
                 .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
-            return aliasAndIndexLookup;
+            return indicesLookup;
         }
 
         private void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup) {
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    IndexAbstraction existing = indicesLookup.get(ds.getName());
-                    if (existing != null && existing.getType() != IndexAbstraction.Type.DATA_STREAM) {
-                        throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
-                    }
-
                     SortedMap<String, IndexAbstraction> potentialConflicts =
                         indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
                     if (potentialConflicts.size() != 0) {

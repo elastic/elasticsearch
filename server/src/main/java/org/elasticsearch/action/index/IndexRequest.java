@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
@@ -211,6 +212,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
 
         return validationException;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        if (opType == OpType.CREATE) {
+            return IndicesOptions.strictSingleIndexIncludeDataStreamNoExpandForbidClosed();
+        } else {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
     }
 
     /**

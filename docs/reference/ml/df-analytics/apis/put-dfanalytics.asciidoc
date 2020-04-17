@@ -115,7 +115,7 @@ values unless you fully understand the function of these parameters.
 include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
-categorical (`ip`, `keyword`, `text`), or boolean.
+categorical (`ip` or `keyword`), or boolean.
 --
 
 `analysis`.`classification`.`eta`::::

@@ -48,7 +48,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -931,7 +930,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
         final String dataStreamName = "my-data-stream";
-        IndexMetadata idx = createFirstBackingIndex(dataStreamName + "z")
+        IndexMetadata idx = createFirstBackingIndex(dataStreamName)
             .putAlias(AliasMetadata.builder(dataStreamName).build())
             .build();
         Metadata.Builder b = Metadata.builder()
@@ -946,7 +945,7 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata validIdx = createFirstBackingIndex(dataStreamName).build();
-        final String conflictingIndex = dataStreamName + "-000002";
+        final String conflictingIndex = DataStream.getBackingIndexName(dataStreamName, 2);
         IndexMetadata invalidIdx = createBackingIndex(dataStreamName, 2).build();
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
@@ -960,7 +959,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
-        final String conflictingName = dataStreamName + "-000002";
+        final String conflictingName = DataStream.getBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName)
             .putAlias(new AliasMetadata.Builder(conflictingName))
             .build();
@@ -977,20 +976,20 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final List<Index> backingIndices = new ArrayList<>();
         final int numBackingIndices = randomIntBetween(2, 5);
-        int lastBackingIndexNum = randomIntBetween(9, 50);
+        int lastBackingIndexNum = 0;
         Metadata.Builder b = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(String.format(Locale.ROOT, "%s-%06d", dataStreamName, lastBackingIndexNum))
+            lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
+            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
             b.put(im, false);
             backingIndices.add(im.getIndex());
-            lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
         }
 
-        b.put(new DataStream(dataStreamName, "ts", backingIndices));
+        b.put(new DataStream(dataStreamName, "ts", backingIndices, lastBackingIndexNum));
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -1008,7 +1007,7 @@ public class MetadataTests extends ESTestCase {
                 indices.add(idx.getIndex());
                 b.put(idx, true);
             }
-            b.put(new DataStream(name, "ts", indices));
+            b.put(new DataStream(name, "ts", indices, indices.size()));
         }
 
         Metadata metadata = b.build();

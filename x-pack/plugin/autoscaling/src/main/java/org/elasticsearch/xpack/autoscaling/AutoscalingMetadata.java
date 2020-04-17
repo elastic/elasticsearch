@@ -117,8 +117,10 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         final AutoscalingMetadata metadata = (AutoscalingMetadata) o;
         return policies.equals(metadata.policies);
     }

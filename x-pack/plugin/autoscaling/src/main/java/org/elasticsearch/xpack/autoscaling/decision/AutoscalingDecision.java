@@ -71,8 +71,10 @@ public class AutoscalingDecision implements ToXContent, Writeable {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         final AutoscalingDecision that = (AutoscalingDecision) o;
         return name.equals(that.name) && type == that.type && reason.equals(that.reason);
     }

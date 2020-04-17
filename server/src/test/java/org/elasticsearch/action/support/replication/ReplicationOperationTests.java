@@ -515,11 +515,6 @@ public class ReplicationOperationTests extends ESTestCase {
                 listener.onResponse(null);
             }
 
-            @Override
-            public void primaryCoordinationComplete() {
-
-            }
-
             public ShardInfo getShardInfo() {
                 return shardInfo;
             }

@@ -444,9 +444,6 @@ public abstract class TransportReplicationAction<
                 listener.onResponse(null);
             }
         }
-
-        @Override
-        public void primaryCoordinationComplete() {}
     }
 
     public static class ReplicaResult {

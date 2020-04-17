@@ -742,9 +742,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             public void runPostReplicationActions(ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
-
-            @Override
-            public void primaryCoordinationComplete() {}
         }
 
     }

@@ -303,7 +303,6 @@ public class ReplicationOperation<
                     failuresArray
                 )
             );
-            primaryResult.primaryCoordinationComplete();
             resultListener.onResponse(primaryResult);
         }
     }
@@ -495,10 +494,5 @@ public class ReplicationOperation<
          * @param listener calllback that is invoked after post replication actions have completed
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
-
-        /**
-         * Called when all primary coordination and replication is complete
-         * */
-        void primaryCoordinationComplete();
     }
 }

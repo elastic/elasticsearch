@@ -352,9 +352,6 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             listener.onResponse(null);
         }
 
-        @Override
-        public void primaryCoordinationComplete() {}
-
         public ReplicationResponse.ShardInfo getShardInfo() {
             return shardInfo.get();
         }

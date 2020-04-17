@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -519,18 +521,33 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(analyticsTaskList(), hasSize(1));
         assertThat(analyticsAssignedTaskList(), is(empty()));
 
-        GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
-        assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
-        assertThat(analyticsStats.getNode(), is(nullValue()));
+        assertBusy(() -> {
+            try {
+                GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
+                assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
+                assertThat(analyticsStats.getNode(), is(nullValue()));
+            } catch (ElasticsearchException e) {
+                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                fail(e.getDetailedMessage());
+            }
+        });
 
         setUpgradeModeTo(false);
         assertThat(analyticsTaskList(), hasSize(1));
         assertBusy(() -> assertThat(analyticsAssignedTaskList(), hasSize(1)));
 
-        analyticsStats = getAnalyticsStats(jobId);
-        assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+        assertBusy(() -> {
+            try {
+                GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
+                assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
+            } catch (ElasticsearchException e) {
+                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                fail(e.getDetailedMessage());
+            }
+        });
 
         waitUntilAnalyticsIsStopped(jobId);
+        assertProgress(jobId, 100, 100, 100, 100);
     }
 
     public void testSetUpgradeMode_NewTaskDoesNotStart() throws Exception {

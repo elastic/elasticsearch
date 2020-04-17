@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -246,6 +247,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  */
                 Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
 
+                    @SuppressForbidden(reason = "channel is based on a socket")
                     @Override
                     public int write(final ByteBuffer src) throws IOException {
                         return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));

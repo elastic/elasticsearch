@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.vectors;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -20,7 +19,7 @@ public class VectorsInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Inject
     public VectorsInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      @Deprecated Settings settings, XPackLicenseState licenseState) {
+                                      XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.VECTORS.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

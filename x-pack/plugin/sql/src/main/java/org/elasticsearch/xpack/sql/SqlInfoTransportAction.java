@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -20,7 +19,7 @@ public class SqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
     public SqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  @Deprecated Settings settings, XPackLicenseState licenseState) {
+                                  XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.SQL.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

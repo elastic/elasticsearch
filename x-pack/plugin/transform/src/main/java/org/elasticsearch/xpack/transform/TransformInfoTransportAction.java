@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
@@ -63,7 +62,6 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
     public TransformInfoTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        @Deprecated Settings settings,
         XPackLicenseState licenseState
     ) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);

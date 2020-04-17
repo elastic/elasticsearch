@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +34,7 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
     @Inject
     public VectorsUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       @Deprecated Settings settings, XPackLicenseState licenseState) {
+                                       XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.VECTORS.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
         this.licenseState = licenseState;

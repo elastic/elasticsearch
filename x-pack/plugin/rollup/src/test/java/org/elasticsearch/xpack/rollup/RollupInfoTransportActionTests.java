@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -34,24 +33,15 @@ public class RollupInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
         when(licenseState.isRollupAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
-    public void testEnabledSettingIsANoOp() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.rollup.enabled", enabled);
-        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(true));
-    }
-
     public void testEnabledDefault() {
         RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.enabled(), is(true));
     }
 

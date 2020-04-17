@@ -57,25 +57,10 @@ public class SqlInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
         when(licenseState.isSqlAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-    }
-
-    public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.sql.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.sql.enabled", enabled);
-        }
-        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(true));
     }
 
     @SuppressWarnings("unchecked")

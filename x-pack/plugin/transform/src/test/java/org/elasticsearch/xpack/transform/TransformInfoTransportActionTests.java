@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -40,7 +39,6 @@ public class TransformInfoTransportActionTests extends ESTestCase {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            Settings.EMPTY,
             licenseState
         );
         boolean available = randomBoolean();
@@ -48,24 +46,10 @@ public class TransformInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
     }
 
-    public void testEnabledSetting() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.transform.enabled", enabled);
-        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            settings.build(),
-            licenseState
-        );
-        assertThat(featureSet.enabled(), is(true));
-    }
-
     public void testEnabledDefault() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            Settings.EMPTY,
             licenseState
         );
         assertTrue(featureSet.enabled());

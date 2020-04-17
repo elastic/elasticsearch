@@ -50,13 +50,13 @@ public class SClass extends ANode {
         }
     }
 
-    public ClassNode writeClass(ScriptScope scriptScope) {
+    public ClassNode analyze(ScriptScope scriptScope) {
         buildClassScope(scriptScope);
 
         ClassNode classNode = new ClassNode();
 
         for (SFunction function : functionNodes) {
-            classNode.addFunctionNode(function.writeFunction(classNode, scriptScope));
+            classNode.addFunctionNode(function.analyze(classNode, scriptScope));
         }
 
         classNode.setLocation(getLocation());

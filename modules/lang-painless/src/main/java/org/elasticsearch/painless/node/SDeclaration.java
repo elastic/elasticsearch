@@ -21,11 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -65,7 +65,9 @@ public class SDeclaration extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+
         if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
             throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
         }
@@ -78,7 +80,7 @@ public class SDeclaration extends AStatement {
         if (valueNode != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expressionOutput = AExpression.analyze(valueNode, classNode, scriptScope, semanticScope, expressionInput);
+            expressionOutput = AExpression.analyze(valueNode, classNode, semanticScope, expressionInput);
             expressionCast = AnalyzerCaster.getLegalCast(valueNode.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }

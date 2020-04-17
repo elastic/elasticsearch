@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -60,10 +59,10 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
-        Output declarationOutput = declarationNode.analyze(classNode, scriptScope, semanticScope, new Input());
+        Output declarationOutput = declarationNode.analyze(classNode, semanticScope, new Input());
 
         Class<?> type = semanticScope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
 
@@ -80,7 +79,7 @@ public class SCatch extends AStatement {
             blockInput.lastSource = input.lastSource;
             blockInput.inLoop = input.inLoop;
             blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope, blockInput);
+            blockOutput = blockNode.analyze(classNode, semanticScope, blockInput);
 
             output.methodEscape = blockOutput.methodEscape;
             output.loopEscape = blockOutput.loopEscape;

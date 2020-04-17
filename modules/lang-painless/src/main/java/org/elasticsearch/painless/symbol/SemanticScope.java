@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Collections;
@@ -88,8 +89,8 @@ public abstract class SemanticScope {
 
         protected final Class<?> returnType;
 
-        public FunctionScope(Class<?> returnType) {
-            super(new HashSet<>());
+        public FunctionScope(ScriptScope scriptScope, Class<?> returnType) {
+            super(scriptScope, new HashSet<>());
             this.returnType = Objects.requireNonNull(returnType);
         }
 
@@ -146,7 +147,7 @@ public abstract class SemanticScope {
         protected final Set<Variable> captures = new HashSet<>();
 
         protected LambdaScope(SemanticScope parent, Class<?> returnType) {
-            super(parent.usedVariables);
+            super(parent.scriptScope, parent.usedVariables);
             this.parent = parent;
             this.returnType = returnType;
         }
@@ -212,7 +213,7 @@ public abstract class SemanticScope {
         protected final SemanticScope parent;
 
         protected BlockScope(SemanticScope parent) {
-            super(parent.usedVariables);
+            super(parent.scriptScope, parent.usedVariables);
             this.parent = parent;
         }
 
@@ -260,15 +261,18 @@ public abstract class SemanticScope {
      * Returns a new function scope as the top-level scope with the
      * specified return type.
      */
-    public static FunctionScope newFunctionScope(Class<?> returnType) {
-        return new FunctionScope(returnType);
+    public static FunctionScope newFunctionScope(ScriptScope scriptScope, Class<?> returnType) {
+        return new FunctionScope(scriptScope, returnType);
     }
+
+    protected final ScriptScope scriptScope;
 
     protected final Map<String, Variable> variables = new HashMap<>();
     protected final Set<String> usedVariables;
 
-    protected SemanticScope(Set<String> usedVariables) {
-        this.usedVariables = usedVariables;
+    protected SemanticScope(ScriptScope scriptScope, Set<String> usedVariables) {
+        this.scriptScope = Objects.requireNonNull(scriptScope);
+        this.usedVariables = Objects.requireNonNull(usedVariables);
     }
 
     /**
@@ -285,6 +289,10 @@ public abstract class SemanticScope {
      */
     public BlockScope newLocalScope() {
         return new BlockScope(this);
+    }
+
+    public ScriptScope getScriptScope() {
+        return scriptScope;
     }
 
     public abstract Class<?> getReturnType();

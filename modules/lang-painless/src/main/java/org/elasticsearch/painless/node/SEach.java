@@ -21,8 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
-import org.elasticsearch.painless.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionNode;
@@ -33,7 +31,8 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Iterator;
 import java.util.Objects;
@@ -76,13 +75,13 @@ public class SEach extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         AExpression.Input expressionInput = new AExpression.Input();
-        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, scriptScope, semanticScope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, semanticScope, expressionInput);
 
-        Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
@@ -98,7 +97,7 @@ public class SEach extends AStatement {
         Input blockInput = new Input();
         blockInput.beginLoop = true;
         blockInput.inLoop = true;
-        Output blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope, blockInput);
+        Output blockOutput = blockNode.analyze(classNode, semanticScope, blockInput);
         blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
 
         if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
@@ -138,7 +137,8 @@ public class SEach extends AStatement {
             if (expressionOutput.actual == def.class) {
                 method = null;
             } else {
-                method = scriptScope.getPainlessLookup().lookupPainlessMethod(expressionOutput.actual, false, "iterator", 0);
+                method = semanticScope.getScriptScope().getPainlessLookup().
+                        lookupPainlessMethod(expressionOutput.actual, false, "iterator", 0);
 
                 if (method == null) {
                     throw createError(new IllegalArgumentException(

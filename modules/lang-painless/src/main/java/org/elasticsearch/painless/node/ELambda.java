@@ -21,9 +21,10 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
-import org.elasticsearch.painless.SemanticScope.LambdaScope;
-import org.elasticsearch.painless.SemanticScope.Variable;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.LambdaScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -33,7 +34,6 @@ import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,7 +92,7 @@ public class ELambda extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
         }
@@ -100,6 +100,8 @@ public class ELambda extends AExpression {
         if (input.read == false) {
             throw createError(new IllegalArgumentException("not a statement: lambda not used"));
         }
+
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
         String name;
         Class<?> returnType;
@@ -180,7 +182,7 @@ public class ELambda extends AExpression {
         }
         AStatement.Input blockInput = new AStatement.Input();
         blockInput.lastSource = true;
-        AStatement.Output blockOutput = blockNode.analyze(classNode, scriptScope, lambdaScope, blockInput);
+        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope, blockInput);
 
         if (blockOutput.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));

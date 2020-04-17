@@ -21,7 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -30,7 +31,6 @@ import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.VariableNode;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Collections;
 import java.util.Objects;
@@ -49,7 +49,7 @@ public class ENewArrayFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
@@ -59,6 +59,8 @@ public class ENewArrayFunctionRef extends AExpression {
             throw createError(new IllegalArgumentException(
                     "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
         }
+
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
 

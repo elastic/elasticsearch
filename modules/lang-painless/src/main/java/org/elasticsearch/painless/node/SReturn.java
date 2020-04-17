@@ -21,12 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
 /**
  * Represents a return statement.
@@ -46,7 +45,7 @@ public class SReturn extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         AExpression.Output expressionOutput = null;
@@ -62,7 +61,7 @@ public class SReturn extends AStatement {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = semanticScope.getReturnType();
             expressionInput.internal = true;
-            expressionOutput = AExpression.analyze(expressionNode, classNode, scriptScope, semanticScope, expressionInput);
+            expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope, expressionInput);
             expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }

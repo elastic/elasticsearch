@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope;
-import org.elasticsearch.painless.SemanticScope.Variable;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -48,9 +47,9 @@ public class ESymbol extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
-        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
+        Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (type != null)  {
             if (input.write) {

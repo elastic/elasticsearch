@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SemanticScope.FunctionScope;
+import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.painless.SemanticScope.newFunctionScope;
+import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
 
 /**
  * Represents a user-defined function.
@@ -154,12 +154,12 @@ public class SFunction extends ANode {
         functionTable.addFunction(functionName, returnType, typeParameters, isInternal, isStatic);
     }
 
-    FunctionNode writeFunction(ClassNode classNode, ScriptScope scriptScope) {
+    FunctionNode analyze(ClassNode classNode, ScriptScope scriptScope) {
         FunctionTable.LocalFunction localFunction =
                 scriptScope.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
         Class<?> returnType = localFunction.getReturnType();
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
-        FunctionScope functionScope = newFunctionScope(localFunction.getReturnType());
+        FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
 
         for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
             Class<?> typeParameter = localFunction.getTypeParameters().get(index);
@@ -175,7 +175,7 @@ public class SFunction extends ANode {
 
         Input blockInput = new Input();
         blockInput.lastSource = true;
-        Output blockOutput = blockNode.analyze(classNode, scriptScope, functionScope.newLocalScope(), blockInput);
+        Output blockOutput = blockNode.analyze(classNode, functionScope.newLocalScope(), blockInput);
         boolean methodEscape = blockOutput.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {

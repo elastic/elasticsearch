@@ -43,7 +43,7 @@ public class GroupByDateHistogram extends GroupByKey {
     private GroupByDateHistogram(String id, AggSource source, Direction direction, long fixedInterval,
                                  String calendarInterval, ZoneId zoneId) {
         super(id, source, direction);
-        if (fixedInterval <= 0 && (calendarInterval == null || calendarInterval.isBlank())) {
+        if (fixedInterval <= 0 && (calendarInterval == null || calendarInterval.trim().isEmpty())) {
             throw new SqlIllegalArgumentException("Either fixed interval or calendar interval needs to be specified");
         }
         this.fixedInterval = fixedInterval;

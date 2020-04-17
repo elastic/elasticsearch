@@ -77,7 +77,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     Collections.singletonList("component_template"),
                     5L,
                     4L,
-                    Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken"))))
+                    Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")), null))
                 .put(IndexMetadata.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")

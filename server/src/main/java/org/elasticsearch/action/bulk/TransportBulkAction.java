@@ -35,11 +35,13 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -52,10 +54,12 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -85,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -229,9 +234,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     autoCreateIndices.add(index);
                 }
             }
+            Map<String, IndexTemplateV2.DataStreamTemplate> autoCreateDataStreams =
+                resolveAutoCreateDataStreams(metadata, autoCreateIndices);
             // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-            if (autoCreateIndices.isEmpty()) {
+            if (autoCreateIndices.isEmpty() && autoCreateDataStreams.isEmpty()) {
                 executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+            } else if (autoCreateIndices.isEmpty() && autoCreateDataStreams.isEmpty() == false) {
+                autoCreateDataStreams(task, bulkRequest, startTime, listener, responses, autoCreateDataStreams,
+                    indicesThatCannotBeCreated);
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
                 for (String index : autoCreateIndices) {
@@ -239,8 +249,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                threadPool.executor(ThreadPool.Names.WRITE).execute(
-                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                                if (autoCreateDataStreams.isEmpty()) {
+                                    threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                        () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                                } else {
+                                    autoCreateDataStreams(task, bulkRequest, startTime, listener, responses, autoCreateDataStreams,
+                                        indicesThatCannotBeCreated);
+                                }
                             }
                         }
 
@@ -256,10 +271,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
-                                    inner.addSuppressed(e);
-                                    listener.onFailure(inner);
-                                }), responses, indicesThatCannotBeCreated);
+                                if (autoCreateDataStreams.isEmpty()) {
+                                    executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                        inner.addSuppressed(e);
+                                        listener.onFailure(inner);
+                                    }), responses, indicesThatCannotBeCreated);
+                                } else {
+                                    autoCreateDataStreams(task, bulkRequest, startTime,
+                                        ActionListener.wrap(listener::onResponse, inner -> {
+                                            inner.addSuppressed(e);
+                                            listener.onFailure(inner);
+                                        }),
+                                        responses, autoCreateDataStreams, indicesThatCannotBeCreated);
+                                }
                             }
                         }
                     });
@@ -267,6 +291,64 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         } else {
             executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
+        }
+    }
+
+    static Map<String, IndexTemplateV2.DataStreamTemplate> resolveAutoCreateDataStreams(Metadata metadata,
+                                                                                        Set<String> autoCreateIndices) {
+        Map<String, IndexTemplateV2.DataStreamTemplate> autoCreateDataStreams = new HashMap<>();
+        Iterator<String> autoCreateIndicesIterator = autoCreateIndices.iterator();
+        while (autoCreateIndicesIterator.hasNext()) {
+            String indexName =  autoCreateIndicesIterator.next();
+            String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexName, null);
+            if (v2Template != null) {
+                IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
+                if (indexTemplateV2.getDataStreamTemplate() != null) {
+                    autoCreateIndicesIterator.remove();
+                    autoCreateDataStreams.put(indexName, indexTemplateV2.getDataStreamTemplate());
+                }
+            }
+        }
+        return autoCreateDataStreams;
+    }
+
+    void autoCreateDataStreams(final Task task,
+                               final BulkRequest bulkRequest,
+                               final long startTimeNanos,
+                               final ActionListener<BulkResponse> listener,
+                               final AtomicArray<BulkItemResponse> responses,
+                               final Map<String, IndexTemplateV2.DataStreamTemplate> autoCreateDataStreams,
+                               final Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+        final AtomicInteger counter = new AtomicInteger(autoCreateDataStreams.size());
+        for (Map.Entry<String, IndexTemplateV2.DataStreamTemplate> entry : autoCreateDataStreams.entrySet()) {
+            final String name = entry.getKey();
+
+            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(name);
+            request.setTimestampFieldName(entry.getValue().getTimestampField());
+            CheckedConsumer<AcknowledgedResponse, ? extends Exception> onResponse = response -> {
+                if (counter.decrementAndGet() == 0) {
+                    threadPool.executor(ThreadPool.Names.WRITE).execute(
+                        () -> executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated));
+                }
+            };
+            Consumer<Exception> onFailure = e -> {
+                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                    // fail all requests involving this index, if create didn't work
+                    for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                        DocWriteRequest<?> item = bulkRequest.requests.get(i);
+                        if (item != null && setResponseFailureIfIndexMatches(responses, i, item, name, e)) {
+                            bulkRequest.requests.set(i, null);
+                        }
+                    }
+                }
+                if (counter.decrementAndGet() == 0) {
+                    executeBulk(task, bulkRequest, startTimeNanos, ActionListener.wrap(listener::onResponse, inner -> {
+                        inner.addSuppressed(e);
+                        listener.onFailure(inner);
+                    }), responses, indicesThatCannotBeCreated);
+                }
+            };
+            client.admin().indices().createDataStream(request, ActionListener.wrap(onResponse, onFailure));
         }
     }
 

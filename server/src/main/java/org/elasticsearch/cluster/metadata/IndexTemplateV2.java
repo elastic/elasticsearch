@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,6 +49,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     private static final ParseField COMPOSED_OF = new ParseField("composed_of");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
+    private static final ParseField DATA_STREAM = new ParseField("data_stream");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexTemplateV2, Void> PARSER = new ConstructingObjectParser<>("index_template", false,
@@ -56,7 +58,8 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
             (List<String>) a[2],
             (Long) a[3],
             (Long) a[4],
-            (Map<String, Object>) a[5]));
+            (Map<String, Object>) a[5],
+            (DataStreamTemplate) a[6]));
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
@@ -65,6 +68,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIORITY);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DataStreamTemplate.PARSER, DATA_STREAM);
     }
 
     private final List<String> indexPatterns;
@@ -78,6 +82,8 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     private final Long version;
     @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
+    private final DataStreamTemplate dataStreamTemplate;
 
     static Diff<IndexTemplateV2> readITV2DiffFrom(StreamInput in) throws IOException {
         return AbstractDiffable.readDiffFrom(IndexTemplateV2::new, in);
@@ -88,13 +94,15 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     }
 
     public IndexTemplateV2(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-                           @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
+                           @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
+                           @Nullable DataStreamTemplate dataStreamTemplate) {
         this.indexPatterns = indexPatterns;
         this.template = template;
         this.componentTemplates = componentTemplates;
         this.priority = priority;
         this.version = version;
         this.metadata = metadata;
+        this.dataStreamTemplate = dataStreamTemplate;
     }
 
     public IndexTemplateV2(StreamInput in) throws IOException {
@@ -108,6 +116,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
+        this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
     }
 
     public List<String> indexPatterns() {
@@ -138,6 +147,10 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         return metadata;
     }
 
+    public DataStreamTemplate getDataStreamTemplate() {
+        return dataStreamTemplate;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.indexPatterns);
@@ -151,6 +164,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
+        out.writeOptionalWriteable(dataStreamTemplate);
     }
 
     @Override
@@ -172,13 +186,17 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
+        if (this.dataStreamTemplate != null) {
+            builder.field(DATA_STREAM.getPreferredName(), dataStreamTemplate);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.indexPatterns, this.template, this.componentTemplates, this.priority, this.version, this.metadata);
+        return Objects.hash(this.indexPatterns, this.template, this.componentTemplates, this.priority, this.version,
+            this.metadata, this.dataStreamTemplate);
     }
 
     @Override
@@ -195,11 +213,64 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
             Objects.equals(this.componentTemplates, other.componentTemplates) &&
             Objects.equals(this.priority, other.priority) &&
             Objects.equals(this.version, other.version) &&
-            Objects.equals(this.metadata, other.metadata);
+            Objects.equals(this.metadata, other.metadata) &&
+            Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public static class DataStreamTemplate implements Writeable, ToXContentObject {
+
+        private static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
+            "data_stream_template",
+            args -> new DataStreamTemplate((String) args[0])
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), DataStream.TIMESTAMP_FIELD_FIELD);
+        }
+
+        private final String timestampField;
+
+        public DataStreamTemplate(String timestampField) {
+            this.timestampField = timestampField;
+        }
+
+        public String getTimestampField() {
+            return timestampField;
+        }
+
+        DataStreamTemplate(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(timestampField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), timestampField);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStreamTemplate that = (DataStreamTemplate) o;
+            return timestampField.equals(that.timestampField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(timestampField);
+        }
     }
 }

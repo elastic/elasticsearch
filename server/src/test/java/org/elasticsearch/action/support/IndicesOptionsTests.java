@@ -80,7 +80,7 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            if (version.before(Version.V_8_0_0)) {
+            if (version.before(Version.V_7_8_0)) {
                 assertThat(indicesOptions2.includeDataStreams(), is(false));
             } else {
                 assertThat(indicesOptions2.includeDataStreams(), equalTo(indicesOptions.includeDataStreams()));

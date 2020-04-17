@@ -1382,9 +1382,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     assert backingIndices.isEmpty() == false;
                     assert backingIndices.contains(null) == false;
 
-                    IndexMetadata writeIndex = backingIndices.get(backingIndices.size() - 1);
                     IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, backingIndices, writeIndex));
+                        new IndexAbstraction.DataStream(dataStream, backingIndices));
                     if (existing != null) {
                         throw new IllegalStateException("data stream [" + dataStream.getName() +
                             "] conflicts with existing " + existing.getType().getDisplayName() + " [" + existing.getName() + "]");

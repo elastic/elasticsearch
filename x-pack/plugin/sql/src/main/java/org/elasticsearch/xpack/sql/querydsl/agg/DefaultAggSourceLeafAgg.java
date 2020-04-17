@@ -3,21 +3,24 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.function.Function;
 
-public class MaxAgg extends DefaultAggSourceLeafAgg {
+abstract class DefaultAggSourceLeafAgg extends LeafAgg {
 
-    public MaxAgg(String id, AggSource source) {
+    DefaultAggSourceLeafAgg(String id, AggSource source) {
         super(id, source);
     }
 
     @Override
-    Function<String, ValuesSourceAggregationBuilder<?>> builder() {
-        return AggregationBuilders::max;
+    AggregationBuilder toBuilder() {
+        return source().with(builder().apply(id()));
     }
+
+    abstract Function<String, ValuesSourceAggregationBuilder<?>> builder();
 }

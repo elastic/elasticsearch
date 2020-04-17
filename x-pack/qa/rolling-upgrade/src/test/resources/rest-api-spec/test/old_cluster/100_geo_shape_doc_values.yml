@@ -1,0 +1,31 @@
+---
+"Search existing index with geo_shape field":
+  - do:
+      indices.create:
+        index: old_locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      index:
+        index:  old_locations
+        id:     point
+        body:   { location: "POINT(34.25 -21.76)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: old_locations
+        size: 1
+        body:
+          query:
+            match_all: {}
+  - match: {hits.total:      1    }
+  - length: {hits.hits:      1    }
+  - match: {hits.hits.0._id: "point" }

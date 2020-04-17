@@ -30,6 +30,6 @@ import java.util.Map;
 @FunctionalInterface
 public interface GeoBoundsAggregatorSupplier extends AggregatorSupplier {
 
-    MetricsAggregator build(String name, SearchContext aggregationContext, Aggregator parent,
+    GeoBoundsAggregator build(String name, SearchContext aggregationContext, Aggregator parent,
                         ValuesSource valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException;
 }

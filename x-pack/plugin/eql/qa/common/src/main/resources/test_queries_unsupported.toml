@@ -826,6 +826,11 @@ expected_event_ids = []
 description = "check built-in string functions"
 
 [[queries]]
+# This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
+expected_event_ids = [82]
+query = "file where serial_event_id / 2 == 41"
+
+[[queries]]
 # Error: Line 1:42: Comparisons against variables are not (currently) supported; offender [serial_event_id] in [==]
 query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''

@@ -97,10 +97,10 @@ public final class Arithmetics {
             return l.floatValue() / r.floatValue();
         }
         if (l instanceof Long || r instanceof Long) {
-            return (double)l.longValue() / (double)r.longValue();
+            return l.longValue() / r.longValue();
         }
 
-        return (double)l.intValue() / (double)r.intValue();
+        return l.intValue() / r.intValue();
     }
 
     public static Number mod(Number l, Number r) {

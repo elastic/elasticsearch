@@ -24,3 +24,8 @@ query = '''
 process where modulo(11, 10) == serial_event_id'''
 expected_event_ids  = [1]
 description = "test built-in modulo math functions"
+
+[[queries]]
+# This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
+expected_event_ids = [82, 83]
+query = "file where serial_event_id / 2 == 41"

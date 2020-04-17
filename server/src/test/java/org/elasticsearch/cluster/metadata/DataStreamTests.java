@@ -40,7 +40,11 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public static DataStream randomInstance() {
-        return new DataStream(randomAlphaOfLength(10), randomAlphaOfLength(10), randomIndexInstances());
+        List<Index> indices = randomIndexInstances();
+        long generation = randomLongBetween(1, 128);
+        String dataStreamName = randomAlphaOfLength(10);
+        indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
+        return new DataStream(dataStreamName, randomAlphaOfLength(10), indices, generation);
     }
 
     @Override

@@ -92,8 +92,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /**
  * Starts the persistent task for running data frame analytics.
- *
- * TODO Add to the upgrade mode action
  */
 public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
@@ -647,11 +645,16 @@ public class TransportStartDataFrameAnalyticsAction
                                      PersistentTaskState state) {
             logger.info("[{}] Starting data frame analytics", params.getId());
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
+            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? null : analyticsTaskState.getState();
 
-            // If we are "stopping" there is nothing to do
+            // If we are "stopping" there is nothing to do and we should stop
+            if (DataFrameAnalyticsState.STOPPING.equals(analyticsState)) {
+                logger.info("[{}] data frame analytics got reassigned while stopping. Marking as completed", params.getId());
+                task.markAsCompleted();
+                return;
+            }
             // If we are "failed" then we should leave the task as is; for recovery it must be force stopped.
-            if (analyticsTaskState != null && analyticsTaskState.getState().isAnyOf(
-                    DataFrameAnalyticsState.STOPPING, DataFrameAnalyticsState.FAILED)) {
+            if (DataFrameAnalyticsState.FAILED.equals(analyticsState)) {
                 return;
             }
 

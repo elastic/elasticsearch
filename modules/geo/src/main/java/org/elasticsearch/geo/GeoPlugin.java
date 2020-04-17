@@ -19,7 +19,6 @@
 
 package org.elasticsearch.geo;
 
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -32,6 +31,6 @@ public class GeoPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new AbstractGeometryFieldMapper.TypeParser());
+        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
     }
 }

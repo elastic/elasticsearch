@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -829,6 +830,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         QueryShardContext context = createShardContext();
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
+        // we occasionally need to update the expected "isCacheable" flag after rewrite for MatchNoneQueryBuilder
+        if (rewriteQuery instanceof MatchNoneQueryBuilder) {
+            isCacheable = true;
+        }
         assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
                 context.isCacheable());
 

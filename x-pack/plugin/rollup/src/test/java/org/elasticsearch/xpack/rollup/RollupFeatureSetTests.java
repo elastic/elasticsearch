@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.rollup;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.junit.Before;
 
@@ -43,6 +45,7 @@ public class RollupFeatureSetTests extends ESTestCase {
         settings.put("xpack.rollup.enabled", enabled);
         RollupFeatureSet featureSet = new RollupFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.ROLLUP_ENABLED } );
     }
 
     public void testEnabledDefault() {

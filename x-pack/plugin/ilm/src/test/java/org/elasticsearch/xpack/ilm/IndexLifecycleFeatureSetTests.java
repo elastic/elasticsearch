@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -71,6 +73,7 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         settings = Settings.builder().put("xpack.ilm.enabled", true);
         featureSet = new IndexLifecycleFeatureSet(settings.build(), licenseState, clusterService);
         assertThat(featureSet.enabled(), equalTo(true));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testName() {

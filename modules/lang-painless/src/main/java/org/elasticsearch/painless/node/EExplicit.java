@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptScope;
@@ -52,7 +52,7 @@ public class EExplicit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         String canonicalTypeName = type.getCanonicalTypeName();
 
         if (input.write) {
@@ -71,7 +71,7 @@ public class EExplicit extends AExpression {
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        Output childOutput = analyze(childNode, classNode, scriptScope, sematicScope, childInput);
+        Output childOutput = analyze(childNode, classNode, scriptScope, semanticScope, childInput);
         PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                 childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 

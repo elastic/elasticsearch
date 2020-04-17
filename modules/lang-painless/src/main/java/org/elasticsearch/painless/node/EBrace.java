@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
@@ -64,12 +64,12 @@ public class EBrace extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         if (input.read == false && input.write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        Output prefixOutput = analyze(prefixNode, classNode, scriptScope, sematicScope, new Input());
+        Output prefixOutput = analyze(prefixNode, classNode, scriptScope, semanticScope, new Input());
 
         ExpressionNode expressionNode;
         Output output = new Output();
@@ -77,7 +77,7 @@ public class EBrace extends AExpression {
         if (prefixOutput.actual.isArray()) {
             Input indexInput = new Input();
             indexInput.expected = int.class;
-            Output indexOutput = analyze(indexNode, classNode, scriptScope, sematicScope, indexInput);
+            Output indexOutput = analyze(indexNode, classNode, scriptScope, semanticScope, indexInput);
             PainlessCast indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                     indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -90,7 +90,7 @@ public class EBrace extends AExpression {
             expressionNode = braceSubNode;
         } else if (prefixOutput.actual == def.class) {
             Input indexInput = new Input();
-            Output indexOutput = analyze(indexNode, classNode, scriptScope, sematicScope, indexInput);
+            Output indexOutput = analyze(indexNode, classNode, scriptScope, semanticScope, indexInput);
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
@@ -127,7 +127,7 @@ public class EBrace extends AExpression {
             if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                indexOutput = analyze(indexNode, classNode, scriptScope, sematicScope, indexInput);
+                indexOutput = analyze(indexNode, classNode, scriptScope, semanticScope, indexInput);
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -170,7 +170,7 @@ public class EBrace extends AExpression {
             if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
-                indexOutput = analyze(indexNode, classNode, scriptScope, sematicScope, indexInput);
+                indexOutput = analyze(indexNode, classNode, scriptScope, semanticScope, indexInput);
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 

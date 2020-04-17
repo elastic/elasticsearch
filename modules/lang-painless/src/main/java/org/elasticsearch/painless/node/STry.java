@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -48,7 +48,7 @@ public class STry extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         if (blockNode == null) {
@@ -60,7 +60,7 @@ public class STry extends AStatement {
         blockInput.inLoop = input.inLoop;
         blockInput.lastLoop = input.lastLoop;
 
-        Output blockOutput = blockNode.analyze(classNode, scriptScope, sematicScope.newLocalScope(), blockInput);
+        Output blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope.newLocalScope(), blockInput);
 
         output.methodEscape = blockOutput.methodEscape;
         output.loopEscape = blockOutput.loopEscape;
@@ -78,7 +78,7 @@ public class STry extends AStatement {
             catchInput.inLoop = input.inLoop;
             catchInput.lastLoop = input.lastLoop;
 
-            Output catchOutput = catc.analyze(classNode, scriptScope, sematicScope.newLocalScope(), catchInput);
+            Output catchOutput = catc.analyze(classNode, scriptScope, semanticScope.newLocalScope(), catchInput);
 
             output.methodEscape &= catchOutput.methodEscape;
             output.loopEscape &= catchOutput.loopEscape;

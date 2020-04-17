@@ -38,11 +38,11 @@ import java.util.Set;
  * its parent. As a scope is no longer necessary, it's dropped automatically
  * since parent scopes contain no references to child scopes.
  */
-public abstract class SematicScope {
+public abstract class SemanticScope {
 
     /**
      * Tracks information about both user-defined and internally-defined
-     * variables. Each {@link SematicScope} tracks its own set of defined
+     * variables. Each {@link SemanticScope} tracks its own set of defined
      * variables available for use.
      */
     public static class Variable {
@@ -84,7 +84,7 @@ public abstract class SematicScope {
      * This scope stores the return type for semantic validation of all
      * return statements within this function.
      */
-    public static class FunctionScope extends SematicScope {
+    public static class FunctionScope extends SemanticScope {
 
         protected final Class<?> returnType;
 
@@ -139,13 +139,13 @@ public abstract class SematicScope {
      * stores the return type for semantic validation of all return statements
      * within this lambda.
      */
-    public static class LambdaScope extends SematicScope {
+    public static class LambdaScope extends SemanticScope {
 
-        protected final SematicScope parent;
+        protected final SemanticScope parent;
         protected final Class<?> returnType;
         protected final Set<Variable> captures = new HashSet<>();
 
-        protected LambdaScope(SematicScope parent, Class<?> returnType) {
+        protected LambdaScope(SemanticScope parent, Class<?> returnType) {
             super(parent.usedVariables);
             this.parent = parent;
             this.returnType = returnType;
@@ -207,11 +207,11 @@ public abstract class SematicScope {
      * a function or lambda, thus uses its parents return type when semantically
      * validating a return statement.
      */
-    public static class BlockScope extends SematicScope {
+    public static class BlockScope extends SemanticScope {
 
-        protected final SematicScope parent;
+        protected final SemanticScope parent;
 
-        protected BlockScope(SematicScope parent) {
+        protected BlockScope(SemanticScope parent) {
             super(parent.usedVariables);
             this.parent = parent;
         }
@@ -267,7 +267,7 @@ public abstract class SematicScope {
     protected final Map<String, Variable> variables = new HashMap<>();
     protected final Set<String> usedVariables;
 
-    protected SematicScope(Set<String> usedVariables) {
+    protected SemanticScope(Set<String> usedVariables) {
         this.usedVariables = usedVariables;
     }
 

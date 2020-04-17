@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -46,23 +46,23 @@ public class SReturn extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         AExpression.Output expressionOutput = null;
         PainlessCast expressionCast = null;
 
         if (expressionNode == null) {
-            if (sematicScope.getReturnType() != void.class) {
+            if (semanticScope.getReturnType() != void.class) {
                 throw getLocation().createError(new ClassCastException("Cannot cast from " +
-                        "[" + sematicScope.getReturnCanonicalTypeName() + "] to " +
+                        "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
             AExpression.Input expressionInput = new AExpression.Input();
-            expressionInput.expected = sematicScope.getReturnType();
+            expressionInput.expected = semanticScope.getReturnType();
             expressionInput.internal = true;
-            expressionOutput = AExpression.analyze(expressionNode, classNode, scriptScope, sematicScope, expressionInput);
+            expressionOutput = AExpression.analyze(expressionNode, classNode, scriptScope, semanticScope, expressionInput);
             expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }

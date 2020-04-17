@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptScope;
@@ -48,7 +48,7 @@ public class SBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         if (statementNodes.isEmpty()) {
@@ -71,7 +71,7 @@ public class SBlock extends AStatement {
             statementInput.lastSource = input.lastSource && statement == last;
             statementInput.lastLoop = (input.beginLoop || input.lastLoop) && statement == last;
 
-            Output statementOutput = statement.analyze(classNode, scriptScope, sematicScope, statementInput);
+            Output statementOutput = statement.analyze(classNode, scriptScope, semanticScope, statementInput);
 
             output.methodEscape = statementOutput.methodEscape;
             output.loopEscape = statementOutput.loopEscape;

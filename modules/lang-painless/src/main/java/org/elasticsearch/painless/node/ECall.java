@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubDefNode;
 import org.elasticsearch.painless.ir.CallSubNode;
@@ -81,7 +81,7 @@ public class ECall extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
@@ -90,7 +90,7 @@ public class ECall extends AExpression {
         Output output = new Output();
 
         Input prefixInput = new Input();
-        Output prefixOutput = prefixNode.analyze(classNode, scriptScope, sematicScope, prefixInput);
+        Output prefixOutput = prefixNode.analyze(classNode, scriptScope, semanticScope, prefixInput);
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
@@ -109,7 +109,7 @@ public class ECall extends AExpression {
             for (AExpression argument : argumentNodes) {
                 Input expressionInput = new Input();
                 expressionInput.internal = true;
-                Output expressionOutput = analyze(argument, classNode, scriptScope, sematicScope, expressionInput);
+                Output expressionOutput = analyze(argument, classNode, scriptScope, semanticScope, expressionInput);
                 argumentOutputs.add(expressionOutput);
 
                 if (expressionOutput.actual == void.class) {
@@ -152,7 +152,7 @@ public class ECall extends AExpression {
                 Input expressionInput = new Input();
                 expressionInput.expected = method.typeParameters.get(argument);
                 expressionInput.internal = true;
-                Output expressionOutput = analyze(expression, classNode, scriptScope, sematicScope, expressionInput);
+                Output expressionOutput = analyze(expression, classNode, scriptScope, semanticScope, expressionInput);
                 argumentOutputs.add(expressionOutput);
                 argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                         expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));

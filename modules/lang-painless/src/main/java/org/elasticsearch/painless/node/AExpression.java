@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
@@ -113,7 +113,7 @@ public abstract class AExpression extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -121,8 +121,8 @@ public abstract class AExpression extends ANode {
      * Checks for errors and collects data for the writing phase. Adds additional, common
      * error checking for conditions related to static types and partially constructed static types.
      */
-    static Output analyze(AExpression expression, ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
-        Output output = expression.analyze(classNode, scriptScope, sematicScope, input);
+    static Output analyze(AExpression expression, ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+        Output output = expression.analyze(classNode, scriptScope, semanticScope, input);
 
         if (output.partialCanonicalTypeName != null) {
             throw expression.createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));

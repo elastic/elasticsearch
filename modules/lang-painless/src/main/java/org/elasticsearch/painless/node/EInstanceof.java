@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.InstanceofNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -56,7 +56,7 @@ public class EInstanceof extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
@@ -86,7 +86,7 @@ public class EInstanceof extends AExpression {
 
         // analyze and cast the expression
         Input expressionInput = new Input();
-        Output expressionOutput = analyze(expressionNode, classNode, scriptScope, sematicScope, expressionInput);
+        Output expressionOutput = analyze(expressionNode, classNode, scriptScope, semanticScope, expressionInput);
         expressionInput.expected = expressionOutput.actual;
         PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                 expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);

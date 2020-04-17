@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -56,7 +56,7 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -87,7 +87,7 @@ public class EUnary extends AExpression {
                 if (operation == Operation.SUB) {
                     childOutput = numeric.analyze(childInput, numeric.getNumeric().charAt(0) != '-');
                 } else {
-                    childOutput = childNode.analyze(classNode, scriptScope, sematicScope, childInput);
+                    childOutput = childNode.analyze(classNode, scriptScope, semanticScope, childInput);
                 }
             } else if (childNode instanceof EDecimal) {
                 EDecimal decimal = (EDecimal)childNode;
@@ -95,7 +95,7 @@ public class EUnary extends AExpression {
                 if (operation == Operation.SUB) {
                     childOutput = decimal.analyze(childInput, decimal.getDecimal().charAt(0) != '-');
                 } else {
-                    childOutput = childNode.analyze(classNode, scriptScope, sematicScope, childInput);
+                    childOutput = childNode.analyze(classNode, scriptScope, semanticScope, childInput);
                 }
             } else {
                 throw createError(new IllegalArgumentException("illegal tree structure"));
@@ -108,13 +108,13 @@ public class EUnary extends AExpression {
 
             if (operation == Operation.NOT) {
                 childInput.expected = boolean.class;
-                childOutput = analyze(childNode, classNode, scriptScope, sematicScope, childInput);
+                childOutput = analyze(childNode, classNode, scriptScope, semanticScope, childInput);
                 childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 output.actual = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-                childOutput = analyze(childNode, classNode, scriptScope, sematicScope, new Input());
+                childOutput = analyze(childNode, classNode, scriptScope, semanticScope, new Input());
 
                 promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
 

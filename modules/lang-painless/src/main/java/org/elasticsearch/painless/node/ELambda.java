@@ -21,9 +21,9 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
-import org.elasticsearch.painless.SematicScope.LambdaScope;
-import org.elasticsearch.painless.SematicScope.Variable;
+import org.elasticsearch.painless.SemanticScope;
+import org.elasticsearch.painless.SemanticScope.LambdaScope;
+import org.elasticsearch.painless.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -92,7 +92,7 @@ public class ELambda extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
         }
@@ -167,7 +167,7 @@ public class ELambda extends AExpression {
             }
         }
 
-        LambdaScope lambdaScope = sematicScope.newLambdaScope(returnType);
+        LambdaScope lambdaScope = semanticScope.newLambdaScope(returnType);
 
         for (int index = 0; index < typeParameters.size(); ++index) {
             Class<?> type = typeParameters.get(index);

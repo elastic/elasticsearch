@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DotNode;
@@ -77,13 +77,13 @@ public class EDot extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         if (input.read == false && input.write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
         Output output = new Output();
-        Output prefixOutput = prefixNode.analyze(classNode, scriptScope, sematicScope, new Input());
+        Output prefixOutput = prefixNode.analyze(classNode, scriptScope, semanticScope, new Input());
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             if (output.isStaticType) {

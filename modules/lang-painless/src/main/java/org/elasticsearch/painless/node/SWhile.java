@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.WhileNode;
@@ -54,13 +54,13 @@ public class SWhile extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
-        sematicScope = sematicScope.newLocalScope();
+        semanticScope = semanticScope.newLocalScope();
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, scriptScope, sematicScope, conditionInput);
+        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, scriptScope, semanticScope, conditionInput);
         PainlessCast conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
@@ -86,7 +86,7 @@ public class SWhile extends AStatement {
             blockInput.beginLoop = true;
             blockInput.inLoop = true;
 
-            blockOutput = blockNode.analyze(classNode, scriptScope, sematicScope, blockInput);
+            blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope, blockInput);
 
             if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));

@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope.FunctionScope;
+import org.elasticsearch.painless.SemanticScope.FunctionScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.painless.SematicScope.newFunctionScope;
+import static org.elasticsearch.painless.SemanticScope.newFunctionScope;
 
 /**
  * Represents a user-defined function.

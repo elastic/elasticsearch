@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ReturnNode;
@@ -49,13 +49,13 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
-        Class<?> rtnType = sematicScope.getReturnType();
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+        Class<?> rtnType = semanticScope.getReturnType();
         boolean isVoid = rtnType == void.class;
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.read = input.lastSource && !isVoid;
-        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, scriptScope, sematicScope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, scriptScope, semanticScope, expressionInput);
 
         boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
 

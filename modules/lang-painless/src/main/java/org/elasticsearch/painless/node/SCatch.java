@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -60,12 +60,12 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
-        Output declarationOutput = declarationNode.analyze(classNode, scriptScope, sematicScope, new Input());
+        Output declarationOutput = declarationNode.analyze(classNode, scriptScope, semanticScope, new Input());
 
-        Class<?> type = sematicScope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
+        Class<?> type = semanticScope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
 
         if (baseException.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
@@ -80,7 +80,7 @@ public class SCatch extends AStatement {
             blockInput.lastSource = input.lastSource;
             blockInput.inLoop = input.inLoop;
             blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, scriptScope, sematicScope, blockInput);
+            blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope, blockInput);
 
             output.methodEscape = blockOutput.methodEscape;
             output.loopEscape = blockOutput.loopEscape;

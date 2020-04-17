@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
@@ -55,7 +55,7 @@ public class EFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
 
@@ -104,7 +104,7 @@ public class EFunctionRef extends AExpression {
                         "not a statement: capturing function reference [" + symbol + ":"  + methodName + "] not used"));
             }
 
-            SematicScope.Variable captured = sematicScope.getVariable(getLocation(), symbol);
+            SemanticScope.Variable captured = semanticScope.getVariable(getLocation(), symbol);
             if (input.expected == null) {
                 String defReferenceEncoding;
                 if (captured.getType() == def.class) {

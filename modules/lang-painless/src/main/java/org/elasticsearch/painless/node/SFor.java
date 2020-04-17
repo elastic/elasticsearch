@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
+import org.elasticsearch.painless.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
@@ -66,21 +66,21 @@ public class SFor extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
-        sematicScope = sematicScope.newLocalScope();
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
+        semanticScope = semanticScope.newLocalScope();
 
         Output initializerStatementOutput = null;
         AExpression.Output initializerExpressionOutput = null;
 
         if (initializerNode != null) {
             if (initializerNode instanceof SDeclBlock) {
-                initializerStatementOutput = ((SDeclBlock)initializerNode).analyze(classNode, scriptScope, sematicScope, new Input());
+                initializerStatementOutput = ((SDeclBlock)initializerNode).analyze(classNode, scriptScope, semanticScope, new Input());
             } else if (initializerNode instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializerNode;
 
                 AExpression.Input initializerInput = new AExpression.Input();
                 initializerInput.read = false;
-                initializerExpressionOutput = AExpression.analyze(initializer, classNode, scriptScope, sematicScope, initializerInput);
+                initializerExpressionOutput = AExpression.analyze(initializer, classNode, scriptScope, semanticScope, initializerInput);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -94,7 +94,7 @@ public class SFor extends AStatement {
         if (conditionNode != null) {
             AExpression.Input conditionInput = new AExpression.Input();
             conditionInput.expected = boolean.class;
-            conditionOutput = AExpression.analyze(conditionNode, classNode, scriptScope, sematicScope, conditionInput);
+            conditionOutput = AExpression.analyze(conditionNode, classNode, scriptScope, semanticScope, conditionInput);
             conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
                     conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
@@ -118,7 +118,7 @@ public class SFor extends AStatement {
         if (afterthoughtNode != null) {
             AExpression.Input afterthoughtInput = new AExpression.Input();
             afterthoughtInput.read = false;
-            afterthoughtOutput = AExpression.analyze(afterthoughtNode, classNode, scriptScope, sematicScope, afterthoughtInput);
+            afterthoughtOutput = AExpression.analyze(afterthoughtNode, classNode, scriptScope, semanticScope, afterthoughtInput);
         }
 
         Output output = new Output();
@@ -129,7 +129,7 @@ public class SFor extends AStatement {
             blockInput.beginLoop = true;
             blockInput.inLoop = true;
 
-            blockOutput = blockNode.analyze(classNode, scriptScope, sematicScope, blockInput);
+            blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope, blockInput);
 
             if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));

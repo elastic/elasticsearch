@@ -21,8 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.SematicScope;
-import org.elasticsearch.painless.SematicScope.Variable;
+import org.elasticsearch.painless.SemanticScope;
+import org.elasticsearch.painless.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionNode;
@@ -76,11 +76,11 @@ public class SEach extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         AExpression.Input expressionInput = new AExpression.Input();
-        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, scriptScope, sematicScope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, scriptScope, semanticScope, expressionInput);
 
         Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
@@ -88,8 +88,8 @@ public class SEach extends AStatement {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        sematicScope = sematicScope.newLocalScope();
-        Variable variable = sematicScope.defineVariable(getLocation(), clazz, symbol, true);
+        semanticScope = semanticScope.newLocalScope();
+        Variable variable = semanticScope.defineVariable(getLocation(), clazz, symbol, true);
 
         if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -98,7 +98,7 @@ public class SEach extends AStatement {
         Input blockInput = new Input();
         blockInput.beginLoop = true;
         blockInput.inLoop = true;
-        Output blockOutput = blockNode.analyze(classNode, scriptScope, sematicScope, blockInput);
+        Output blockOutput = blockNode.analyze(classNode, scriptScope, semanticScope, blockInput);
         blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
 
         if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
@@ -109,8 +109,8 @@ public class SEach extends AStatement {
 
         if (expressionOutput.actual.isArray()) {
             Variable array =
-                    sematicScope.defineVariable(getLocation(), expressionOutput.actual, "#array" + getLocation().getOffset(), true);
-            Variable index = sematicScope.defineVariable(getLocation(), int.class, "#index" + getLocation().getOffset(), true);
+                    semanticScope.defineVariable(getLocation(), expressionOutput.actual, "#array" + getLocation().getOffset(), true);
+            Variable index = semanticScope.defineVariable(getLocation(), int.class, "#index" + getLocation().getOffset(), true);
             Class<?> indexed = expressionOutput.actual.getComponentType();
             PainlessCast cast = AnalyzerCaster.getLegalCast(getLocation(), indexed, variable.getType(), true, true);
 
@@ -131,7 +131,7 @@ public class SEach extends AStatement {
         } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
             // We must store the iterator as a variable for securing a slot on the stack, and
             // also add the location offset to make the name unique in case of nested for each loops.
-            Variable iterator = sematicScope.defineVariable(getLocation(), Iterator.class, "#itr" + getLocation().getOffset(), true);
+            Variable iterator = semanticScope.defineVariable(getLocation(), Iterator.class, "#itr" + getLocation().getOffset(), true);
 
             PainlessMethod method;
 

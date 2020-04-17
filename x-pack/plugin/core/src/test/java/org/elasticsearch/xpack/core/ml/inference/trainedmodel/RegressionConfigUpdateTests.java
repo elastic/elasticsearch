@@ -16,11 +16,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests.randomRegressionConfig;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCase<RegressionConfigUpdate> {
 
-    public static RegressionConfigUpdate randomRegressionConfig() {
+    public static RegressionConfigUpdate randomRegressionConfigUpdate() {
         return new RegressionConfigUpdate(randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10));
     }
@@ -40,9 +41,28 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
 
+    public void testApply() {
+        RegressionConfig originalConfig = randomRegressionConfig();
+
+        assertThat(originalConfig, equalTo(RegressionConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
+
+        assertThat(new RegressionConfig.Builder(originalConfig).setNumTopFeatureImportanceValues(5).build(),
+            equalTo(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build().apply(originalConfig)));
+        assertThat(new RegressionConfig.Builder()
+                .setNumTopFeatureImportanceValues(1)
+                .setResultsField("foo")
+                .build(),
+            equalTo(new RegressionConfigUpdate.Builder()
+                .setNumTopFeatureImportanceValues(1)
+                .setResultsField("foo")
+                .build()
+                .apply(originalConfig)
+            ));
+    }
+
     @Override
     protected RegressionConfigUpdate createTestInstance() {
-        return randomRegressionConfig();
+        return randomRegressionConfigUpdate();
     }
 
     @Override

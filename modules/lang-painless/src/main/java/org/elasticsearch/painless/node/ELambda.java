@@ -74,8 +74,8 @@ public class ELambda extends AExpression {
 
         super(identifier, location);
 
-        this.canonicalTypeNameParameters = Collections.unmodifiableList(canonicalTypeNameParameters);
-        this.parameterNames = Collections.unmodifiableList(parameterNames);
+        this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
+        this.parameterNames = Collections.unmodifiableList(Objects.requireNonNull(parameterNames));
         this.blockNode = Objects.requireNonNull(blockNode);
     }
 
@@ -171,7 +171,7 @@ public class ELambda extends AExpression {
 
         for (int index = 0; index < typeParameters.size(); ++index) {
             Class<?> type = typeParameters.get(index);
-            String paramName = canonicalTypeNameParameters.get(index);
+            String paramName = this.parameterNames.get(index);
             lambdaScope.defineVariable(getLocation(), type, paramName, true);
         }
 

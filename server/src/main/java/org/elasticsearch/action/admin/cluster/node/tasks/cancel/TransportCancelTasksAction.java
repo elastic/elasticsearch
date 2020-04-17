@@ -123,6 +123,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             StepListener<Void> banOnNodesListener = new StepListener<>();
             setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
             banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
+            // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
+            // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
             final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
                 .preserveContext(() -> removeBanOnNodes(task, childrenNodes));
             // We remove bans after all child tasks are completed although in theory we can do it on a per-node basis.

@@ -522,6 +522,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(result, equalTo("my-template"));
     }
 
+    public void testFindV2InvalidGlobalTemplate() {
+        Template templateWithHiddenSetting = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
+        try {
+            // add an invalid global template that specifies the `index.hidden` setting
+            IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
+                null);
+            Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
+                new IndexTemplateV2Metadata(Map.of("invalid_global_template", invalidGlobalTemplate))).build();
+
+            MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", null);
+            fail("expecting an exception as the matching global template is invalid");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("global index template [invalid_global_template], composed of component templates [ct] " +
+                "defined the index.hidden setting, which is not allowed"));
+        }
+    }
+
     public void testResolveMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;

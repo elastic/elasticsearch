@@ -275,7 +275,8 @@ public class RestClient implements Closeable {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getStatusLine().getStatusCode();
 
-        Optional.ofNullable(httpResponse.getEntity().getContentEncoding())
+        Optional.ofNullable(httpResponse.getEntity())
+            .map(HttpEntity::getContentEncoding)
             .map(Header::getValue)
             .filter("gzip"::equalsIgnoreCase)
             .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))

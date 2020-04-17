@@ -262,7 +262,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final Object key = new Object();
         final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
-        final TimeValue timeout = recoverySettings.retryingTimeout();
+        final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
         final RetryableAction<T> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener) {
 
             @Override

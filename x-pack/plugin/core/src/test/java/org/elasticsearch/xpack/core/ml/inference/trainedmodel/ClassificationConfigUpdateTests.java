@@ -24,20 +24,22 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
         return new ClassificationConfigUpdate(randomBoolean() ? null : randomIntBetween(-1, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomIntBetween(0, 10)
+            randomBoolean() ? null : randomIntBetween(0, 10),
+            randomBoolean() ? null : randomFrom(PredictionFieldType.values())
             );
     }
 
     public void testFromMap() {
-        ClassificationConfigUpdate expected = new ClassificationConfigUpdate(null, null, null, null);
+        ClassificationConfigUpdate expected = ClassificationConfigUpdate.EMPTY_PARAMS;
         assertThat(ClassificationConfigUpdate.fromMap(Collections.emptyMap()), equalTo(expected));
 
-        expected = new ClassificationConfigUpdate(3, "foo", "bar", 2);
+        expected = new ClassificationConfigUpdate(3, "foo", "bar", 2, PredictionFieldType.NUMBER);
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
         configMap.put(ClassificationConfig.RESULTS_FIELD.getPreferredName(), "foo");
         configMap.put(ClassificationConfig.TOP_CLASSES_RESULTS_FIELD.getPreferredName(), "bar");
         configMap.put(ClassificationConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 2);
+        configMap.put(ClassificationConfig.PREDICTION_FIELD_TYPE.getPreferredName(), PredictionFieldType.NUMBER.toString());
         assertThat(ClassificationConfigUpdate.fromMap(configMap), equalTo(expected));
     }
 

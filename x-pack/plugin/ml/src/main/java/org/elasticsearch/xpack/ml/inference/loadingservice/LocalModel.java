@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
-public class LocalModel<T extends InferenceConfig> implements Model<T> {
+public class LocalModel implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
@@ -40,14 +40,14 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
     private final TrainedModelStatsService trainedModelStatsService;
     private volatile long persistenceQuotient = 100;
     private final LongAdder currentInferenceCount;
-    private final T inferenceConfig;
+    private final InferenceConfig inferenceConfig;
 
     public LocalModel(String modelId,
                       String nodeId,
                       TrainedModelDefinition trainedModelDefinition,
                       TrainedModelInput input,
                       Map<String, String> defaultFieldMap,
-                      T modelInferenceConfig,
+                      InferenceConfig modelInferenceConfig,
                       TrainedModelStatsService trainedModelStatsService ) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
@@ -100,7 +100,7 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
     }
 
     @Override
-    public void infer(Map<String, Object> fields, InferenceConfigUpdate<T> update, ActionListener<InferenceResults> listener) {
+    public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
@@ -110,14 +110,14 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
             return;
         }
         try {
-            statsAccumulator.get().incInference();
+            statsAccumulator.updateAndGet(InferenceStats.Accumulator::incInference);
             currentInferenceCount.increment();
 
             Model.mapFieldsIfNecessary(fields, defaultFieldMap);
 
             boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
             if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
-                statsAccumulator.get().incMissingFields();
+                statsAccumulator.updateAndGet(InferenceStats.Accumulator::incMissingFields);
                 if (shouldPersistStats) {
                     persistStats();
                 }
@@ -130,7 +130,7 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
             }
             listener.onResponse(inferenceResults);
         } catch (Exception e) {
-            statsAccumulator.get().incFailure();
+            statsAccumulator.updateAndGet(InferenceStats.Accumulator::incFailure);
             listener.onFailure(e);
         }
     }

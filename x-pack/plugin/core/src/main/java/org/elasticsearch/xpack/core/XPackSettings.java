@@ -272,6 +272,7 @@ public class XPackSettings {
         settings.add(TRANSFORM_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
+        settings.add(ENRICH_ENABLED_SETTING);
         return Collections.unmodifiableList(settings);
     }
 

@@ -87,7 +87,7 @@ public abstract class RetryableAction<Response> {
     private class RetryingListener implements ActionListener<Response> {
 
         private static final int MAX_EXCEPTIONS = 4;
-        
+
         private final long nextDelayMillis;
         private ArrayDeque<Exception> caughtExceptions;
 

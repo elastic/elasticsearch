@@ -157,7 +157,7 @@ following places:
 `xpack.security.http.ssl.supported_protocols`::
 For incoming HTTP connections to Elasticsearch's HTTP (Rest) interface.
 If there are clients that connect to {es} and do not support newer TLS versions,
-you must update this setting. 
+you must update this setting.
 
 `xpack.http.ssl.supported_protocols`::
 For outgoing HTTP connections from {watcher}.
@@ -193,7 +193,7 @@ If your monitoring data is exported to a remote monitoring cluster and that
 cluster is configured to only support TLSv1, you must update this setting.
 
 `reindex.ssl.supported_protocols`::
-For reindex from remote. 
+For reindex from remote.
 If you reindex data from a remote {es} cluster which has SSL enabled on the
 `http` interface and that cluster is configured to only support TLSv1, you must
 update this setting.
@@ -288,3 +288,21 @@ still be adjusted as desired using the cluster settings API.
 ==== HTTP Max content length setting is no longer parsed leniently
 Previously, `http.max_content_length` would reset to `100mb` if the setting was
 greater than `Integer.MAX_VALUE`.  This leniency has been removed.
+
+[float]
+==== Option to disable basic license features is deprecated
+
+In Elasticsearch 7.8.0, the following settings have been deprecated:
+
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
+* `xpack.slm.enabled`
+* `xpack.sql.enabled`
+* `xpack.transform.enabled`
+* `xpack.vectors.enabled`
+
+In future releases, it will not be possible to disable the APIs for Enrichment,
+Flattened mappings, ILM, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.

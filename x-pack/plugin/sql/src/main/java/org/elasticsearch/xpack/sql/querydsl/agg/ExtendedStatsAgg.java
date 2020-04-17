@@ -11,12 +11,12 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.extended
 
 public class ExtendedStatsAgg extends LeafAgg {
 
-    public ExtendedStatsAgg(String id, String fieldName) {
-        super(id, fieldName);
+    public ExtendedStatsAgg(String id, AggSource source) {
+        super(id, source);
     }
 
     @Override
     AggregationBuilder toBuilder() {
-        return extendedStats(id()).field(fieldName());
+        return addAggSource(extendedStats(id()));
     }
 }

@@ -525,10 +525,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         Template templateWithHiddenSetting = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
         try {
             // add an invalid global template that specifies the `index.hidden` setting
-            IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
-                null);
+            IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(org.elasticsearch.common.collect.List.of("*"),
+                templateWithHiddenSetting, org.elasticsearch.common.collect.List.of("ct"), 5L, 1L, null);
             Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
-                new IndexTemplateV2Metadata(Map.of("invalid_global_template", invalidGlobalTemplate))).build();
+                new IndexTemplateV2Metadata(org.elasticsearch.common.collect.Map.of("invalid_global_template", invalidGlobalTemplate)))
+                .build();
 
             MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", null);
             fail("expecting an exception as the matching global template is invalid");

@@ -632,7 +632,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
-    public final void testSupportedFieldTypes() throws IOException {
+    public void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
         String fieldName = "typeTestFieldName";

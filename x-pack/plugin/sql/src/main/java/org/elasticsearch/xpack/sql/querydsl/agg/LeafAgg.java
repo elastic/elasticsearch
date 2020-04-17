@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 public abstract class LeafAgg extends Agg {
 
@@ -15,9 +14,4 @@ public abstract class LeafAgg extends Agg {
     }
 
     abstract AggregationBuilder toBuilder();
-
-    @SuppressWarnings("rawtypes")
-    protected ValuesSourceAggregationBuilder addAggSource(ValuesSourceAggregationBuilder builder) {
-        return source().with(builder);
-    }
 }

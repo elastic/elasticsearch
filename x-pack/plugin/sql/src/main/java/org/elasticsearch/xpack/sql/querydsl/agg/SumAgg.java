@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import java.util.function.Function;
 
-public class SumAgg extends LeafAgg {
+public class SumAgg extends DefaultAggSourceLeafAgg {
 
     public SumAgg(String id, AggSource source) {
         super(id, source);
     }
 
     @Override
-    AggregationBuilder toBuilder() {
-        return addAggSource(sum(id()));
+    Function<String, ValuesSourceAggregationBuilder<?>> builder() {
+        return AggregationBuilders::sum;
     }
 }

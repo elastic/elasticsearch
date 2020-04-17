@@ -49,7 +49,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public DataStream(String name, String timeStampField, List<Index> indices) {
-        this(name, timeStampField, indices, 1);
+        this(name, timeStampField, indices, indices.size());
     }
 
     public String getName() {

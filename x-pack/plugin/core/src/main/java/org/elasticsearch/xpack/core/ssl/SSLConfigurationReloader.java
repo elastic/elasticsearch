@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,7 +95,7 @@ public final class SSLConfigurationReloader {
         }
 
         for (Entry<Path, List<SSLConfiguration>> entry : pathToConfigurationsMap.entrySet()) {
-            ChangeListener changeListener = new ChangeListener(environment, List.copyOf(entry.getValue()), reloadConsumer);
+            ChangeListener changeListener = new ChangeListener(environment, Collections.unmodifiableList(entry.getValue()), reloadConsumer);
             FileWatcher fileWatcher = new FileWatcher(entry.getKey());
             fileWatcher.addListener(changeListener);
             try {

@@ -82,9 +82,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (largeBlobThresholdByteSizeProperty == null) {
             LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(new ByteSizeValue(5, ByteSizeUnit.MB).getBytes());
         } else {
-            if (true) {
-                throw new IllegalArgumentException();
-            }
             final int largeBlobThresholdByteSize;
             try {
               largeBlobThresholdByteSize = Integer.parseInt(largeBlobThresholdByteSizeProperty);

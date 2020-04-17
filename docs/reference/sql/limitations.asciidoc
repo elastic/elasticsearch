@@ -130,12 +130,6 @@ SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY di
 --------------------------------------------------
 
 [float]
-=== Using aggregation functions on top of scalar functions
-
-Aggregation functions like <<sql-functions-aggs-min,`MIN`>>, <<sql-functions-aggs-max,`MAX`>>, etc. can only be used
-directly on fields, and so queries like `SELECT MAX(abs(age)) FROM test` are not possible.
-
-[float]
 === Using a sub-select
 
 Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree**: any sub-select that can be "flattened" into a single

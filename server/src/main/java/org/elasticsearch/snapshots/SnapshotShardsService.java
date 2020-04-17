@@ -641,7 +641,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             UpdateSnapshotStatusAction(TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
                     super(
-                        SnapshotShardsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, transportService, clusterService, threadPool,
+                        SnapshotShardsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, false, transportService, clusterService, threadPool,
                         actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver
                     );
         }

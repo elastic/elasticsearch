@@ -108,6 +108,10 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
             this(in.readList(DataStream::new));
         }
 
+        public List<DataStream> getDataStreams() {
+            return dataStreams;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreams);

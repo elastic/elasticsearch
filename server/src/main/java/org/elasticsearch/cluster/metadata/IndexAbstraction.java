@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 
 /**
@@ -255,6 +256,44 @@ public interface IndexAbstraction {
 
         private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
+        }
+    }
+
+    class DataStream implements IndexAbstraction {
+
+        private final org.elasticsearch.cluster.metadata.DataStream dataStream;
+        private final List<IndexMetadata> dataStreamIndices;
+        private final IndexMetadata writeIndex;
+
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices) {
+            this.dataStream = dataStream;
+            this.dataStreamIndices = List.copyOf(dataStreamIndices);
+            this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
+            assert writeIndex.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
+        }
+
+        @Override
+        public String getName() {
+            return dataStream.getName();
+        }
+
+        @Override
+        public Type getType() {
+            return Type.DATA_STREAM;
+        }
+
+        @Override
+        public List<IndexMetadata> getIndices() {
+            return dataStreamIndices;
+        }
+
+        public IndexMetadata getWriteIndex() {
+            return writeIndex;
+        }
+
+        @Override
+        public boolean isHidden() {
+            return false;
         }
     }
 }

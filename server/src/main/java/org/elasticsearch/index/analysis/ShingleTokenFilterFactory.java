@@ -51,7 +51,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                         + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
                         + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.");
             } else {
-                deprecationLogger.deprecated("Deprecated big difference between maxShingleSize and minShingleSize" +
+                deprecationLogger.deprecatedAndMaybeLog("excessive_shingle_diff",
+                    "Deprecated big difference between maxShingleSize and minShingleSize" +
                     " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
             }
         }

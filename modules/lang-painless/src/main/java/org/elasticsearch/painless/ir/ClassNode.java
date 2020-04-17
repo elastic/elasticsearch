@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -70,7 +70,7 @@ public class ClassNode extends IRNode {
     /* ---- end tree structure, begin node data ---- */
 
     private Printer debugStream;
-    private ScriptRoot scriptRoot;
+    private ScriptScope scriptScope;
 
     public void setDebugStream(Printer debugStream) {
         this.debugStream = debugStream;
@@ -80,12 +80,12 @@ public class ClassNode extends IRNode {
         return debugStream;
     }
 
-    public void setScriptRoot(ScriptRoot scriptRoot) {
-        this.scriptRoot = scriptRoot;
+    public void setScriptScope(ScriptScope scriptScope) {
+        this.scriptScope = scriptScope;
     }
 
-    public ScriptRoot getScriptRoot() {
-        return scriptRoot;
+    public ScriptScope getScriptScope() {
+        return scriptScope;
     }
 
     /* ---- end node data ---- */
@@ -98,9 +98,9 @@ public class ClassNode extends IRNode {
     }
 
     public byte[] write() {
-        ScriptClassInfo scriptClassInfo = scriptRoot.getScriptClassInfo();
-        BitSet statements = new BitSet(scriptRoot.getScriptSource().length());
-        scriptRoot.addStaticConstant("$STATEMENTS", statements);
+        ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
+        BitSet statements = new BitSet(scriptScope.getScriptSource().length());
+        scriptScope.addStaticConstant("$STATEMENTS", statements);
 
         // Create the ClassWriter.
 
@@ -110,10 +110,10 @@ public class ClassNode extends IRNode {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(scriptRoot.getCompilerSettings(), statements, debugStream,
+        ClassWriter classWriter = new ClassWriter(scriptScope.getCompilerSettings(), statements, debugStream,
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
-        classVisitor.visitSource(Location.computeSourceName(scriptRoot.getScriptName()), null);
+        classVisitor.visitSource(Location.computeSourceName(scriptScope.getScriptName()), null);
 
         org.objectweb.asm.commons.Method init;
 

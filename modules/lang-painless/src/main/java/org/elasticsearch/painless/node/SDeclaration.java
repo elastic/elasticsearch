@@ -21,11 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -65,12 +65,12 @@ public class SDeclaration extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
+        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
             throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
         }
 
-        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
+        DResolvedType resolvedType = type.resolveType(scriptScope.getPainlessLookup());
 
         AExpression.Output expressionOutput = null;
         PainlessCast expressionCast = null;
@@ -78,12 +78,12 @@ public class SDeclaration extends AStatement {
         if (valueNode != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expressionOutput = AExpression.analyze(valueNode, classNode, scriptRoot, scope, expressionInput);
+            expressionOutput = AExpression.analyze(valueNode, classNode, scriptScope, sematicScope, expressionInput);
             expressionCast = AnalyzerCaster.getLegalCast(valueNode.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
-        scope.defineVariable(getLocation(), resolvedType.getType(), symbol, false);
+        sematicScope.defineVariable(getLocation(), resolvedType.getType(), symbol, false);
 
         DeclarationNode declarationNode = new DeclarationNode();
         declarationNode.setExpressionNode(valueNode == null ? null :

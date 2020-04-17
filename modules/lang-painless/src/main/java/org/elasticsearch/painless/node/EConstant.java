@@ -20,11 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -47,7 +47,7 @@ public class EConstant extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to constant [" + constant + "]"));
         }

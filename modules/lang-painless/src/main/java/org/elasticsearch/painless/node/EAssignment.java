@@ -23,7 +23,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BraceNode;
@@ -34,7 +34,7 @@ import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -76,7 +76,7 @@ public class EAssignment extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
         Output output = new Output();
 
         boolean cat = false;
@@ -89,13 +89,13 @@ public class EAssignment extends AExpression {
         Input leftInput = new Input();
         leftInput.read = input.read;
         leftInput.write = true;
-        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, scriptScope, sematicScope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
 
         if (operation != null) {
-            rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+            rightOutput = analyze(rightNode, classNode, scriptScope, sematicScope, rightInput);
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -167,7 +167,7 @@ public class EAssignment extends AExpression {
         } else {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
-                rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rightNode, classNode, scriptScope, sematicScope, rightInput);
 
                 if (rightOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -187,7 +187,7 @@ public class EAssignment extends AExpression {
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
                 rightInput.expected = leftOutput.actual;
-                rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rightNode, classNode, scriptScope, sematicScope, rightInput);
             }
 
             rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),

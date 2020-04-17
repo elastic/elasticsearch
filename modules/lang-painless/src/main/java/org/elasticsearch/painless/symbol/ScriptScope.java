@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * Stores information for use across the entirety of compilation.
  */
-public class ScriptRoot {
+public class ScriptScope {
 
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;
@@ -47,7 +47,7 @@ public class ScriptRoot {
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
 
-    public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
+    public ScriptScope(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
                       ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource) {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);

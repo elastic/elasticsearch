@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -30,7 +30,7 @@ import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.VariableNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Collections;
 import java.util.Objects;
@@ -49,7 +49,7 @@ public class ENewArrayFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
@@ -62,14 +62,14 @@ public class ENewArrayFunctionRef extends AExpression {
 
         Output output = new Output();
 
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        String name = scriptRoot.getNextSyntheticName("newarray");
-        scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+        String name = scriptScope.getNextSyntheticName("newarray");
+        scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
 
         if (input.expected == null) {
             output.actual = String.class;
@@ -83,7 +83,7 @@ public class ENewArrayFunctionRef extends AExpression {
 
             output.expressionNode = defInterfaceReferenceNode;
         } else {
-            FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     getLocation(), input.expected, "this", name, 0);
             output.actual = input.expected;
 

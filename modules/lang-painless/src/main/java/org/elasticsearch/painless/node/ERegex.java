@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubNode;
@@ -32,7 +32,7 @@ import org.elasticsearch.painless.ir.MemberFieldStoreNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -64,7 +64,7 @@ public class ERegex extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
@@ -77,7 +77,7 @@ public class ERegex extends AExpression {
 
         Output output = new Output();
 
-        if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
+        if (scriptScope.getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
@@ -96,7 +96,7 @@ public class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        String name = scriptRoot.getNextSyntheticName("regex");
+        String name = scriptScope.getNextSyntheticName("regex");
         output.actual = Pattern.class;
 
         FieldNode fieldNode = new FieldNode();

@@ -22,13 +22,13 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -63,7 +63,7 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -79,11 +79,11 @@ public class EBinary extends AExpression {
         boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast
 
         Input leftInput = new Input();
-        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, scriptScope, sematicScope, leftInput);
 
         Output output = new Output();
         Input rightInput = new Input();
-        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, scriptScope, sematicScope, rightInput);
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             leftInput.expected = String.class;

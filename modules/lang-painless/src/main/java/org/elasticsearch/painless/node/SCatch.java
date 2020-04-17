@@ -20,13 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.SematicScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Objects;
 
@@ -60,12 +60,12 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptScope scriptScope, SematicScope sematicScope, Input input) {
         Output output = new Output();
 
-        Output declarationOutput = declarationNode.analyze(classNode, scriptRoot, scope, new Input());
+        Output declarationOutput = declarationNode.analyze(classNode, scriptScope, sematicScope, new Input());
 
-        Class<?> type = scope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
+        Class<?> type = sematicScope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
 
         if (baseException.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
@@ -80,7 +80,7 @@ public class SCatch extends AStatement {
             blockInput.lastSource = input.lastSource;
             blockInput.inLoop = input.inLoop;
             blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
+            blockOutput = blockNode.analyze(classNode, scriptScope, sematicScope, blockInput);
 
             output.methodEscape = blockOutput.methodEscape;
             output.loopEscape = blockOutput.loopEscape;

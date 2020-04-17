@@ -136,7 +136,7 @@ an exception to your normal Lifecycle Policy and switching the alias to a
 different index by hand, but do not want to remove the index from {ilm}
 completely.
 
-This setting is set to `true` automatically by ILM upon the successful
+This setting is set to `true` automatically by {ilm-init} upon the successful
 completion of a Rollover Action. However, it will be removed if
 <<ilm-remove-policy,the policy is removed>> from the index.
 

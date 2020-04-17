@@ -1,11 +1,17 @@
 [[ilm-readonly]]
-=== Read-Only
+=== Read-only
 
 Phases allowed: warm.
 
 Sets an index as read-only. See <<dynamic-index-settings,`index.blocks.write`>>.
 
-This action does not have any options associated with it.
+[[ilm-read-only-action-options]]
+==== Read-only options
+
+None.
+
+[[ilm-read-only-action-example]]
+==== Example
 
 [source,console]
 --------------------------------------------------

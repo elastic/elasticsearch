@@ -6,17 +6,19 @@ Phases allowed: cold.
 This action takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
 
-[[ilm-searchable-snapshot-options]]
-.Searchable snapshot options
-[options="header"]
-|======
-| Name                  | Required  | Default     | Description
-| `snapshot_repository` | yes       | -           | Repository used to store the snapshot created by this action. The snapshot will be,
-                                                    by default, deleted by the <<ilm-delete-action, Delete Action>> in the delete phase, if
-                                                    configured, but the user can configure the <<ilm-delete-action, Delete Action>> to keep
-                                                    the snapshot using the `delete_searchable_snapshot` option.
-|======
+By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
+To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
 
+[[ilm-searchable-snapshot-options]]
+==== Searchable snapshot options
+
+`snapshot_repository`::
+(Required, string)
+Specifies where to store the snapshot. 
+See <<snapshots-register-repository>> for more information.
+
+[[ilm-searchable-snapshot-example]]
+==== Example
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy

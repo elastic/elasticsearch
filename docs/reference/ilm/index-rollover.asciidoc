@@ -21,7 +21,7 @@ You optimize this configuration for ingestion, typically using as many shards as
 This is the active index that handles all write requests.
 On each rollover, the new index becomes the write index.
 
-[float]
+[discrete]
 [role="xpack"]
 [testenv="basic"]
 [[ilm-automatic-rollover]]

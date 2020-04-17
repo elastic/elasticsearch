@@ -21,32 +21,39 @@ NOTE: As allocate action is not allowed in `hot` phase, the initial allocation f
 --
 
 [[ilm-allocate-options]]
-.Allocate Options
-[options="header"]
-|======
-| Name                 | Required  | Default     | Description
-| `number_of_replicas` | no        | -           | The number of replicas to
-                                                   assign to the index
-| `include`            | no        | -           | assigns an index to nodes
-                                                   having at least _one_ of the attributes
-| `exclude`            | no        | -           | assigns an index to nodes having
-                                                   _none_ of the attributes
-| `require`            | no        | -           | assigns an index to nodes having
-                                                   _all_ of the attributes
-|======
+==== Allocate options
 
-If `number_of_replicas` is not configured, then at least one of `include`,
-`exclude`, and `require` is required. An empty allocate action with no configuration
-is invalid.
+You must either specify the number of replicas or at least one 
+`include`, `exclude`, or `require` option. 
+An empty allocate action is invalid.
 
-[float]
+For more information about using custom attributes for shard allocation, 
+see <<shard-allocation-filtering>>.
+
+`number_of_replicas`::
+(Optional, integer)
+Number of replicas to assign to the index.
+
+`include`::
+(Optional, object)
+Assigns an index to nodes that have at least _one_ of the specified custom attributes.
+
+`exclude`::
+(Optional, object)
+Assigns an index to nodes that have _none_ of the specified custom attributes.
+
+`require`::
+(Optional, object)
+Assigns an index to nodes that have _all_ of the specified custom attributes.
+
+[[ilm-allocate-examples]]
 ==== Examples
 
-[float]
+[[ilm-allocate-change-replicas]]
 ===== Change number of replicas
 
-In this example, the index's number of replicas is changed to `2`, while allocation
-rules are unchanged.
+The allocate action in the following policy changes the index's number of replicas to `2`. 
+Allocation rules are unchanged.
 
 [source,console]
 --------------------------------------------------
@@ -66,10 +73,15 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[float]
-===== Assign index to node with specific "box_type" attribute
+[[ilm-allocate-assign-index-attribute]]
+===== Assign index to nodes using a custom attribute
 
-This example assigns the index to nodes with `box_type` attribute of "hot" or "warm".
+The allocate action in the following policy assigns the index to nodes 
+that have a `box_type` of _hot_ or _warm_.
+
+To designate a node's _box_type_, you set a custom attribute in the node configuration.
+For example, set `node.attr.box_type: hot` in `elasticsearch.yml`. 
+For more information, see <<index-allocation-filters>>.
 
 [source,console]
 --------------------------------------------------
@@ -91,11 +103,15 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-[float]
+[[ilm-allocate-assign-index-node]]
 ===== Assign index to a specific node and update replica settings
 
-This example updates the index to have one replica per shard and be allocated
-to nodes with a `box_type` attribute of "cold".
+The allocate action in the following policy updates the index to have one replica per shard 
+and be allocated to nodes that have a `box_type` of _cold_. 
+
+To designate a node's _box_type_, you set a custom attribute in the node configuration.
+For example, set `node.attr.box_type: hot` in `elasticsearch.yml`. 
+For more information, see <<index-allocation-filters>>.
 
 [source,console]
 --------------------------------------------------

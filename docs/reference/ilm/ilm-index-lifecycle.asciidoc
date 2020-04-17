@@ -24,7 +24,7 @@ associate the policy with the index template.
 To manage indices that don't roll over, you can manually apply a lifecycle
 policy when creating the index.
 
-[float]
+[discrete]
 [[ilm-phase-transitions]]
 === Phase transitions
 
@@ -36,7 +36,7 @@ the index must be older than the minimum age.
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete. 
 
-[float]
+[discrete]
 [[ilm-phase-execution]]
 === Phase execution
 
@@ -48,7 +48,7 @@ This ensures that policy updates don't put the index into a state where it can n
 If changes can be safely applied, {ilm-init} updates the cached phase definition.
 If they cannot, phase execution continues using the cached definition. 
 
-[float]
+[discrete]
 [[ilm-phase-actions]]
 === Phase actions
 

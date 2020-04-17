@@ -1,6 +1,5 @@
 [role="xpack"]
 [testenv="basic"]
-
 [[getting-started-index-lifecycle-management]]
 == Tutorial: Automate rollover with {ilm-init}
 
@@ -29,14 +28,14 @@ as expected.
 
 For an introduction to rolling indices, see <<index-rollover>>. 
 
-NOTE: {fb} includes a default ILM policy that initiates the rollover action when
+NOTE: {filebeat} includes a default {ilm-init} policy that initiates the rollover action when
 the index size reaches 50GB or becomes 30 days old. 
 You can use this policy as a starting point, or replace it with a custom policy.
 See 
 {kib}/example-using-index-lifecycle-policy.html[Use {ilm-init} to manage Filebeat time-based indices].
 
 
-[float]
+[discrete]
 [[ilm-gs-create-policy]]
 === Create a lifecycle policy
 
@@ -45,12 +44,12 @@ and the actions to perform in each phase. A lifecycle can have up to four phases
 `hot`, `warm`, `cold`, and `delete`. 
 
 You can define and manage policies through the {kib} Management UI, 
-which invokes the {ilm-init} put policy API to create policies
+which invokes the {ilm-init} <<ilm-put-lifecycle, put policy>> API to create policies
 according to the options you specify.
 
 For example, you might define a `timeseries_policy` that has two phases:
  
-* A `hot` phase that defines a `rollover` action to specify that an index rolls over when it 
+* A `hot` phase that defines a rollover action to specify that an index rolls over when it 
 reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
 * A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
 Note that this value is relative to the rollover time, not the index creation time. 
@@ -90,7 +89,7 @@ You can also invoke this API directly to add lifecycle policies.
 
 For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
 
-[float]
+[discrete]
 [[ilm-gs-apply-policy]]
 === Create an index template to apply the lifecycle policy
 
@@ -145,7 +144,7 @@ DELETE /_template/timeseries_template
 
 //////////////////////////
 
-[float]
+[discrete]
 [[ilm-gs-bootstrap]]
 === Bootstrap the initial time-series index
 
@@ -180,7 +179,7 @@ This process repeats each time rollover conditions are met.
 You can search across all of the indices managed by the `timeseries_policy` with the `timeseries` alias.
 Write operations are routed to the current write index.
 
-[float]
+[discrete]
 [[ilm-gs-check-progress]]
 === Check lifecycle progress
 

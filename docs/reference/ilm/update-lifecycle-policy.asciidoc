@@ -15,7 +15,7 @@ This cached definition is used to complete the phase.
 
 When the index advances to the next phase, it uses the phase definition from the updated policy.
 
-[float]
+[discrete]
 [[ilm-apply-changes]]
 === How changes are applied
 
@@ -32,7 +32,7 @@ If you then update the policy to specify a `min_age` of 1 day for the hot phase,
 that has no effect on indices that are already in the hot phase.
 Indices created _after_ the policy update won't enter the hot phase until they are a day old.
 
-[float]
+[discrete]
 [[ilm-apply-new-policy]]
 === How new policies are applied
 

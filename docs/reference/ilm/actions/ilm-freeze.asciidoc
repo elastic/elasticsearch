@@ -6,6 +6,14 @@ Phases allowed: cold.
 <<frozen-indices, freezes>> an index
 using the <<freeze-index-api, Freeze Index API>>.
 
+[[ilm-freeze-action-options]]
+==== Freeze options
+
+None.
+
+[[ilm-freeze-action-example]]
+==== Example
+
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy

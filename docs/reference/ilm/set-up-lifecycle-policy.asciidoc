@@ -12,7 +12,7 @@ you create the policy and add it to the index template.
 To use a policy to manage an index that doesn't roll over,
 you can specify the policy directly when you create it.
 
-[float]
+[discrete]
 [[ilm-create-policy]]
 === Create lifecycle policy
 
@@ -50,11 +50,11 @@ PUT _ilm/policy/my_policy
 <2> Delete the index 30 days after rollover
 
 NOTE: {ilm-init} policies are stored in the global cluster state and can be included in snapshots by  
-setting `include_global_state` parameter to `true`. 
+setting `include_global_state` to `true` when you <<snapshots-take-snapshot, take the snapshot>>. 
 Restoring {ilm-init} policies from a snapshot is all-or-nothing. 
 The entire global state, including all policies, is overwritten when you restore the snapshot.
 
-[float]
+[discrete]
 [[apply-policy-template]]
 === Apply lifecycle policy with an index template
 
@@ -93,7 +93,7 @@ DELETE /_template/my_template
 
 //////////////////////////
 
-[float]
+[discrete]
 [[create-initial-index]]
 ==== Create an initial managed index
 
@@ -125,7 +125,7 @@ With the sample `my_policy` policy, the rollover action is triggered once the in
 index exceeds 25GB. 
 {ilm-init} then creates a new index that becomes the write index for the `test-alias`.
 
-[float]
+[discrete]
 [[apply-policy-manually]]
 === Apply lifecycle policy manually
 

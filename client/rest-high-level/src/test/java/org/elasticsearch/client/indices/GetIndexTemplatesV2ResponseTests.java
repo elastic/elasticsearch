@@ -75,6 +75,7 @@ public class GetIndexTemplatesV2ResponseTests extends ESTestCase {
         List<String> patterns = Arrays.asList(generateRandomStringArray(10, 10, false, false));
         List<String> composedOf = null;
         Map<String, Object> meta = null;
+        IndexTemplateV2.DataStreamTemplate dataStreamTemplate = null;
         if (randomBoolean()) {
             composedOf = Arrays.asList(generateRandomStringArray(10, 10, false, false));
         }
@@ -84,6 +85,9 @@ public class GetIndexTemplatesV2ResponseTests extends ESTestCase {
 
         Long priority = randomBoolean() ? null : randomNonNegativeLong();
         Long version = randomBoolean() ? null : randomNonNegativeLong();
-        return new IndexTemplateV2(patterns, randomTemplate(), composedOf, priority, version, meta);
+        if (randomBoolean()) {
+            dataStreamTemplate = new IndexTemplateV2.DataStreamTemplate(randomAlphaOfLength(8));
+        }
+        return new IndexTemplateV2(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate);
     }
 }

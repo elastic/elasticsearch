@@ -221,6 +221,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         assertNull("Elvis is a 3rd tier connection so should not be returned here", response.getVertex(Vertex.createId("people","elvis")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55396")
     public void testTimedoutQueryCrawl() {
         GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
         grb.setTimeout(TimeValue.timeValueMillis(400));

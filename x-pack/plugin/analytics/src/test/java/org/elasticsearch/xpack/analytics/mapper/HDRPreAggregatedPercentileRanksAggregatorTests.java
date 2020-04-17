@@ -108,9 +108,4 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
             }
         }
     }
-
-    @Override
-    public void testSupportedFieldTypes() throws IOException {
-        super.testSupportedFieldTypes();
-    }
 }

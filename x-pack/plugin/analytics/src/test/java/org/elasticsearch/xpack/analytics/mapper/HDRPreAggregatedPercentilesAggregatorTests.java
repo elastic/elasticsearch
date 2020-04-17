@@ -157,9 +157,4 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
             }
         }
     }
-
-    @Override
-    public void testSupportedFieldTypes() throws IOException {
-        super.testSupportedFieldTypes();
-    }
 }

@@ -224,9 +224,4 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             }
         }
     }
-
-    @Override
-    public void testSupportedFieldTypes() throws IOException {
-        super.testSupportedFieldTypes();
-    }
 }

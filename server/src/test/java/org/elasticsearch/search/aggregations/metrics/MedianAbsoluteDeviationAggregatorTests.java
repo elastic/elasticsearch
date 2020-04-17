@@ -283,11 +283,6 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @Override
-    public void testSupportedFieldTypes() throws IOException {
-        super.testSupportedFieldTypes();
-    }
-
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {
 
         private final double expected;

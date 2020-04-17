@@ -311,16 +311,10 @@ public class ScriptInjectionPhase {
 
             CatchNode catchNode = new CatchNode();
             catchNode.setLocation(internalLocation);
+            catchNode.setExceptionType(PainlessExplainError.class);
+            catchNode.setSymbol("#painlessExplainError");
 
             tryNode.addCatchNode(catchNode);
-
-            DeclarationNode declarationNode = new DeclarationNode();
-            declarationNode.setLocation(internalLocation);
-            declarationNode.setDeclarationType(PainlessExplainError.class);
-            declarationNode.setName("#painlessExplainError");
-            declarationNode.setRequiresDefault(false);
-
-            catchNode.setDeclarationNode(declarationNode);
 
             BlockNode catchBlockNode = new BlockNode();
             catchBlockNode.setLocation(internalLocation);
@@ -403,16 +397,10 @@ public class ScriptInjectionPhase {
 
                 catchNode = new CatchNode();
                 catchNode.setLocation(internalLocation);
+                catchNode.setExceptionType(throwable);
+                catchNode.setSymbol(name);
 
                 tryNode.addCatchNode(catchNode);
-
-                declarationNode = new DeclarationNode();
-                declarationNode.setLocation(internalLocation);
-                declarationNode.setDeclarationType(throwable);
-                declarationNode.setName(name);
-                declarationNode.setRequiresDefault(false);
-
-                catchNode.setDeclarationNode(declarationNode);
 
                 catchBlockNode = new BlockNode();
                 catchBlockNode.setLocation(internalLocation);

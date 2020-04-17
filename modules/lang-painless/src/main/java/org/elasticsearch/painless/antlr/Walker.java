@@ -111,8 +111,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
-import org.elasticsearch.painless.node.DResolvedType;
-import org.elasticsearch.painless.node.DUnresolvedType;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
@@ -256,7 +254,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
             statements.add(new SDeclaration(nextIdentifier(), location(ctx),
-                    new DResolvedType(location(ctx), scriptClassInfo.getGetReturns().get(index), false), name, false, null));
+                    PainlessLookupUtility.typeToCanonicalTypeName(scriptClassInfo.getGetReturns().get(index)), name, null));
         }
 
         for (StatementContext statement : ctx.statement()) {
@@ -511,9 +509,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         for (DeclvarContext declvar : ctx.declvar()) {
             String name = declvar.ID().getText();
             AExpression expression = declvar.expression() == null ? null : (AExpression)visit(declvar.expression());
-            DUnresolvedType unresolvedType = new DUnresolvedType(location(declvar), type);
-
-            declarations.add(new SDeclaration(nextIdentifier(), location(declvar), unresolvedType, name, true, expression));
+            declarations.add(new SDeclaration(nextIdentifier(), location(declvar), type, name, expression));
         }
 
         return new SDeclBlock(nextIdentifier(), location(ctx), declarations);
@@ -540,9 +536,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.ID().getText();
         SBlock block = (SBlock)visit(ctx.block());
 
-        return new SCatch(nextIdentifier(), location(ctx), Exception.class,
-                new SDeclaration(nextIdentifier(), location(ctx.type()),
-                        new DUnresolvedType(location(ctx.type()), type), name, false, null), block);
+        return new SCatch(nextIdentifier(), location(ctx), Exception.class, type, name, block);
     }
 
     @Override
@@ -793,7 +787,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String type = ctx.primordefcasttype().getText();
         AExpression child = (AExpression)visit(ctx.unary());
 
-        return new EExplicit(nextIdentifier(), location(ctx), new DUnresolvedType(location(ctx.primordefcasttype()), type), child);
+        return new EExplicit(nextIdentifier(), location(ctx), type, child);
     }
 
     @Override
@@ -801,7 +795,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String type = ctx.refcasttype().getText();
         AExpression child = (AExpression)visit(ctx.unarynotaddsub());
 
-        return new EExplicit(nextIdentifier(), location(ctx), new DUnresolvedType(location(ctx.refcasttype()), type), child);
+        return new EExplicit(nextIdentifier(), location(ctx), type, child);
     }
 
     @Override

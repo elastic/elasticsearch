@@ -30,15 +30,24 @@ public class CatchNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    private DeclarationNode declarationNode;
+    private Class<?> exceptionType;
+    private String symbol;
     private BlockNode blockNode;
 
-    public void setDeclarationNode(DeclarationNode declarationNode) {
-        this.declarationNode = declarationNode;
+    public void setExceptionType(Class<?> exceptionType) {
+        this.exceptionType = exceptionType;
     }
 
-    public DeclarationNode getDeclarationNode() {
-        return declarationNode;
+    public Class<?> getExceptionType() {
+        return exceptionType;
+    }
+
+    public void setSymbol(String symbol) {
+        this.symbol = symbol;
+    }
+
+    public String getSymbol() {
+        return symbol;
     }
 
     public void setBlockNode(BlockNode blockNode) {
@@ -59,8 +68,7 @@ public class CatchNode extends StatementNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
-        declarationNode.write(classWriter, methodWriter, scopeTable);
-        Variable variable = scopeTable.getVariable(declarationNode.getName());
+        Variable variable = scopeTable.defineVariable(exceptionType, symbol);
 
         Label jump = new Label();
 

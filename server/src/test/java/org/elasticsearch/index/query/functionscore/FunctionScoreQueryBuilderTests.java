@@ -837,21 +837,22 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
                 context.isCacheable());
 
-        // check the two non-cacheable cases explicitly
         ScoreFunctionBuilder<?> scriptScoreFunction = new ScriptScoreFunctionBuilder(
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
+        queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
+            new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), scriptScoreFunction) });
+        context = createShardContext();
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("script should query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
-
-        for (ScoreFunctionBuilder<?> scoreFunction : List.of(scriptScoreFunction, randomScoreFunctionBuilder)) {
-            FilterFunctionBuilder[] functions = new FilterFunctionBuilder[] {
-                    new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), scoreFunction) };
-            queryBuilder = new FunctionScoreQueryBuilder(functions);
-
-            context = createShardContext();
-            rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
-            assertNotNull(rewriteQuery.toQuery(context));
-            assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
-        }
+        queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
+            new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunctionBuilder) });
+        context = createShardContext();
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("random score should query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {

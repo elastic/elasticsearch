@@ -22,15 +22,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -46,11 +46,9 @@ public class InferenceIngestIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
         basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-    private List<String> createdModels = new ArrayList<>();
 
     @Before
-    public void createBothModels() throws Exception {
-
+    public void setup() throws Exception {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
@@ -59,6 +57,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "    }" +
             "}");
         client().performRequest(loggingSettings);
+        client().performRequest(new Request("GET", "/_cluster/health?wait_for_status=green&timeout=30s"));
     }
 
     @Override
@@ -69,9 +68,8 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        for (String modelId : createdModels) {
-            client().performRequest(new Request("DELETE", "_ml/inference/" + modelId));
-        }
+        client().performRequest(new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN));
+        client().performRequest(new Request("DELETE", MlStatsIndex.indexPattern()));
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
@@ -114,6 +112,17 @@ public class InferenceIngestIT extends ESRestTestCase {
                     QueryBuilders.existsQuery("ml.inference.classification.predicted_value"))));
 
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+        assertBusy(() -> {
+            try {
+                Response statsResponse = client().performRequest(new Request("GET",
+                    "_ml/inference/" + classificationModelId + "/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+            } catch (ResponseException ex) {
+                //this could just mean shard failures.
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testPipelineIngest() throws Exception {
@@ -663,7 +672,6 @@ public class InferenceIngestIT extends ESRestTestCase {
         Request request = new Request("PUT", "_ml/inference/" + modelId);
         request.setJsonEntity(modelConfiguration);
         client().performRequest(request);
-        createdModels.add(modelId);
     }
 
 }

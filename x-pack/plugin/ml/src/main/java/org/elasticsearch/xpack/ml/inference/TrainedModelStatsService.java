@@ -110,16 +110,12 @@ public class TrainedModelStatsService {
      *              If `false`, stats are not persisted until the next periodic persistence action.
      */
     public void queueStats(InferenceStats stats, boolean flush) {
-        if (stats.hasStats() == false) {
-            if (flush) {
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::updateStats);
-            }
-            return;
+        if (stats.hasStats()) {
+            statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
+                (k, previousStats) -> previousStats == null ?
+                    stats :
+                    InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
         }
-        statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
-            (k, previousStats) -> previousStats == null ?
-                stats :
-                InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
         if (flush) {
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::updateStats);
         }

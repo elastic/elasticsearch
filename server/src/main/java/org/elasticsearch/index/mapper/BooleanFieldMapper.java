@@ -193,7 +193,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
+            return CoreValuesSourceType.BOOLEAN;
         }
 
         @Override

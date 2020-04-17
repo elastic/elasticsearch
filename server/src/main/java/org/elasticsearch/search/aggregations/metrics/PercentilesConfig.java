@@ -67,9 +67,9 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         return method;
     }
 
-    abstract Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
-                                                    double[] values, boolean keyed, DocValueFormat formatter,
-                                                    Map<String, Object> metadata) throws IOException;
+    public abstract Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                           double[] values, boolean keyed, DocValueFormat formatter,
+                                                           Map<String, Object> metadata) throws IOException;
 
     abstract Aggregator createPercentileRanksAggregator(String name, ValuesSource valuesSource, SearchContext context,
                                                         Aggregator parent, double[] values, boolean keyed,
@@ -98,11 +98,11 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
 
-        TDigest() {
+        public TDigest() {
             this(DEFAULT_COMPRESSION);
         }
 
-        TDigest(double compression) {
+        public TDigest(double compression) {
             super(PercentilesMethod.TDIGEST);
             setCompression(compression);
         }
@@ -124,9 +124,9 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         }
 
         @Override
-        Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
-                                               double[] values, boolean keyed, DocValueFormat formatter,
-                                               Map<String, Object> metadata) throws IOException {
+        public Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                      double[] values, boolean keyed, DocValueFormat formatter,
+                                                      Map<String, Object> metadata) throws IOException {
             return new TDigestPercentilesAggregator(name, valuesSource, context, parent, values, compression, keyed, formatter, metadata);
         }
 
@@ -172,11 +172,11 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         static final int DEFAULT_NUMBER_SIG_FIGS = 3;
         private int numberOfSignificantValueDigits;
 
-        Hdr() {
+        public Hdr() {
             this(DEFAULT_NUMBER_SIG_FIGS);
         }
 
-        Hdr(int numberOfSignificantValueDigits) {
+        public Hdr(int numberOfSignificantValueDigits) {
             super(PercentilesMethod.HDR);
             setNumberOfSignificantValueDigits(numberOfSignificantValueDigits);
         }
@@ -197,9 +197,9 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         }
 
         @Override
-        Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
-                                               double[] values, boolean keyed, DocValueFormat formatter,
-                                               Map<String, Object> metadata) throws IOException {
+        public Aggregator createPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                                      double[] values, boolean keyed, DocValueFormat formatter,
+                                                      Map<String, Object> metadata) throws IOException {
             return new HDRPercentilesAggregator(name, valuesSource, context, parent, values, numberOfSignificantValueDigits, keyed,
                 formatter, metadata);
         }

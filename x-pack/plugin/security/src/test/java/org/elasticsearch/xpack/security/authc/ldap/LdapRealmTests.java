@@ -111,7 +111,7 @@ public class LdapRealmTests extends LdapTestCase {
 
     @After
     public void shutdown() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
     }
 

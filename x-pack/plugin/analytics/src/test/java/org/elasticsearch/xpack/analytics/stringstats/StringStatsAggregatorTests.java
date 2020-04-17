@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,6 +37,13 @@ import java.util.function.Consumer;
 import static java.util.Collections.singleton;
 
 public class StringStatsAggregatorTests extends AggregatorTestCase {
+
+    @BeforeClass()
+    public static void registerBuilder() {
+        StringStatsAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    }
+    private static final String VALUE_SCRIPT_NAME = "value_script";
+    private static final String FIELD_SCRIPT_NAME = "field_script";
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -207,9 +215,10 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         textFieldType.setName("text");
         textFieldType.setFielddata(true);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms")
+            .userValueTypeHint(ValueType.NUMERIC)
             .field("value")
-            .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").valueType(ValueType.STRING));
+            .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").userValueTypeHint(ValueType.STRING));
 
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

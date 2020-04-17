@@ -70,6 +70,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -776,6 +777,14 @@ public abstract class StreamOutput extends OutputStream {
             o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
+        writers.put(Set.class, (o, v) -> {
+            if (v instanceof LinkedHashSet) {
+                o.writeByte((byte) 24);
+            } else {
+                o.writeByte((byte) 25);
+            }
+            o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
+        });
         WRITERS = Collections.unmodifiableMap(writers);
     }
 
@@ -797,6 +806,8 @@ public abstract class StreamOutput extends OutputStream {
             type = Object[].class;
         } else if (value instanceof Map) {
             type = Map.class;
+        } else if (value instanceof Set) {
+            type = Set.class;
         } else if (value instanceof ReadableInstant) {
             type = ReadableInstant.class;
         } else if (value instanceof BytesReference) {

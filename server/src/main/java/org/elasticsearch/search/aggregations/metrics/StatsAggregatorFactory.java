@@ -20,22 +20,28 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
-class StatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     StatsAggregatorFactory(String name,
-                            ValuesSourceConfig<Numeric> config,
+                            ValuesSourceConfig config,
                             QueryShardContext queryShardContext,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
@@ -43,20 +49,42 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(StatsAggregationBuilder.NAME,
+            Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new MetricAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        ValuesSource valuesSource,
+                                        DocValueFormat formatter,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        Map<String, Object> metadata) throws IOException {
+                    return new StatsAggregator(name, (Numeric) valuesSource, formatter, context, parent, metadata);
+                }
+            });
+    }
+
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            Map<String, Object> metadata)
-            throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new StatsAggregator(name, null, config.format(), searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        return new StatsAggregator(name, valuesSource, config.format(), searchContext, parent, metadata);
-            }
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            StatsAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent, metadata);
+    }
 }

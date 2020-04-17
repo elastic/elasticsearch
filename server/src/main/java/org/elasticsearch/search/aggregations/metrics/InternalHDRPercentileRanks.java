@@ -29,9 +29,9 @@ import java.util.Map;
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
 
-    InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                               Map<String, Object> metadata) {
-        super(name, cdfValues, state, keyed, formatter, metadata);
+    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
+                                       Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter,  metadata);
     }
 
     /**
@@ -72,7 +72,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
         return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
-    static double percentileRank(DoubleHistogram state, double value) {
+    public static double percentileRank(DoubleHistogram state, double value) {
         if (state.getTotalCount() == 0) {
             return Double.NaN;
         }

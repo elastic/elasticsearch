@@ -60,7 +60,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray mins;
 
     MinAggregator(String name,
-                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSourceConfig config,
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
                     Aggregator parent,
@@ -169,7 +169,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param config The config for the values source metric.
      */
     static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                                ValuesSourceConfig<ValuesSource.Numeric> config) {
+                                                                ValuesSourceConfig config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {
             return null;

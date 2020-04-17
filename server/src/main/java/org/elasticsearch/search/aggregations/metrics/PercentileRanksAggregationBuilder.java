@@ -27,9 +27,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,6 +51,10 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, aggregationName);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        PercentileRanksAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {
@@ -74,6 +80,11 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
         return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
+    }
+
     /**
      * Get the values to compute percentiles from.
      */
@@ -82,8 +93,8 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<ValuesSource> config,
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                     ValuesSourceConfig config,
                                                                      AggregatorFactory parent,
                                                                      Builder subFactoriesBuilder) throws IOException {
         return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, queryShardContext,

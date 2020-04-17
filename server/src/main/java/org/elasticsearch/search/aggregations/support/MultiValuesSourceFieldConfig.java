@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,13 +48,12 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     private final QueryBuilder filter;
 
     private static final String NAME = "field_config";
-
     public static final ParseField FILTER = new ParseField("filter");
 
-    public static <C> ObjectParser<MultiValuesSourceFieldConfig.Builder, C> parserBuilder(boolean scriptable, boolean timezoneAware,
-                                                                                          boolean filtered) {
+    public static final TriFunction<Boolean, Boolean, Boolean, ObjectParser<Builder, Void>> PARSER
+        = (scriptable, timezoneAware, filtered) -> {
 
-        ObjectParser<MultiValuesSourceFieldConfig.Builder, C> parser
+        ObjectParser<MultiValuesSourceFieldConfig.Builder, Void> parser
             = new ObjectParser<>(MultiValuesSourceFieldConfig.NAME, MultiValuesSourceFieldConfig.Builder::new);
 
         parser.declareString(MultiValuesSourceFieldConfig.Builder::setFieldName, ParseField.CommonFields.FIELD);

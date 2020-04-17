@@ -51,6 +51,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -98,6 +99,11 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         assertThat(httpServer, notNullValue());
         InetSocketAddress address = httpServer.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+    }
+
+    @BeforeClass
+    public static void skipJava8() {
+        GoogleCloudStorageBlobStoreRepositoryTests.assumeNotJava8();
     }
 
     @Before

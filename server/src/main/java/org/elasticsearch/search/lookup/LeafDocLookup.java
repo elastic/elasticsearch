@@ -70,10 +70,6 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         return this.mapperService;
     }
 
-    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
-        return fieldDataLookup.apply(fieldType);
-    }
-
     public void setDocument(int docId) {
         this.docId = docId;
     }

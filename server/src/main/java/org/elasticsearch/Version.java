@@ -59,9 +59,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
 
     public static final Version V_6_0_0_alpha1 =
-            new Version(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
+        new Version(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
     public static final Version V_6_0_0_alpha2 =
-            new Version(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
+        new Version(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
     public static final Version V_6_0_0_beta1 =
         new Version(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
     public static final Version V_6_0_0_beta2 =
@@ -133,8 +133,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_6_1 = new Version(7060199, org.apache.lucene.util.Version.LUCENE_8_4_0);
     public static final Version V_7_6_2 = new Version(7060299, org.apache.lucene.util.Version.LUCENE_8_4_0);
     public static final Version V_7_6_3 = new Version(7060399, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_7_0 = new Version(7070099, org.apache.lucene.util.Version.LUCENE_8_5_0);
-    public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_0);
+    public static final Version V_7_7_0 = new Version(7070099, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_1);
     public static final Version CURRENT = V_7_8_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
@@ -149,7 +149,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     continue;
                 }
                 assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?")
-                        : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
+                    : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
                 try {
                     final Version version = (Version) declaredField.get(null);
                     if (Assertions.ENABLED) {
@@ -168,14 +168,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     }
                     final Version maybePrevious = builder.put(version.id, version);
                     assert maybePrevious == null :
-                            "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
+                        "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 }
             }
         }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
-                + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+            + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
 
         idToVersion = builder.build();
     }
@@ -212,7 +212,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     // assume it is the previous major to the oldest Lucene version
                     // that we know about
                     luceneVersion = org.apache.lucene.util.Version.fromBits(
-                            versions.get(0).luceneVersion.major - 1, 0, 0);
+                        versions.get(0).luceneVersion.major - 1, 0, 0);
                 } else {
                     luceneVersion = versions.get(index).luceneVersion;
                 }
@@ -230,10 +230,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         if (indexVersion == V_EMPTY) {
             final String message = String.format(
-                    Locale.ROOT,
-                    "[%s] is not present in the index settings for index with UUID [%s]",
-                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
+                Locale.ROOT,
+                "[%s] is not present in the index settings for index with UUID [%s]",
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
             throw new IllegalStateException(message);
         }
         return indexVersion;
@@ -269,7 +269,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         String[] parts = version.split("[.-]");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException(
-                    "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
         }
 
         try {
@@ -424,14 +424,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
         final String versionOutput = String.format(
-                Locale.ROOT,
-                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+            Locale.ROOT,
+            "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
             Build.CURRENT.getQualifiedVersion(),
-                Build.CURRENT.flavor().displayName(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                JvmInfo.jvmInfo().version());
+            Build.CURRENT.flavor().displayName(),
+            Build.CURRENT.type().displayName(),
+            Build.CURRENT.hash(),
+            Build.CURRENT.date(),
+            JvmInfo.jvmInfo().version());
         System.out.println(versionOutput);
     }
 

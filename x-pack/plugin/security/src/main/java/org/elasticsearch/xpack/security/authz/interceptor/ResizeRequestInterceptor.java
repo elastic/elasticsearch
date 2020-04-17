@@ -47,7 +47,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isSecurityEnabled()) {
-                if (frozenLicenseState.isSecurityEnabled() && frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
                     IndicesAccessControl indicesAccessControl =
                         threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     IndicesAccessControl.IndexAccessControl indexAccessControl =

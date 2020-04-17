@@ -33,9 +33,11 @@ built-in roles and privileges:
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
-NOTE: It is possible that secondary authorization headers are supplied in the
-request. If this is the case, the secondary authorization headers are used
-instead of the primary headers.
+NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
+the time of creation. When you start the job, it performs the analysis using
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, 
+those credentials are used instead.
 
 [[ml-put-dfanalytics-desc]]
 ==== {api-description-title}

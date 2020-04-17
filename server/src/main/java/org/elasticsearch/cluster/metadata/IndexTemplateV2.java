@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
@@ -116,7 +117,11 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
-        this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
+        } else {
+            this.dataStreamTemplate = null;
+        }
     }
 
     public List<String> indexPatterns() {
@@ -164,7 +169,9 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
-        out.writeOptionalWriteable(dataStreamTemplate);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(dataStreamTemplate);
+        }
     }
 
     @Override

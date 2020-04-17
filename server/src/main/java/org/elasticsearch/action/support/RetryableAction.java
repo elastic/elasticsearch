@@ -22,10 +22,12 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class RetryableAction<Response> {
@@ -49,7 +51,10 @@ public abstract class RetryableAction<Response> {
                            ActionListener<Response> listener, String retryExecutor) {
         this.logger = logger;
         this.threadPool = threadPool;
-        this.initialDelayMillis = Math.max(initialDelay.getMillis(), 1);
+        this.initialDelayMillis = initialDelay.getMillis();
+        if (initialDelayMillis < 1) {
+            throw new IllegalArgumentException("Initial delay was less than 1 millisecond: " + initialDelay);
+        }
         this.timeoutMillis = Math.max(timeoutValue.getMillis(), 1);
         this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
@@ -81,12 +86,14 @@ public abstract class RetryableAction<Response> {
 
     private class RetryingListener implements ActionListener<Response> {
 
+        private static final int MAX_EXCEPTIONS = 4;
+        
         private final long nextDelayMillis;
-        private final Exception existingException;
+        private ArrayDeque<Exception> caughtExceptions;
 
-        private RetryingListener(long nextDelayMillis, Exception existingException) {
+        private RetryingListener(long nextDelayMillis, ArrayDeque<Exception> caughtExceptions) {
             this.nextDelayMillis = nextDelayMillis;
-            this.existingException = existingException;
+            this.caughtExceptions = caughtExceptions;
         }
 
         @Override
@@ -103,15 +110,30 @@ public abstract class RetryableAction<Response> {
                 if (elapsedMillis > timeoutMillis) {
                     logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
                         TimeValue.timeValueMillis(elapsedMillis)), e);
-                    addExisting(e);
+                    addException(e);
                     if (isDone.compareAndSet(false, true)) {
-                        finalListener.onFailure(e);
+                        finalListener.onFailure(buildFinalException());
                     }
                 } else {
                     logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}",
                         TimeValue.timeValueMillis(nextDelayMillis)), e);
-                    addExisting(e);
-                    Runnable runnable = () -> runTryAction(new RetryingListener(nextDelayMillis * 2, e));
+                    addException(e);
+
+                    final RetryingListener retryingListener = new RetryingListener(nextDelayMillis * 2, caughtExceptions);
+                    // TODO: Examine
+                    final ActionRunnable<Response> runnable = new ActionRunnable<>(retryingListener) {
+
+                        @Override
+                        protected void doRun() {
+                            runTryAction(retryingListener);
+                        }
+
+                        @Override
+                        public void onRejection(Exception e) {
+                            addException(e);
+                            finalListener.onFailure(buildFinalException());
+                        }
+                    };
                     final long midpoint = (nextDelayMillis / 2);
                     final int randomness = Randomness.get().nextInt((int) Math.min(midpoint, Integer.MAX_VALUE));
                     final long delayMillis = midpoint + randomness;
@@ -120,16 +142,30 @@ public abstract class RetryableAction<Response> {
                     }
                 }
             } else {
-                addExisting(e);
+                addException(e);
                 if (isDone.compareAndSet(false,true)) {
-                    finalListener.onFailure(e);
+                    finalListener.onFailure(buildFinalException());
                 }
             }
         }
 
-        private void addExisting(Exception e) {
-            if (existingException != null) {
-                e.addSuppressed(existingException);
+        private Exception buildFinalException() {
+            final Exception topLevel = caughtExceptions.removeFirst();
+            Exception suppressed;
+            while ((suppressed = caughtExceptions.pollFirst()) != null) {
+                topLevel.addSuppressed(suppressed);
+            }
+            return topLevel;
+        }
+
+        private void addException(Exception e) {
+            if (caughtExceptions != null) {
+                if (caughtExceptions.size() == MAX_EXCEPTIONS) {
+                    caughtExceptions.removeLast();
+                }
+                caughtExceptions.addFirst(e);
+            } else {
+                caughtExceptions = new ArrayDeque<>(MAX_EXCEPTIONS);
             }
         }
     }

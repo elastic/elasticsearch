@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -44,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportFuture;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -95,28 +97,26 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-        final TimeValue timeout = recoverySettings.internalActionTimeout();
+        final String action = PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG;
         final RecoveryPrepareForTranslogOperationsRequest request =
             new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps);
-        final Consumer<ActionListener<Void>> action = actionListener ->
-            transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG, request,
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                new ActionListenerResponseHandler<>(ActionListener.map(actionListener, r -> null),
-                    in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
-        executeRetryableAction(action, listener, timeout);
+        final TransportRequestOptions options =
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
+        executeRetryableAction(action, request, options, responseListener, reader);
     }
 
     @Override
     public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, final ActionListener<Void> listener) {
-        final TimeValue timeout = recoverySettings.internalActionTimeout();
+        final String action = PeerRecoveryTargetService.Actions.FINALIZE;
         final RecoveryFinalizeRecoveryRequest request =
             new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint, trimAboveSeqNo);
-        final Consumer<ActionListener<Void>> action = actionListener ->
-            transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE, request,
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                new ActionListenerResponseHandler<>(ActionListener.map(actionListener, r -> null),
-                    in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
-        executeRetryableAction(action, listener, timeout);
+        final TransportRequestOptions options =
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build();
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
+        executeRetryableAction(action, request, options, responseListener, reader);
     }
 
     @Override
@@ -138,7 +138,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
-        final TimeValue timeout = translogOpsRequestOptions.timeout();
+        final String action = PeerRecoveryTargetService.Actions.TRANSLOG_OPS;
         final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
             recoveryId,
             shardId,
@@ -148,41 +148,35 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             maxSeqNoOfDeletesOrUpdatesOnPrimary,
             retentionLeases,
             mappingVersionOnPrimary);
-
-        final Consumer<ActionListener<Long>> action = actionListener ->
-            transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, request, translogOpsRequestOptions,
-                new ActionListenerResponseHandler<>(ActionListener.map(actionListener, r -> r.localCheckpoint),
-                    RecoveryTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
-
-        executeRetryableAction(action, listener, timeout);
+        final Writeable.Reader<RecoveryTranslogOperationsResponse> reader = RecoveryTranslogOperationsResponse::new;
+        final ActionListener<RecoveryTranslogOperationsResponse> responseListener = ActionListener.map(listener, r -> r.localCheckpoint);
+        executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
     }
 
     @Override
     public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
                                 List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
-        final TimeValue timeout = recoverySettings.internalActionTimeout();
-        RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(recoveryId, shardId,
-            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
-        final Consumer<ActionListener<Void>> action = actionListener ->
-            transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.FILES_INFO, recoveryInfoFilesRequest,
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                new ActionListenerResponseHandler<>(ActionListener.map(actionListener, r -> null),
-                    in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
-        executeRetryableAction(action, listener, timeout);
+        final String action = PeerRecoveryTargetService.Actions.FILES_INFO;
+        RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, shardId, phase1FileNames, phase1FileSizes,
+            phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
+        final TransportRequestOptions options =
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
+        executeRetryableAction(action, request, options, responseListener, reader);
     }
 
     @Override
     public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
                            ActionListener<Void> listener) {
-        final TimeValue timeout = recoverySettings.internalActionTimeout();
+        final String action = PeerRecoveryTargetService.Actions.CLEAN_FILES;
         final RecoveryCleanFilesRequest request =
             new RecoveryCleanFilesRequest(recoveryId, shardId, sourceMetadata, totalTranslogOps, globalCheckpoint);
-        final Consumer<ActionListener<Void>> action = actionListener ->
-            transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.CLEAN_FILES, request,
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                new ActionListenerResponseHandler<>(ActionListener.map(actionListener, r -> null),
-                    in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
-        executeRetryableAction(action, listener, timeout);
+        final TransportRequestOptions options =
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
+        executeRetryableAction(action, request, options, responseListener, reader);
     }
 
     @Override
@@ -210,25 +204,24 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             throttleTimeInNanos = 0;
         }
 
-        final TimeValue timeout = fileChunkRequestOptions.timeout();
+        final String action = PeerRecoveryTargetService.Actions.FILE_CHUNK;
         /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
          * see how many translog ops we accumulate while copying files across the network. A future optimization
          * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
          */
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(recoveryId, shardId, fileMetadata,
             position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
-
-        Consumer<ActionListener<Void>> action = actionListener ->
-            transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK, request, fileChunkRequestOptions,
-                new ActionListenerResponseHandler<>(ActionListener.map(actionListener, r -> null),
-                    in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
-
-        executeRetryableAction(action, listener, timeout);
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
+        executeRetryableAction(action, request, fileChunkRequestOptions, responseListener, reader);
     }
 
     @Override
     public void cancel() {
         isCancelled = true;
+        if (onGoingRetryableActions.isEmpty()) {
+            return;
+        }
         final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("recovery was cancelled");
         // Dispatch to generic as cancellation calls can come on the cluster state applier thread
         threadPool.generic().execute(() -> {
@@ -239,15 +232,19 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         });
     }
 
-    private <T> void executeRetryableAction(Consumer<ActionListener<T>> action, ActionListener<T> listener, TimeValue timeout) {
+    private <T extends TransportResponse> void executeRetryableAction(String action, TransportRequest request,
+                                                                      TransportRequestOptions options, ActionListener<T> actionListener,
+                                                                      Writeable.Reader<T> reader) {
         final Object key = new Object();
-        final ActionListener<T> removeListener = ActionListener.runBefore(listener, () -> onGoingRetryableActions.remove(key));
+        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
+        final TimeValue timeout = recoverySettings.retryingTimeout();
         final RetryableAction<T> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener) {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
-                action.accept(listener);
+                transportService.sendRequest(targetNode, action, request, options,
+                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC));
             }
 
             @Override

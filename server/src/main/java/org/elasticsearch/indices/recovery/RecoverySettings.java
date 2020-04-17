@@ -146,6 +146,10 @@ public class RecoverySettings {
         return internalActionTimeout;
     }
 
+    public TimeValue retryingTimeout() {
+        return TimeValue.timeValueMinutes(1);
+    }
+
     public TimeValue internalActionLongTimeout() {
         return internalActionLongTimeout;
     }

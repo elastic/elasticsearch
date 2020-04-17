@@ -49,6 +49,17 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         return ref;
     }
 
+    public void testThing() {
+        final IOException ioException = new IOException();
+        final RuntimeException runtimeException = new RuntimeException();
+        final IllegalArgumentException illegalArgumentException = new IllegalArgumentException();
+
+        ioException.addSuppressed(runtimeException);
+        ioException.addSuppressed(illegalArgumentException);
+
+        ioException.printStackTrace();
+    }
+
     public void testArray() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
 

@@ -829,7 +829,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         public void messageReceived(TransportRequestHandler<TransportRequest> handler, TransportRequest request, TransportChannel channel,
                                     Task task) throws Exception {
             if (blocksRemaining.getAndDecrement() != 0) {
-                logger.error("--> preventing {} response by throwing exception", actionName);
+                logger.info("--> preventing {} response by throwing exception", actionName);
                 if (randomBoolean()) {
                     throw new EsRejectedExecutionException();
                 } else {

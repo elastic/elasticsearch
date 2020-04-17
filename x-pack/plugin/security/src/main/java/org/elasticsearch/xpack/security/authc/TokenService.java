@@ -1518,11 +1518,13 @@ public final class TokenService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled() && licenseState.isTokenServiceAllowed();
+        return enabled && licenseState.isSecurityEnabled() &&
+            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE);
     }
 
     private void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isTokenServiceAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false ||
+            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE) == false) {
             throw LicenseUtils.newComplianceException("security tokens");
         }
         if (enabled == false) {

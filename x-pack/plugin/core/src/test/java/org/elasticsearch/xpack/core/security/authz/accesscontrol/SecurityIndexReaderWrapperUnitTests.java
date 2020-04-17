@@ -64,6 +64,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         IndexShard indexShard = mock(IndexShard.class);

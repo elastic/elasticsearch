@@ -31,6 +31,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -72,6 +73,37 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
         AggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    /* TODO: This should just use the base test case in AggregatorTestCase.  The main incompatibility is around returning a null
+             InternalAggregation instance when no docs are found, I think.  --Tozzi
+     */
+    @Override
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+            T aggregationBuilder,
+            Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+            Consumer<V> verify,
+            MappedFieldType fieldType) throws IOException {
+
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        buildIndex.accept(indexWriter);
+        indexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+        StringStatsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+
+        @SuppressWarnings("unchecked")
+        V aggregation = (V) aggregator.buildAggregation(0L);
+        verify.accept(aggregation);
+
+        indexReader.close();
+        directory.close();
     }
 
     public void testNoDocs() throws IOException {

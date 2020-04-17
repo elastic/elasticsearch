@@ -86,8 +86,8 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
-        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.DEPRECATED_KIBANA_NAME, UsernamesField.KIBANA_NAME,
-            UsernamesField.LOGSTASH_NAME, UsernamesField.BEATS_NAME);
+        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
+            UsernamesField.BEATS_NAME);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -126,22 +126,10 @@ public class ReservedRealmTests extends ESTestCase {
         verifySuccessfulAuthentication(false);
     }
 
-    public void testLogDeprecatedUser() throws Exception {
-        final User expected = new KibanaUser(true);
-        this.verifySuccessfulAuthenticationForUser(expected, true);
-        assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
-            "Please use the [kibana_system] user instead.");
-    }
-
     private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
-        final User expectedUser = randomReservedUser(enabled);
-        this.verifySuccessfulAuthenticationForUser(expectedUser, enabled);
-    }
-
-    private void verifySuccessfulAuthenticationForUser(User expectedUser, boolean enabled) throws Exception {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
-
+        final User expectedUser = randomReservedUser(enabled);
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
@@ -175,6 +163,11 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityIndex, times(2)).indexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         verifyNoMoreInteractions(usersStore);
+
+        if (new KibanaUser(enabled).equals(expectedUser)) {
+            assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
+                            "Please use the [kibana_system] user instead.");
+        }
     }
 
     public void testLookup() throws Exception {
@@ -263,8 +256,7 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.users(userFuture);
         assertThat(userFuture.actionGet(),
             containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new KibanaSystemUser(true),
-                new LogstashSystemUser(true), new BeatsSystemUser(true), new APMSystemUser(true),
-                new RemoteMonitoringUser(true)));
+                new LogstashSystemUser(true), new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -427,7 +419,7 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaSystemUser(enabled),
+        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new KibanaSystemUser(enabled),
             new LogstashSystemUser(enabled), new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
     }
 

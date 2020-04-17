@@ -48,6 +48,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,6 +69,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
         LogstashSystemUser.NAME, BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
+
+    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Map.of(KibanaSystemUser.NAME, KibanaUser.NAME);
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
@@ -504,10 +507,18 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          */
         void changePasswords(CheckedFunction<String, SecureString, UserException> passwordFn,
                              CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
-            Map<String, SecureString> passwordsMap = new HashMap<>(USERS.size());
+            Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
             try {
                 for (String user : USERS) {
-                    passwordsMap.put(user, passwordFn.apply(user));
+                    if (USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                        continue;
+                    }
+
+                    SecureString password = passwordFn.apply(user);
+                    passwordsMap.put(user, password);
+                    if (USERS_WITH_SHARED_PASSWORDS.containsKey(user)) {
+                        passwordsMap.put(USERS_WITH_SHARED_PASSWORDS.get(user), password.clone());
+                    }
                 }
                 /*
                  * Change elastic user last. This tool will not run after the elastic user

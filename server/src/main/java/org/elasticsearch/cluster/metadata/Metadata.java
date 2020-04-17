@@ -1416,60 +1416,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return indicesLookup;
         }
 
-
-        /*
-        private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-            SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-            for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                IndexMetadata indexMetadata = cursor.value;
-                IndexAbstraction existing =
-                    indicesLookup.put(indexMetadata.getIndex().getName(), new IndexAbstraction.Index(indexMetadata));
-                assert existing == null : "duplicate for " + indexMetadata.getIndex();
-
-                for (ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
-                    AliasMetadata aliasMetadata = aliasCursor.value;
-                    indicesLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
-                        if (alias == null) {
-                            return new IndexAbstraction.Alias(aliasMetadata, indexMetadata);
-                        } else {
-                            assert alias.getType() == IndexAbstraction.Type.ALIAS : alias.getClass().getName();
-                            ((IndexAbstraction.Alias) alias).addIndex(indexMetadata);
-                            return alias;
-                        }
-                    });
-                }
-            }
-
-            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
-            // If there are no indices then it doesn't make sense to to add data streams to indicesLookup,
-            // since there no concrete indices that a data stream can point to.
-            // (This occurs when only Metadata is read from disk.)
-            if (dataStreamMetadata != null && indices.size() > 0) {
-                for (Map.Entry<String, DataStream> entry : dataStreamMetadata.dataStreams().entrySet()) {
-                    DataStream dataStream = entry.getValue();
-                    List<IndexMetadata> backingIndices = dataStream.getIndices().stream()
-                        .map(index -> indices.get(index.getName()))
-                        .collect(Collectors.toList());
-                    assert backingIndices.isEmpty() == false;
-                    assert backingIndices.contains(null) == false;
-
-                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, backingIndices));
-                    if (existing != null) {
-                        throw new IllegalStateException("data stream [" + dataStream.getName() +
-                            "] conflicts with existing " + existing.getType().getDisplayName() + " [" + existing.getName() + "]");
-                    }
-                }
-            }
-
-            indicesLookup.values().stream()
-                .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
-                .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
-            return indicesLookup;
-        }
-
-         */
-
         private void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup) {
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {

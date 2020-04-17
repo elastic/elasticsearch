@@ -588,8 +588,10 @@ public class SearchModule {
                 (p, c) -> spec.getParser().parse(p, (String) c)));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
-        namedWriteables.add(
-                new NamedWriteableRegistry.Entry(PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
+        if (spec.getAggregatorReader() != null) {
+            namedWriteables.add(new NamedWriteableRegistry.Entry(
+                PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
+        }
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.getResultReaders().entrySet()) {
             namedWriteables
                     .add(new NamedWriteableRegistry.Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));

@@ -283,7 +283,6 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55360")
     @Override
     public void testSupportedFieldTypes() throws IOException {
         super.testSupportedFieldTypes();

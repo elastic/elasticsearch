@@ -109,7 +109,6 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55360")
     @Override
     public void testSupportedFieldTypes() throws IOException {
         super.testSupportedFieldTypes();

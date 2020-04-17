@@ -121,7 +121,6 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55360")
     @Override
     public void testSupportedFieldTypes() throws IOException {
         super.testSupportedFieldTypes();

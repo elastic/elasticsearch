@@ -177,6 +177,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
 
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),

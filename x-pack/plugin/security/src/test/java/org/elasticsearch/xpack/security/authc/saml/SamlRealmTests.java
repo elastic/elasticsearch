@@ -296,6 +296,7 @@ public class SamlRealmTests extends SamlTestCase {
 
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);

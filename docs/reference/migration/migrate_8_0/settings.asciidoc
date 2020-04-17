@@ -51,3 +51,21 @@ setting `cluster.remote.connect` is removed.
 In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
 beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore,
 the `node.local_storage` setting has been removed.
+
+[float]
+==== Option to disable basic license features is deprecated
+
+In Elasticsearch 7.8.0, the following settings have been deprecated:
+
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
+* `xpack.slm.enabled`
+* `xpack.sql.enabled`
+* `xpack.transform.enabled`
+* `xpack.vectors.enabled`
+
+In future releases, it will not be possible to disable the APIs for Enrichment,
+Flattened mappings, ILM, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.

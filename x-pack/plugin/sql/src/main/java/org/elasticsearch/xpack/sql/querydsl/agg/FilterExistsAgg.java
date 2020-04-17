@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -27,11 +28,15 @@ public class FilterExistsAgg extends LeafAgg {
 
     @Override
     AggregationBuilder toBuilder() {
+        QueryBuilder qb;
+        
         if (source().fieldName() != null) {
-            return filter(id(), QueryBuilders.existsQuery(source().fieldName()));
+            qb = QueryBuilders.existsQuery(source().fieldName());
         } else {
-            return filter(id(), QueryBuilders.scriptQuery(wrapWithIsNotNull(source().script()).toPainless()));
+            qb = QueryBuilders.scriptQuery(wrapWithIsNotNull(source().script()).toPainless());
         }
+
+        return filter(id(), qb);
     }
 
     private static ScriptTemplate wrapWithIsNotNull(ScriptTemplate script) {

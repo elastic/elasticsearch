@@ -123,7 +123,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 } else {
                     // current pattern since JDK 9
                     artifactPattern = "jdk-"
-                        + jdk.getMajor()
+                        + jdk.getBaseVersion()
                         + "+"
                         + jdk.getBuild()
                         + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";

@@ -100,11 +100,20 @@ class PrecommitTasks {
             }
         }
 
-        return project.tasks.register('precommit') {
+        TaskProvider precommit = project.tasks.register('precommit') {
             group = JavaBasePlugin.VERIFICATION_GROUP
             description = 'Runs all non-test checks.'
             dependsOn = precommitTasks
         }
+
+        // not all jar projects produce a pom (we don't ship all jars), so a pom validation
+        // task is only added on some projects, and thus we can't always have a task
+        // here to add to precommit tasks explicitly. Instead, we apply our internal
+        // pom validation plugin after the precommit task is created and let the
+        // plugin add the task if necessary
+        project.plugins.apply(PomValidationPlugin)
+
+        return precommit
     }
 
     static TaskProvider configureTestingConventions(Project project) {

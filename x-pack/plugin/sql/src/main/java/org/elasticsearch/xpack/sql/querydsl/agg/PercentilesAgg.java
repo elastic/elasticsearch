@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 
 import java.util.List;
 
@@ -15,20 +16,15 @@ public class PercentilesAgg extends LeafAgg {
 
     private final List<Double> percents;
 
-    public PercentilesAgg(String id, String fieldName, List<Double> percents) {
-        super(id, fieldName);
+    public PercentilesAgg(String id, AggSource source, List<Double> percents) {
+        super(id, source);
         this.percents = percents;
-    }
-
-    public List<Double> percents() {
-        return percents;
     }
 
     @Override
     AggregationBuilder toBuilder() {
         // TODO: look at keyed
-        return percentiles(id())
-                .field(fieldName())
-                .percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray());
+        PercentilesAggregationBuilder builder = (PercentilesAggregationBuilder) addAggSource(percentiles(id()));
+        return builder.percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray());
     }
 }

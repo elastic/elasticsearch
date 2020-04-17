@@ -1,5 +1,5 @@
 ---
-"Search existing index with geo_shape field":
+"Test upgraded 8.x cluster with 8.x and 7.x geo_shape fields":
   - do:
       indices.create:
         index: new_locations

@@ -1,5 +1,5 @@
 ---
-"Search existing index with geo_shape field":
+"Test geo_bounds aggregation on geo_shape field":
   - do:
       indices.create:
         index: locations

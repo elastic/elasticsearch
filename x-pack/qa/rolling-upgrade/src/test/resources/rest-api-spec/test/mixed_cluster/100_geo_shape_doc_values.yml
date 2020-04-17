@@ -1,5 +1,5 @@
 ---
-"Search existing index with geo_shape field":
+"Test mixed geo_shape indexing":
 
   - do:
       index:
@@ -22,6 +22,7 @@
   - length: {hits.hits:      2    }
 
   - do:
-      indices.force_merge:
+      indices.forcemerge:
         index: old_locations
+        max_num_segments: 1
 

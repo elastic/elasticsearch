@@ -655,7 +655,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     decreaseScrollContexts = null;
                 }
             } else {
-                readerContext = new ReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, defaultKeepAlive, false);
+                readerContext = new ReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, defaultKeepAlive, true);
             }
             engineSearcher = null;
             final ReaderContext finalReaderContext = readerContext;

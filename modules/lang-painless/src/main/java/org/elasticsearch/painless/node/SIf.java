@@ -35,14 +35,22 @@ import java.util.Objects;
  */
 public class SIf extends AStatement {
 
-    protected final AExpression condition;
-    protected final SBlock ifblock;
+    private final AExpression conditionNode;
+    private final SBlock ifblockNode;
 
-    public SIf(Location location, AExpression condition, SBlock ifblock) {
-        super(location);
+    public SIf(int identifier, Location location, AExpression conditionNode, SBlock ifblockNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.ifblock = ifblock;
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.ifblockNode = ifblockNode;
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public SBlock getIfblockNode() {
+        return ifblockNode;
     }
 
     @Override
@@ -51,15 +59,15 @@ public class SIf extends AStatement {
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.getLocation(),
+        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, scriptRoot, scope, conditionInput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
-        if (condition instanceof EBoolean) {
+        if (conditionNode instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        if (ifblock == null) {
+        if (ifblockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -68,7 +76,7 @@ public class SIf extends AStatement {
         ifblockInput.inLoop = input.inLoop;
         ifblockInput.lastLoop = input.lastLoop;
 
-        Output ifblockOutput = ifblock.analyze(classNode, scriptRoot, scope.newLocalScope(), ifblockInput);
+        Output ifblockOutput = ifblockNode.analyze(classNode, scriptRoot, scope.newLocalScope(), ifblockInput);
 
         output.anyContinue = ifblockOutput.anyContinue;
         output.anyBreak = ifblockOutput.anyBreak;

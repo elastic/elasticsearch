@@ -36,12 +36,16 @@ import java.util.Objects;
  */
 public class SExpression extends AStatement {
 
-    protected final AExpression expression;
+    private final AExpression expressionNode;
 
-    public SExpression(Location location, AExpression expression) {
-        super(location);
+    public SExpression(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expressionNode = Objects.requireNonNull(expressionNode);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
@@ -51,13 +55,13 @@ public class SExpression extends AStatement {
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.read = input.lastSource && !isVoid;
-        AExpression.Output expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, scriptRoot, scope, expressionInput);
 
         boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
 
         expressionInput.expected = rtn ? rtnType : expressionOutput.actual;
         expressionInput.internal = rtn;
-        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                 expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         Output output = new Output();
@@ -71,13 +75,13 @@ public class SExpression extends AStatement {
         if (output.methodEscape) {
             ReturnNode returnNode = new ReturnNode();
             returnNode.setExpressionNode(expressionNode);
-            returnNode.setLocation(location);
+            returnNode.setLocation(getLocation());
 
             output.statementNode = returnNode;
         } else {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
             statementExpressionNode.setExpressionNode(expressionNode);
-            statementExpressionNode.setLocation(location);
+            statementExpressionNode.setLocation(getLocation());
 
             output.statementNode = statementExpressionNode;
         }

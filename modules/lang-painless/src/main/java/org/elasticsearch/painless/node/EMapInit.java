@@ -43,14 +43,22 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class EMapInit extends AExpression {
 
-    protected final List<AExpression> keys;
-    protected final List<AExpression> values;
+    private final List<AExpression> keyNodes;
+    private final List<AExpression> valueNodes;
 
-    public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
-        super(location);
+    public EMapInit(int identifier, Location location, List<AExpression> keyNodes, List<AExpression> valueNodes) {
+        super(identifier, location);
 
-        this.keys = Collections.unmodifiableList(Objects.requireNonNull(keys));
-        this.values = Collections.unmodifiableList(Objects.requireNonNull(values));
+        this.keyNodes = Collections.unmodifiableList(Objects.requireNonNull(keyNodes));
+        this.valueNodes = Collections.unmodifiableList(Objects.requireNonNull(valueNodes));
+    }
+
+    public List<AExpression> getKeyNodes() {
+        return keyNodes;
+    }
+
+    public List<AExpression> getValueNodes() {
+        return valueNodes;
     }
 
     @Override
@@ -79,31 +87,31 @@ public class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", put/2] not found"));
         }
 
-        if (keys.size() != values.size()) {
+        if (keyNodes.size() != valueNodes.size()) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        List<Output> keyOutputs = new ArrayList<>(keys.size());
-        List<PainlessCast> keyCasts = new ArrayList<>(keys.size());
-        List<Output> valueOutputs = new ArrayList<>(values.size());
-        List<PainlessCast> valueCasts = new ArrayList<>(values.size());
+        List<Output> keyOutputs = new ArrayList<>(keyNodes.size());
+        List<PainlessCast> keyCasts = new ArrayList<>(keyNodes.size());
+        List<Output> valueOutputs = new ArrayList<>(valueNodes.size());
+        List<PainlessCast> valueCasts = new ArrayList<>(valueNodes.size());
 
-        for (int i = 0; i < keys.size(); ++i) {
-            AExpression expression = keys.get(i);
+        for (int i = 0; i < keyNodes.size(); ++i) {
+            AExpression expression = keyNodes.get(i);
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             keyOutputs.add(expressionOutput);
-            keyCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+            keyCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
-            expression = values.get(i);
+            expression = valueNodes.get(i);
             expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
             expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
-            valueCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+            valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
             valueOutputs.add(expressionOutput);
@@ -111,13 +119,13 @@ public class EMapInit extends AExpression {
 
         MapInitializationNode mapInitializationNode = new MapInitializationNode();
 
-        for (int i = 0; i < keys.size(); ++i) {
+        for (int i = 0; i < keyNodes.size(); ++i) {
             mapInitializationNode.addArgumentNode(
                     cast(keyOutputs.get(i).expressionNode, keyCasts.get(i)),
                     cast(valueOutputs.get(i).expressionNode, valueCasts.get(i)));
         }
 
-        mapInitializationNode.setLocation(location);
+        mapInitializationNode.setLocation(getLocation());
         mapInitializationNode.setExpressionType(output.actual);
         mapInitializationNode.setConstructor(constructor);
         mapInitializationNode.setMethod(method);

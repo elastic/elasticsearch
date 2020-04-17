@@ -144,7 +144,7 @@ import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.ERegex;
 import org.elasticsearch.painless.node.EString;
 import org.elasticsearch.painless.node.EUnary;
-import org.elasticsearch.painless.node.EVariable;
+import org.elasticsearch.painless.node.ESymbol;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
@@ -952,7 +952,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     public ANode visitVariable(VariableContext ctx) {
         String name = ctx.ID().getText();
 
-        return new EVariable(location(ctx), name);
+        return new ESymbol(location(ctx), name);
     }
 
     @Override

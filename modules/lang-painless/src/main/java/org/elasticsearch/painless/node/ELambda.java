@@ -175,7 +175,7 @@ public class ELambda extends AExpression {
             lambdaScope.defineVariable(getLocation(), type, paramName, true);
         }
 
-        if (blockNode.statements.isEmpty()) {
+        if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
         AStatement.Input blockInput = new AStatement.Input();

@@ -46,10 +46,10 @@ public class EDecimal extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        return analyze(classNode, scriptRoot, scope, input, false);
+        return analyze(input, false);
     }
 
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input, boolean negate) {
+    Output analyze(Input input, boolean negate) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));

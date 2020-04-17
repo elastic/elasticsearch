@@ -28,33 +28,38 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents a set of statements as a branch of control-flow.
  */
 public class SBlock extends AStatement {
 
-    protected final List<AStatement> statements;
+    private final List<AStatement> statementNodes;
 
-    public SBlock(Location location, List<AStatement> statements) {
-        super(location);
+    public SBlock(int identifier, Location location, List<AStatement> statementNodes) {
+        super(identifier, location);
 
-        this.statements = Collections.unmodifiableList(statements);
+        this.statementNodes = Collections.unmodifiableList(Objects.requireNonNull(statementNodes));
+    }
+
+    public List<AStatement> getStatementNodes() {
+        return statementNodes;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
-        if (statements == null || statements.isEmpty()) {
+        if (statementNodes.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
-        AStatement last = statements.get(statements.size() - 1);
+        AStatement last = statementNodes.get(statementNodes.size() - 1);
 
-        List<Output> statementOutputs = new ArrayList<>(statements.size());
+        List<Output> statementOutputs = new ArrayList<>(statementNodes.size());
 
-        for (AStatement statement : statements) {
+        for (AStatement statement : statementNodes) {
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
             if (output.allEscape) {
@@ -84,7 +89,7 @@ public class SBlock extends AStatement {
             blockNode.addStatementNode(statementOutput.statementNode);
         }
 
-        blockNode.setLocation(location);
+        blockNode.setLocation(getLocation());
         blockNode.setAllEscape(output.allEscape);
         blockNode.setStatementCount(output.statementCount);
 

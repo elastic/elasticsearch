@@ -33,12 +33,16 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 public class SReturn extends AStatement {
 
-    protected final AExpression expression;
+    private final AExpression expressionNode;
 
-    public SReturn(Location location, AExpression expression) {
-        super(location);
+    public SReturn(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = expression;
+        this.expressionNode = expressionNode;
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
@@ -48,9 +52,9 @@ public class SReturn extends AStatement {
         AExpression.Output expressionOutput = null;
         PainlessCast expressionCast = null;
 
-        if (expression == null) {
+        if (expressionNode == null) {
             if (scope.getReturnType() != void.class) {
-                throw location.createError(new ClassCastException("Cannot cast from " +
+                throw getLocation().createError(new ClassCastException("Cannot cast from " +
                         "[" + scope.getReturnCanonicalTypeName() + "] to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
@@ -58,8 +62,8 @@ public class SReturn extends AStatement {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = scope.getReturnType();
             expressionInput.internal = true;
-            expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
-            expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+            expressionOutput = AExpression.analyze(expressionNode, classNode, scriptRoot, scope, expressionInput);
+            expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
@@ -70,8 +74,8 @@ public class SReturn extends AStatement {
         output.statementCount = 1;
 
         ReturnNode returnNode = new ReturnNode();
-        returnNode.setExpressionNode(expression == null ? null : AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        returnNode.setLocation(location);
+        returnNode.setExpressionNode(expressionNode == null ? null : AExpression.cast(expressionOutput.expressionNode, expressionCast));
+        returnNode.setLocation(getLocation());
 
         output.statementNode = returnNode;
 

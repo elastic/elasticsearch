@@ -31,8 +31,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 public class ENull extends AExpression {
 
-    public ENull(Location location) {
-        super(location);
+    public ENull(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class ENull extends AExpression {
 
         NullNode nullNode = new NullNode();
 
-        nullNode.setLocation(location);
+        nullNode.setLocation(getLocation());
         nullNode.setExpressionType(output.actual);
 
         output.expressionNode = nullNode;

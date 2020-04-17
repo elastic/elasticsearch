@@ -42,36 +42,44 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class ENewObj extends AExpression {
 
-    protected final String type;
-    protected final List<AExpression> arguments;
+    private final String canonicalTypeName;
+    private final List<AExpression> argumentNodes;
 
-    public ENewObj(Location location, String type, List<AExpression> arguments) {
-        super(location);
+    public ENewObj(int identifier, Location location, String canonicalTypeName, List<AExpression> argumentNodes) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.argumentNodes = Collections.unmodifiableList(Objects.requireNonNull(argumentNodes));
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public List<AExpression> getArgumentNodes() {
+        return argumentNodes;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment cannot assign a value to new object with constructor [" + type + "/" + arguments.size() + "]"));
+            throw createError(new IllegalArgumentException("invalid assignment cannot assign a value to new object with constructor " +
+                    "[" + canonicalTypeName + "/" + argumentNodes.size() + "]"));
         }
 
         Output output = new Output();
 
-        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (output.actual == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, arguments.size());
+        PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, argumentNodes.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/" + arguments.size() + "] not found"));
+                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/" + argumentNodes.size() + "] not found"));
         }
 
         scriptRoot.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
@@ -79,34 +87,34 @@ public class ENewObj extends AExpression {
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
         constructor.typeParameters.toArray(types);
 
-        if (constructor.typeParameters.size() != arguments.size()) {
+        if (constructor.typeParameters.size() != argumentNodes.size()) {
             throw createError(new IllegalArgumentException(
                     "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "] " +
-                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
+                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + argumentNodes.size() + "]."));
         }
 
         List<Output> argumentOutputs = new ArrayList<>();
         List<PainlessCast> argumentCasts = new ArrayList<>();
 
-        for (int i = 0; i < arguments.size(); ++i) {
-            AExpression expression = arguments.get(i);
+        for (int i = 0; i < argumentNodes.size(); ++i) {
+            AExpression expression = argumentNodes.get(i);
 
             Input expressionInput = new Input();
             expressionInput.expected = types[i];
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             argumentOutputs.add(expressionOutput);
-            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
         NewObjectNode newObjectNode = new NewObjectNode();
 
-        for (int i = 0; i < arguments.size(); ++ i) {
+        for (int i = 0; i < argumentNodes.size(); ++ i) {
             newObjectNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
         }
 
-        newObjectNode.setLocation(location);
+        newObjectNode.setLocation(getLocation());
         newObjectNode.setExpressionType(output.actual);
         newObjectNode.setRead(input.read);
         newObjectNode.setConstructor(constructor);

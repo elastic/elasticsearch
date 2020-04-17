@@ -30,6 +30,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A action that will be retried on failure if {@link RetryableAction#shouldRetry(Exception)} returns true.
+ * The executor the action will be executed on can be defined in the constructor. Otherwise, SAME is the
+ * default. The action will be retried with exponentially increasing delay periods until the timeout period
+ * has been reached.
+ */
 public abstract class RetryableAction<Response> {
 
     private final Logger logger;
@@ -48,7 +54,7 @@ public abstract class RetryableAction<Response> {
     }
 
     public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
-                           ActionListener<Response> listener, String retryExecutor) {
+                           ActionListener<Response> listener, String executor) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.initialDelayMillis = initialDelay.getMillis();
@@ -58,11 +64,13 @@ public abstract class RetryableAction<Response> {
         this.timeoutMillis = Math.max(timeoutValue.getMillis(), 1);
         this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
-        this.retryExecutor = retryExecutor;
+        this.retryExecutor = executor;
     }
 
     public void run() {
-        runTryAction(new RetryingListener(initialDelayMillis, null));
+        final RetryingListener retryingListener = new RetryingListener(initialDelayMillis, null);
+        final Runnable runnable = createRunnable(retryingListener);
+        threadPool.executor(retryExecutor).execute(runnable);
     }
 
     public void cancel(Exception e) {
@@ -72,12 +80,21 @@ public abstract class RetryableAction<Response> {
 
     }
 
-    private void runTryAction(ActionListener<Response> listener) {
-        try {
-            tryAction(listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+    private Runnable createRunnable(RetryingListener retryingListener) {
+        return new ActionRunnable<>(retryingListener) {
+
+            @Override
+            protected void doRun() {
+                tryAction(listener);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // Immediately fail because we were not able to schedule the action
+                retryingListener.addException(e);
+                finalListener.onFailure(retryingListener.buildFinalException());
+            }
+        };
     }
 
     public abstract void tryAction(ActionListener<Response> listener);
@@ -107,7 +124,7 @@ public abstract class RetryableAction<Response> {
         public void onFailure(Exception e) {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
-                if (elapsedMillis > timeoutMillis) {
+                if (elapsedMillis >= timeoutMillis) {
                     logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
                         TimeValue.timeValueMillis(elapsedMillis)), e);
                     addException(e);
@@ -120,20 +137,7 @@ public abstract class RetryableAction<Response> {
                     addException(e);
 
                     final RetryingListener retryingListener = new RetryingListener(nextDelayMillis * 2, caughtExceptions);
-                    // TODO: Examine
-                    final ActionRunnable<Response> runnable = new ActionRunnable<>(retryingListener) {
-
-                        @Override
-                        protected void doRun() {
-                            runTryAction(retryingListener);
-                        }
-
-                        @Override
-                        public void onRejection(Exception e) {
-                            addException(e);
-                            finalListener.onFailure(buildFinalException());
-                        }
-                    };
+                    final Runnable runnable = createRunnable(retryingListener);
                     final long midpoint = (nextDelayMillis / 2);
                     final int randomness = Randomness.get().nextInt((int) Math.min(midpoint, Integer.MAX_VALUE));
                     final long delayMillis = midpoint + randomness;
@@ -163,10 +167,10 @@ public abstract class RetryableAction<Response> {
                 if (caughtExceptions.size() == MAX_EXCEPTIONS) {
                     caughtExceptions.removeLast();
                 }
-                caughtExceptions.addFirst(e);
             } else {
                 caughtExceptions = new ArrayDeque<>(MAX_EXCEPTIONS);
             }
+            caughtExceptions.addFirst(e);
         }
     }
 }

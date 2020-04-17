@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -76,7 +75,6 @@ public class TrainedModelStatsService {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
     private volatile Scheduler.Cancellable scheduledFuture;
-    private volatile boolean verifiedStatsIndexCreated;
     private volatile boolean stopped;
     private volatile ClusterState clusterState;
 

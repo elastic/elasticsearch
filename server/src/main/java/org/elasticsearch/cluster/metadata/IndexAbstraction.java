@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.common.collect.List.copyOf;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -256,6 +257,45 @@ public interface IndexAbstraction {
 
         private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
+        }
+    }
+
+    class DataStream implements IndexAbstraction {
+
+        private final org.elasticsearch.cluster.metadata.DataStream dataStream;
+        private final List<IndexMetadata> dataStreamIndices;
+        private final IndexMetadata writeIndex;
+
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
+                          List<IndexMetadata> dataStreamIndices, IndexMetadata writeIndex) {
+            this.dataStream = dataStream;
+            this.dataStreamIndices = copyOf(dataStreamIndices);
+            this.writeIndex = writeIndex;
+            assert dataStreamIndices.contains(writeIndex);
+        }
+
+        @Override
+        public String getName() {
+            return dataStream.getName();
+        }
+
+        @Override
+        public Type getType() {
+            return Type.DATA_STREAM;
+        }
+
+        @Override
+        public List<IndexMetadata> getIndices() {
+            return dataStreamIndices;
+        }
+
+        public IndexMetadata getWriteIndex() {
+            return writeIndex;
+        }
+
+        @Override
+        public boolean isHidden() {
+            return false;
         }
     }
 }

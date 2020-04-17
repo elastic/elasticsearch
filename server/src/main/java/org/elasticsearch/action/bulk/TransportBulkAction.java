@@ -106,23 +106,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final BulkIndexingMemoryLimits indexingMemoryLimits;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, BulkIndexingMemoryLimits indexingMemoryLimits) {
+                               AutoCreateIndex autoCreateIndex) {
         this(threadPool, transportService, clusterService, ingestService, client, actionFilters,
-            indexNameExpressionResolver, autoCreateIndex, System::nanoTime, indexingMemoryLimits);
+            indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider,
-                               BulkIndexingMemoryLimits indexingMemoryLimits) {
+                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.WRITE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
@@ -133,7 +131,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indexingMemoryLimits = indexingMemoryLimits;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -156,12 +153,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> initialListener) {
-        final long indexingBytes = DocWriteRequest.writeSizeInBytes(bulkRequest.requests.stream());
-        indexingMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
-        final Runnable release = () -> indexingMemoryLimits.markCoordinatingOperationFinished(indexingBytes);
-        final ActionListener<BulkResponse> listener = ActionListener.runAfter(initialListener, release);
-
+    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 

@@ -118,14 +118,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected Releasable checkPrimaryLimits(BulkShardRequest request) throws EsRejectedExecutionException {
         super.checkPrimaryLimits(request);
-        final String localNodeId = clusterService.localNode().getId();
-        long operationSizeInBytes;
-        if (localNodeId.equals(request.getParentTask().getNodeId())) {
-            // If we are on the TransportBulkAction coordinating node, we have already accounted for the bytes
-            operationSizeInBytes = 0;
-        } else {
-            operationSizeInBytes = operationSizeInBytes(request.items());
-        }
+        long operationSizeInBytes = operationSizeInBytes(request.items());
         indexingMemoryLimits.markPrimaryOperationStarted(operationSizeInBytes);
         return () -> indexingMemoryLimits.markPrimaryOperationFinished(operationSizeInBytes);
     }
@@ -427,14 +420,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected Releasable checkReplicaLimits(BulkShardRequest request) throws EsRejectedExecutionException {
         super.checkReplicaLimits(request);
-        final String localNodeId = clusterService.localNode().getId();
-        long operationSizeInBytes;
-        if (localNodeId.equals(request.getParentTask().getNodeId())) {
-            // If we are on the TransportBulkAction coordinating node, we have already accounted for the bytes
-            operationSizeInBytes = 0;
-        } else {
-            operationSizeInBytes = operationSizeInBytes(request.items());
-        }
+        long operationSizeInBytes = operationSizeInBytes(request.items());
         indexingMemoryLimits.markReplicaOperationStarted(operationSizeInBytes);
         return () -> indexingMemoryLimits.markReplicaOperationFinished(operationSizeInBytes);
     }

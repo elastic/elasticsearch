@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -137,6 +138,15 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed);
         }
 
+        @Override
+        public String toString() {
+            return "Request{" +
+                "modelId='" + modelId + '\'' +
+                ", objectsToInfer=" + objectsToInfer +
+                ", update=" + Strings.toString(update) +
+                ", previouslyLicensed=" + previouslyLicensed +
+                '}';
+        }
     }
 
     public static class Response extends ActionResponse {

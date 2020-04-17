@@ -402,11 +402,11 @@ public class XPackLicenseState {
     }
 
     public boolean isIpFilteringAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
+        return isAllowedByLicense(OperationMode.GOLD, false);
     }
 
     public boolean isAuditingAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
+        return isAllowedByLicense(OperationMode.GOLD, false);
     }
 
     public boolean isStatsAndHealthAllowed() {
@@ -427,33 +427,33 @@ public class XPackLicenseState {
      * @return {@code true} to enable DLS and FLS. Otherwise {@code false}.
      */
     public boolean isDocumentAndFieldLevelSecurityAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false);
+        return isAllowedByLicense(OperationMode.PLATINUM, false);
     }
 
     public boolean areAllRealmsAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false);
+        return isAllowedByLicense(OperationMode.PLATINUM, false);
     }
 
     public boolean areStandardRealmsAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
+        return isAllowedByLicense(OperationMode.GOLD, false);
     }
 
     public boolean isCustomRoleProvidersAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true);
+        return isAllowedByLicense(OperationMode.PLATINUM, true);
     }
 
     /**
      * Whether the Elasticsearch {@code TokenService} is allowed
      */
     public boolean isTokenServiceAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
+        return isAllowedByLicense(OperationMode.GOLD, false);
     }
 
     /**
      * Whether the Elasticsearch {@code ApiKeyService} is allowed
      */
     public boolean isApiKeyServiceAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.MISSING, false);
+        return isAllowedByLicense(OperationMode.MISSING, false);
     }
 
     /**
@@ -461,7 +461,7 @@ public class XPackLicenseState {
      * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
     public boolean isAuthorizationRealmAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true);
+        return isAllowedByLicense(OperationMode.PLATINUM, true);
     }
 
     /**
@@ -469,7 +469,7 @@ public class XPackLicenseState {
      * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
     public boolean isAuthorizationEngineAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true);
+        return isAllowedByLicense(OperationMode.PLATINUM, true);
     }
 
     public boolean isWatcherAllowed() {
@@ -683,32 +683,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * Test whether a feature is allowed by the status of license and security configuration.
-     * Note the difference to {@link #isAllowedByLicense(OperationMode, boolean)}
-     * is this method requires security to be enabled.
-     *
-     * @param minimumMode  The minimum license to meet or exceed
-     * @param needActive   Whether current license needs to be active.
-     *
-     * @return true if feature is allowed, otherwise false
-     */
-    private boolean isAllowedBySecurityAndLicense(OperationMode minimumMode, boolean needActive) {
-        return checkAgainstStatus(status -> {
-            if (false == isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
-                return false;
-            }
-            // Do not delegate to isAllowedByLicense as it also captures "status" which may be different from here
-            if (needActive && false == status.active) {
-                return false;
-            }
-            return isAllowedByOperationMode(status.mode, minimumMode);
-        });
-    }
-
-    /**
-     * Test whether a feature is allowed by the status of license. Note difference to
-     * {@link #isAllowedBySecurityAndLicense} is this method does <b>Not</b> require security
-     * to be enabled.
+     * Test whether a feature is allowed by the status of license.
      *
      * @param minimumMode  The minimum license to meet or exceed
      * @param needActive   Whether current license needs to be active

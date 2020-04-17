@@ -184,11 +184,6 @@ public class TrainedModelStatsService {
         if (stopped) {
             return;
         }
-        //TODO debug logging, REMOVE
-        logger.trace(() -> new ParameterizedMessage(
-            "Indexing the following updates [{}]",
-            bulkRequest.requests().stream().map(DocWriteRequest::toString).collect(Collectors.joining(",\n"))
-            ));
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
             () -> stopped == false,

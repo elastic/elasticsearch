@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: [arbitrary_key]
 ---
 "node_reload_secure_settings test wrong password":
   - skip:

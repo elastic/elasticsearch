@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.wildcard.mapper.regex.True;
 
 import static org.elasticsearch.xpack.wildcard.mapper.regex.Leaf.leaves;
 
-public class NGramAutomatonTest extends ESTestCase {
+public class NGramAutomatonTests extends ESTestCase {
     public void testSimple() {
         assertTrigramExpression("cat", new Leaf<>("cat"));
     }

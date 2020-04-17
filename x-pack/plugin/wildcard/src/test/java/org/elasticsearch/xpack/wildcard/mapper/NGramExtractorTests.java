@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.wildcard.mapper.regex.True;
 
 import static org.elasticsearch.xpack.wildcard.mapper.regex.Leaf.leaves;
 
-public class NGramExtractorTest extends ESTestCase {
+public class NGramExtractorTests extends ESTestCase {
     public void testSimple() {
         NGramExtractor gram = new NGramExtractor(3, 4, 10000, 100);
         Automaton automaton = new RegExp("hero of legend").toAutomaton();

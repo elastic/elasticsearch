@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -57,11 +56,6 @@ public class StringTermsTests extends InternalTermsTestCase {
         }
         return new StringTerms(name, order, requiredSize, minDocCount,
                 metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
-    }
-
-    @Override
-    protected Reader<InternalTerms<?, ?>> instanceReader() {
-        return StringTerms::new;
     }
 
     @Override

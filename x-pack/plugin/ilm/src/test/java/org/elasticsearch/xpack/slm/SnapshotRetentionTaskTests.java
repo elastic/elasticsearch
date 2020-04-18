@@ -6,7 +6,14 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -45,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -373,6 +382,114 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .build();
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(true));
+    }
+
+    public void testErrStillRunsFailureHandlerWhenRetrieving() throws Exception {
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        final String policyId = "policy";
+        final String repoId = "repo";
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+             Client noOpClient = new NoOpClient("slm-test") {
+
+                 @Override
+                 @SuppressWarnings("unchecked")
+                 protected <Request extends ActionRequest, Response extends ActionResponse>
+                 void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                     if (request instanceof GetSnapshotsRequest) {
+                         logger.info("--> called");
+                         listener.onResponse((Response) new GetSnapshotsResponse(
+                             Collections.singleton(GetSnapshotsResponse.Response.snapshots(repoId, Collections.emptyList()))));
+                     } else {
+                         super.doExecute(action, request, listener);
+                     }
+                 }
+             }) {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
+                repoId, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
+
+            ClusterState state = createState(policy);
+            ClusterServiceUtils.setState(clusterService, state);
+
+            SnapshotRetentionTask task = new SnapshotRetentionTask(noOpClient, clusterService,
+                System::nanoTime,
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
+                    (historyItem) -> fail("should never write history")),
+                threadPool);
+
+            AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
+            task.getAllRetainableSnapshots(Collections.singleton(repoId), new ActionListener<>() {
+                @Override
+                public void onResponse(Map<String, List<SnapshotInfo>> stringListMap) {
+                    logger.info("--> forcing failure");
+                    throw new ElasticsearchException("forced failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("we have another err handler that should have been called");
+                }
+            }, errHandlerCalled::set);
+
+            assertNotNull(errHandlerCalled.get());
+            assertThat(errHandlerCalled.get().getMessage(), equalTo("forced failure"));
+        } finally {
+            threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testErrStillRunsFailureHandlerWhenDeleting() throws Exception {
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+             Client noOpClient = new NoOpClient("slm-test") {
+
+                 @Override
+                 @SuppressWarnings("unchecked")
+                 protected <Request extends ActionRequest, Response extends ActionResponse>
+                 void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                     if (request instanceof DeleteSnapshotRequest) {
+                         logger.info("--> called");
+                         listener.onResponse((Response) new AcknowledgedResponse(true));
+                     } else {
+                         super.doExecute(action, request, listener);
+                     }
+                 }
+             }) {
+            final String policyId = "policy";
+            final String repoId = "repo";
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
+                repoId, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
+
+            ClusterState state = createState(policy);
+            ClusterServiceUtils.setState(clusterService, state);
+
+            SnapshotRetentionTask task = new SnapshotRetentionTask(noOpClient, clusterService,
+                System::nanoTime,
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
+                    (historyItem) -> fail("should never write history")),
+                threadPool);
+
+            AtomicBoolean onFailureCalled = new AtomicBoolean(false);
+            AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
+            task.deleteSnapshot("policy", "foo", new SnapshotId("name", "uuid"),
+                new SnapshotLifecycleStats(0, 0, 0, 0, new HashMap<>()), new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        logger.info("--> forcing failure");
+                        throw new ElasticsearchException("forced failure");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        onFailureCalled.set(true);
+                    }
+                });
+
+            assertThat(onFailureCalled.get(), equalTo(true));
+        } finally {
+            threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
+        }
     }
 
     public void testSkipWhileStopping() throws Exception {

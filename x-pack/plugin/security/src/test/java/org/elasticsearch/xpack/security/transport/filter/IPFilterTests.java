@@ -59,6 +59,7 @@ public class IPFilterTests extends ESTestCase {
     @Before
     public void init() {
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isIpFilteringAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         auditTrail = mock(AuditTrail.class);

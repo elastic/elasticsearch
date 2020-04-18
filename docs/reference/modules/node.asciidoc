@@ -52,10 +52,9 @@ fails to start.
 
 <<transform-node,{transform-cap} node>>::
 
-A node that has `xpack.transform.enabled` and `node.transform` set to `true`. If
-you want to use {transforms}, there must be at least one {transform} node in
-your cluster. For more information, see <<transform-settings>> and
-<<transforms>>.
+A node that has `node.transform` set to `true`. If you want to use {transforms},
+there must be at least one {transform} node in your cluster. For more
+information, see <<transform-settings>> and <<transforms>>.
 
 [NOTE]
 [[coordinating-node]]
@@ -126,8 +125,7 @@ node.ingest: false <4>
 node.ml: false <5>
 xpack.ml.enabled: true <6>
 node.transform: false <7>
-xpack.transform.enabled: true <8>
-node.remote_client_client: false <9>
+node.remote_client_client: false <8>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> The `node.voting_only` role is disabled by default.
@@ -136,8 +134,7 @@ node.remote_client_client: false <9>
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
 <7> Disable the `node.transform` role.
-<8> The `xpack.transform.enabled` setting is enabled by default.
-<9> Disable remote cluster connections (enabled by default).
+<8> Disable remote cluster connections (enabled by default).
 
 To create a dedicated master-eligible node in the {oss-dist}, set:
 
@@ -209,8 +206,7 @@ node.ingest: false <4>
 node.ml: false <5>
 xpack.ml.enabled: true <6>
 node.transform: false <7>
-xpack.transform.enabled: true <8>
-node.remote_cluster_client: false <9>
+node.remote_cluster_client: false <8>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> Enable the `node.voting_only` role (disabled by default).
@@ -219,8 +215,7 @@ node.remote_cluster_client: false <9>
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
 <7> Disable the `node.transform` role.
-<8> The `xpack.transform.enabled` setting is enabled by default.
-<9> Disable remote cluster connections (enabled by default).
+<8> Disable remote cluster connections (enabled by default).
 
 [float]
 [[data-node]]
@@ -243,8 +238,7 @@ node.data: true <3>
 node.ingest: false <4>
 node.ml: false <5>
 node.transform: false <6>
-xpack.transform.enabled: true <7>
-node.remote_cluster_client: false <8>
+node.remote_cluster_client: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
@@ -252,8 +246,7 @@ node.remote_cluster_client: false <8>
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
 <6> Disable the `node.transform` role.
-<7> The `xpack.transform.enabled` setting is enabled by default.
-<8> Disable remote cluster connections (enabled by default).
+<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
@@ -343,8 +336,7 @@ node.ingest: false <4>
 node.ml: false <5>
 xpack.ml.enabled: true <6>
 node.transform: false <7>
-xpack.transform.enabled: true <8>
-node.remote_cluster_client: false <9>
+node.remote_cluster_client: false <8>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
@@ -353,8 +345,7 @@ node.remote_cluster_client: false <9>
 <5> Disable the `node.ml` role (enabled by default).
 <6> The `xpack.ml.enabled` setting is enabled by default.
 <7> Disable the `node.transform` role.
-<8> The `xpack.transform.enabled` setting is enabled by default.
-<9> Disable remote cluster connections (enabled by default).
+<8> Disable remote cluster connections (enabled by default).
 
 To create a dedicated coordinating node in the {oss-dist}, set:
 
@@ -396,8 +387,7 @@ node.ingest: false <4>
 node.ml: true <5>
 xpack.ml.enabled: true <6>
 node.transform: false <7>
-xpack.transform.enabled: true <8>
-node.remote_cluster_client: false <9>
+node.remote_cluster_client: false <8>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
@@ -406,8 +396,7 @@ node.remote_cluster_client: false <9>
 <5> The `node.ml` role is enabled by default.
 <6> The `xpack.ml.enabled` setting is enabled by default.
 <7> Disable the `node.transform` role.
-<8> The `xpack.transform.enabled` setting is enabled by default.
-<9> Disable remote cluster connections (enabled by default).
+<8> Disable remote cluster connections (enabled by default).
 
 [discrete]
 [[transform-node]]
@@ -415,13 +404,13 @@ node.remote_cluster_client: false <9>
 
 {transform-cap} nodes run {transforms} and handle {transform} API requests.
 
-If you want to use {transforms} in your cluster, you must have
-`xpack.transform.enabled` set to `true` on all master-eligible nodes and all
-data nodes. If you want to use {transforms} in clients (including {kib}), it
-must also be enabled on all coordinating nodes. You must also have
-`node.transform` set to `true` on at least one node. This is the default
-behavior. If you have the {oss-dist}, do not use these settings. For more
-information, see <<transform-settings>>.
+If you want to use {transforms} in your cluster, you must not have
+`xpack.transform.enabled` set to `false` on any master-eligible or data
+nodes. To use {transforms} in clients (including {kib}), do not disable this
+setting on any coordinating nodes. You must also have `node.transform` set to
+`true` on at least one node. This is the default behavior. If you have the
+{oss-dist}, do not use these settings. For more information, see
+<<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 
@@ -433,8 +422,7 @@ node.data: false <3>
 node.ingest: false <4>
 node.ml: false <5>
 node.transform: true <6>
-xpack.transform.enabled: true <7>
-node.remote_cluster_client: false <8>
+node.remote_cluster_client: false <7>
 -------------------
 <1> Disable the `node.master` role.
 <2> Disable the `node.voting_only`.
@@ -442,8 +430,7 @@ node.remote_cluster_client: false <8>
 <4> Disable the `node.ingest` role.
 <5> Disable the `node.ml` role.
 <6> Enable the `node.transform` role.
-<7> Enable the `xpack.transform.enabled` setting.
-<8> Disable remote cluster connections.
+<7> Disable remote cluster connections.
 
 [float]
 [[change-node-role]]

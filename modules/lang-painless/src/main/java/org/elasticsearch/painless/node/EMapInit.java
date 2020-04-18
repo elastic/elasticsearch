@@ -119,7 +119,7 @@ public class EMapInit extends AExpression {
             valueOutputs.add(expressionOutput);
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         MapInitializationNode mapInitializationNode = new MapInitializationNode();
 

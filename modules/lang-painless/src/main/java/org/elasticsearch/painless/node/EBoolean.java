@@ -55,7 +55,7 @@ public class EBoolean extends AExpression {
 
         Output output = new Output();
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(boolean.class));
+        semanticScope.putDecoration(this, new Decorator.ValueType(boolean.class));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

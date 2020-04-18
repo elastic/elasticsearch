@@ -154,7 +154,7 @@ public class EFunctionRef extends AExpression {
             }
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         return output;
     }

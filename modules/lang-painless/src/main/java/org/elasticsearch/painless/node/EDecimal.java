@@ -85,7 +85,7 @@ public class EDecimal extends AExpression {
             }
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

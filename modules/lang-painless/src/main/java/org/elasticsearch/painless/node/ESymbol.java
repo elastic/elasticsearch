@@ -99,7 +99,7 @@ public class ESymbol extends AExpression {
         }
 
         if (valueType != null) {
-            semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+            semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
         }
 
         return output;

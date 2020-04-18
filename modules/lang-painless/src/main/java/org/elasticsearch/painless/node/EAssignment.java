@@ -201,7 +201,7 @@ public class EAssignment extends AExpression {
         }
 
         Decorator.ValueType valueType = new Decorator.ValueType(input.read ? leftValueType : void.class);
-        semanticScope.addDecoration(this, valueType);
+        semanticScope.putDecoration(this, valueType);
 
         AssignmentNode assignmentNode = new AssignmentNode();
 

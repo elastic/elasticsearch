@@ -190,7 +190,7 @@ public class ECallLocal extends AExpression {
 
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         MemberCallNode memberCallNode = new MemberCallNode();
 

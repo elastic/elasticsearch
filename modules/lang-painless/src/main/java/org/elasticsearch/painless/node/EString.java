@@ -56,7 +56,7 @@ public class EString extends AExpression {
         }
 
         Output output = new Output();
-        semanticScope.addDecoration(this, new Decorator.ValueType(String.class));
+        semanticScope.putDecoration(this, new Decorator.ValueType(String.class));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

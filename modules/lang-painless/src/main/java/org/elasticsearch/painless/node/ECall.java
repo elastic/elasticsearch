@@ -190,7 +190,7 @@ public class ECall extends AExpression {
             expressionNode = nullSafeSubNode;
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         CallNode callNode = new CallNode();
         callNode.setLeftNode(prefixOutput.expressionNode);

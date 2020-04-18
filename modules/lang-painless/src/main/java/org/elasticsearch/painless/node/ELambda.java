@@ -227,7 +227,7 @@ public class ELambda extends AExpression {
             referenceNode = typedInterfaceReferenceNode;
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         FunctionNode functionNode = new FunctionNode();
         functionNode.setBlockNode((BlockNode)blockOutput.statementNode);

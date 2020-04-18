@@ -172,7 +172,7 @@ public class EBinary extends AExpression {
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         BinaryMathNode binaryMathNode = new BinaryMathNode();
         binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));

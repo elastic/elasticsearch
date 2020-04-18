@@ -59,7 +59,7 @@ public class ENull extends AExpression {
             valueType = Object.class;
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         NullNode nullNode = new NullNode();
         nullNode.setLocation(getLocation());

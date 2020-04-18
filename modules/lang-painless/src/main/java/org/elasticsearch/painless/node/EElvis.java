@@ -112,7 +112,7 @@ public class EElvis extends AExpression {
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         ElvisNode elvisNode = new ElvisNode();
         elvisNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));

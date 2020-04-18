@@ -96,7 +96,7 @@ public class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(Pattern.class));
+        semanticScope.putDecoration(this, new Decorator.ValueType(Pattern.class));
 
         String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
 

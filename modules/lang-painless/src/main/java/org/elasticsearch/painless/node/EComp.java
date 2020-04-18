@@ -118,7 +118,7 @@ public class EComp extends AExpression {
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(boolean.class));
+        semanticScope.putDecoration(this, new Decorator.ValueType(boolean.class));
 
         ComparisonNode comparisonNode = new ComparisonNode();
 

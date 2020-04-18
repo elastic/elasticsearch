@@ -77,7 +77,7 @@ public class EExplicit extends AExpression {
         PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                 childValueType, childInput.expected, childInput.explicit, childInput.internal);
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         Output output = new Output();
         output.expressionNode = cast(childOutput.expressionNode, childCast);

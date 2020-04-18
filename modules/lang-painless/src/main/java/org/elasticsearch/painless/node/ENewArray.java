@@ -93,7 +93,7 @@ public class ENewArray extends AExpression {
                     valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         NewArrayNode newArrayNode = new NewArrayNode();
 

@@ -111,7 +111,7 @@ public class ENewObj extends AExpression {
                     argumentValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         NewObjectNode newObjectNode = new NewObjectNode();
 

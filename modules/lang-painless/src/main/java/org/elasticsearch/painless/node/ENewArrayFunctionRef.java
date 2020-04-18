@@ -95,7 +95,7 @@ public class ENewArrayFunctionRef extends AExpression {
             output.expressionNode = typedInterfaceReferenceNode;
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         VariableNode variableNode = new VariableNode();
         variableNode.setLocation(getLocation());

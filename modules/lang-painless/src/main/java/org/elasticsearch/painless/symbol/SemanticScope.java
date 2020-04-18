@@ -296,8 +296,8 @@ public abstract class SemanticScope {
         return scriptScope;
     }
 
-    public <T> T addDecoration(ANode node, T decoration) {
-        return scriptScope.add(node.getIdentifier(), decoration);
+    public <T> T putDecoration(ANode node, T decoration) {
+        return scriptScope.put(node.getIdentifier(), decoration);
     }
 
     public <T> T removeDecoration(ANode node, Class<T> type) {
@@ -306,6 +306,10 @@ public abstract class SemanticScope {
 
     public <T> T getDecoration(ANode node, Class<T> type) {
         return scriptScope.get(node.getIdentifier(), type);
+    }
+
+    public <T> boolean copyDecoration(ANode originalNode, ANode targetNode, Class<T> type) {
+        return scriptScope.copy(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }
 
     public boolean setCondition(ANode node, Class<?> type) {
@@ -318,6 +322,10 @@ public abstract class SemanticScope {
 
     public boolean getCondition(ANode node, Class<?> type) {
         return scriptScope.exists(node.getIdentifier(), type);
+    }
+
+    public <T> boolean replicateCondition(ANode originalNode, ANode targetNode, Class<T> type) {
+        return scriptScope.replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }
 
     public abstract Class<?> getReturnType();

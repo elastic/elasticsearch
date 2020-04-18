@@ -93,7 +93,7 @@ public class EInstanceof extends AExpression {
         expressionType = expressionValueType.isPrimitive() ?
             PainlessLookupUtility.typeToBoxedType(expressionValueType) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(boolean.class));
+        semanticScope.putDecoration(this, new Decorator.ValueType(boolean.class));
 
         InstanceofNode instanceofNode = new InstanceofNode();
         instanceofNode.setChildNode(expressionOutput.expressionNode);

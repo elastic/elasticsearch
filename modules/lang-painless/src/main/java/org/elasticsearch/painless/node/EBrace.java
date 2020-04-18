@@ -200,7 +200,7 @@ public class EBrace extends AExpression {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."));
         }
 
-        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
 
         BraceNode braceNode = new BraceNode();
         braceNode.setLeftNode(prefixOutput.expressionNode);

@@ -19,44 +19,13 @@
 
 package org.elasticsearch.painless.symbol;
 
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 public class Decorator {
-
-    public static class Read {
-        private Read() {
-            // do nothing
-        }
-    }
-
-    public static class Write {
-        private Write() {
-            // do nothing
-        }
-    }
-
-    public static class ValueType {
-        private final Class<?> valueType;
-
-        public ValueType(Class<?> valueType) {
-            this.valueType = Objects.requireNonNull(valueType);
-        }
-
-        public Class<?> getValueType() {
-            return valueType;
-        }
-
-        public String getCanonicalTypeName() {
-            return PainlessLookupUtility.typeToCanonicalTypeName(valueType);
-        }
-    }
 
     private final ArrayList<Map<Class<?>, Object>> decorations;
     private final ArrayList<Set<Class<?>>> conditions;
@@ -72,7 +41,7 @@ public class Decorator {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T add(int identifier, T decoration) {
+    public <T> T put(int identifier, T decoration) {
         return (T)decorations.get(identifier).put(decoration.getClass(), decoration);
     }
 
@@ -82,6 +51,18 @@ public class Decorator {
 
     public <T> T get(int identifier, Class<T> type) {
         return type.cast(decorations.get(identifier).get(type));
+    }
+
+    public <T> boolean copy(int originalIdentifier, int targetIdentifier, Class<T> type) {
+        T decoration = get(originalIdentifier, type);
+
+        if (decoration != null) {
+            put(targetIdentifier, decoration);
+
+            return true;
+        }
+
+        return false;
     }
 
     public boolean set(int identifier, Class<?> type) {
@@ -94,5 +75,15 @@ public class Decorator {
 
     public boolean exists(int identifier, Class<?> type) {
         return conditions.get(identifier).contains(type);
+    }
+
+    public <T> boolean replicate(int originalIdentifier, int targetIdentifier, Class<T> type) {
+        if (exists(originalIdentifier, type)) {
+            set(targetIdentifier, type);
+
+            return true;
+        }
+
+        return false;
     }
 }

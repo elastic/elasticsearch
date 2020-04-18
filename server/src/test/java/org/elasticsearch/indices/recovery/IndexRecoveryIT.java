@@ -755,8 +755,18 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             ).get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        int numDocs = scaledRandomIntBetween(25, 250);
-        for (int i = 0; i < numDocs; i++) {
+        int numDocs = scaledRandomIntBetween(6000, 8000);
+        // Index 3/4 of the documents and flush. And then index the rest. This attempts to ensure that there
+        // is a mix of file chunks and translog ops
+        int threeFourths = (int) (numDocs * 0.75);
+        for (int i = 0; i < threeFourths; i++) {
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        flush(indexName);
+        requests.clear();
+
+        for (int i = threeFourths; i < numDocs; i++) {
             requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
@@ -828,7 +838,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         @Override
         public void messageReceived(TransportRequestHandler<TransportRequest> handler, TransportRequest request, TransportChannel channel,
                                     Task task) throws Exception {
-            if (blocksRemaining.getAndDecrement() != 0) {
+            if (blocksRemaining.updateAndGet(i -> i == 0 ? 0 : i - 1) != 0) {
                 logger.info("--> preventing {} response by throwing exception", actionName);
                 if (randomBoolean()) {
                     throw new EsRejectedExecutionException();

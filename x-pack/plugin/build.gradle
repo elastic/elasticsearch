@@ -30,7 +30,7 @@ subprojects {
         dependsOn project.configurations.featureAwarePlugin
         outputs.file(successMarker)
 
-        executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        executable = "${BuildParams.compilerJavaHome}/bin/java"
 
         // default to main class files if such a source set exists
         final List files = []

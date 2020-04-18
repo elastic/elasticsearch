@@ -65,7 +65,7 @@ dependencies {
   compile "net.jcip:jcip-annotations:1.0"
   compile "net.minidev:json-smart:2.3"
   compile "net.minidev:accessors-smart:1.2"
-  compile "org.ow2.asm:asm:7.1"
+  compile "org.ow2.asm:asm:7.3.1"
 
   testCompile 'org.elasticsearch:securemock:1.2'
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"

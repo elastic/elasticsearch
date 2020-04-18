@@ -97,6 +97,12 @@ public abstract class LocalTimeOffset {
          */
         long inGap(long localMillis, Gap gap);
         /**
+         * Handle a local time that happened before the start of a gap.
+         *
+         * @return the time in utc representing the local time
+         */
+        long beforeGap(long localMillis, Gap gap);
+        /**
          * Handle a local time that happened twice because an "overlap"
          * jumped behind it. This happens in many time zones when folks wind
          * their clocks back in the fall.
@@ -105,11 +111,11 @@ public abstract class LocalTimeOffset {
          */
         long inOverlap(long localMillis, Overlap overlap);
         /**
-         * Handle a local time that happened in a previous offset.
+         * Handle a local time that happened before the start of an overlap.
          *
          * @return the time in utc representing the local time
          */
-        long inPrevious(long localMillis, Transition currentTransition);
+        long beforeOverlap(long localMillis, Overlap overlap);
     }
 
     /**
@@ -134,15 +140,18 @@ public abstract class LocalTimeOffset {
             return gap.startUtcMillis();
         }
 
+        public long beforeGap(long localMillis, Gap gap) {
+            return gap.previous().localToUtc(localMillis, FIRST_STRAT);
+        };
+
         @Override
         public long inOverlap(long localMillis, Overlap overlap) {
             return overlap.previous().localToUtc(localMillis, FIRST_STRAT);
         }
 
-        @Override
-        public long inPrevious(long localMillis, Transition currentTransition) {
-            return currentTransition.previous().localToUtc(localMillis, FIRST_STRAT);
-        }
+        public long beforeOverlap(long localMillis, Overlap overlap) {
+            return overlap.previous().localToUtc(localMillis, FIRST_STRAT);
+        };
     };
 
     private static class NoPrevious extends LocalTimeOffset {
@@ -205,7 +214,7 @@ public abstract class LocalTimeOffset {
             if (localMillis >= firstMissingLocalTime) {
                 return strat.inGap(localMillis, this);
             }
-            return strat.inPrevious(localMillis, this);
+            return strat.beforeGap(localMillis, this);
         }
 
         /**
@@ -241,7 +250,7 @@ public abstract class LocalTimeOffset {
             if (localMillis >= firstOverlappingLocalTime) {
                 return strat.inOverlap(localMillis, this);
             }
-            return strat.inPrevious(localMillis, this);
+            return strat.beforeOverlap(localMillis, this);
         }
 
         /**

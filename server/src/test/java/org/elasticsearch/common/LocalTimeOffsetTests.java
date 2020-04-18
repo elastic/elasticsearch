@@ -4,7 +4,6 @@ import org.elasticsearch.common.LocalTimeOffset.FixedLookup;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
 import org.elasticsearch.common.LocalTimeOffset.PreBuiltOffsetLookup;
-import org.elasticsearch.common.LocalTimeOffset.Transition;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
@@ -168,7 +167,9 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(secondMidnightOffset.localToFirstUtc(localOverlappingTime),
                 equalTo(firstMidnightOffset.localToFirstUtc(localOverlappingTime)));
 
-        assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, usePrevious()), equalTo(firstMidnight - 1));
+        long beforeOverlapValue = randomLong();
+        assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
+                equalTo(beforeOverlapValue));
         long overlapValue = randomLong();
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight, useValueForOverlap(overlapValue)), equalTo(overlapValue));
         assertThat(secondMidnightOffset.localToUtc(localOverlapEnds, unusedStrategy()), equalTo(overlapEnds));
@@ -200,7 +201,8 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(gapOffset.localToFirstUtc(localAtTransition), equalTo(transition));
         assertThat(gapOffset.localToFirstUtc(localSkippedTime), equalTo(transition));
 
-        assertThat(gapOffset.localToUtc(localBeforeTransition, usePrevious()), equalTo(transition - 1));
+        long beforeGapValue = randomLong();
+        assertThat(gapOffset.localToUtc(localBeforeTransition, useValueForBeforeGap(beforeGapValue)), equalTo(beforeGapValue));
         assertThat(gapOffset.localToUtc(localAtTransition, unusedStrategy()), equalTo(transition));
         long gapValue = randomLong();
         assertThat(gapOffset.localToUtc(localSkippedTime, useValueForGap(gapValue)), equalTo(gapValue));
@@ -234,7 +236,13 @@ public class LocalTimeOffsetTests extends ESTestCase {
     private static LocalTimeOffset.Strategy unusedStrategy() {
         return new LocalTimeOffset.Strategy() {
             @Override
-            public long inPrevious(long localMillis, Transition currentTransition) {
+            public long inGap(long localMillis, Gap gap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
                 fail("Shouldn't be called");
                 return 0;
             }
@@ -246,28 +254,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
             }
 
             @Override
-            public long inGap(long localMillis, Gap gap) {
-                fail("Shouldn't be called");
-                return 0;
-            }
-        };
-    }
-
-    private static LocalTimeOffset.Strategy usePrevious() {
-        return new LocalTimeOffset.Strategy() {
-            @Override
-            public long inPrevious(long localMillis, Transition currentTransition) {
-                return currentTransition.previous().localToUtc(localMillis, this);
-            }
-
-            @Override
-            public long inOverlap(long localMillis, Overlap overlap) {
-                fail("Shouldn't be called");
-                return 0;
-            }
-
-            @Override
-            public long inGap(long localMillis, Gap gap) {
+            public long beforeOverlap(long localMillis, Overlap overlap) {
                 fail("Shouldn't be called");
                 return 0;
             }
@@ -277,7 +264,12 @@ public class LocalTimeOffsetTests extends ESTestCase {
     private static LocalTimeOffset.Strategy useValueForGap(long gapValue) {
         return new LocalTimeOffset.Strategy() {
             @Override
-            public long inPrevious(long localMillis, Transition currentTransition) {
+            public long inGap(long localMillis, Gap gap) {
+                return gapValue;
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
                 fail("Shouldn't be called");
                 return 0;
             }
@@ -289,8 +281,36 @@ public class LocalTimeOffsetTests extends ESTestCase {
             }
 
             @Override
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+        };
+    }
+
+    private static LocalTimeOffset.Strategy useValueForBeforeGap(long beforeGapValue) {
+        return new LocalTimeOffset.Strategy() {
+            @Override
             public long inGap(long localMillis, Gap gap) {
-                return gapValue;
+                fail("Shouldn't be called");
+                return 0;
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
+                return beforeGapValue;
+            }
+
+            @Override
+            public long inOverlap(long localMillis, Overlap overlap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+
+            @Override
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                fail("Shouldn't be called");
+                return 0;
             }
         };
     }
@@ -298,7 +318,13 @@ public class LocalTimeOffsetTests extends ESTestCase {
     private static LocalTimeOffset.Strategy useValueForOverlap(long overlapValue) {
         return new LocalTimeOffset.Strategy() {
             @Override
-            public long inPrevious(long localMillis, Transition currentTransition) {
+            public long inGap(long localMillis, Gap gap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
                 fail("Shouldn't be called");
                 return 0;
             }
@@ -309,9 +335,37 @@ public class LocalTimeOffsetTests extends ESTestCase {
             }
 
             @Override
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+        };
+    }
+
+
+    private static LocalTimeOffset.Strategy useValueForBeforeOverlap(long beforeOverlapValue) {
+        return new LocalTimeOffset.Strategy() {
+            @Override
             public long inGap(long localMillis, Gap gap) {
                 fail("Shouldn't be called");
                 return 0;
+            }
+
+            @Override
+            public long beforeGap(long localMillis, Gap gap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+
+            @Override
+            public long inOverlap(long localMillis, Overlap overlap) {
+                fail("Shouldn't be called");
+                return 0;
+            }
+
+            @Override
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                return beforeOverlapValue;
             }
         };
     }

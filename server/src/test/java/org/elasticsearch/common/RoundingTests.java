@@ -262,7 +262,12 @@ public class RoundingTests extends ESTestCase {
             LongUnaryOperator javaTimeRounder = rounding.javaTimeRounder();
             for (int d = 0; d < 1000; d++) {
                 date = dateBetween(bounds[0], bounds[1]);
-                assertThat(rounder.applyAsLong(date), equalTo(javaTimeRounder.applyAsLong(date)));
+                long javaRounded = javaTimeRounder.applyAsLong(date);
+                long esRounded = rounder.applyAsLong(date);
+                if (javaRounded != esRounded) {
+                    fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+                }
             }
         }
     }
@@ -715,6 +720,23 @@ public class RoundingTests extends ESTestCase {
         long midnightAfterTransition = time("1990-04-01T00:00:00.000-05:00");
         nextMidnight = time("1990-04-02T00:00:00.000-05:00");
         assertInterval(midnightAfterTransition, nextMidnight, rounding, 24 * 60, tz);
+    }
+
+    public void testBeforeOverlapLarge() {
+        // Moncton has a perfectly normal hour long Daylight Savings time.
+        ZoneId tz = ZoneId.of("America/Moncton");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2003-10-26T03:43:35.079Z")), isDate(time("2003-10-26T03:00:00Z"), tz));
+    }
+
+    public void testBeforeOverlapSmall() {
+        /*
+         * Lord Howe is fun because Daylight Savings time is only 30 minutes
+         * so we round HOUR_OF_DAY differently.
+         */
+        ZoneId tz = ZoneId.of("Australia/Lord_Howe");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,

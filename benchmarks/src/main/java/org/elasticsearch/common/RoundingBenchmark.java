@@ -32,6 +32,9 @@ public class RoundingBenchmark {
     private final LongUnaryOperator javaRounding = rounding.javaTimeRounder();
     private final LongUnaryOperator esRounding = rounding.rounder(min, max);
 
+    // NOCOMMIT include building rounding in benchmark
+    // NOCOMMIT a "short range" test and a "broad range" test
+    // NOCOMMIT a "single round" test
     private long[] dates;
 
     public RoundingBenchmark() {

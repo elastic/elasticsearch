@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
-import org.elasticsearch.common.LocalTimeOffset.Transition;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -347,7 +346,7 @@ public abstract class Rounding implements Writeable {
                     return unit.roundFloor(localMillis) - fixedOffsetMillis;
                 };
             }
-            if (FORCE_JAVA_TIME_ROUNDING) {
+            if (FORCE_JAVA_TIME_ROUNDING) { // NOCOMMIT just for testing against all tests
                 return javaTimeRounder();
             }
             LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(
@@ -388,15 +387,22 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
+            public long beforeGap(long localMillis, Gap gap) {
+                return inGap(localMillis, gap);
+            }
+
+            @Override
             public long inOverlap(long localMillis, Overlap overlap) {
                 // Convert the overlap at this offset because that'll produce the largest result.
                 return overlap.localToUtcInThisOffset(localMillis);
             }
 
             @Override
-            public long inPrevious(long localMillis, Transition currentTransition) {
-                return Math.max(currentTransition.localToUtcInThisOffset(localMillis),
-                    currentTransition.previous().localToUtc(localMillis, this));
+            public long beforeOverlap(long localMillis, Overlap overlap) {
+                if (overlap.firstNonOverlappingLocalTime() - overlap.firstOverlappingLocalTime() >= unit.field.getBaseUnit().getDuration().toMillis()) {
+                    return overlap.localToUtcInThisOffset(localMillis);
+                }
+                return overlap.previous().localToUtc(localMillis, this); // This is only right in Lord_Howe
             }
         }
 

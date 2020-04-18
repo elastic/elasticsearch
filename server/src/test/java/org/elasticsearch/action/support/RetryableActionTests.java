@@ -43,7 +43,7 @@ public class RetryableActionTests extends ESTestCase {
         super.setUp();
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         taskQueue = new DeterministicTaskQueue(settings, random());
-    }
+    }BytesArrayTests
 
     public void testRetryableActionNoRetries() {
         final AtomicInteger executedCount = new AtomicInteger();

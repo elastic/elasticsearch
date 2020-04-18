@@ -272,11 +272,6 @@ public class RoundingTests extends ESTestCase {
         }
     }
 
-    public void testDummy() { // NOCOMMIT remove me
-        Rounding rounding = new Rounding.TimeUnitRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, ZoneId.of("America/New_York"));
-        rounding.round(System.currentTimeMillis());
-    }
-
     /**
      * To be even more nasty, go to a transition in the selected time zone.
      * In one third of the cases stay there, otherwise go half a unit back or forth
@@ -737,6 +732,17 @@ public class RoundingTests extends ESTestCase {
         ZoneId tz = ZoneId.of("Australia/Lord_Howe");
         Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
         assertThat(rounding.round(time("2018-03-31T15:25:15.148Z")), isDate(time("2018-03-31T14:00:00Z"), tz));
+    }
+
+    public void testQuarterOfYear() {
+        /*
+         * If we're not careful with how we look up local time offsets we can
+         * end up not loading the offsets far enough back to round this time
+         * to QUARTER_OF_YEAR properly.
+         */
+        ZoneId tz = ZoneId.of("Asia/Baghdad");
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).timeZone(tz).build();
+        assertThat(rounding.round(time("2006-12-31T13:21:44.308Z")), isDate(time("2006-09-30T20:00:00Z"), tz));
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,

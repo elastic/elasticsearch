@@ -353,7 +353,9 @@ public class EDot extends AExpression {
             output.expressionNode = dotNode;
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        if (valueType != null) {
+            semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        }
 
         return output;
     }

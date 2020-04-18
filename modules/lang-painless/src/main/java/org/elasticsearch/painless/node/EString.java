@@ -56,11 +56,11 @@ public class EString extends AExpression {
         }
 
         Output output = new Output();
-        output.actual = String.class;
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(String.class));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(String.class);
         constantNode.setConstant(string);
 
         output.expressionNode = constantNode;

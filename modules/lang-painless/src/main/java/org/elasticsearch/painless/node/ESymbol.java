@@ -50,6 +50,7 @@ public class ESymbol extends AExpression {
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
+        Class<?> valueType = null;
         Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
         boolean write = semanticScope.getCondition(this, SemanticDecorator.Write.class);
 
@@ -64,13 +65,13 @@ public class ESymbol extends AExpression {
                         "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
             }
 
-            output.actual = type;
+            valueType = type;
             output.isStaticType = true;
 
             StaticNode staticNode = new StaticNode();
 
             staticNode.setLocation(getLocation());
-            staticNode.setExpressionType(output.actual);
+            staticNode.setExpressionType(valueType);
 
             output.expressionNode = staticNode;
         } else if (semanticScope.isVariableDefined(symbol)) {
@@ -84,17 +85,21 @@ public class ESymbol extends AExpression {
                 throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
             }
 
-            output.actual = variable.getType();
+            valueType = variable.getType();
 
             VariableNode variableNode = new VariableNode();
 
             variableNode.setLocation(getLocation());
-            variableNode.setExpressionType(output.actual);
+            variableNode.setExpressionType(valueType);
             variableNode.setName(symbol);
 
             output.expressionNode = variableNode;
         } else {
             output.partialCanonicalTypeName = symbol;
+        }
+
+        if (valueType != null) {
+            semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
         }
 
         return output;

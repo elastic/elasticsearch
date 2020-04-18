@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ReturnNode;
@@ -62,8 +63,9 @@ public class SReturn extends AStatement {
             expressionInput.expected = semanticScope.getReturnType();
             expressionInput.internal = true;
             expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope, expressionInput);
+            Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, SemanticDecorator.ValueType.class).getValueType();
             expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
+                    expressionValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
         output.methodEscape = true;

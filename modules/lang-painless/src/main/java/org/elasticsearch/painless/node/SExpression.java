@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
@@ -55,13 +56,14 @@ public class SExpression extends AStatement {
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.read = input.lastSource && !isVoid;
         AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope, expressionInput);
+        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, SemanticDecorator.ValueType.class).getValueType();
 
-        boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
+        boolean rtn = input.lastSource && isVoid == false && expressionValueType != void.class;
 
-        expressionInput.expected = rtn ? rtnType : expressionOutput.actual;
+        expressionInput.expected = rtn ? rtnType : expressionValueType;
         expressionInput.internal = rtn;
         PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
-                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
+                expressionValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         Output output = new Output();
         output.methodEscape = rtn;

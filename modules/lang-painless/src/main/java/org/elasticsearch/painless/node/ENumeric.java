@@ -66,6 +66,7 @@ public class ENumeric extends AExpression {
         }
 
         Output output = new Output();
+        Class<?> valueType;
         Object constant;
 
         String numeric = negate ? "-" + this.numeric : this.numeric;
@@ -77,7 +78,7 @@ public class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(numeric.substring(0, numeric.length() - 1));
-                output.actual = double.class;
+                valueType = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + numeric + "]."));
             }
@@ -88,14 +89,14 @@ public class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(numeric.substring(0, numeric.length() - 1));
-                output.actual = float.class;
+                valueType = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + numeric + "]."));
             }
         } else if (numeric.endsWith("l") || numeric.endsWith("L")) {
             try {
                 constant = Long.parseLong(numeric.substring(0, numeric.length() - 1), radix);
-                output.actual = long.class;
+                valueType = long.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid long constant [" + numeric + "]."));
             }
@@ -106,16 +107,16 @@ public class ENumeric extends AExpression {
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    output.actual = byte.class;
+                    valueType = byte.class;
                 } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    output.actual = char.class;
+                    valueType = char.class;
                 } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    output.actual = short.class;
+                    valueType = short.class;
                 } else {
                     constant = integer;
-                    output.actual = int.class;
+                    valueType = int.class;
                 }
             } catch (NumberFormatException exception) {
                 try {
@@ -130,11 +131,12 @@ public class ENumeric extends AExpression {
             }
         }
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(valueType);
         constantNode.setConstant(constant);
-
         output.expressionNode = constantNode;
 
         return output;

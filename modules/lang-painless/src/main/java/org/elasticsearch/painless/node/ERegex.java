@@ -96,8 +96,9 @@ public class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(Pattern.class));
+
         String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
-        output.actual = Pattern.class;
 
         FieldNode fieldNode = new FieldNode();
         fieldNode.setLocation(getLocation());
@@ -174,7 +175,6 @@ public class ERegex extends AExpression {
         memberFieldLoadNode.setExpressionType(Pattern.class);
         memberFieldLoadNode.setName(name);
         memberFieldLoadNode.setStatic(true);
-
         output.expressionNode = memberFieldLoadNode;
 
         return output;

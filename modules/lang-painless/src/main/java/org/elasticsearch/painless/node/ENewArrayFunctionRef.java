@@ -64,7 +64,7 @@ public class ENewArrayFunctionRef extends AExpression {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
-
+        Class<?> valueType;
         Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
@@ -75,29 +75,27 @@ public class ENewArrayFunctionRef extends AExpression {
         scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
 
         if (input.expected == null) {
-            output.actual = String.class;
+            valueType = String.class;
             String defReferenceEncoding = "Sthis." + name + ",0";
 
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-
             defInterfaceReferenceNode.setLocation(getLocation());
-            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.setExpressionType(valueType);
             defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-
             output.expressionNode = defInterfaceReferenceNode;
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     getLocation(), input.expected, "this", name, 0);
-            output.actual = input.expected;
+            valueType = input.expected;
 
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-
             typedInterfaceReferenceNode.setLocation(getLocation());
-            typedInterfaceReferenceNode.setExpressionType(output.actual);
+            typedInterfaceReferenceNode.setExpressionType(valueType);
             typedInterfaceReferenceNode.setReference(ref);
-
             output.expressionNode = typedInterfaceReferenceNode;
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         VariableNode variableNode = new VariableNode();
         variableNode.setLocation(getLocation());

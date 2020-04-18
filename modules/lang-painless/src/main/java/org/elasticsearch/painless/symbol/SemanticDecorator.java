@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class SemanticDecorator {
@@ -39,7 +40,7 @@ public class SemanticDecorator {
         private final Class<?> valueType;
 
         public ValueType(Class<?> valueType) {
-            this.valueType = valueType;
+            this.valueType = Objects.requireNonNull(valueType);
         }
 
         public Class<?> getValueType() {

@@ -71,18 +71,17 @@ public class ENewObj extends AExpression {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
+        Class<?> valueType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        output.actual = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (output.actual == null) {
+        if (valueType == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(output.actual, argumentNodes.size());
+        PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(valueType, argumentNodes.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/" + argumentNodes.size() + "] not found"));
+                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + argumentNodes.size() + "] not found"));
         }
 
         scriptScope.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
@@ -92,7 +91,7 @@ public class ENewObj extends AExpression {
 
         if (constructor.typeParameters.size() != argumentNodes.size()) {
             throw createError(new IllegalArgumentException(
-                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "] " +
+                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(valueType) + "] " +
                     "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + argumentNodes.size() + "]."));
         }
 
@@ -107,9 +106,12 @@ public class ENewObj extends AExpression {
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
             argumentOutputs.add(expressionOutput);
+            Class<?> argumentValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+                    argumentValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         NewObjectNode newObjectNode = new NewObjectNode();
 
@@ -118,7 +120,7 @@ public class ENewObj extends AExpression {
         }
 
         newObjectNode.setLocation(getLocation());
-        newObjectNode.setExpressionType(output.actual);
+        newObjectNode.setExpressionType(valueType);
         newObjectNode.setRead(input.read);
         newObjectNode.setConstructor(constructor);
 

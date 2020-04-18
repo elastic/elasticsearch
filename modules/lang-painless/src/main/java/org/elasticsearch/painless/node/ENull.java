@@ -46,6 +46,7 @@ public class ENull extends AExpression {
         }
 
         Output output = new Output();
+        Class<?> valueType;
 
         if (input.expected != null) {
             if (input.expected.isPrimitive()) {
@@ -53,16 +54,16 @@ public class ENull extends AExpression {
                     "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]."));
             }
 
-            output.actual = input.expected;
+            valueType = input.expected;
         } else {
-            output.actual = Object.class;
+            valueType = Object.class;
         }
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+
         NullNode nullNode = new NullNode();
-
         nullNode.setLocation(getLocation());
-        nullNode.setExpressionType(output.actual);
-
+        nullNode.setExpressionType(valueType);
         output.expressionNode = nullNode;
 
         return output;

@@ -72,19 +72,19 @@ public class EMapInit extends AExpression {
         }
 
         Output output = new Output();
-        output.actual = HashMap.class;
+        Class<?> valueType = HashMap.class;
 
-        PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
+        PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
+                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
         }
 
-        PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(output.actual, false, "put", 2);
+        PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "put", 2);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", put/2] not found"));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", put/2] not found"));
         }
 
         if (keyNodes.size() != valueNodes.size()) {
@@ -102,20 +102,24 @@ public class EMapInit extends AExpression {
             expressionInput.expected = def.class;
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
+            Class<?> keyValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
             keyOutputs.add(expressionOutput);
             keyCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+                    keyValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
             expression = valueNodes.get(i);
             expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
             expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
+            Class<?> valueValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
             valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+                    valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
             valueOutputs.add(expressionOutput);
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         MapInitializationNode mapInitializationNode = new MapInitializationNode();
 
@@ -126,7 +130,7 @@ public class EMapInit extends AExpression {
         }
 
         mapInitializationNode.setLocation(getLocation());
-        mapInitializationNode.setExpressionType(output.actual);
+        mapInitializationNode.setExpressionType(valueType);
         mapInitializationNode.setConstructor(constructor);
         mapInitializationNode.setMethod(method);
 

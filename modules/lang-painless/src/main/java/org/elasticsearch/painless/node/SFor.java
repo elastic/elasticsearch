@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -94,8 +95,9 @@ public class SFor extends AStatement {
             AExpression.Input conditionInput = new AExpression.Input();
             conditionInput.expected = boolean.class;
             conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope, conditionInput);
+            Class<?> conditionValueType = semanticScope.getDecoration(conditionNode, SemanticDecorator.ValueType.class).getValueType();
             conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
-                    conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
+                    conditionValueType, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
             if (conditionNode instanceof EBoolean) {
                 continuous = ((EBoolean)conditionNode).getBool();

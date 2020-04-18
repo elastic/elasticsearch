@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
@@ -79,8 +80,9 @@ public class SDeclaration extends AStatement {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = type;
             expressionOutput = AExpression.analyze(valueNode, classNode, semanticScope, expressionInput);
+            Class<?> valueValueType = semanticScope.getDecoration(valueNode, SemanticDecorator.ValueType.class).getValueType();
             expressionCast = AnalyzerCaster.getLegalCast(valueNode.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
+                    valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
         semanticScope.defineVariable(getLocation(), type, symbol, false);

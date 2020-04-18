@@ -73,9 +73,9 @@ public class ENewArray extends AExpression {
 
         Output output = new Output();
 
-        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        if (clazz == null) {
+        if (valueType == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
@@ -84,15 +84,16 @@ public class ENewArray extends AExpression {
 
         for (AExpression expression : valueNodes) {
             Input expressionInput = new Input();
-            expressionInput.expected = isInitializer ? clazz.getComponentType() : int.class;
+            expressionInput.expected = isInitializer ? valueType.getComponentType() : int.class;
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
+            Class<?> valueValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
             argumentOutputs.add(expressionOutput);
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+                    valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
-        output.actual = clazz;
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         NewArrayNode newArrayNode = new NewArrayNode();
 
@@ -101,9 +102,8 @@ public class ENewArray extends AExpression {
         }
 
         newArrayNode.setLocation(getLocation());
-        newArrayNode.setExpressionType(output.actual);
+        newArrayNode.setExpressionType(valueType);
         newArrayNode.setInitialize(isInitializer);
-
         output.expressionNode = newArrayNode;
 
         return output;

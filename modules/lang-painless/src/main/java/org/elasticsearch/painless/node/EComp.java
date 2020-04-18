@@ -79,14 +79,16 @@ public class EComp extends AExpression {
 
         Input leftInput = new Input();
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
 
         Input rightInput = new Input();
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
 
         if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
-            promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);
+            promotedType = AnalyzerCaster.promoteEquality(leftValueType, rightValueType);
         } else if (operation == Operation.GT || operation == Operation.GTE || operation == Operation.LT || operation == Operation.LTE) {
-            promotedType = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+            promotedType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
         } else {
             throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
         }
@@ -94,13 +96,13 @@ public class EComp extends AExpression {
         if (promotedType == null) {
             throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
                     "[" + operation.symbol + "] to the types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
         }
 
         if (operation != Operation.EQR && operation != Operation.NER && promotedType == def.class) {
-            leftInput.expected = leftOutput.actual;
-            rightInput.expected = rightOutput.actual;
+            leftInput.expected = leftValueType;
+            rightInput.expected = rightValueType;
         } else {
             leftInput.expected = promotedType;
             rightInput.expected = promotedType;
@@ -112,11 +114,11 @@ public class EComp extends AExpression {
         }
 
         PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        output.actual = boolean.class;
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(boolean.class));
 
         ComparisonNode comparisonNode = new ComparisonNode();
 
@@ -124,7 +126,7 @@ public class EComp extends AExpression {
         comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         comparisonNode.setLocation(getLocation());
-        comparisonNode.setExpressionType(output.actual);
+        comparisonNode.setExpressionType(boolean.class);
         comparisonNode.setComparisonType(promotedType);
         comparisonNode.setOperation(operation);
 

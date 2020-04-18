@@ -63,22 +63,23 @@ public class EExplicit extends AExpression {
                     "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
-        Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        if (type == null) {
+        if (valueType == null) {
             throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
-        Output output = new Output();
-        output.actual = type;
-
         Input childInput = new Input();
-        childInput.expected = output.actual;
+        childInput.expected = valueType;
         childInput.explicit = true;
         Output childOutput = analyze(childNode, classNode, semanticScope, childInput);
+        Class<?> childValueType = semanticScope.getDecoration(childNode, SemanticDecorator.ValueType.class).getValueType();
         PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
-                childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+                childValueType, childInput.expected, childInput.explicit, childInput.internal);
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+
+        Output output = new Output();
         output.expressionNode = cast(childOutput.expressionNode, childCast);
 
         return output;

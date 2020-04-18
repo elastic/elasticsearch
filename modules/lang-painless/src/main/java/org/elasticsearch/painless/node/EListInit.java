@@ -65,19 +65,19 @@ public class EListInit extends AExpression {
         }
 
         Output output = new Output();
-        output.actual = ArrayList.class;
+        Class<?> valueType = ArrayList.class;
 
-        PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
+        PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
+                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
         }
 
-        PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(output.actual, false, "add", 1);
+        PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "add", 1);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", add/1] not found"));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", add/1] not found"));
         }
 
         List<Output> valueOutputs = new ArrayList<>(valueNodes.size());
@@ -88,11 +88,14 @@ public class EListInit extends AExpression {
             expressionInput.expected = def.class;
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
+            Class<?> valueValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
             valueOutputs.add(expressionOutput);
             valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+                    valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        
         ListInitializationNode listInitializationNode = new ListInitializationNode();
 
         for (int i = 0; i < valueNodes.size(); ++i) {
@@ -100,10 +103,9 @@ public class EListInit extends AExpression {
         }
 
         listInitializationNode.setLocation(getLocation());
-        listInitializationNode.setExpressionType(output.actual);
+        listInitializationNode.setExpressionType(valueType);
         listInitializationNode.setConstructor(constructor);
         listInitializationNode.setMethod(method);
-
         output.expressionNode = listInitializationNode;
 
         return output;

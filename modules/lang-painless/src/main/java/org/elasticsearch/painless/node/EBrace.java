@@ -72,43 +72,47 @@ public class EBrace extends AExpression {
         }
 
         Output prefixOutput = analyze(prefixNode, classNode, semanticScope, new Input());
+        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
 
         ExpressionNode expressionNode;
         Output output = new Output();
+        Class<?> valueType;
 
-        if (prefixOutput.actual.isArray()) {
+        if (prefixValueType.isArray()) {
             Input indexInput = new Input();
             indexInput.expected = int.class;
             Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
+            Class<?> indexValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
             PainlessCast indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                    indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
+                    indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
 
-            output.actual = prefixOutput.actual.getComponentType();
+            valueType = prefixValueType.getComponentType();
 
             BraceSubNode braceSubNode = new BraceSubNode();
             braceSubNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             braceSubNode.setLocation(getLocation());
-            braceSubNode.setExpressionType(output.actual);
+            braceSubNode.setExpressionType(valueType);
             expressionNode = braceSubNode;
-        } else if (prefixOutput.actual == def.class) {
+        } else if (prefixValueType == def.class) {
             Input indexInput = new Input();
             Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+            valueType = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
             output.isDefOptimized = true;
 
             BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
             braceSubDefNode.setChildNode(indexOutput.expressionNode);
             braceSubDefNode.setLocation(getLocation());
-            braceSubDefNode.setExpressionType(output.actual);
+            braceSubDefNode.setExpressionType(valueType);
             expressionNode = braceSubDefNode;
-        } else if (Map.class.isAssignableFrom(prefixOutput.actual)) {
-            Class<?> targetClass = prefixOutput.actual;
-            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
+        } else if (Map.class.isAssignableFrom(prefixValueType)) {
+            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
-            PainlessMethod getter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-            PainlessMethod setter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "put", 2);
+            PainlessMethod getter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
+            PainlessMethod setter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "put", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
                 throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + canonicalClassName + "]."));
@@ -130,10 +134,11 @@ public class EBrace extends AExpression {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
                 indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
+                Class<?> indexValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
+                        indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
 
-                output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+                valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
                 throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "]."));
             }
@@ -141,16 +146,17 @@ public class EBrace extends AExpression {
             MapSubShortcutNode mapSubShortcutNode = new MapSubShortcutNode();
             mapSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             mapSubShortcutNode.setLocation(getLocation());
-            mapSubShortcutNode.setExpressionType(output.actual);
+            mapSubShortcutNode.setExpressionType(valueType);
             mapSubShortcutNode.setGetter(getter);
             mapSubShortcutNode.setSetter(setter);
             expressionNode = mapSubShortcutNode;
-        } else if (List.class.isAssignableFrom(prefixOutput.actual)) {
-            Class<?> targetClass = prefixOutput.actual;
-            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
+        } else if (List.class.isAssignableFrom(prefixValueType)) {
+            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
-            PainlessMethod getter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-            PainlessMethod setter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+            PainlessMethod getter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
+            PainlessMethod setter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "set", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
                     getter.typeParameters.get(0) != int.class)) {
@@ -173,10 +179,11 @@ public class EBrace extends AExpression {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
                 indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
+                Class<?> indexValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
+                        indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
 
-                output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+                valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
                 throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));
             }
@@ -184,21 +191,22 @@ public class EBrace extends AExpression {
             ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
             listSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             listSubShortcutNode.setLocation(getLocation());
-            listSubShortcutNode.setExpressionType(output.actual);
+            listSubShortcutNode.setExpressionType(valueType);
             listSubShortcutNode.setGetter(getter);
             listSubShortcutNode.setSetter(setter);
             expressionNode = listSubShortcutNode;
         } else {
             throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."));
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         BraceNode braceNode = new BraceNode();
         braceNode.setLeftNode(prefixOutput.expressionNode);
         braceNode.setRightNode(expressionNode);
         braceNode.setLocation(getLocation());
-        braceNode.setExpressionType(output.actual);
-
+        braceNode.setExpressionType(valueType);
         output.expressionNode = braceNode;
 
         return output;

@@ -111,6 +111,7 @@ public class ELambda extends AExpression {
         int maxLoopCounter;
 
         Output output = new Output();
+        Class<?> valueType;
 
         List<Class<?>> typeParameters;
         PainlessMethod interfaceMethod;
@@ -210,7 +211,7 @@ public class ELambda extends AExpression {
 
         // setup method reference to synthetic method
         if (input.expected == null) {
-            output.actual = String.class;
+            valueType = String.class;
             String defReferenceEncoding = "Sthis." + name + "," + captures.size();
 
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
@@ -219,12 +220,14 @@ public class ELambda extends AExpression {
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     getLocation(), input.expected, "this", name, captures.size());
-            output.actual = input.expected;
+            valueType = input.expected;
 
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
             typedInterfaceReferenceNode.setReference(ref);
             referenceNode = typedInterfaceReferenceNode;
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         FunctionNode functionNode = new FunctionNode();
         functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
@@ -241,7 +244,7 @@ public class ELambda extends AExpression {
         classNode.addFunctionNode(functionNode);
 
         referenceNode.setLocation(getLocation());
-        referenceNode.setExpressionType(output.actual);
+        referenceNode.setExpressionType(valueType);
 
         for (Variable capture : captures) {
             referenceNode.addCapture(capture.getName());

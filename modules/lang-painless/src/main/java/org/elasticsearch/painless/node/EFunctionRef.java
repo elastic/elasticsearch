@@ -60,6 +60,7 @@ public class EFunctionRef extends AExpression {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
+        Class<?> valueType;
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (symbol.equals("this") || type != null)  {
@@ -74,24 +75,24 @@ public class EFunctionRef extends AExpression {
             }
 
             if (input.expected == null) {
-                output.actual = String.class;
+                valueType = String.class;
                 String defReferenceEncoding = "S" + symbol + "." + methodName + ",0";
 
                 DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
 
                 defInterfaceReferenceNode.setLocation(getLocation());
-                defInterfaceReferenceNode.setExpressionType(output.actual);
+                defInterfaceReferenceNode.setExpressionType(valueType);
                 defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
 
                 output.expressionNode = defInterfaceReferenceNode;
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                         getLocation(), input.expected, symbol, methodName, 0);
-                output.actual = input.expected;
+                valueType = input.expected;
 
                 TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
                 typedInterfaceReferenceNode.setLocation(getLocation());
-                typedInterfaceReferenceNode.setExpressionType(output.actual);
+                typedInterfaceReferenceNode.setExpressionType(valueType);
                 typedInterfaceReferenceNode.setReference(ref);
 
                 output.expressionNode = typedInterfaceReferenceNode;
@@ -117,18 +118,18 @@ public class EFunctionRef extends AExpression {
                     // typed implementation
                     defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + methodName + ",1";
                 }
-                output.actual = String.class;
+                valueType = String.class;
 
                 DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
 
                 defInterfaceReferenceNode.setLocation(getLocation());
-                defInterfaceReferenceNode.setExpressionType(output.actual);
+                defInterfaceReferenceNode.setExpressionType(valueType);
                 defInterfaceReferenceNode.addCapture(captured.getName());
                 defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
 
                 output.expressionNode = defInterfaceReferenceNode;
             } else {
-                output.actual = input.expected;
+                valueType = input.expected;
                 // static case
                 if (captured.getType() != def.class) {
                     FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), getLocation(),
@@ -136,7 +137,7 @@ public class EFunctionRef extends AExpression {
 
                     TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
                     typedInterfaceReferenceNode.setLocation(getLocation());
-                    typedInterfaceReferenceNode.setExpressionType(output.actual);
+                    typedInterfaceReferenceNode.setExpressionType(valueType);
                     typedInterfaceReferenceNode.addCapture(captured.getName());
                     typedInterfaceReferenceNode.setReference(ref);
 
@@ -144,16 +145,16 @@ public class EFunctionRef extends AExpression {
                 } else {
                     TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode();
                     typedCaptureReferenceNode.setLocation(getLocation());
-                    typedCaptureReferenceNode.setExpressionType(output.actual);
+                    typedCaptureReferenceNode.setExpressionType(valueType);
                     typedCaptureReferenceNode.addCapture(captured.getName());
                     typedCaptureReferenceNode.setMethodName(methodName);
 
                     output.expressionNode = typedCaptureReferenceNode;
                 }
             }
-
-            return output;
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         return output;
     }

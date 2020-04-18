@@ -90,49 +90,51 @@ public class EAssignment extends AExpression {
         leftInput.read = input.read;
         semanticScope.setCondition(leftNode, SemanticDecorator.Write.class);
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
 
         Input rightInput = new Input();
         Output rightOutput;
 
         if (operation != null) {
             rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+            Class<?> rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
             boolean shift = false;
 
             if (operation == Operation.MUL) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.DIV) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.REM) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.ADD) {
-                promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
             } else if (operation == Operation.SUB) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.LSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
                 shift = true;
             } else if (operation == Operation.RSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
                 shift = true;
             } else if (operation == Operation.USH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
                 shift = true;
             } else if (operation == Operation.BWAND) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else if (operation == Operation.XOR) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else if (operation == Operation.BWOR) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             if (promote == null || (shift && shiftDistance == null)) {
                 throw createError(new ClassCastException("Cannot apply compound assignment " +
-                        "[" + operation.symbol + "=] to types [" + leftOutput.actual + "] and [" + rightOutput.actual + "]."));
+                        "[" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]."));
             }
 
             cat = operation == Operation.ADD && promote == String.class;
@@ -140,7 +142,7 @@ public class EAssignment extends AExpression {
             if (cat && rightOutput.expressionNode instanceof BinaryMathNode) {
                 BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
 
-                if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
+                if (binaryMathNode.getOperation() == Operation.ADD && rightValueType == String.class) {
                     ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
                 }
             }
@@ -160,41 +162,46 @@ public class EAssignment extends AExpression {
             }
 
             rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+                    rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-            there = AnalyzerCaster.getLegalCast(getLocation(), leftOutput.actual, promote, false, false);
-            back = AnalyzerCaster.getLegalCast(getLocation(), promote, leftOutput.actual, true, false);
+            there = AnalyzerCaster.getLegalCast(getLocation(), leftValueType, promote, false, false);
+            back = AnalyzerCaster.getLegalCast(getLocation(), promote, leftValueType, true, false);
         } else {
+            Class<?> rightValueType;
+
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
                 rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+                rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
 
-                if (rightOutput.actual == void.class) {
+                if (rightValueType == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
                 }
 
-                rightInput.expected = rightOutput.actual;
-                leftOutput.actual = rightOutput.actual;
-                leftOutput.expressionNode.setExpressionType(rightOutput.actual);
+                rightInput.expected = rightValueType;
+                leftValueType = rightValueType;
+                leftOutput.expressionNode.setExpressionType(rightValueType);
 
                 ExpressionNode expressionNode = leftOutput.expressionNode;
 
                 if (expressionNode instanceof DotNode && ((DotNode)expressionNode).getRightNode() instanceof DotSubDefNode) {
-                    ((DotNode)expressionNode).getRightNode().setExpressionType(leftOutput.actual);
+                    ((DotNode)expressionNode).getRightNode().setExpressionType(leftValueType);
                 } else if (expressionNode instanceof BraceNode && ((BraceNode)expressionNode).getRightNode() instanceof BraceSubDefNode) {
-                    ((BraceNode)expressionNode).getRightNode().setExpressionType(leftOutput.actual);
+                    ((BraceNode)expressionNode).getRightNode().setExpressionType(leftValueType);
                 }
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
-                rightInput.expected = leftOutput.actual;
+                rightInput.expected = leftValueType;
                 rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+                rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
             }
 
             rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+                    rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
         }
 
-        output.actual = input.read ? leftOutput.actual : void.class;
+        SemanticDecorator.ValueType valueType = new SemanticDecorator.ValueType(input.read ? leftValueType : void.class);
+        semanticScope.addDecoration(this, valueType);
 
         AssignmentNode assignmentNode = new AssignmentNode();
 
@@ -202,7 +209,7 @@ public class EAssignment extends AExpression {
         assignmentNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         assignmentNode.setLocation(getLocation());
-        assignmentNode.setExpressionType(output.actual);
+        assignmentNode.setExpressionType(valueType.getValueType());
         assignmentNode.setCompoundType(promote);
         assignmentNode.setPost(postIfRead);
         assignmentNode.setOperation(operation);

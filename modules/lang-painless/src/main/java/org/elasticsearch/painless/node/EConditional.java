@@ -74,41 +74,46 @@ public class EConditional extends AExpression {
         Input conditionInput = new Input();
         conditionInput.expected = boolean.class;
         Output conditionOutput = analyze(conditionNode, classNode, semanticScope, conditionInput);
+        Class<?> conditionValueType = semanticScope.getDecoration(conditionNode, SemanticDecorator.ValueType.class).getValueType();
         PainlessCast conditionCast = AnalyzerCaster.getLegalCast(classNode.getLocation(),
-                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
+                conditionValueType, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
         Input leftInput = new Input();
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
 
-        output.actual = input.expected;
+        Class<?> valueType = input.expected;
 
         if (input.expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
 
             if (promote == null) {
                 throw createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
             }
 
             leftInput.expected = promote;
             rightInput.expected = promote;
-            output.actual = promote;
+            valueType = promote;
         }
 
         PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         ConditionalNode conditionalNode = new ConditionalNode();
 
@@ -117,7 +122,7 @@ public class EConditional extends AExpression {
         conditionalNode.setConditionNode(cast(conditionOutput.expressionNode, conditionCast));
 
         conditionalNode.setLocation(getLocation());
-        conditionalNode.setExpressionType(output.actual);
+        conditionalNode.setExpressionType(valueType);
 
         output.expressionNode = conditionalNode;
 

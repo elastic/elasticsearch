@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +32,22 @@ public class SemanticDecorator {
     public static class Write {
         private Write() {
             // do nothing
+        }
+    }
+
+    public static class ValueType {
+        private final Class<?> valueType;
+
+        public ValueType(Class<?> valueType) {
+            this.valueType = valueType;
+        }
+
+        public Class<?> getValueType() {
+            return valueType;
+        }
+
+        public String getCanonicalTypeName() {
+            return PainlessLookupUtility.typeToCanonicalTypeName(valueType);
         }
     }
 
@@ -46,16 +64,17 @@ public class SemanticDecorator {
         }
     }
 
-    public Object add(int identifier, Object decoration) {
-        return decorations.get(identifier).put(decoration.getClass(), decoration);
+    @SuppressWarnings("unchecked")
+    public <T> T add(int identifier, T decoration) {
+        return (T)decorations.get(identifier).put(decoration.getClass(), decoration);
     }
 
-    public Object remove(int identifier, Class<?> type) {
-        return decorations.get(identifier).remove(type);
+    public <T> T remove(int identifier, Class<T> type) {
+        return type.cast(decorations.get(identifier).remove(type));
     }
 
-    public Object get(int identifier, Class<?> type) {
-        return decorations.get(identifier).get(type);
+    public <T> T get(int identifier, Class<T> type) {
+        return type.cast(decorations.get(identifier).get(type));
     }
 
     public boolean set(int identifier, Class<?> type) {

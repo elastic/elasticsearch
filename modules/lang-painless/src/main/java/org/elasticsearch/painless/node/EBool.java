@@ -76,26 +76,25 @@ public class EBool extends AExpression {
         Input leftInput = new Input();
         leftInput.expected = boolean.class;
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
         PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
 
         Input rightInput = new Input();
         rightInput.expected = boolean.class;
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        output.actual = boolean.class;
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(boolean.class));
 
         BooleanNode booleanNode = new BooleanNode();
-
         booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
         booleanNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-
         booleanNode.setLocation(getLocation());
-        booleanNode.setExpressionType(output.actual);
+        booleanNode.setExpressionType(boolean.class);
         booleanNode.setOperation(operation);
-
         output.expressionNode = booleanNode;
 
         return output;

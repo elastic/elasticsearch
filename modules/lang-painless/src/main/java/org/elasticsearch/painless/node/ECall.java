@@ -88,9 +88,11 @@ public class ECall extends AExpression {
         }
 
         Output output = new Output();
+        Class<?> valueType;
 
         Input prefixInput = new Input();
         Output prefixOutput = prefixNode.analyze(classNode, semanticScope, prefixInput);
+        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
@@ -98,10 +100,10 @@ public class ECall extends AExpression {
 
         ExpressionNode expressionNode;
 
-        if (prefixOutput.actual == def.class) {
-            if (output.isStaticType) {
+        if (prefixValueType == def.class) {
+            if (prefixOutput.isStaticType) {
                 throw createError(new IllegalArgumentException("value required: " +
-                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]"));
             }
 
             List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
@@ -110,16 +112,17 @@ public class ECall extends AExpression {
                 Input expressionInput = new Input();
                 expressionInput.internal = true;
                 Output expressionOutput = analyze(argument, classNode, semanticScope, expressionInput);
+                Class<?> argumentValueType = semanticScope.getDecoration(argument, SemanticDecorator.ValueType.class).getValueType();
                 argumentOutputs.add(expressionOutput);
 
-                if (expressionOutput.actual == void.class) {
+                if (argumentValueType == void.class) {
                     throw createError(new IllegalArgumentException(
                             "Argument(s) cannot be of [void] type when calling method [" + methodName + "]."));
                 }
             }
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+            valueType = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
             CallSubDefNode callSubDefNode = new CallSubDefNode();
 
@@ -128,16 +131,16 @@ public class ECall extends AExpression {
             }
 
             callSubDefNode.setLocation(getLocation());
-            callSubDefNode.setExpressionType(output.actual);
+            callSubDefNode.setExpressionType(valueType);
             callSubDefNode.setName(methodName);
 
             expressionNode = callSubDefNode;
         } else {
             PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                    prefixOutput.actual, prefixOutput.isStaticType, methodName, argumentNodes.size());
+                    prefixValueType, prefixOutput.isStaticType, methodName, argumentNodes.size());
 
             if (method == null) {
-                throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " +
+                throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(prefixValueType) + ", " +
                         "" + methodName + "/" + argumentNodes.size() + "] not found"));
             }
 
@@ -154,12 +157,13 @@ public class ECall extends AExpression {
                 expressionInput.internal = true;
                 Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
                 argumentOutputs.add(expressionOutput);
+                Class<?> argumentValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
                 argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                        expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+                        argumentValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
             }
 
-            output.actual = method.returnType;
+            valueType = method.returnType;
 
             CallSubNode callSubNode = new CallSubNode();
 
@@ -168,32 +172,31 @@ public class ECall extends AExpression {
             }
 
             callSubNode.setLocation(getLocation());
-            callSubNode.setExpressionType(output.actual);
+            callSubNode.setExpressionType(valueType);
             callSubNode.setMethod(method);
-            callSubNode.setBox(prefixOutput.actual);
+            callSubNode.setBox(prefixValueType);
             expressionNode = callSubNode;
         }
 
         if (isNullSafe) {
-            if (output.actual.isPrimitive()) {
+            if (valueType.isPrimitive()) {
                 throw new IllegalArgumentException("Result of null safe operator must be nullable");
             }
 
             NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
             nullSafeSubNode.setChildNode(expressionNode);
             nullSafeSubNode.setLocation(getLocation());
-            nullSafeSubNode.setExpressionType(output.actual);
+            nullSafeSubNode.setExpressionType(valueType);
             expressionNode = nullSafeSubNode;
         }
 
-        CallNode callNode = new CallNode();
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
+        CallNode callNode = new CallNode();
         callNode.setLeftNode(prefixOutput.expressionNode);
         callNode.setRightNode(expressionNode);
-
         callNode.setLocation(getLocation());
-        callNode.setExpressionType(output.actual);
-
+        callNode.setExpressionType(valueType);
         output.expressionNode = callNode;
 
         return output;

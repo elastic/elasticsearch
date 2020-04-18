@@ -296,15 +296,15 @@ public abstract class SemanticScope {
         return scriptScope;
     }
 
-    public Object addDecoration(ANode node, Object decoration) {
+    public <T> T addDecoration(ANode node, T decoration) {
         return scriptScope.add(node.getIdentifier(), decoration);
     }
 
-    public Object removeDecoration(ANode node, Class<?> type) {
+    public <T> T removeDecoration(ANode node, Class<T> type) {
         return scriptScope.remove(node.getIdentifier(), type);
     }
 
-    public Object getDecoration(ANode node, Class<?> type) {
+    public <T> T getDecoration(ANode node, Class<T> type) {
         return scriptScope.get(node.getIdentifier(), type);
     }
 

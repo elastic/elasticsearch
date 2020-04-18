@@ -80,6 +80,7 @@ public class ECallLocal extends AExpression {
         String bindingName = null;
 
         Output output = new Output();
+        Class<?> valueType;
 
         localFunction = scriptScope.getFunctionTable().getFunction(methodName, argumentNodes.size());
 
@@ -134,15 +135,15 @@ public class ECallLocal extends AExpression {
 
         if (localFunction != null) {
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
-            output.actual = localFunction.getReturnType();
+            valueType = localFunction.getReturnType();
         } else if (importedMethod != null) {
             scriptScope.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
-            output.actual = importedMethod.returnType;
+            valueType = importedMethod.returnType;
         } else if (classBinding != null) {
             scriptScope.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(classBinding.typeParameters);
-            output.actual = classBinding.returnType;
+            valueType = classBinding.returnType;
             bindingName = scriptScope.getNextSyntheticName("class_binding");
 
             FieldNode fieldNode = new FieldNode();
@@ -154,7 +155,7 @@ public class ECallLocal extends AExpression {
             classNode.addFieldNode(fieldNode);
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
-            output.actual = instanceBinding.returnType;
+            valueType = instanceBinding.returnType;
             bindingName = scriptScope.getNextSyntheticName("instance_binding");
 
             FieldNode fieldNode = new FieldNode();
@@ -183,10 +184,13 @@ public class ECallLocal extends AExpression {
             argumentInput.internal = true;
             Output argumentOutput = analyze(expression, classNode, semanticScope, argumentInput);
             argumentOutputs.add(argumentOutput);
+            Class<?> argumentValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    argumentOutput.actual, argumentInput.expected, argumentInput.explicit, argumentInput.internal));
+                    argumentValueType, argumentInput.expected, argumentInput.explicit, argumentInput.internal));
 
         }
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         MemberCallNode memberCallNode = new MemberCallNode();
 
@@ -195,14 +199,13 @@ public class ECallLocal extends AExpression {
         }
 
         memberCallNode.setLocation(getLocation());
-        memberCallNode.setExpressionType(output.actual);
+        memberCallNode.setExpressionType(valueType);
         memberCallNode.setLocalFunction(localFunction);
         memberCallNode.setImportedMethod(importedMethod);
         memberCallNode.setClassBinding(classBinding);
         memberCallNode.setClassBindingOffset(classBindingOffset);
         memberCallNode.setBindingName(bindingName);
         memberCallNode.setInstanceBinding(instanceBinding);
-
         output.expressionNode = memberCallNode;
 
         return output;

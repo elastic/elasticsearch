@@ -60,6 +60,7 @@ public class EDecimal extends AExpression {
         }
 
         Output output = new Output();
+        Class<?> valueType;
         Object constant;
 
         String decimal = negate ? "-" + this.decimal : this.decimal;
@@ -67,7 +68,7 @@ public class EDecimal extends AExpression {
         if (decimal.endsWith("f") || decimal.endsWith("F")) {
             try {
                 constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
-                output.actual = float.class;
+                valueType = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
             }
@@ -78,15 +79,17 @@ public class EDecimal extends AExpression {
             }
             try {
                 constant = Double.parseDouble(toParse);
-                output.actual = double.class;
+                valueType = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
             }
         }
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(valueType);
         constantNode.setConstant(constant);
 
         output.expressionNode = constantNode;

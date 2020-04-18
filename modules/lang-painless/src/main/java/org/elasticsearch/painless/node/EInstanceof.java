@@ -87,28 +87,23 @@ public class EInstanceof extends AExpression {
         // analyze and cast the expression
         Input expressionInput = new Input();
         Output expressionOutput = analyze(expressionNode, classNode, semanticScope, expressionInput);
-        expressionInput.expected = expressionOutput.actual;
-        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
-                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
+        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, SemanticDecorator.ValueType.class).getValueType();
 
         // record if the expression returns a primitive
-        primitiveExpression = expressionOutput.actual.isPrimitive();
+        primitiveExpression = expressionValueType.isPrimitive();
         // map to wrapped type for primitive types
-        expressionType = expressionOutput.actual.isPrimitive() ?
-            PainlessLookupUtility.typeToBoxedType(expressionOutput.actual) : PainlessLookupUtility.typeToJavaType(clazz);
+        expressionType = expressionValueType.isPrimitive() ?
+            PainlessLookupUtility.typeToBoxedType(expressionValueType) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        output.actual = boolean.class;
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(boolean.class));
 
         InstanceofNode instanceofNode = new InstanceofNode();
-
-        instanceofNode.setChildNode(cast(expressionOutput.expressionNode, expressionCast));
-
+        instanceofNode.setChildNode(expressionOutput.expressionNode);
         instanceofNode.setLocation(getLocation());
-        instanceofNode.setExpressionType(output.actual);
+        instanceofNode.setExpressionType(boolean.class);
         instanceofNode.setInstanceType(expressionType);
         instanceofNode.setResolvedType(resolvedType);
         instanceofNode.setPrimitiveResult(primitiveExpression);
-
         output.expressionNode = instanceofNode;
 
         return output;

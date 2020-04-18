@@ -55,13 +55,12 @@ public class EBoolean extends AExpression {
 
         Output output = new Output();
 
-        output.actual = boolean.class;
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(boolean.class));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(boolean.class);
         constantNode.setConstant(bool);
-
         output.expressionNode = constantNode;
 
         return output;

@@ -64,6 +64,7 @@ public class EElvis extends AExpression {
         }
 
         Output output = new Output();
+        Class<?> valueType;
 
         if (input.expected != null && input.expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
@@ -74,14 +75,16 @@ public class EElvis extends AExpression {
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
+        Class<?> rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
 
-        output.actual = input.expected;
+        valueType = input.expected;
 
         if (leftNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
@@ -89,7 +92,7 @@ public class EElvis extends AExpression {
         if (leftNode instanceof EBoolean || leftNode instanceof ENumeric || leftNode instanceof EDecimal || leftNode instanceof EString) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (leftOutput.actual.isPrimitive()) {
+        if (leftValueType.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
         if (rightNode instanceof ENull) {
@@ -97,26 +100,25 @@ public class EElvis extends AExpression {
         }
 
         if (input.expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
 
             leftInput.expected = promote;
             rightInput.expected = promote;
-            output.actual = promote;
+            valueType = promote;
         }
 
         PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
+
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
 
         ElvisNode elvisNode = new ElvisNode();
-
         elvisNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
         elvisNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-
         elvisNode.setLocation(getLocation());
-        elvisNode.setExpressionType(output.actual);
-
+        elvisNode.setExpressionType(valueType);
         output.expressionNode = elvisNode;
 
         return output;

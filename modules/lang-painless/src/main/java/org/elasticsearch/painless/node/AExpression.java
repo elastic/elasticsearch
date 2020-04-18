@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
@@ -61,14 +62,6 @@ public abstract class AExpression extends ANode {
     }
 
     public static class Output {
-
-        /**
-         * Set to the actual type this node is.  Note this variable is always
-         * set by the node as output and should only be read from outside of the
-         * node itself. Also, actual can always be read after a cast is
-         * called on this node to get the type of the node after the cast.
-         */
-        Class<?> actual = null;
 
         /**
          * Set to {@code true} when actual represents a static type and
@@ -122,8 +115,8 @@ public abstract class AExpression extends ANode {
         }
 
         if (output.isStaticType) {
-            throw expression.createError(new IllegalArgumentException("value required: " +
-                    "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+            throw expression.createError(new IllegalArgumentException("value required: instead found unexpected type " +
+                    "[" + semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getCanonicalTypeName() + "]"));
         }
 
         return output;

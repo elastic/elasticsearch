@@ -28,14 +28,21 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
-
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
+    private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);
+
+    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} " +
+        "will be removed in a future version. " +
+        "Please use POST /_cluster/voting_config_exclusions?node_ids=... " +
+        "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
 
     @Override
     public String getName() {
@@ -44,7 +51,8 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_cluster/voting_config_exclusions/{node_name}"));
+        return List.of(new DeprecatedRoute(POST, "/_cluster/voting_config_exclusions/{node_name}", DEPRECATION_MESSAGE),
+                        new Route(POST, "/_cluster/voting_config_exclusions"));
     }
 
     @Override
@@ -58,10 +66,29 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
-        String nodeName = request.param("node_name");
+        String deprecatedNodeDescription = null;
+        String nodeIds = null;
+        String nodeNames = null;
+
+        if (request.hasParam("node_name")) {
+            deprecatedNodeDescription = request.param("node_name");
+        }
+
+        if (request.hasParam("node_ids")){
+            nodeIds = request.param("node_ids");
+        }
+
+        if (request.hasParam("node_names")){
+            nodeNames =  request.param("node_names");
+        }
+
         return new AddVotingConfigExclusionsRequest(
-            Strings.splitStringByCommaToArray(nodeName),
+            Strings.splitStringByCommaToArray(deprecatedNodeDescription),
+            Strings.splitStringByCommaToArray(nodeIds),
+            Strings.splitStringByCommaToArray(nodeNames),
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }
+
+
 }

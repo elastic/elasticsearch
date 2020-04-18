@@ -380,9 +380,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @After
     public void waitForTransform() throws Exception {
+        ensureNoInitializingShards();
         logAudits();
         if (preserveClusterUponCompletion() == false) {
-            ensureNoInitializingShards();
             wipeTransforms();
             waitForPendingTransformTasks();
         }

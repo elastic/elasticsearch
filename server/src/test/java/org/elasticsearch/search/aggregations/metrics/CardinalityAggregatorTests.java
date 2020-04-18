@@ -65,7 +65,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
         fieldType.setName(fieldName);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name", null).field(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
         Set<RangeFieldMapper.Range> multiRecord = new HashSet<>(2);
         multiRecord.add(range1);
         multiRecord.add(range2);
@@ -135,7 +135,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingString() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name", null)
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name")
             .field("number").missing("🍌🍌🍌");
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -149,7 +149,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingNumber() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name", null)
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name")
             .field("number").missing(1234);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -163,7 +163,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name", null)
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name")
             .field("number").missing(new GeoPoint(42.39561, -71.13051));
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -181,7 +181,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name", null).field("number");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 

@@ -310,12 +310,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     indexRequest.setFinalPipeline(finalPipeline);
                 }
             } else if (indexRequest.index() != null) {
-                // the index does not exist yet (and this is a valid request), so match index templates to look for pipelines
-                List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findTemplates(metadata, indexRequest.index(), null);
-                assert (templates != null);
-                // order of templates are highest order first
-                for (final IndexTemplateMetadata template : templates) {
-                    final Settings settings = template.settings();
+                // the index does not exist yet (and this is a valid request), so match index
+                // templates to look for pipelines in either a matching V2 template (which takes
+                // precedence), or if a V2 template does not match, any V1 templates
+                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), null);
+                if (v2Template != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
                         // we can not break in case a lower-order template has a final pipeline that we need to collect
@@ -324,13 +324,31 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
                         // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
-                    if (defaultPipeline != null && finalPipeline != null) {
-                        // we can break if we have already collected a default and final pipeline
-                        break;
+                    indexRequest.setPipeline(defaultPipeline == null ? IngestService.NOOP_PIPELINE_NAME : defaultPipeline);
+                    indexRequest.setFinalPipeline(finalPipeline == null ? IngestService.NOOP_PIPELINE_NAME : finalPipeline);
+                } else {
+                    List<IndexTemplateMetadata> templates =
+                            MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
+                    assert (templates != null);
+                    // order of templates are highest order first
+                    for (final IndexTemplateMetadata template : templates) {
+                        final Settings settings = template.settings();
+                        if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                            defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                            // we can not break in case a lower-order template has a final pipeline that we need to collect
+                        }
+                        if (finalPipeline == null && IndexSettings.FINAL_PIPELINE.exists(settings)) {
+                            finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
+                            // we can not break in case a lower-order template has a default pipeline that we need to collect
+                        }
+                        if (defaultPipeline != null && finalPipeline != null) {
+                            // we can break if we have already collected a default and final pipeline
+                            break;
+                        }
                     }
+                    indexRequest.setPipeline(defaultPipeline == null ? IngestService.NOOP_PIPELINE_NAME : defaultPipeline);
+                    indexRequest.setFinalPipeline(finalPipeline == null ? IngestService.NOOP_PIPELINE_NAME : finalPipeline);
                 }
-                indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : IngestService.NOOP_PIPELINE_NAME);
-                indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : IngestService.NOOP_PIPELINE_NAME);
             }
 
             if (requestPipeline != null) {

@@ -48,6 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
@@ -254,7 +255,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -537,12 +539,12 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.numberOfProcessors(settings));
+        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.allocatedProcessors(settings));
     }
 
-    static int getWatcherThreadPoolSize(final boolean isDataNode, final int numberOfProcessors) {
+    static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {
         if (isDataNode) {
-            final long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+            final long size = Math.max(Math.min(5 * allocatedProcessors, 50), allocatedProcessors);
             return Math.toIntExact(size);
         } else {
             return 1;
@@ -702,7 +704,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.unmodifiableList(Arrays.asList(
             new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
             new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")

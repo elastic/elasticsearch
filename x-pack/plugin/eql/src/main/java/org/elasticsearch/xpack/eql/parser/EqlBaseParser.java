@@ -393,6 +393,8 @@ class EqlBaseParser extends Parser {
 
   public static class SequenceContext extends ParserRuleContext {
     public JoinKeysContext by;
+    public JoinKeysContext disallowed;
+    public SequenceTermContext until;
     public TerminalNode SEQUENCE() { return getToken(EqlBaseParser.SEQUENCE, 0); }
     public List<SequenceTermContext> sequenceTerm() {
       return getRuleContexts(SequenceTermContext.class);
@@ -461,7 +463,7 @@ class EqlBaseParser extends Parser {
         if (_la==BY) {
           {
           setState(83);
-          ((SequenceContext)_localctx).by = joinKeys();
+          ((SequenceContext)_localctx).disallowed = joinKeys();
           }
         }
 
@@ -495,7 +497,7 @@ class EqlBaseParser extends Parser {
         setState(94);
         match(UNTIL);
         setState(95);
-        sequenceTerm();
+        ((SequenceContext)_localctx).until = sequenceTerm();
         }
       }
 
@@ -514,6 +516,7 @@ class EqlBaseParser extends Parser {
 
   public static class JoinContext extends ParserRuleContext {
     public JoinKeysContext by;
+    public JoinTermContext until;
     public TerminalNode JOIN() { return getToken(EqlBaseParser.JOIN, 0); }
     public List<JoinTermContext> joinTerm() {
       return getRuleContexts(JoinTermContext.class);
@@ -585,7 +588,7 @@ class EqlBaseParser extends Parser {
         setState(108);
         match(UNTIL);
         setState(109);
-        joinTerm();
+        ((JoinContext)_localctx).until = joinTerm();
         }
       }
 

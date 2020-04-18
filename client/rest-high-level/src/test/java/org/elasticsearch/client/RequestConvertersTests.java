@@ -1229,7 +1229,8 @@ public class RequestConvertersTests extends ESTestCase {
                     searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
                 }
                 if (randomBoolean()) {
-                    searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
+                    searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10))
+                            .userValueTypeHint(ValueType.STRING)
                             .field(randomAlphaOfLengthBetween(3, 10)));
                 }
                 if (randomBoolean()) {
@@ -1348,8 +1349,9 @@ public class RequestConvertersTests extends ESTestCase {
             IndicesOptions msearchDefault = new MultiSearchRequest().indicesOptions();
             searchRequest.indicesOptions(IndicesOptions.fromOptions(randomlyGenerated.ignoreUnavailable(),
                     randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(), randomlyGenerated.expandWildcardsClosed(),
-                    msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),
-                msearchDefault.ignoreThrottled()));
+                    msearchDefault.expandWildcardsHidden(), msearchDefault.allowAliasesToMultipleIndices(),
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled(),
+                    msearchDefault.includeDataStreams()));
             multiSearchRequest.add(searchRequest);
         }
 

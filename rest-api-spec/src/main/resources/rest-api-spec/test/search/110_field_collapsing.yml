@@ -57,6 +57,11 @@ setup:
 "field collapsing":
 
   - do:
+      count:
+        index: test
+  - match: {count: 6}
+
+  - do:
       search:
         rest_total_hits_as_int: true
         index: test
@@ -89,6 +94,11 @@ setup:
 "field collapsing and from":
 
   - do:
+      count:
+        index: test
+  - match: {count: 6}
+
+  - do:
       search:
         rest_total_hits_as_int: true
         index: test
@@ -108,6 +118,11 @@ setup:
 
 ---
 "field collapsing and inner_hits":
+
+  - do:
+      count:
+        index: test
+  - match: {count: 6}
 
   - do:
       search:
@@ -148,6 +163,11 @@ setup:
 
 ---
 "field collapsing, inner_hits and maxConcurrentGroupRequests":
+
+  - do:
+      count:
+        index: test
+  - match: {count: 6}
 
   - do:
       search:
@@ -234,6 +254,11 @@ setup:
 "no hits and inner_hits":
 
   - do:
+      count:
+        index: test
+  - match: {count: 6}
+
+  - do:
       search:
         rest_total_hits_as_int: true
         index: test
@@ -265,6 +290,10 @@ setup:
 
 ---
 "field collapsing and multiple inner_hits":
+  - do:
+      count:
+        index: test
+  - match: {count: 6}
 
   - do:
       search:
@@ -322,6 +351,11 @@ setup:
   - skip:
       version: " - 6.1.0"
       reason:  "bug fixed in 6.1.1"
+
+  - do:
+      count:
+        index: test
+  - match: {count: 6}
 
   - do:
       search:

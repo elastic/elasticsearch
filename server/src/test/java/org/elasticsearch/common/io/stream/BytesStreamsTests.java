@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -49,12 +50,14 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -346,6 +349,13 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
         assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
         assertEquals(0, in.available());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
+            @Override
+            public String toString() {
+                return "This object cannot be serialized by writeGeneric method";
+            }
+        }));
+        assertThat(ex.getMessage(), containsString("can not write type"));
         in.close();
         out.close();
     }
@@ -850,4 +860,28 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
+    public void testWriteCircularReferenceException() throws IOException {
+        IOException rootEx = new IOException("disk broken");
+        AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
+        rootEx.addSuppressed(ace); // circular reference
+
+        BytesStreamOutput testOut = new BytesStreamOutput();
+        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
+        assertThat(error.getMessage(), containsString("too many nested exceptions"));
+        assertThat(error.getCause(), equalTo(rootEx));
+
+        BytesStreamOutput prodOut = new BytesStreamOutput() {
+            @Override
+            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+                assertThat(throwable, sameInstance(rootEx));
+                return true;
+            }
+        };
+        prodOut.writeException(rootEx);
+        StreamInput in = prodOut.bytes().streamInput();
+        Exception newEx = in.readException();
+        assertThat(newEx, instanceOf(IOException.class));
+        assertThat(newEx.getMessage(), equalTo("disk broken"));
+        assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+    }
 }

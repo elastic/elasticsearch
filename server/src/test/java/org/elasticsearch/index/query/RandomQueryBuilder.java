@@ -25,8 +25,8 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Random;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_FIELD_NAME;
+import static org.elasticsearch.test.AbstractBuilderTestCase.TEXT_ALIAS_FIELD_NAME;
+import static org.elasticsearch.test.AbstractBuilderTestCase.TEXT_FIELD_NAME;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
@@ -67,7 +67,7 @@ public class RandomQueryBuilder {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
         MultiTermQueryBuilder multiTermQueryBuilder;
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         switch(RandomNumbers.randomIntBetween(r, 0, 3)) {
             case 0:
                 RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(fieldName);

@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -67,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -301,7 +303,8 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
+                                                   IndexNameExpressionResolver indexNameExpressionResolver,
+                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
             loggingFilter.set(new LoggingFilter(threadPool));
             return Collections.emptyList();
         }

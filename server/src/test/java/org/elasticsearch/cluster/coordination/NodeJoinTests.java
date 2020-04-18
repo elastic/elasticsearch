@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -44,8 +45,8 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -70,6 +71,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -192,7 +194,7 @@ public class NodeJoinTests extends ESTestCase {
     protected DiscoveryNode newNode(int i, boolean master) {
         final Set<DiscoveryNodeRole> roles;
         if (master) {
-            roles = Collections.singleton(DiscoveryNodeRole.MASTER_ROLE);
+            roles = singleton(DiscoveryNodeRole.MASTER_ROLE);
         } else {
             roles = Collections.emptySet();
         }
@@ -229,29 +231,22 @@ public class NodeJoinTests extends ESTestCase {
         try {
             final RequestHandlerRegistry<JoinRequest> joinHandler = (RequestHandlerRegistry<JoinRequest>)
                 transport.getRequestHandler(JoinHelper.JOIN_ACTION_NAME);
-            joinHandler.processMessageReceived(joinRequest, new TransportChannel() {
-                @Override
-                public String getProfileName() {
-                    return "dummy";
-                }
+            final ActionListener<TransportResponse> listener = new ActionListener<TransportResponse>() {
 
                 @Override
-                public String getChannelType() {
-                    return "dummy";
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response) {
+                public void onResponse(TransportResponse transportResponse) {
                     logger.debug("{} completed", future);
                     future.markAsDone();
                 }
 
                 @Override
-                public void sendResponse(Exception e) {
+                public void onFailure(Exception e) {
                     logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
                     future.markAsFailed(e);
                 }
-            });
+            };
+
+            joinHandler.processMessageReceived(joinRequest, new TestTransportChannel(listener));
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
             future.markAsFailed(e);
@@ -399,30 +394,59 @@ public class NodeJoinTests extends ESTestCase {
         assertTrue(isLocalNodeElectedMaster());
     }
 
+    public void testJoinUpdateVotingConfigExclusion() throws Exception {
+        DiscoveryNode initialNode = newNode(0, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+
+        CoordinationMetadata.VotingConfigExclusion votingConfigExclusion = new CoordinationMetadata.VotingConfigExclusion(
+                                                        CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
+
+        setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
+                                                                                                initialVersion, votingConfigExclusion));
+
+        DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
+                                                            emptyMap(), singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+        long newerTerm = newTerm + randomLongBetween(1, 10);
+
+        joinNodeAndRun(new JoinRequest(knownJoiningNode, initialTerm,
+            Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))));
+
+        assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+        }));
+    }
+
+    private ClusterState buildStateWithVotingConfigExclusion(DiscoveryNode initialNode,
+                                                             long initialTerm,
+                                                             long initialVersion,
+                                                             CoordinationMetadata.VotingConfigExclusion votingConfigExclusion) {
+        ClusterState initialState = initialState(initialNode, initialTerm, initialVersion,
+                                                    new VotingConfiguration(singleton(initialNode.getId())));
+        Metadata newMetadata = Metadata.builder(initialState.metadata())
+                                        .coordinationMetadata(CoordinationMetadata.builder(initialState.coordinationMetadata())
+                                                                                    .addVotingConfigExclusion(votingConfigExclusion)
+                                                                                    .build())
+                                        .build();
+
+        return ClusterState.builder(initialState).metadata(newMetadata).build();
+    }
+
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {
         final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = (RequestHandlerRegistry<StartJoinRequest>)
             transport.getRequestHandler(JoinHelper.START_JOIN_ACTION_NAME);
-        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TransportChannel() {
-            @Override
-            public String getProfileName() {
-                return "dummy";
-            }
+        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(
+            new ActionListener<TransportResponse>() {
+                @Override
+                public void onResponse(TransportResponse transportResponse) {
+                }
 
-            @Override
-            public String getChannelType() {
-                return "dummy";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) {
-
-            }
-
-            @Override
-            public void sendResponse(Exception exception) {
+                @Override
+                public void onFailure(Exception e) {
                 fail();
             }
-        });
+        }));
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.CANDIDATE));
@@ -432,27 +456,19 @@ public class NodeJoinTests extends ESTestCase {
         final RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest> followerCheckHandler =
             (RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest>)
             transport.getRequestHandler(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
-        followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), new TransportChannel() {
+        final TestTransportChannel channel = new TestTransportChannel(new ActionListener<TransportResponse>() {
             @Override
-            public String getProfileName() {
-                return "dummy";
-            }
-
-            @Override
-            public String getChannelType() {
-                return "dummy";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) {
+            public void onResponse(TransportResponse transportResponse) {
 
             }
 
             @Override
-            public void sendResponse(Exception exception) {
+            public void onFailure(Exception e) {
                 fail();
             }
         });
+        followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), channel);
+        // Will throw exception if failed
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.FOLLOWER));

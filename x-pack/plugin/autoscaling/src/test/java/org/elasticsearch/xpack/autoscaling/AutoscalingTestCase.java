@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
@@ -17,7 +20,6 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -68,7 +70,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static SortedMap<String, AutoscalingDecider> randomAutoscalingDeciders() {
         return new TreeMap<>(
-            Collections.singletonList(new AlwaysAutoscalingDecider())
+            org.elasticsearch.common.collect.List.of(new AlwaysAutoscalingDecider())
                 .stream()
                 .collect(Collectors.toMap(AutoscalingDecider::name, Function.identity()))
         );
@@ -117,6 +119,14 @@ public abstract class AutoscalingTestCase extends ESTestCase {
             policies.put(policy.name(), policyMetadata);
         }
         return new AutoscalingMetadata(policies);
+    }
+
+    public static NamedWriteableRegistry getAutoscalingNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new Autoscaling(Settings.EMPTY).getNamedWriteables());
+    }
+
+    public static NamedXContentRegistry getAutoscalingXContentRegistry() {
+        return new NamedXContentRegistry(new Autoscaling(Settings.EMPTY).getNamedXContent());
     }
 
 }

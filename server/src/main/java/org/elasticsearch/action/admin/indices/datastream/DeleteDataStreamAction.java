@@ -33,8 +33,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -43,11 +45,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -106,10 +111,14 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
+        private final MetadataDeleteIndexService deleteIndexService;
+
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               MetadataDeleteIndexService deleteIndexService) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+            this.deleteIndexService = deleteIndexService;
         }
 
         @Override
@@ -139,7 +148,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return removeDataStream(currentState, request);
+                    return removeDataStream(deleteIndexService, currentState, request);
                 }
 
                 @Override
@@ -149,7 +158,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             });
         }
 
-        static ClusterState removeDataStream(ClusterState currentState, Request request) {
+        static ClusterState removeDataStream(MetadataDeleteIndexService deleteIndexService, ClusterState currentState, Request request) {
             Set<String> dataStreams = new HashSet<>();
             for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
                 if (Regex.simpleMatch(request.name, dataStreamName)) {
@@ -164,12 +173,26 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                 }
                 throw new ResourceNotFoundException("data_streams matching [" + request.name + "] not found");
             }
-            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+            List<String> dataStreamsToRemove = new ArrayList<>();
+            Set<Index> backingIndicesToRemove = new HashSet<>();
             for (String dataStreamName : dataStreams) {
-                logger.info("removing data stream [{}]", dataStreamName);
-                metadata.removeDataStream(dataStreamName);
+                DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
+                assert dataStream != null;
+                backingIndicesToRemove.addAll(dataStream.getIndices());
+                dataStreamsToRemove.add(dataStreamName);
             }
-            return ClusterState.builder(currentState).metadata(metadata).build();
+
+            // first delete the data streams and then the indices:
+            // (this to avoid data stream validation from failing when deleting an index that is part of a data stream
+            // without updating the data stream)
+            // TODO: change order when delete index api also updates the data stream the index to be removed is member of
+            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+            for (String ds : dataStreamsToRemove) {
+                logger.info("removing data stream [{}]", ds);
+                metadata.removeDataStream(ds);
+            }
+            currentState = ClusterState.builder(currentState).metadata(metadata).build();
+            return deleteIndexService.deleteIndices(currentState, backingIndicesToRemove);
         }
 
         @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
@@ -47,8 +48,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestGetFieldMappingAction.class));
+    private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
@@ -85,6 +86,12 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
+
+        if (request.hasParam("local")) {
+            deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_local",
+                "Use [local] in get field mapping requests is deprecated. "
+                    + "The parameter will be removed in the next major version");
+        }
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
                 client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {

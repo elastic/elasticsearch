@@ -106,12 +106,13 @@ public class LdapRealmTests extends LdapTestCase {
         defaultGlobalSettings = builder.put("path.home", createTempDir()).build();
         sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
 
     @After
     public void shutdown() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
     }
 

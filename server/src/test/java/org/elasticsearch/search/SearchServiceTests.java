@@ -657,7 +657,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0)));
+            .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(0)));
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1,  null, null)).canMatch());
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
@@ -672,6 +672,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
+
+        assertAcked(
+            client().admin().indices().prepareAliases()
+                .addAlias("index", "alias", new MatchNoneQueryBuilder())
+                .get()
+        );
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
+            new AliasFilter(new MatchNoneQueryBuilder(), "alias"), 1f, -1, null, null)).canMatch());
 
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
@@ -704,12 +714,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder()));
         assertFalse(SearchService.canRewriteToMatchNone(null));
         assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0))));
+            .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(0))));
         assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))));
         assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(1))));
+            .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(1))));
         assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-            .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(1))
+            .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(1))
             .suggest(new SuggestBuilder())));
         assertFalse(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))
             .suggest(new SuggestBuilder())));

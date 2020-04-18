@@ -37,7 +37,6 @@ public class InboundDecoder implements Releasable {
 
     private final Version version;
     private final PageCacheRecycler recycler;
-    private Exception decodingException;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
@@ -86,13 +85,6 @@ public class InboundDecoder implements Releasable {
                     return headerBytesToRead;
                 }
             }
-        } else if (isDecodingFailed()) {
-            int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
-            bytesConsumed += bytesToConsume;
-            if (isDone()) {
-                finishMessage(fragmentConsumer);
-            }
-            return bytesToConsume;
         } else {
             // There are a minimum number of bytes required to start decompression
             if (decompressor != null && decompressor.canDecompress(reference.length()) == false) {
@@ -130,19 +122,12 @@ public class InboundDecoder implements Releasable {
     }
 
     private void finishMessage(Consumer<Object> fragmentConsumer) {
-        Object finishMarker;
-        if (decodingException != null) {
-            finishMarker = decodingException;
-        } else {
-            finishMarker = END_CONTENT;
-        }
         cleanDecodeState();
-        fragmentConsumer.accept(finishMarker);
+        fragmentConsumer.accept(END_CONTENT);
     }
 
     private void cleanDecodeState() {
         IOUtils.closeWhileHandlingException(decompressor);
-        decodingException = null;
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
@@ -190,7 +175,7 @@ public class InboundDecoder implements Releasable {
             Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
             final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
             if (invalidVersion != null) {
-                decodingException = invalidVersion;
+                throw invalidVersion;
             } else {
                 if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                     // Skip since we already have ensured enough data available
@@ -204,10 +189,6 @@ public class InboundDecoder implements Releasable {
 
     private boolean isOnHeader() {
         return totalNetworkSize == -1;
-    }
-
-    private boolean isDecodingFailed() {
-        return decodingException != null;
     }
 
     private void ensureOpen() {

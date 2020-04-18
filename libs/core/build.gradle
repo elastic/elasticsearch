@@ -21,7 +21,6 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
 
 archivesBaseName = 'elasticsearch-core'
 
@@ -89,7 +88,7 @@ dependencies {
   }
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-core does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'

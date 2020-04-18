@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -224,7 +226,8 @@ public class ClusterStateIT extends ESIntegTestCase {
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {

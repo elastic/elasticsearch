@@ -20,11 +20,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -36,8 +32,7 @@ import java.util.Map;
 public class InternalGeoCentroidTests extends InternalAggregationTestCase<InternalGeoCentroid> {
 
     @Override
-    protected InternalGeoCentroid createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metadata) {
+    protected InternalGeoCentroid createTestInstance(String name, Map<String, Object> metadata) {
         GeoPoint centroid = RandomGeoGenerator.randomPoint(random());
 
         // Re-encode lat/longs to avoid rounding issue when testing InternalGeoCentroid#hashCode() and
@@ -50,12 +45,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         if (count == 0) {
             centroid = null;
         }
-        return new InternalGeoCentroid(name, centroid, count, Collections.emptyList(), Collections.emptyMap());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoCentroid> instanceReader() {
-        return InternalGeoCentroid::new;
+        return new InternalGeoCentroid(name, centroid, count, Collections.emptyMap());
     }
 
     @Override
@@ -91,7 +81,6 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         String name = instance.getName();
         GeoPoint centroid = instance.centroid();
         long count = instance.count();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -130,6 +119,6 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metadata);
+        return new InternalGeoCentroid(name, centroid, count, metadata);
     }
 }

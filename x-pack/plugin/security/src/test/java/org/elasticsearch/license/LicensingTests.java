@@ -15,15 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.node.MockNode;
@@ -33,16 +25,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.TestXPackTransportClient;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.After;
 import org.junit.Before;
@@ -59,7 +44,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -130,7 +114,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Before
     public void resetLicensing() throws Exception {
-        enableLicensing(OperationMode.MISSING);
+        enableLicensing(OperationMode.BASIC);
     }
 
     @After
@@ -180,97 +164,13 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(nodeStats, notNullValue());
     }
 
-    public void testRestAuthenticationByLicenseType() throws Exception {
-        Response unauthorizedRootResponse = getRestClient().performRequest(new Request("GET", "/"));
-        // the default of the licensing tests is basic
-        assertThat(unauthorizedRootResponse.getStatusLine().getStatusCode(), is(200));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
-
-        // generate a new license with a mode that enables auth
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, License.OperationMode.ENTERPRISE);
-        enableLicensing(mode);
-        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
-        e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest(new Request("GET", "/_security/_authenticate")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
-
-        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
-        RequestOptions options = optionsBuilder.build();
-
-        Request rootRequest = new Request("GET", "/");
-        rootRequest.setOptions(options);
-        Response authorizedRootResponse = getRestClient().performRequest(rootRequest);
-        assertThat(authorizedRootResponse.getStatusLine().getStatusCode(), is(200));
-        Request authenticateRequest = new Request("GET", "/_security/_authenticate");
-        authenticateRequest.setOptions(options);
-        Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
-        assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
-    }
-
-    public void testSecurityActionsByLicenseType() throws Exception {
-        // security actions should not work!
-        Settings settings = internalCluster().transportClient().settings();
-        try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            fail("security actions should not be enabled!");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.status(), is(RestStatus.FORBIDDEN));
-            assertThat(e.getMessage(), containsString("non-compliant"));
-        }
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, OperationMode.BASIC);
-        enableLicensing(mode);
-        // security actions should work!
-        try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            PutUserResponse response = new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            assertNotNull(response);
-        }
-    }
-
-    public void testTransportClientAuthenticationByLicenseType() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put(internalCluster().transportClient().settings());
-        // remove user info
-        builder.remove(SecurityField.USER_SETTING.getKey());
-        builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
-
-        // basic has no auth
-        try (TransportClient client = new TestXPackTransportClient(builder.build(), LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            assertGreenClusterState(client);
-        }
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
-        enableLicensing(mode);
-
-        try (TransportClient client = new TestXPackTransportClient(builder.build(), LocalStateSecurity.class)) {
-            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            client.admin().cluster().prepareHealth().get();
-            fail("should not have been able to connect to a node!");
-        } catch (NoNodeAvailableException e) {
-            // expected
-        }
-    }
-
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
             License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
         enableLicensing(mode);
 
         final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
-            .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
+            .getNodes().stream().map(n -> n.getInfo(TransportInfo.class).getAddress().publishAddress().toString()).distinct()
             .collect(Collectors.toList());
 
         Path home = createTempDir();
@@ -305,12 +205,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // is overwritten by some other cluster activity and the node throws an exception while we
         // wait for things to stabilize!
         assertBusy(() -> {
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                if (licenseState.isAuthAllowed() == false) {
-                    enableLicensing(OperationMode.BASIC);
-                    break;
-                }
-            }
+            enableLicensing(OperationMode.BASIC);
 
             ensureGreen();
             ensureClusterSizeConsistency();

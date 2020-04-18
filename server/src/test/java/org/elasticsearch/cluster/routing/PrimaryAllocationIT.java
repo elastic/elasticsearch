@@ -78,7 +78,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -172,7 +173,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> check that old primary shard does not get promoted to primary again");
         // kick reroute and wait for all shard states to be fetched
         client(master).admin().cluster().prepareReroute().get();
-        assertBusy(() -> assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetch(),
+        assertBusy(() -> assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetches(),
             equalTo(0)));
         // kick reroute a second time and check that all shards are unassigned
         assertThat(client(master).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(),
@@ -304,7 +305,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         Set<String> newHistoryUUIds = Stream.of(shardStats)
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
-        assertThat(newHistoryUUIds, everyItem(not(isIn(historyUUIDs))));
+        assertThat(newHistoryUUIds, everyItem(is(not(in(historyUUIDs)))));
         assertThat(newHistoryUUIds, hasSize(1));
     }
 
@@ -539,7 +540,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             Set<String> selectedPartition = replicasSide1.contains(newPrimaryNode) ? replicasSide1 : replicasSide2;
             assertThat(shardRoutingTable.activeShards(), hasSize(selectedPartition.size()));
             for (ShardRouting activeShard : shardRoutingTable.activeShards()) {
-                assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), isIn(selectedPartition));
+                assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), is(in(selectedPartition)));
             }
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
         }, 1, TimeUnit.MINUTES);

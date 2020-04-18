@@ -93,10 +93,11 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true);
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
 
         Directory directory = newDirectory();
@@ -227,11 +228,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true);
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetCache, securityContext, licenseState, scriptService) {

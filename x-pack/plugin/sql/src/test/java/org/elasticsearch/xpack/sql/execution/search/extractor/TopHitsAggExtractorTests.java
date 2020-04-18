@@ -69,7 +69,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = randomTopHitsAggExtractor();
 
         TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 0, null, new SearchHits(null, totalHits, 0.0f), null, null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 0, null, new SearchHits(null, totalHits, 0.0f), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertNull(extractor.extract(bucket));
     }
@@ -78,7 +78,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.KEYWORD, UTC);
 
         String value = "Str_Value";
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(value, extractor.extract(bucket));
     }
@@ -88,15 +88,15 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.DATETIME, zoneId);
 
         long value = 123456789L;
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(DateUtils.asDateTime(value, zoneId), extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {
         TotalHits totalHits = new TotalHits(10, TotalHits.Relation.EQUAL_TO);
-        return new SearchHits(new SearchHit[] {new SearchHit(1, "docId", null,
-                Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))))},
+        return new SearchHits(new SearchHit[] {new SearchHit(1, "docId", null, Collections.singletonMap("topHitsAgg",
+            new DocumentField("field", Collections.singletonList(value))), Collections.emptyMap())},
             totalHits, 0.0f);
     }
 }

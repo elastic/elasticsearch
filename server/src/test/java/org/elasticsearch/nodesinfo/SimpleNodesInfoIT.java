@@ -24,12 +24,14 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -101,7 +103,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer().getBytes(), greaterThan(0L));
 
         // again, using only the indices flag
-        response = client().admin().cluster().prepareNodesInfo().clear().setIndices(true).execute().actionGet();
+        response = client().admin().cluster().prepareNodesInfo().clear().addMetric(INDICES.metricName()).execute().actionGet();
         assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
@@ -134,12 +136,12 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        assertThat(response.getNodesMap().get(server1NodeId).getOs().getAvailableProcessors(),
+        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
                 equalTo(Runtime.getRuntime().availableProcessors()));
-        assertThat(response.getNodesMap().get(server2NodeId).getOs().getAvailableProcessors(),
+        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAvailableProcessors(),
                 equalTo(Runtime.getRuntime().availableProcessors()));
 
-        assertThat(response.getNodesMap().get(server1NodeId).getOs().getAllocatedProcessors(), equalTo(3));
-        assertThat(response.getNodesMap().get(server2NodeId).getOs().getAllocatedProcessors(), equalTo(6));
+        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(3));
+        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(6));
     }
 }

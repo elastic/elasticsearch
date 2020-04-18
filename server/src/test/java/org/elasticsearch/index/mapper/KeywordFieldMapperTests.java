@@ -344,10 +344,18 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
-    public void testNormalizer() throws IOException {
+    public void testCustomNormalizer() throws IOException {
+        checkLowercaseNormalizer("my_lowercase");
+    }
+    
+    public void testInBuiltNormalizer() throws IOException {
+        checkLowercaseNormalizer("lowercase");        
+    }       
+        
+    public void checkLowercaseNormalizer(String normalizerName) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
-                .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
+                .field("type", "keyword").field("normalizer", normalizerName).endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));

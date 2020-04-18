@@ -20,11 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,13 +61,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     }
 
     @Override
-    protected Writeable.Reader<InternalGeoDistance> instanceReader() {
-        return InternalGeoDistance::new;
-    }
-
-    @Override
     protected InternalGeoDistance createTestInstance(String name,
-                                                     List<PipelineAggregator> pipelineAggregators,
                                                      Map<String, Object> metadata,
                                                      InternalAggregations aggregations,
                                                      boolean keyed) {
@@ -81,7 +73,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             double to = range.v2();
             buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
         }
-        return new InternalGeoDistance(name, buckets, keyed, pipelineAggregators, metadata);
+        return new InternalGeoDistance(name, buckets, keyed, metadata);
     }
 
     @Override
@@ -104,7 +96,6 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         String name = instance.getName();
         boolean keyed = instance.keyed;
         List<InternalGeoDistance.Bucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -130,6 +121,6 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoDistance(name, buckets, keyed, pipelineAggregators, metadata);
+        return new InternalGeoDistance(name, buckets, keyed, metadata);
     }
 }

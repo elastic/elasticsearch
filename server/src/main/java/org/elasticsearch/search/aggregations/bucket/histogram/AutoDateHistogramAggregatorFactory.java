@@ -20,11 +20,11 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -32,17 +32,16 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public final class AutoDateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory {
 
     private final int numBuckets;
     private RoundingInfo[] roundingInfos;
 
     public AutoDateHistogramAggregatorFactory(String name,
-                                              ValuesSourceConfig<Numeric> config,
+                                              ValuesSourceConfig config,
                                               int numBuckets,
                                               RoundingInfo[] roundingInfos,
                                               QueryShardContext queryShardContext,
@@ -55,32 +54,33 @@ public final class AutoDateHistogramAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
+        if (valuesSource instanceof Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        return createAggregator(valuesSource, searchContext, parent, pipelineAggregators, metadata);
+        return createAggregator((Numeric) valuesSource, searchContext, parent, metadata);
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos,
-            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
+            valuesSource, config.format(), searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return createAggregator(null, searchContext, parent, pipelineAggregators, metadata);
+        return createAggregator(null, searchContext, parent, metadata);
     }
 }

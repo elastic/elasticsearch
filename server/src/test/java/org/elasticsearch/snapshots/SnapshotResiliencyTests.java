@@ -89,15 +89,18 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
@@ -427,8 +430,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
-        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-            new DeleteSnapshotRequest(repoName, snapshotName), deleteSnapshotStepListener));
+        masterNode.clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
+                    client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
+                    masterNode.clusterService.removeListener(this);
+                }
+            }
+        });
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
@@ -439,6 +450,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
+        assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(createAnotherSnapshotResponseStepListener.result());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
@@ -910,6 +922,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private void stabilize() {
+        final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + AbstractCoordinatorTestCase.DEFAULT_STABILISATION_TIME;
+        while (deterministicTaskQueue.getCurrentTimeMillis() < endTime) {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         runUntil(
             () -> {
                 final Collection<ClusterState> clusterStates =
@@ -1276,7 +1293,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     client,
                     new MetaStateService(nodeEnv, namedXContentRegistry),
                     Collections.emptyList(),
-                    emptyMap()
+                    emptyMap(),
+                    null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
@@ -1363,9 +1381,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
+                SearchPhaseController searchPhaseController = new SearchPhaseController(
+                    writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(threadPool, transportService, searchService,
-                        searchTransportService, new SearchPhaseController(searchService::aggReduceContextBuilder), clusterService,
+                        searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,

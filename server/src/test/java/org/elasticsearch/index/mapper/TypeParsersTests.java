@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -219,14 +218,15 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null);
 
         {
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", 3));
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", 3));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("veryloooooooooooongkey", 3L)));
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta",
+                Collections.singletonMap("veryloooooooooooongkey", 3L)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
@@ -241,7 +241,7 @@ public class TypeParsersTests extends ESTestCase {
             meta.put("foo4", "3");
             meta.put("foo5", "3");
             meta.put("foo6", "3");
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", meta));
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
@@ -249,15 +249,19 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("foo", ImmutableMap.of("bar", "baz"))));
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta",
+                Collections.singletonMap("foo", Collections.singletonMap("bar", "baz"))));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
-            assertEquals("[meta] values can only be strings, but got SingletonImmutableBiMap[{bar=baz}] for field [foo]",
+            assertEquals("[meta] values can only be strings, but got SingletonMap[{bar=baz}] for field [foo]",
                     e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("bar", "baz", "foo", 3)));
+            Map<String, Object> inner = new HashMap<>();
+            inner.put("bar", "baz");
+            inner.put("foo", 3);
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", inner));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
@@ -267,7 +271,7 @@ public class TypeParsersTests extends ESTestCase {
         {
             Map<String, String> meta = new HashMap<>();
             meta.put("foo", null);
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", meta));
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", meta));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] values can't be null (field [foo])",
@@ -278,7 +282,7 @@ public class TypeParsersTests extends ESTestCase {
             String longString = IntStream.range(0, 51)
                     .mapToObj(Integer::toString)
                     .collect(Collectors.joining());
-            Map<String, Object> mapping = new HashMap<>(ImmutableMap.of("meta", ImmutableMap.of("foo", longString)));
+            Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", Collections.singletonMap("foo", longString)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));

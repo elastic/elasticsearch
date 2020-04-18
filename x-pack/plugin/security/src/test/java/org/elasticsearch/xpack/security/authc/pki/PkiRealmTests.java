@@ -74,6 +74,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
 

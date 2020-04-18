@@ -204,6 +204,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -242,7 +243,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput()).map();
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
-            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null);
+            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null, null);
             hit.sourceRef(source);
             return hit;
         } catch (IOException e) {

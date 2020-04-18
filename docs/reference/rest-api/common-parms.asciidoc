@@ -701,6 +701,14 @@ tag::preference[]
 performed on. Random by default.
 end::preference[]
 
+tag::processing-time-ms[]
+The amount of time spent processing results, in milliseconds.
+end::processing-time-ms[]
+
+tag::processing-total[]
+The number of processing operations.
+end::processing-total[]
+
 tag::search-q[]
 `q`::
 (Optional, string) Query in the Lucene query string syntax.
@@ -964,12 +972,6 @@ end::time[]
 tag::timeoutparms[]
 
 tag::timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
-end::timeout[]
-
 tag::master-timeout[]
 `master_timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
@@ -977,6 +979,11 @@ a connection to the master node. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
 end::master-timeout[]
 
+`timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `30s`.
+end::timeout[]
 end::timeoutparms[]
 
 tag::type[]

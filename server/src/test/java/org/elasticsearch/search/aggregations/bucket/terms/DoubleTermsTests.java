@@ -19,12 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,7 +35,6 @@ public class DoubleTermsTests extends InternalTermsTestCase {
 
     @Override
     protected InternalTerms<?, ?> createTestInstance(String name,
-                                                     List<PipelineAggregator> pipelineAggregators,
                                                      Map<String, Object> metadata,
                                                      InternalAggregations aggregations,
                                                      boolean showTermDocCountError,
@@ -56,13 +53,8 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             int docCount = randomIntBetween(1, 100);
             buckets.add(new DoubleTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
-        return new DoubleTerms(name, order, requiredSize, minDocCount, pipelineAggregators,
+        return new DoubleTerms(name, order, requiredSize, minDocCount,
                 metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
-    }
-
-    @Override
-    protected Reader<InternalTerms<?, ?>> instanceReader() {
-        return DoubleTerms::new;
     }
 
     @Override
@@ -84,7 +76,6 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             long otherDocCount = doubleTerms.getSumOfOtherDocCounts();
             List<DoubleTerms.Bucket> buckets = doubleTerms.getBuckets();
             long docCountError = doubleTerms.getDocCountError();
-            List<PipelineAggregator> pipelineAggregators = doubleTerms.pipelineAggregators();
             Map<String, Object> metadata = doubleTerms.getMetadata();
             switch (between(0, 8)) {
             case 0:
@@ -124,14 +115,13 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new DoubleTerms(name, order, requiredSize, minDocCount, pipelineAggregators, metadata, format, shardSize,
+            return new DoubleTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
                     showTermDocCountError, otherDocCount, buckets, docCountError);
         } else {
             String name = instance.getName();
             BucketOrder order = instance.order;
             int requiredSize = instance.requiredSize;
             long minDocCount = instance.minDocCount;
-            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
             Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
             case 0:
@@ -154,7 +144,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators, metadata);
+            return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
         }
     }
 

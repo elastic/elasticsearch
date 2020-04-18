@@ -313,8 +313,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
-        assertEquals("The [default] mapping cannot be updated on index [test]: defaults mappings are not useful anymore now"
-            + " that indices can have at most one type.", e.getMessage());
+        assertEquals(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE, e.getMessage());
     }
 
     public void testFieldNameLengthLimit() throws Throwable {

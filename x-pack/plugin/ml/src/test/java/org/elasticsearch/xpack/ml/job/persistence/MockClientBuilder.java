@@ -39,6 +39,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -190,7 +191,7 @@ public class MockClientBuilder {
 
         SearchHit hits [] = new SearchHit[fields.size()];
         for (int i=0; i<hits.length; i++) {
-            SearchHit hit = new SearchHit(10, null, null, fields.get(i));
+            SearchHit hit = new SearchHit(10, null, null, fields.get(i), Collections.emptyMap());
             hits[i] = hit;
         }
 

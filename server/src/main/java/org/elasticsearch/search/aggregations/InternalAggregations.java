@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -100,16 +101,36 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-        if (out.getVersion().before(Version.V_7_8_0) && out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().before(Version.V_7_8_0)) {
             if (pipelineTreeForBwcSerialization == null) {
-                out.writeNamedWriteableList(emptyList());
+                mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
+                out.writeNamedWriteableList(getInternalAggregations());
+                if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                    out.writeNamedWriteableList(emptyList());
+                }
             } else {
-                out.writeNamedWriteableList(pipelineTreeForBwcSerialization.get().aggregators());
+                PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
+                mergePipelineTreeForBWCSerialization(pipelineTree);
+                out.writeNamedWriteableList(getInternalAggregations());
+                if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                    out.writeNamedWriteableList(pipelineTree.aggregators());
+                }
             }
+        } else {
+            out.writeNamedWriteableList(getInternalAggregations());
         }
+    }
+
+    /**
+     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
+     * aggregation result tree before serializing to a node older than
+     * 7.8.0.
+     */
+    public void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
+        getInternalAggregations().stream().forEach(agg -> {
+            agg.mergePipelineTreeForBWCSerialization(pipelineTree.subTree(agg.getName()));
+        });
     }
 
     /**
@@ -133,6 +154,14 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         return pipelineTreeForBwcSerialization.get().aggregators().stream()
                 .map(p -> (SiblingPipelineAggregator) p)
                 .collect(toList());
+    }
+
+    /**
+     * Get the transient pipeline tree used to serialize pipeline aggregators to old nodes.
+     */
+    @Deprecated
+    Supplier<PipelineAggregator.PipelineTree> getPipelineTreeForBwcSerialization() {
+        return pipelineTreeForBwcSerialization;
     }
 
     @SuppressWarnings("unchecked")

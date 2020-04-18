@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,7 +75,6 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
 
     @Override
     protected InternalRange createTestInstance(String name,
-                                               List<PipelineAggregator> pipelineAggregators,
                                                Map<String, Object> metadata,
                                                InternalAggregations aggregations,
                                                boolean keyed) {
@@ -89,12 +86,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
             double to = range.v2();
             buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
-        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalRange> instanceReader() {
-        return InternalRange::new;
+        return new InternalRange<>(name, buckets, format, keyed, metadata);
     }
 
     @Override
@@ -118,7 +110,6 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         DocValueFormat format = instance.format;
         boolean keyed = instance.keyed;
         List<InternalRange.Bucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -144,6 +135,6 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metadata);
+        return new InternalRange<>(name, buckets, format, keyed, metadata);
     }
 }

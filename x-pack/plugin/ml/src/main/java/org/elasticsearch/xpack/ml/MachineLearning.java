@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
@@ -49,6 +50,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -210,6 +212,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -318,6 +321,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
@@ -415,6 +419,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
+    private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -514,11 +519,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled == false || transportClientMode) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
-            return Collections.singletonList(new JobManagerHolder());
+            return singletonList(new JobManagerHolder());
         }
+
+        this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
         new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
 
@@ -625,13 +633,20 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         this.datafeedManager.set(datafeedManager);
 
         // Inference components
+        final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(resultsPersisterService,
+            originSettingClient,
+            indexNameExpressionResolver,
+            clusterService,
+            threadPool);
         final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
         final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
             inferenceAuditor,
             threadPool,
             clusterService,
             xContentRegistry,
-            settings);
+            trainedModelStatsService,
+            settings,
+            clusterService.getNodeName());
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
@@ -871,6 +886,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     }
 
     @Override
+    public List<ActionFilter> getActionFilters() {
+        if (enabled == false) {
+            return emptyList();
+        }
+
+        return singletonList(this.mlUpgradeModeActionFilter.get());
+    }
+
+    @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (false == enabled || transportClientMode) {
             return emptyList();
@@ -952,7 +976,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.unmodifiableList(Arrays.asList(
             new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, "Contains scheduling and anomaly tracking metadata"),
             new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, "Contains ML configuration data"),

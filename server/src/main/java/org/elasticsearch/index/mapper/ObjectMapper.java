@@ -459,9 +459,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
+        checkObjectMapperParameters(mergeWith);
+
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
-            checkEnabledFieldChange(mergeWith, mergeWithMapper, mergeIntoMapper);
 
             Mapper merged;
             if (mergeIntoMapper == null) {
@@ -475,15 +476,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    private static void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
-        if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
-            final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
-            final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;
+    private void checkObjectMapperParameters(final ObjectMapper mergeWith) {
+        if (isEnabled() != mergeWith.isEnabled()) {
+            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
+        }
 
-            if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
-                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
-                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
-            }
+        if (nested().isIncludeInParent() != mergeWith.nested().isIncludeInParent()) {
+            throw new MapperException("The [include_in_parent] parameter can't be updated for the nested object mapping [" +
+                name() + "].");
+        }
+
+        if (nested().isIncludeInRoot() != mergeWith.nested().isIncludeInRoot()) {
+            throw new MapperException("The [include_in_root] parameter can't be updated for the nested object mapping [" +
+                name() + "].");
         }
     }
 

@@ -19,11 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
-import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -33,19 +29,13 @@ import java.util.Map;
 public class InternalValueCountTests extends InternalAggregationTestCase<InternalValueCount> {
 
     @Override
-    protected InternalValueCount createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) {
-        return new InternalValueCount(name, randomIntBetween(0, 100), pipelineAggregators, metadata);
+    protected InternalValueCount createTestInstance(String name, Map<String, Object> metadata) {
+        return new InternalValueCount(name, randomIntBetween(0, 100), metadata);
     }
 
     @Override
     protected void assertReduced(InternalValueCount reduced, List<InternalValueCount> inputs) {
         assertEquals(inputs.stream().mapToLong(InternalValueCount::getValue).sum(), reduced.getValue(), 0);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalValueCount> instanceReader() {
-        return InternalValueCount::new;
     }
 
     @Override
@@ -58,7 +48,6 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     protected InternalValueCount mutateInstance(InternalValueCount instance) {
         String name = instance.getName();
         long value = instance.getValue();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -82,6 +71,6 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalValueCount(name, value, pipelineAggregators, metadata);
+        return new InternalValueCount(name, value, metadata);
     }
 }

@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 
 public class PutJobStateMachineTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCreateIndexException() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -78,7 +78,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(CreateIndexAction.INSTANCE), any(CreateIndexRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexAlreadyExists() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -110,7 +110,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexMetadata() throws InterruptedException {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -153,7 +153,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         latch.await(4, TimeUnit.SECONDS);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testGetMappingFails() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -177,7 +177,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testNoMetadataInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -211,7 +211,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testMetadataButNotRollup() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -249,7 +249,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testNoMappingVersion() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
@@ -286,7 +286,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testJobAlreadyInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -323,7 +323,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAddJobToMapping() {
         final RollupJobConfig unrelatedJob =
             ConfigTestHelpers.randomRollupJobConfig(random(), ESTestCase.randomAlphaOfLength(10), "foo", "rollup_index_foo");
@@ -372,7 +372,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(client).execute(eq(PutMappingAction.INSTANCE), any(PutMappingRequest.class), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testTaskAlreadyExists() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -395,7 +395,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testStartTask() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 

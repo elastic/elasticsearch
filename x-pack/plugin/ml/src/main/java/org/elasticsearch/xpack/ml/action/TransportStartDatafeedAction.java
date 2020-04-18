@@ -397,6 +397,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                      final StartDatafeedAction.DatafeedParams params,
                                      final PersistentTaskState state) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
+            DatafeedState datafeedState = (DatafeedState) state;
+
+            // If we are "stopping" there is nothing to do
+            if (DatafeedState.STOPPING.equals(datafeedState)) {
+                logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
+                datafeedTask.markAsCompleted();
+                return;
+            }
             datafeedTask.datafeedManager = datafeedManager;
             datafeedManager.run(datafeedTask,
                     (error) -> {
@@ -457,6 +465,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             // Note that this only applied when task cancel is invoked and stop datafeed api doesn't use this.
             // Also stop datafeed api will obey the timeout.
             stop(getReasonCancelled(), TimeValue.ZERO);
+        }
+
+        @Override
+        public boolean shouldCancelChildrenOnCancellation() {
+            // onCancelled implements graceful shutdown of children
+            return false;
         }
 
         public void stop(String reason, TimeValue timeout) {

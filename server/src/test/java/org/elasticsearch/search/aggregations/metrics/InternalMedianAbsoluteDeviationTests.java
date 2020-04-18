@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -32,10 +30,7 @@ import java.util.Map;
 public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTestCase<InternalMedianAbsoluteDeviation> {
 
     @Override
-    protected InternalMedianAbsoluteDeviation createTestInstance(String name,
-                                                                 List<PipelineAggregator> pipelineAggregators,
-                                                                 Map<String, Object> metadata) {
-
+    protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
         final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
         final int numberOfValues = frequently()
             ? randomIntBetween(0, 1000)
@@ -44,7 +39,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
             valuesSketch.add(randomDouble());
         }
 
-        return new InternalMedianAbsoluteDeviation(name, pipelineAggregators, metadata, randomNumericDocValueFormat(), valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, metadata, randomNumericDocValueFormat(), valuesSketch);
     }
 
     @Override
@@ -70,11 +65,6 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         ParsedMedianAbsoluteDeviation parsedMAD = (ParsedMedianAbsoluteDeviation) parsedAggregation;
         // Double.compare handles NaN, which we use for no result
         assertEquals(internalMAD.getMedianAbsoluteDeviation(), parsedMAD.getMedianAbsoluteDeviation(), 0);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalMedianAbsoluteDeviation> instanceReader() {
-        return InternalMedianAbsoluteDeviation::new;
     }
 
     @Override
@@ -105,6 +95,6 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
                 break;
         }
 
-        return new InternalMedianAbsoluteDeviation(name, instance.pipelineAggregators(), metadata, instance.format, valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, metadata, instance.format, valuesSketch);
     }
 }

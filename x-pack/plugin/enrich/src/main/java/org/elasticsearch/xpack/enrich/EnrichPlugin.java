@@ -31,6 +31,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -199,7 +200,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         Environment environment,
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (enabled == false || transportClientMode) {
             return emptyList();
@@ -263,7 +265,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );

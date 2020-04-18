@@ -45,7 +45,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -126,6 +128,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -229,6 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
+    private ValuesSourceRegistry valuesSourceRegistry;
 
 
     @Override
@@ -243,12 +247,13 @@ public class IndicesService extends AbstractLifecycleComponent
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
+                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -657,7 +662,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 mapperRegistry,
                 indicesFieldDataCache,
                 namedWriteableRegistry,
-                this::isIdFieldDataEnabled
+                this::isIdFieldDataEnabled,
+                valuesSourceRegistry
         );
     }
 
@@ -1376,12 +1382,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> "Shard: " + request.shardId() + "\nSource:\n" + request.source(),
             out -> {
             queryPhase.execute(context);
-            try {
-                context.queryResult().writeToNoId(out);
-
-            } catch (IOException e) {
-                throw new AssertionError("Could not serialize response", e);
-            }
+            context.queryResult().writeToNoId(out);
             loadedFromCache[0] = false;
         });
 
@@ -1420,9 +1421,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey,
-            Supplier<String> cacheKeyRenderer, Consumer<StreamOutput> loader) throws Exception {
+            Supplier<String> cacheKeyRenderer, CheckedConsumer<StreamOutput, IOException> loader) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
-        Supplier<BytesReference> supplier = () -> {
+        CheckedSupplier<BytesReference, IOException> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
              * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
              * a date histogram with 3 buckets is ~100byte so 16k might be very wasteful

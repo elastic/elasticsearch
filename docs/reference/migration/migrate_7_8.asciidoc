@@ -19,6 +19,38 @@ coming[7.8.0]
 //end::notable-breaking-changes[]
 
 [discrete]
+[[breaking_78_api_changes]]
+=== API changes
+
+[discrete]
+==== Deprecation of `local` parameter for get field mapping API
+
+The `local` parameter is a no-op and field mappings are always retrieved locally.
+As of 7.8, this parameter is deprecated and will be removed in next major version.
+
+[discrete]
+[[breaking_78_mappings_changes]]
+=== Mappings changes
+
+[discrete]
+[[prevent-enabled-setting-change]]
+==== `enabled` setting cannot be changed on root mapper
+
+Previously, Elasticsearch accepted mapping updates that tried to change the
+`enabled` setting on the root mapping. The update was not applied, but the
+request didn't throw an error. As of 7.8, requests that attempt to change
+`enabled` on the root mapping will fail.
+
+[discrete]
+[[prevent-include-in-root-change]]
+==== `include_in_root` and `include_in_parent` cannot be changed
+
+Elasticsearch previously accepted mapping updates that changed the
+`include_in_root` and `include_in_parent` settings. The update was not
+applied, but the request didn't throw an error. As of 7.8, requests that
+attempt to change these settings will fail.
+
+[discrete]
 [[breaking_78_settings_changes]]
 === Settings changes
 

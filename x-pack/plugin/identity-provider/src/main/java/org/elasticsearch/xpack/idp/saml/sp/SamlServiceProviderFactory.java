@@ -14,9 +14,11 @@ import org.opensaml.security.x509.X509Credential;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -58,8 +60,20 @@ public final class SamlServiceProviderFactory {
 
     private ServiceProviderPrivileges buildPrivileges(SamlServiceProviderDocument.Privileges configuredPrivileges) {
         final String resource = configuredPrivileges.resource;
-        final Map<String, String> roles = Optional.ofNullable(configuredPrivileges.roleActions).orElse(Collections.emptyMap());
-        return new ServiceProviderPrivileges(defaults.applicationName, resource, roles);
+        final Function<String, Set<String>> roleMapping;
+        if (configuredPrivileges.rolePatterns == null || configuredPrivileges.rolePatterns.isEmpty()) {
+            roleMapping = in -> Collections.emptySet();
+        } else {
+            final Set<Pattern> patterns = configuredPrivileges.rolePatterns.stream()
+                .map(Pattern::compile)
+                .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
+            roleMapping = action -> patterns.stream()
+                .map(p -> p.matcher(action))
+                .filter(Matcher::matches)
+                .map(m -> m.group(1))
+                .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
+        }
+        return new ServiceProviderPrivileges(defaults.applicationName, resource, roleMapping);
     }
 
     private URL parseUrl(SamlServiceProviderDocument document) {

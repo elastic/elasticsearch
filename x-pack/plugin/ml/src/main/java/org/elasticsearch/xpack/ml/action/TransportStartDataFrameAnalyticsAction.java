@@ -90,8 +90,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /**
  * Starts the persistent task for running data frame analytics.
- *
- * TODO Add to the upgrade mode action
  */
 public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
@@ -260,7 +258,7 @@ public class TransportStartDataFrameAnalyticsAction
             startContext -> {
                 switch (startContext.startingState) {
                     case FIRST_TIME:
-                        checkDestIndexIsEmptyIfExists(startContext, toValidateMappingsListener);
+                        checkDestIndexIsEmptyIfExists(client, startContext, toValidateMappingsListener);
                         break;
                     case RESUMING_REINDEXING:
                     case RESUMING_ANALYZING:
@@ -360,13 +358,14 @@ public class TransportStartDataFrameAnalyticsAction
         ));
     }
 
-    private void checkDestIndexIsEmptyIfExists(StartContext startContext, ActionListener<StartContext> listener) {
+    private void checkDestIndexIsEmptyIfExists(Client client, StartContext startContext,
+                                               ActionListener<StartContext> listener) {
         String destIndex = startContext.config.getDest().getIndex();
         SearchRequest destEmptySearch = new SearchRequest(destIndex);
         destEmptySearch.source().size(0);
         destEmptySearch.allowPartialSearchResults(false);
-        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE,
-            destEmptySearch, ActionListener.wrap(
+        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, client,
+                SearchAction.INSTANCE, destEmptySearch, ActionListener.wrap(
                 searchResponse -> {
                     if (searchResponse.getHits().getTotalHits().value > 0) {
                         listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
@@ -643,11 +642,16 @@ public class TransportStartDataFrameAnalyticsAction
                                      PersistentTaskState state) {
             logger.info("[{}] Starting data frame analytics", params.getId());
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
+            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? null : analyticsTaskState.getState();
 
-            // If we are "stopping" there is nothing to do
+            // If we are "stopping" there is nothing to do and we should stop
+            if (DataFrameAnalyticsState.STOPPING.equals(analyticsState)) {
+                logger.info("[{}] data frame analytics got reassigned while stopping. Marking as completed", params.getId());
+                task.markAsCompleted();
+                return;
+            }
             // If we are "failed" then we should leave the task as is; for recovery it must be force stopped.
-            if (analyticsTaskState != null && analyticsTaskState.getState().isAnyOf(
-                    DataFrameAnalyticsState.STOPPING, DataFrameAnalyticsState.FAILED)) {
+            if (DataFrameAnalyticsState.FAILED.equals(analyticsState)) {
                 return;
             }
 

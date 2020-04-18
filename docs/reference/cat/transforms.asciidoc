@@ -115,7 +115,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
 
 `processing_time`, `pt`:::
-The total time spent processing documents.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
 
 `reason`, `r`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]

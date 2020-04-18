@@ -58,6 +58,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -380,7 +381,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
                 environment, expressionResolver);
@@ -1027,7 +1029,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
+                XPackLicenseState licenseState = getLicenseState();
+                if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
@@ -1119,7 +1122,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.unmodifiableList(Arrays.asList(
             new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, "Contains Security configuration"),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, "Contains Security configuration"),

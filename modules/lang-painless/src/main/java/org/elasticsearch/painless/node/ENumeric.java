@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -56,7 +56,7 @@ public class ENumeric extends AExpression {
     }
 
     Output analyze(SemanticScope semanticScope, Input input, boolean negate) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
         }
@@ -131,7 +131,7 @@ public class ENumeric extends AExpression {
             }
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

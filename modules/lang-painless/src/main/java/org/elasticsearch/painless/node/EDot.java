@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -79,7 +79,7 @@ public class EDot extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        boolean write = semanticScope.getCondition(this, SemanticDecorator.Write.class);
+        boolean write = semanticScope.getCondition(this, Decorator.Write.class);
 
         if (input.read == false && write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
@@ -96,7 +96,7 @@ public class EDot extends AExpression {
         if (prefixOutput.partialCanonicalTypeName != null) {
             if (prefixOutput.isStaticType) {
                 throw createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                        "[" + semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getCanonicalTypeName() + "]"));
+                        "[" + semanticScope.getDecoration(prefixNode, Decorator.ValueType.class).getCanonicalTypeName() + "]"));
             }
 
             String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + index;
@@ -126,7 +126,7 @@ public class EDot extends AExpression {
                 output.expressionNode = staticNode;
             }
         } else {
-            Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
+            Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, Decorator.ValueType.class).getValueType();
             String targetCanonicalTypeName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
             ExpressionNode expressionNode = null;
@@ -354,7 +354,7 @@ public class EDot extends AExpression {
         }
 
         if (valueType != null) {
-            semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+            semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
         }
 
         return output;

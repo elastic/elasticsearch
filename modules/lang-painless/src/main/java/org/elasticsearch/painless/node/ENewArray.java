@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
@@ -63,7 +63,7 @@ public class ENewArray extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
         }
 
@@ -87,13 +87,13 @@ public class ENewArray extends AExpression {
             expressionInput.expected = isInitializer ? valueType.getComponentType() : int.class;
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
-            Class<?> valueValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
+            Class<?> valueValueType = semanticScope.getDecoration(expression, Decorator.ValueType.class).getValueType();
             argumentOutputs.add(expressionOutput);
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
 
         NewArrayNode newArrayNode = new NewArrayNode();
 

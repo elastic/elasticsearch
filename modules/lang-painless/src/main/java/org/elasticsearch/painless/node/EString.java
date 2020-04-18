@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -46,7 +46,7 @@ public class EString extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
@@ -56,7 +56,7 @@ public class EString extends AExpression {
         }
 
         Output output = new Output();
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(String.class));
+        semanticScope.addDecoration(this, new Decorator.ValueType(String.class));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

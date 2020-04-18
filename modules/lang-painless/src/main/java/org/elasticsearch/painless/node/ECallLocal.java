@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
@@ -65,7 +65,7 @@ public class ECallLocal extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to function call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
@@ -184,13 +184,13 @@ public class ECallLocal extends AExpression {
             argumentInput.internal = true;
             Output argumentOutput = analyze(expression, classNode, semanticScope, argumentInput);
             argumentOutputs.add(argumentOutput);
-            Class<?> argumentValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
+            Class<?> argumentValueType = semanticScope.getDecoration(expression, Decorator.ValueType.class).getValueType();
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     argumentValueType, argumentInput.expected, argumentInput.explicit, argumentInput.internal));
 
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
 
         MemberCallNode memberCallNode = new MemberCallNode();
 

@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -74,7 +74,7 @@ public class SDo extends AStatement {
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
         AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope, conditionInput);
-        Class<?> conditionValueType = semanticScope.getDecoration(conditionNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> conditionValueType = semanticScope.getDecoration(conditionNode, Decorator.ValueType.class).getValueType();
         PainlessCast conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
                 conditionValueType, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 

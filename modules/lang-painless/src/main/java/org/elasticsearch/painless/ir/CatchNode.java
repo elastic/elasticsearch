@@ -21,8 +21,8 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -65,10 +65,10 @@ public class CatchNode extends StatementNode {
     Label exception = null;
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        Variable variable = scopeTable.defineVariable(exceptionType, symbol);
+        Variable variable = writeScope.defineVariable(exceptionType, symbol);
 
         Label jump = new Label();
 
@@ -78,7 +78,7 @@ public class CatchNode extends StatementNode {
         if (blockNode != null) {
             blockNode.continueLabel = continueLabel;
             blockNode.breakLabel = breakLabel;
-            blockNode.write(classWriter, methodWriter, scopeTable);
+            blockNode.write(classWriter, methodWriter, writeScope);
         }
 
         methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());

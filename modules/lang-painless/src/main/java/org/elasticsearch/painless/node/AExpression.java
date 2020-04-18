@@ -24,7 +24,7 @@ import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
@@ -115,7 +115,7 @@ public abstract class AExpression extends ANode {
 
         if (output.isStaticType) {
             throw expression.createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                    "[" + semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getCanonicalTypeName() + "]"));
+                    "[" + semanticScope.getDecoration(expression, Decorator.ValueType.class).getCanonicalTypeName() + "]"));
         }
 
         return output;

@@ -22,7 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class CastNode extends UnaryNode {
 
@@ -41,8 +41,8 @@ public class CastNode extends UnaryNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getChildNode().write(classWriter, methodWriter, scopeTable);
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getChildNode().write(classWriter, methodWriter, writeScope);
         methodWriter.writeDebugInfo(location);
         methodWriter.writeCast(cast);
     }

@@ -21,7 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class StatementExpressionNode extends StatementNode {
 
@@ -40,9 +40,9 @@ public class StatementExpressionNode extends StatementNode {
     /* ---- end tree structure ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
-        expressionNode.write(classWriter, methodWriter, scopeTable);
+        expressionNode.write(classWriter, methodWriter, writeScope);
         methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
     }
 }

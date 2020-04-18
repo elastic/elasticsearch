@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CallNode;
@@ -65,7 +65,7 @@ public class ERegex extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
         }
@@ -96,7 +96,7 @@ public class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(Pattern.class));
+        semanticScope.addDecoration(this, new Decorator.ValueType(Pattern.class));
 
         String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
 

@@ -21,14 +21,14 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class BraceNode extends BinaryNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getLeftNode().write(classWriter, methodWriter, scopeTable);
-        getRightNode().write(classWriter, methodWriter, scopeTable);
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getLeftNode().write(classWriter, methodWriter, writeScope);
+        getRightNode().write(classWriter, methodWriter, writeScope);
     }
 
     @Override
@@ -37,18 +37,18 @@ public class BraceNode extends BinaryNode {
     }
 
     @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getLeftNode().write(classWriter, methodWriter, scopeTable);
-        getRightNode().setup(classWriter, methodWriter, scopeTable);
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getLeftNode().write(classWriter, methodWriter, writeScope);
+        getRightNode().setup(classWriter, methodWriter, writeScope);
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getRightNode().load(classWriter, methodWriter, scopeTable);
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getRightNode().load(classWriter, methodWriter, writeScope);
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getRightNode().store(classWriter, methodWriter, scopeTable);
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getRightNode().store(classWriter, methodWriter, writeScope);
     }
 }

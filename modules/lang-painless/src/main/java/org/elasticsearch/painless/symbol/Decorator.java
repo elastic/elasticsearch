@@ -28,7 +28,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class SemanticDecorator {
+public class Decorator {
+
+    public static class Read {
+        private Read() {
+            // do nothing
+        }
+    }
 
     public static class Write {
         private Write() {
@@ -55,7 +61,7 @@ public class SemanticDecorator {
     private final ArrayList<Map<Class<?>, Object>> decorations;
     private final ArrayList<Set<Class<?>>> conditions;
 
-    public SemanticDecorator(int nodeCount) {
+    public Decorator(int nodeCount) {
         decorations = new ArrayList<>(nodeCount);
         conditions = new ArrayList<>(nodeCount);
 

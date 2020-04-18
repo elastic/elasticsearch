@@ -26,7 +26,7 @@ import org.objectweb.asm.Type;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ScopeTable {
+public class WriteScope {
 
     public static class Variable {
 
@@ -63,22 +63,22 @@ public class ScopeTable {
         }
     }
 
-    protected final ScopeTable parent;
+    protected final WriteScope parent;
     protected final Map<String, Variable> variables = new HashMap<>();
     protected int nextSlot;
 
-    public ScopeTable() {
+    public WriteScope() {
         this.parent = null;
         this.nextSlot = 0;
     }
 
-    protected ScopeTable(ScopeTable parent, int nextSlot) {
+    protected WriteScope(WriteScope parent, int nextSlot) {
         this.parent = parent;
         this.nextSlot = nextSlot;
     }
 
-    public ScopeTable newScope() {
-        return new ScopeTable(this, nextSlot);
+    public WriteScope newScope() {
+        return new WriteScope(this, nextSlot);
     }
 
     public Variable defineVariable(Class<?> type, String name) {

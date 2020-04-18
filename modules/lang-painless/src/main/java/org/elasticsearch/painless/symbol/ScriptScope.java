@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * Stores information for use across the entirety of compilation.
  */
-public class ScriptScope extends SemanticDecorator {
+public class ScriptScope extends Decorator {
 
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;

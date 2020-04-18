@@ -21,24 +21,24 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class IfNode extends ConditionNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
         Label fals = new Label();
 
-        getConditionNode().write(classWriter, methodWriter, scopeTable);
+        getConditionNode().write(classWriter, methodWriter, writeScope);
         methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
         getBlockNode().continueLabel = continueLabel;
         getBlockNode().breakLabel = breakLabel;
-        getBlockNode().write(classWriter, methodWriter, scopeTable.newScope());
+        getBlockNode().write(classWriter, methodWriter, writeScope.newScope());
 
         methodWriter.mark(fals);
     }

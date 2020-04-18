@@ -21,7 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class ForEachLoopNode extends StatementNode {
 
@@ -40,8 +40,8 @@ public class ForEachLoopNode extends StatementNode {
     /* ---- end tree structure ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        scopeTable = scopeTable.newScope();
-        conditionNode.write(classWriter, methodWriter, scopeTable);
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        writeScope = writeScope.newScope();
+        conditionNode.write(classWriter, methodWriter, writeScope);
     }
 }

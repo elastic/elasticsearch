@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
@@ -63,7 +63,7 @@ public class EComp extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
@@ -79,11 +79,11 @@ public class EComp extends AExpression {
 
         Input leftInput = new Input();
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
 
         Input rightInput = new Input();
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
 
         if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
             promotedType = AnalyzerCaster.promoteEquality(leftValueType, rightValueType);
@@ -118,7 +118,7 @@ public class EComp extends AExpression {
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(boolean.class));
+        semanticScope.addDecoration(this, new Decorator.ValueType(boolean.class));
 
         ComparisonNode comparisonNode = new ComparisonNode();
 

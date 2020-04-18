@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -64,7 +64,7 @@ public class EBinary extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
@@ -80,12 +80,12 @@ public class EBinary extends AExpression {
 
         Input leftInput = new Input();
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
 
         Output output = new Output();
         Input rightInput = new Input();
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
 
         Class<?> valueType;
 
@@ -172,7 +172,7 @@ public class EBinary extends AExpression {
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
 
         BinaryMathNode binaryMathNode = new BinaryMathNode();
         binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));

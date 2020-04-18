@@ -23,7 +23,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
@@ -88,16 +88,16 @@ public class EAssignment extends AExpression {
 
         Input leftInput = new Input();
         leftInput.read = input.read;
-        semanticScope.setCondition(leftNode, SemanticDecorator.Write.class);
+        semanticScope.setCondition(leftNode, Decorator.Write.class);
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
 
         Input rightInput = new Input();
         Output rightOutput;
 
         if (operation != null) {
             rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-            Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -172,7 +172,7 @@ public class EAssignment extends AExpression {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
                 rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-                rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
+                rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
 
                 if (rightValueType == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -193,14 +193,14 @@ public class EAssignment extends AExpression {
             } else {
                 rightInput.expected = leftValueType;
                 rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-                rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
+                rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
             }
 
             rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                     rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
         }
 
-        SemanticDecorator.ValueType valueType = new SemanticDecorator.ValueType(input.read ? leftValueType : void.class);
+        Decorator.ValueType valueType = new Decorator.ValueType(input.read ? leftValueType : void.class);
         semanticScope.addDecoration(this, valueType);
 
         AssignmentNode assignmentNode = new AssignmentNode();

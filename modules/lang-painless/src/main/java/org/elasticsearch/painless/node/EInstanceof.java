@@ -23,7 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.InstanceofNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
@@ -55,7 +55,7 @@ public class EInstanceof extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
         }
@@ -85,7 +85,7 @@ public class EInstanceof extends AExpression {
         // analyze and cast the expression
         Input expressionInput = new Input();
         Output expressionOutput = analyze(expressionNode, classNode, semanticScope, expressionInput);
-        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, Decorator.ValueType.class).getValueType();
 
         // record if the expression returns a primitive
         primitiveExpression = expressionValueType.isPrimitive();
@@ -93,7 +93,7 @@ public class EInstanceof extends AExpression {
         expressionType = expressionValueType.isPrimitive() ?
             PainlessLookupUtility.typeToBoxedType(expressionValueType) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(boolean.class));
+        semanticScope.addDecoration(this, new Decorator.ValueType(boolean.class));
 
         InstanceofNode instanceofNode = new InstanceofNode();
         instanceofNode.setChildNode(expressionOutput.expressionNode);

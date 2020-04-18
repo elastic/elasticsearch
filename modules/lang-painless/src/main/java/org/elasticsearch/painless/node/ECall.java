@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubDefNode;
@@ -82,7 +82,7 @@ public class ECall extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
@@ -92,7 +92,7 @@ public class ECall extends AExpression {
 
         Input prefixInput = new Input();
         Output prefixOutput = prefixNode.analyze(classNode, semanticScope, prefixInput);
-        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, Decorator.ValueType.class).getValueType();
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
@@ -112,7 +112,7 @@ public class ECall extends AExpression {
                 Input expressionInput = new Input();
                 expressionInput.internal = true;
                 Output expressionOutput = analyze(argument, classNode, semanticScope, expressionInput);
-                Class<?> argumentValueType = semanticScope.getDecoration(argument, SemanticDecorator.ValueType.class).getValueType();
+                Class<?> argumentValueType = semanticScope.getDecoration(argument, Decorator.ValueType.class).getValueType();
                 argumentOutputs.add(expressionOutput);
 
                 if (argumentValueType == void.class) {
@@ -157,7 +157,7 @@ public class ECall extends AExpression {
                 expressionInput.internal = true;
                 Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
                 argumentOutputs.add(expressionOutput);
-                Class<?> argumentValueType = semanticScope.getDecoration(expression, SemanticDecorator.ValueType.class).getValueType();
+                Class<?> argumentValueType = semanticScope.getDecoration(expression, Decorator.ValueType.class).getValueType();
                 argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                         argumentValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 
@@ -190,7 +190,7 @@ public class ECall extends AExpression {
             expressionNode = nullSafeSubNode;
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
 
         CallNode callNode = new CallNode();
         callNode.setLeftNode(prefixOutput.expressionNode);

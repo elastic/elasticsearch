@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -52,7 +52,7 @@ public class ESymbol extends AExpression {
         Output output = new Output();
         Class<?> valueType = null;
         Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
-        boolean write = semanticScope.getCondition(this, SemanticDecorator.Write.class);
+        boolean write = semanticScope.getCondition(this, Decorator.Write.class);
 
         if (type != null)  {
             if (write) {
@@ -99,7 +99,7 @@ public class ESymbol extends AExpression {
         }
 
         if (valueType != null) {
-            semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+            semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
         }
 
         return output;

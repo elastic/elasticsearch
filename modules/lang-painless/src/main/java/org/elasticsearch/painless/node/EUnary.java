@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.SemanticDecorator;
+import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
@@ -57,7 +57,7 @@ public class EUnary extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
+        if (semanticScope.getCondition(this, Decorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
@@ -102,7 +102,7 @@ public class EUnary extends AExpression {
                 throw createError(new IllegalArgumentException("illegal tree structure"));
             }
 
-            valueType = semanticScope.getDecoration(childNode, SemanticDecorator.ValueType.class).getValueType();
+            valueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
             output.expressionNode = childOutput.expressionNode;
         } else {
             PainlessCast childCast;
@@ -110,14 +110,14 @@ public class EUnary extends AExpression {
             if (operation == Operation.NOT) {
                 childInput.expected = boolean.class;
                 childOutput = analyze(childNode, classNode, semanticScope, childInput);
-                Class<?> childValueType = semanticScope.getDecoration(childNode, SemanticDecorator.ValueType.class).getValueType();
+                Class<?> childValueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
                 childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                         childValueType, childInput.expected, childInput.explicit, childInput.internal);
 
                 valueType = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
                 childOutput = analyze(childNode, classNode, semanticScope, new Input());
-                Class<?> childValueType = semanticScope.getDecoration(childNode, SemanticDecorator.ValueType.class).getValueType();
+                Class<?> childValueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
 
                 promote = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);
 
@@ -151,7 +151,7 @@ public class EUnary extends AExpression {
             output.expressionNode = unaryMathNode;
         }
 
-        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+        semanticScope.addDecoration(this, new Decorator.ValueType(valueType));
 
         return output;
     }

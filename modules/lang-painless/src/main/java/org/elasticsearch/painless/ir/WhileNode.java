@@ -21,18 +21,18 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class WhileNode extends LoopNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        scopeTable = scopeTable.newScope();
+        writeScope = writeScope.newScope();
 
         Label begin = new Label();
         Label end = new Label();
@@ -40,12 +40,12 @@ public class WhileNode extends LoopNode {
         methodWriter.mark(begin);
 
         if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, scopeTable);
+            getConditionNode().write(classWriter, methodWriter, writeScope);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         if (getBlockNode() != null) {
-            Variable loop = scopeTable.getInternalVariable("loop");
+            Variable loop = writeScope.getInternalVariable("loop");
 
             if (loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
@@ -53,9 +53,9 @@ public class WhileNode extends LoopNode {
 
             getBlockNode().continueLabel = begin;
             getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, scopeTable);
+            getBlockNode().write(classWriter, methodWriter, writeScope);
         } else {
-            Variable loop = scopeTable.getInternalVariable("loop");
+            Variable loop = writeScope.getInternalVariable("loop");
 
             if (loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), 1, location);

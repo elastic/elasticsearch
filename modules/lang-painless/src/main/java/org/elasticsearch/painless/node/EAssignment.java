@@ -97,7 +97,7 @@ public class EAssignment extends AExpression {
 
         if (operation != null) {
             rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-            Class<?> rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -172,7 +172,7 @@ public class EAssignment extends AExpression {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
                 rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-                rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+                rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
 
                 if (rightValueType == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -193,7 +193,7 @@ public class EAssignment extends AExpression {
             } else {
                 rightInput.expected = leftValueType;
                 rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-                rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+                rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
             }
 
             rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),

@@ -82,7 +82,7 @@ public class EElvis extends AExpression {
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
         Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-        Class<?> rightValueType = semanticScope.getDecoration(leftNode, SemanticDecorator.ValueType.class).getValueType();
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, SemanticDecorator.ValueType.class).getValueType();
 
         valueType = input.expected;
 

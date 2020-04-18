@@ -24,7 +24,6 @@ import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 

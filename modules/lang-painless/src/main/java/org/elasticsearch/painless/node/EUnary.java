@@ -151,6 +151,8 @@ public class EUnary extends AExpression {
             output.expressionNode = unaryMathNode;
         }
 
+        semanticScope.addDecoration(this, new SemanticDecorator.ValueType(valueType));
+
         return output;
     }
 }

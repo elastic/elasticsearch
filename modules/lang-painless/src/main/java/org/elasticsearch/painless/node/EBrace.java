@@ -82,7 +82,7 @@ public class EBrace extends AExpression {
             Input indexInput = new Input();
             indexInput.expected = int.class;
             Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-            Class<?> indexValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
+            Class<?> indexValueType = semanticScope.getDecoration(indexNode, SemanticDecorator.ValueType.class).getValueType();
             PainlessCast indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                     indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -134,7 +134,7 @@ public class EBrace extends AExpression {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
                 indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-                Class<?> indexValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
+                Class<?> indexValueType = semanticScope.getDecoration(indexNode, SemanticDecorator.ValueType.class).getValueType();
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                         indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -179,7 +179,7 @@ public class EBrace extends AExpression {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
                 indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-                Class<?> indexValueType = semanticScope.getDecoration(prefixNode, SemanticDecorator.ValueType.class).getValueType();
+                Class<?> indexValueType = semanticScope.getDecoration(indexNode, SemanticDecorator.ValueType.class).getValueType();
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                         indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
 

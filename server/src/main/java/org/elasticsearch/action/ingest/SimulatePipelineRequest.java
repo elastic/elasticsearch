@@ -201,6 +201,14 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             }
             IngestDocument ingestDocument =
                 new IngestDocument(index, id, routing, version, versionType, document);
+            if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
+                Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
+                ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+            }
+            if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
+                Long ifPrimaryTerm = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
+                ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+            }
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;

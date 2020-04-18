@@ -124,6 +124,22 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
     }
 
+    public void testSetMetadataIfSeqNo() throws Exception {
+        long ifSeqNo = randomNonNegativeLong();
+        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
+    }
+
+    public void testSetMetadataIfPrimaryTerm() throws Exception {
+        long ifPrimaryTerm = randomNonNegativeLong();
+        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+    }
+
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {
         return new SetProcessor(randomAlphaOfLength(10), new TestTemplateService.MockTemplateScript.Factory(fieldName),
                 ValueSource.wrap(fieldValue, TestTemplateService.instance()), overrideEnabled);

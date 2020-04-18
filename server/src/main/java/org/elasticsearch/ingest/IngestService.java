@@ -522,6 +522,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
                     indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
                 }
+                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
+                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                }
+                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
+                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                }
                 indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
                 handler.accept(null);
             }

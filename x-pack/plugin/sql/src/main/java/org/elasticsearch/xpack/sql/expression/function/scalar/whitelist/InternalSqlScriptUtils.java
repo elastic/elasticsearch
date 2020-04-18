@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.FormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
@@ -295,6 +296,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
         return DateTimeParseProcessor.process(dateField, pattern);
+    }
+
+    public static String format(Object dateTime, String pattern, String tzId) {
+        return (String) FormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

@@ -55,6 +55,7 @@
 ** <<sql-functions-datetime-diff>>
 ** <<sql-functions-datetime-datetimeformat>>
 ** <<sql-functions-datetime-datetimeparse>>
+** <<sql-functions-datetime-format>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>
 ** <<sql-functions-datetime-day>>

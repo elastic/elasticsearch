@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -50,9 +51,10 @@ public class ESymbol extends AExpression {
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
         Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
+        boolean write = semanticScope.getCondition(this, SemanticDecorator.Write.class);
 
         if (type != null)  {
-            if (input.write) {
+            if (write) {
                 throw createError(new IllegalArgumentException("invalid assignment: " +
                         "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
             }
@@ -72,13 +74,13 @@ public class ESymbol extends AExpression {
 
             output.expressionNode = staticNode;
         } else if (semanticScope.isVariableDefined(symbol)) {
-            if (input.read == false && input.write == false) {
+            if (input.read == false && write == false) {
                 throw createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
             }
 
             Variable variable = semanticScope.getVariable(getLocation(), symbol);
 
-            if (input.write && variable.isFinal()) {
+            if (write && variable.isFinal()) {
                 throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
             }
 

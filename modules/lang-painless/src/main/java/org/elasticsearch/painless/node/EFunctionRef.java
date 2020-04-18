@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -62,7 +63,7 @@ public class EFunctionRef extends AExpression {
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (symbol.equals("this") || type != null)  {
-            if (input.write) {
+            if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
                 throw createError(new IllegalArgumentException(
                         "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"));
             }
@@ -96,7 +97,7 @@ public class EFunctionRef extends AExpression {
                 output.expressionNode = typedInterfaceReferenceNode;
             }
         } else {
-            if (input.write) {
+            if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
                 throw createError(new IllegalArgumentException(
                         "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":"  + methodName + "]"));
             }

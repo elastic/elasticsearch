@@ -21,6 +21,7 @@ package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.node.ANode;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -293,6 +294,30 @@ public abstract class SemanticScope {
 
     public ScriptScope getScriptScope() {
         return scriptScope;
+    }
+
+    public Object addDecoration(ANode node, Object decoration) {
+        return scriptScope.add(node.getIdentifier(), decoration);
+    }
+
+    public Object removeDecoration(ANode node, Class<?> type) {
+        return scriptScope.remove(node.getIdentifier(), type);
+    }
+
+    public Object getDecoration(ANode node, Class<?> type) {
+        return scriptScope.get(node.getIdentifier(), type);
+    }
+
+    public boolean setCondition(ANode node, Class<?> type) {
+        return scriptScope.set(node.getIdentifier(), type);
+    }
+
+    public boolean deleteCondition(ANode node, Class<?> type) {
+        return scriptScope.delete(node.getIdentifier(), type);
+    }
+
+    public boolean getCondition(ANode node, Class<?> type) {
+        return scriptScope.exists(node.getIdentifier(), type);
     }
 
     public abstract Class<?> getReturnType();

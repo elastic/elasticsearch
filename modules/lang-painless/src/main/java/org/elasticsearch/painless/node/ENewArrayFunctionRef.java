@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
@@ -50,7 +51,7 @@ public class ENewArrayFunctionRef extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
+        if (semanticScope.getCondition(this, SemanticDecorator.Write.class)) {
             throw createError(new IllegalArgumentException(
                     "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
         }

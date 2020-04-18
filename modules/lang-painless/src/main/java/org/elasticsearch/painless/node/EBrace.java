@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
@@ -64,7 +65,9 @@ public class EBrace extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.read == false && input.write == false) {
+        boolean write = semanticScope.getCondition(this, SemanticDecorator.Write.class);
+
+        if (input.read == false && write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
@@ -123,7 +126,7 @@ public class EBrace extends AExpression {
             Output indexOutput;
             PainlessCast indexCast;
 
-            if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+            if ((input.read || write) && (input.read == false || getter != null) && (write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
                 indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
@@ -166,7 +169,7 @@ public class EBrace extends AExpression {
             Output indexOutput;
             PainlessCast indexCast;
 
-            if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+            if ((input.read || write) && (input.read == false || getter != null) && (write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
                 indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);

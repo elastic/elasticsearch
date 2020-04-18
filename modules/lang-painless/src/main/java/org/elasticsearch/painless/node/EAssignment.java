@@ -23,6 +23,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
@@ -87,7 +88,7 @@ public class EAssignment extends AExpression {
 
         Input leftInput = new Input();
         leftInput.read = input.read;
-        leftInput.write = true;
+        semanticScope.setCondition(leftNode, SemanticDecorator.Write.class);
         Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
 
         Input rightInput = new Input();

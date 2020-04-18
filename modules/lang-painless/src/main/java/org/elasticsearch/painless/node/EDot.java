@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticDecorator;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -78,7 +79,9 @@ public class EDot extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.read == false && input.write == false) {
+        boolean write = semanticScope.getCondition(this, SemanticDecorator.Write.class);
+
+        if (input.read == false && write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
@@ -99,7 +102,7 @@ public class EDot extends AExpression {
             if (type == null) {
                 output.partialCanonicalTypeName = canonicalTypeName;
             } else {
-                if (input.write) {
+                if (write) {
                     throw createError(new IllegalArgumentException("invalid assignment: " +
                             "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
                 }
@@ -132,7 +135,7 @@ public class EDot extends AExpression {
                 }
 
                 if ("length".equals(index)) {
-                    if (input.write) {
+                    if (write) {
                         throw createError(new IllegalArgumentException(
                                 "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
                     }
@@ -197,7 +200,7 @@ public class EDot extends AExpression {
                             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                         }
 
-                        if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
+                        if ((input.read == false || getter != null) && (write == false || setter != null)) {
                             output.actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                         } else {
                             throw createError(new IllegalArgumentException(
@@ -230,8 +233,8 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            if ((input.read || input.write)
-                                    && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                            if ((input.read || write)
+                                    && (input.read == false || getter != null) && (write == false || setter != null)) {
                                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
@@ -280,8 +283,8 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            if ((input.read || input.write)
-                                    && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                            if ((input.read || write)
+                                    && (input.read == false || getter != null) && (write == false || setter != null)) {
                                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
@@ -308,7 +311,7 @@ public class EDot extends AExpression {
                                 "field [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + index + "] not found"));
                     }
                 } else {
-                    if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
+                    if (write && Modifier.isFinal(field.javaField.getModifiers())) {
                         throw createError(new IllegalArgumentException(
                                 "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
                     }
@@ -324,7 +327,7 @@ public class EDot extends AExpression {
             }
 
             if (isNullSafe) {
-                if (input.write) {
+                if (write) {
                     throw createError(new IllegalArgumentException(
                             "invalid assignment: cannot assign a value to a null safe operation [?.]"));
                 }

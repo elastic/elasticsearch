@@ -149,7 +149,9 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
             sb.append("Error validating JSON. See the report at: ");
             sb.append(getErrorReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
-            sb.append(String.format("JSON validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size()));
+            sb.append(
+                String.format("JSON validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
+            );
             throw new JsonSchemaException(sb.toString());
         }
     }

@@ -117,9 +117,9 @@ public class Util {
         final Optional<FileTree> mainFileTree = getJavaMainSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
         if (testFileTree.isPresent() && mainFileTree.isPresent()) {
             return testFileTree.get().plus(mainFileTree.get()).matching(filter);
-        } else if(mainFileTree.isPresent()){
+        } else if (mainFileTree.isPresent()) {
             return mainFileTree.get().matching(filter);
-        }else if(testFileTree.isPresent()){
+        } else if (testFileTree.isPresent()) {
             return testFileTree.get().matching(filter);
         }
         return null;

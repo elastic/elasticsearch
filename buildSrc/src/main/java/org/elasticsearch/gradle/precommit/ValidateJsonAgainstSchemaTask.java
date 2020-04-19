@@ -42,9 +42,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Incremental task to validate a set of JSON files against against a schema.
@@ -55,7 +57,7 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
     private Set<String> ignore = new HashSet<>();
     private File jsonSchema;
     private FileTree inputFiles;
-    //no need to rebuild the JsonSchema multiple times per build
+    // no need to rebuild the JsonSchema multiple times per build
     private static ConcurrentHashMap<File, JsonSchema> cache = new ConcurrentHashMap<>(1);
 
     @Incremental
@@ -92,6 +94,11 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
         return new File(getProject().getBuildDir(), "markers/" + this.getName());
     }
 
+    @OutputFile
+    public File getErrorReport() {
+        return new File(getProject().getBuildDir(), "reports/validateJson.txt");
+    }
+
     @TaskAction
     public void validate(InputChanges inputChanges) throws IOException {
         File jsonSchemaOnDisk = getJsonSchema();
@@ -124,13 +131,23 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
         });
 
         if (errors.isEmpty()) {
-            Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
+            Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
         } else {
             // build output and throw exception
+            Files.writeString(getErrorReport().toPath(), String.format("Schema: %s", jsonSchemaOnDisk), StandardOpenOption.CREATE);
+            Files.writeString(
+                getErrorReport().toPath(),
+                System.lineSeparator() + "----------Validation Errors-----------" + System.lineSeparator(),
+                StandardOpenOption.APPEND
+            );
+            Files.write(
+                getErrorReport().toPath(),
+                errors.values().stream().flatMap(Collection::stream).collect(Collectors.toList()),
+                StandardOpenOption.APPEND
+            );
             StringBuilder sb = new StringBuilder();
-            sb.append("Error validating REST specification.");
-            sb.append(System.lineSeparator());
-            sb.append(String.format("Schema: %s", jsonSchemaOnDisk));
+            sb.append("Error validating REST specification. See the report at: ");
+            sb.append(getErrorReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
             sb.append(String.format("Validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size()));
             throw new JsonSchemaException(sb.toString());
@@ -139,9 +156,14 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
 
     private void maybeLogAndCollectError(Set<ValidationMessage> messages, ConcurrentHashMap<File, Set<String>> errors, File file) {
         for (ValidationMessage message : messages) {
-            String error = String.format("validation failure: [%s][%s]", file.getName(), message.toString());
+            String error = String.format("[validate JSON][ERROR][%s][%s]", file.getName(), message.toString());
             getLogger().error(error);
-            errors.computeIfAbsent(file, k -> new HashSet<>()).add(error);
+            try {
+                errors.computeIfAbsent(file, k -> new HashSet<>())
+                    .add(String.format("%s: %s", file.getCanonicalFile(), message.toString()));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 }

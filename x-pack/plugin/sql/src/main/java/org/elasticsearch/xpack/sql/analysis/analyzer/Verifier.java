@@ -43,8 +43,10 @@ import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -217,6 +219,7 @@ public final class Verifier {
                 checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(p, localFailures, attributeRefs);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
+                checkMatrixStats(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -846,5 +849,20 @@ public final class Verifier {
             });
 
         }, Pivot.class);
+    }
+
+    private static void checkMatrixStats(LogicalPlan p, Set<Failure> localFailures) {
+        // MatrixStats aggregate functions cannot operates on scalars
+        // https://github.com/elastic/elasticsearch/issues/55344
+        p.forEachExpressions(e -> e.forEachUp((Kurtosis s) -> {
+            if (s.field() instanceof Function) {
+                localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
+            }
+        }, Kurtosis.class));
+        p.forEachExpressions(e -> e.forEachUp((Skewness s) -> {
+            if (s.field() instanceof Function) {
+                localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
+            }
+        }, Skewness.class));
     }
 }

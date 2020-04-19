@@ -124,7 +124,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
+            deprecationLogger.deprecatedAndMaybeLog("base_similarity_ignored",
+                "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
 

@@ -178,7 +178,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             MetadataCreateIndexService.validateIndexOrAliasName(request.name,
                 (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
 
-            String firstBackingIndexName = request.name + "-000001";
+            String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
             CreateIndexClusterStateUpdateRequest createIndexRequest =
                 new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
                 .settings(Settings.builder().put("index.hidden", true).build());

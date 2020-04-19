@@ -20,6 +20,7 @@
 
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -117,8 +118,20 @@ task gcsThirdPartyTests {
   dependsOn check
 }
 
-integTest.mustRunAfter(thirdPartyTest)
 check.dependsOn thirdPartyTest
+
+integTest.mustRunAfter(thirdPartyTest)
+
+/*
+ * We only use a small amount of data in these tests, which means that the resumable upload path is not tested. We add
+ * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
+ */
+task largeBlobIntegTest(type: RestIntegTestTask) {
+  mustRunAfter(thirdPartyTest)
+}
+
+check.dependsOn integTest
+check.dependsOn largeBlobIntegTest
 
 Map<String, Object> expansions = [
   'bucket'   : gcsBucket,
@@ -130,11 +143,15 @@ processTestResources {
   MavenFilteringHack.filter(it, expansions)
 }
 
-integTest {
+final Closure integTestConfiguration = {
   dependsOn project(':plugins:repository-gcs').bundlePlugin
 }
 
-testClusters.integTest {
+integTest integTestConfiguration
+
+largeBlobIntegTest integTestConfiguration
+
+final Closure testClustersConfiguration = {
   plugin project(':plugins:repository-gcs').bundlePlugin.archiveFile
 
   keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
@@ -147,4 +164,12 @@ testClusters.integTest {
   } else {
     println "Using an external service to test the repository-gcs plugin"
   }
+}
+
+testClusters.integTest testClustersConfiguration
+
+testClusters.largeBlobIntegTest testClustersConfiguration
+testClusters.largeBlobIntegTest {
+  // force large blob uploads by setting the threshold small, forcing this code path to be tested
+  systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
 }

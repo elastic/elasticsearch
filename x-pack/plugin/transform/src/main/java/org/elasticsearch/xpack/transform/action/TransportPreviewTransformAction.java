@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
@@ -77,6 +78,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SourceDestValidator sourceDestValidator;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -127,6 +129,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.securityContext = new SecurityContext(settings, threadPool.getThreadContext());
     }
 
     @Override
@@ -211,10 +214,11 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
             listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
         }, listener::onFailure);
+        Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob("ml_transform", transformId);
         pivot.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
             ClientHelper.executeWithHeadersAsync(
-                threadPool.getThreadContext().getHeaders(),
+                securityHeaders,
                 ClientHelper.TRANSFORM_ORIGIN,
                 client,
                 SearchAction.INSTANCE,

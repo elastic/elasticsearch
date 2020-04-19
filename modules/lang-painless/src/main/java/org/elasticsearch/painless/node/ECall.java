@@ -32,6 +32,7 @@ import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -100,8 +101,9 @@ public class ECall extends AExpression {
                     "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
         }
 
-        if (prefixOutput.partialCanonicalTypeName != null) {
-            throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
+        if (semanticScope.hasDecoration(prefixNode, PartialCanonicalTypeName.class)) {
+            throw createError(new IllegalArgumentException("cannot resolve symbol " +
+                    "[" + semanticScope.getDecoration(prefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
         Output output = new Output();

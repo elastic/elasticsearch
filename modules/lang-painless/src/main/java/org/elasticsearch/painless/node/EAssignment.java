@@ -34,6 +34,7 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.Decorations;
+import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -171,7 +172,7 @@ public class EAssignment extends AExpression {
             back = AnalyzerCaster.getLegalCast(getLocation(), promote, leftValueType, true, false);
         } else {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (leftOutput.isDefOptimized) {
+            if (semanticScope.getCondition(leftNode, DefOptimized.class)) {
                 rightOutput = analyze(rightNode, classNode, semanticScope);
                 Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 

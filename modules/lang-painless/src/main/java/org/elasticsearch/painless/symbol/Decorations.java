@@ -38,6 +38,7 @@ public class Decorations {
     }
 
     public static class TargetType implements Decoration  {
+
         private final Class<?> targetType;
 
         public TargetType(Class<?> targetType) {
@@ -64,6 +65,7 @@ public class Decorations {
     // standard output for user expression nodes during semantic phase
     
     public static class ValueType implements Decoration {
+
         private final Class<?> valueType;
 
         public ValueType(Class<?> valueType) {
@@ -80,6 +82,7 @@ public class Decorations {
     }
 
     public static class StaticType implements Decoration {
+
         private final Class<?> staticType;
 
         public StaticType(Class<?> staticType) {
@@ -93,5 +96,22 @@ public class Decorations {
         public String getStaticCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(staticType);
         }
+    }
+
+    public static class PartialCanonicalTypeName implements Decoration {
+
+        private final String partialCanonicalTypeName;
+
+        public PartialCanonicalTypeName(String partialCanonicalTypeName) {
+            this.partialCanonicalTypeName = Objects.requireNonNull(partialCanonicalTypeName);
+        }
+
+        public String getPartialCanonicalTypeName() {
+            return partialCanonicalTypeName;
+        }
+    }
+
+    public interface DefOptimized extends Condition {
+
     }
 }

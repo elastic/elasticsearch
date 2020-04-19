@@ -31,6 +31,7 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -103,7 +104,7 @@ public class EBrace extends AExpression {
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                     semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
-            output.isDefOptimized = true;
+            semanticScope.setCondition(this, DefOptimized.class);
 
             BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
             braceSubDefNode.setChildNode(indexOutput.expressionNode);

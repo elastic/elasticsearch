@@ -36,7 +36,9 @@ import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -104,7 +106,7 @@ public class EDot extends AExpression {
                     "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
         }
 
-        if (prefixOutput.partialCanonicalTypeName != null) {
+        if (semanticScope.hasDecoration(prefixNode, PartialCanonicalTypeName.class)) {
             if (prefixValueType != null) {
                 throw createError(new IllegalArgumentException("value required: instead found unexpected type " +
                         "[" + prefixValueType.getValueCanonicalTypeName() + "]"));
@@ -115,11 +117,12 @@ public class EDot extends AExpression {
                         "[" + prefixStaticType.getStaticType() + "]"));
             }
 
-            String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + index;
+            String canonicalTypeName =
+                    semanticScope.getDecoration(prefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "." + index;
             Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
             if (type == null) {
-                output.partialCanonicalTypeName = canonicalTypeName;
+                semanticScope.putDecoration(this, new PartialCanonicalTypeName(canonicalTypeName));
             } else {
                 if (write) {
                     throw createError(new IllegalArgumentException("invalid assignment: " +
@@ -159,7 +162,7 @@ public class EDot extends AExpression {
                 // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
                 valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                         semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
-                output.isDefOptimized = true;
+                semanticScope.setCondition(this, DefOptimized.class);
 
                 DotSubDefNode dotSubDefNode = new DotSubDefNode();
                 dotSubDefNode.setLocation(getLocation());

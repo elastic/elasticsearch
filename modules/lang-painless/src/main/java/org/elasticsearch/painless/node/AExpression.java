@@ -27,6 +27,7 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -45,6 +46,12 @@ public abstract class AExpression extends ANode {
 //         * as input.
 //         */
 //        boolean read = true;
+//
+//        /**
+//         * Set to true when this node is an lhs-expression and will be storing
+//         * a value from an rhs-expression.
+//         */
+//        boolean write = false;
 //
 //        /**
 //         * Set to the expected type this node needs to be.  Note this variable
@@ -73,19 +80,19 @@ public abstract class AExpression extends ANode {
 //         * when actual is the type of value this expression generates.
 //         */
 //        boolean isStaticType = false;
-
-        /**
-         * Used to build a fully-qualified type name when the name comes
-         * in as pieces since x.y.z may get broken down into multiples nodes
-         * with the dot as a delimiter.
-         */
-        String partialCanonicalTypeName = null;
-
-        /**
-         * {@code true} if this node or a sub-node of this node can be optimized with
-         * rhs actual type to avoid an unnecessary cast.
-         */
-        boolean isDefOptimized = false;
+//
+//        /**
+//         * Used to build a fully-qualified type name when the name comes
+//         * in as pieces since x.y.z may get broken down into multiples nodes
+//         * with the dot as a delimiter.
+//         */
+//        String partialCanonicalTypeName = null;
+//
+//        /**
+//         * {@code true} if this node or a sub-node of this node can be optimized with
+//         * rhs actual type to avoid an unnecessary cast.
+//         */
+//        boolean isDefOptimized = false;
 
         /**
          * The {@link ExpressionNode}(s) generated from this expression.
@@ -114,8 +121,9 @@ public abstract class AExpression extends ANode {
     static Output analyze(AExpression expression, ClassNode classNode, SemanticScope semanticScope) {
         Output output = expression.analyze(classNode, semanticScope);
 
-        if (output.partialCanonicalTypeName != null) {
-            throw expression.createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
+        if (semanticScope.hasDecoration(expression, PartialCanonicalTypeName.class)) {
+            throw expression.createError(new IllegalArgumentException("cannot resolve symbol " +
+                    "[" + semanticScope.getDecoration(expression, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
         if (semanticScope.hasDecoration(expression, StaticType.class)) {

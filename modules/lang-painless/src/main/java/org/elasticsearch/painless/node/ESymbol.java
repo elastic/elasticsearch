@@ -24,6 +24,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -94,7 +95,7 @@ public class ESymbol extends AExpression {
             variableNode.setName(symbol);
             output.expressionNode = variableNode;
         } else {
-            output.partialCanonicalTypeName = symbol;
+            semanticScope.putDecoration(this, new PartialCanonicalTypeName(symbol));
         }
 
         return output;

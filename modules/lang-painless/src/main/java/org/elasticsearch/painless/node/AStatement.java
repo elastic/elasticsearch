@@ -58,36 +58,36 @@ public abstract class AStatement extends ANode {
 
     public static class Output {
 
-        /**
-         * Set to true if a statement would cause the method to exit.  Used to
-         * determine whether or not an auto-return is necessary.
-         */
-        boolean methodEscape = false;
-
-        /**
-         * Set to true if a statement would cause a loop to exit.  Used to
-         * prevent unreachable statements.
-         */
-        boolean loopEscape = false;
-
-        /**
-         * Set to true if all current paths escape from the current {@link SBlock}.
-         * Used during the analysis phase to prevent unreachable statements and
-         * the writing phase to prevent extraneous bytecode gotos from being written.
-         */
-        boolean allEscape = false;
-
-        /**
-         * Set to true if any continue statement occurs in a loop.  Used to prevent
-         * unnecessary infinite loops.
-         */
-        boolean anyContinue = false;
-
-        /**
-         * Set to true if any break statement occurs in a loop.  Used to prevent
-         * extraneous loops.
-         */
-        boolean anyBreak = false;
+//        /**
+//         * Set to true if a statement would cause the method to exit.  Used to
+//         * determine whether or not an auto-return is necessary.
+//         */
+//        boolean methodEscape = false;
+//
+//        /**
+//         * Set to true if a statement would cause a loop to exit.  Used to
+//         * prevent unreachable statements.
+//         */
+//        boolean loopEscape = false;
+//
+//        /**
+//         * Set to true if all current paths escape from the current {@link SBlock}.
+//         * Used during the analysis phase to prevent unreachable statements and
+//         * the writing phase to prevent extraneous bytecode gotos from being written.
+//         */
+//        boolean allEscape = false;
+//
+//        /**
+//         * Set to true if any continue statement occurs in a loop.  Used to prevent
+//         * unnecessary infinite loops.
+//         */
+//        boolean anyContinue = false;
+//
+//        /**
+//         * Set to true if any break statement occurs in a loop.  Used to prevent
+//         * extraneous loops.
+//         */
+//        boolean anyBreak = false;
 
         /**
          * The {@link StatementNode}(s) generated from this expression.

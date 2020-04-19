@@ -25,8 +25,11 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -74,13 +77,16 @@ public class SExpression extends AStatement {
         PainlessCast expressionCast = expressionNode.cast(semanticScope);
 
         Output output = new Output();
-        output.methodEscape = rtn;
-        output.loopEscape = rtn;
-        output.allEscape = rtn;
+
+        if (rtn) {
+            semanticScope.setCondition(this, MethodEscape.class);
+            semanticScope.setCondition(this, LoopEscape.class);
+            semanticScope.setCondition(this, AllEscape.class);
+        }
 
         ExpressionNode expressionNode = AExpression.cast(expressionOutput.expressionNode, expressionCast);
 
-        if (output.methodEscape) {
+        if (rtn) {
             ReturnNode returnNode = new ReturnNode();
             returnNode.setExpressionNode(expressionNode);
             returnNode.setLocation(getLocation());

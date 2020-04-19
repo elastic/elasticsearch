@@ -31,6 +31,7 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AStatement.Output;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
@@ -175,7 +176,7 @@ public class SFunction extends ANode {
 
         functionScope.setCondition(blockNode, LastSource.class);
         Output blockOutput = blockNode.analyze(classNode, functionScope.newLocalScope());
-        boolean methodEscape = blockOutput.methodEscape;
+        boolean methodEscape = functionScope.getCondition(blockNode, MethodEscape.class);
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
             throw createError(new IllegalArgumentException("not all paths provide a return value " +

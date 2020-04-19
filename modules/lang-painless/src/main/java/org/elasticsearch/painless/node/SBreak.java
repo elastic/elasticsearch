@@ -22,7 +22,10 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BreakNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
@@ -42,9 +45,9 @@ public class SBreak extends AStatement {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
-        output.loopEscape = true;
-        output.allEscape = true;
-        output.anyBreak = true;
+        semanticScope.setCondition(this, AllEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AnyBreak.class);
 
         BreakNode breakNode = new BreakNode();
         breakNode.setLocation(getLocation());

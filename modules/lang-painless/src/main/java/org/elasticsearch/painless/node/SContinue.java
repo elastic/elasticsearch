@@ -22,6 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ContinueNode;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastLoop;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -47,8 +49,8 @@ public class SContinue extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous continue statement."));
         }
 
-        output.allEscape = true;
-        output.anyContinue = true;
+        semanticScope.setCondition(this, AllEscape.class);
+        semanticScope.setCondition(this, AnyContinue.class);
 
         ContinueNode continueNode = new ContinueNode();
         continueNode.setLocation(getLocation());

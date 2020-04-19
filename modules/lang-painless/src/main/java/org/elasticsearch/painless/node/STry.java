@@ -24,9 +24,14 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
@@ -62,11 +67,11 @@ public class STry extends AStatement {
         semanticScope.replicateCondition(this, blockNode, LastLoop.class);
         Output blockOutput = blockNode.analyze(classNode, semanticScope.newLocalScope());
 
-        output.methodEscape = blockOutput.methodEscape;
-        output.loopEscape = blockOutput.loopEscape;
-        output.allEscape = blockOutput.allEscape;
-        output.anyContinue = blockOutput.anyContinue;
-        output.anyBreak = blockOutput.anyBreak;
+        boolean methodEscape = semanticScope.getCondition(blockNode, MethodEscape.class);
+        boolean loopEscape = semanticScope.getCondition(blockNode, LoopEscape.class);
+        boolean allEscape = semanticScope.getCondition(blockNode, AllEscape.class);
+        boolean anyContinue = semanticScope.getCondition(blockNode, AnyContinue.class);
+        boolean anyBreak = semanticScope.getCondition(blockNode, AnyBreak.class);
 
         List<Output> catchOutputs = new ArrayList<>();
 
@@ -76,13 +81,33 @@ public class STry extends AStatement {
             semanticScope.replicateCondition(this, catc, LastLoop.class);
             Output catchOutput = catc.analyze(classNode, semanticScope.newLocalScope());
 
-            output.methodEscape &= catchOutput.methodEscape;
-            output.loopEscape &= catchOutput.loopEscape;
-            output.allEscape &= catchOutput.allEscape;
-            output.anyContinue |= catchOutput.anyContinue;
-            output.anyBreak |= catchOutput.anyBreak;
+            methodEscape &= semanticScope.getCondition(catc, MethodEscape.class);
+            loopEscape &= semanticScope.getCondition(catc, LoopEscape.class);
+            allEscape &= semanticScope.getCondition(catc, AllEscape.class);
+            anyContinue |= semanticScope.getCondition(catc, AnyContinue.class);
+            anyBreak |= semanticScope.getCondition(catc, AnyBreak.class);
 
             catchOutputs.add(catchOutput);
+        }
+
+        if (methodEscape) {
+            semanticScope.setCondition(this, MethodEscape.class);
+        }
+
+        if (loopEscape) {
+            semanticScope.setCondition(this, LoopEscape.class);
+        }
+
+        if (allEscape) {
+            semanticScope.setCondition(this, AllEscape.class);
+        }
+
+        if (anyContinue) {
+            semanticScope.setCondition(this, AnyContinue.class);
+        }
+
+        if (anyBreak) {
+            semanticScope.setCondition(this, AnyBreak.class);
         }
 
         TryNode tryNode = new TryNode();

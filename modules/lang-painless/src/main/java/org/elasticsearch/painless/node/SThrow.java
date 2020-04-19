@@ -23,6 +23,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -55,9 +58,9 @@ public class SThrow extends AStatement {
         AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
         PainlessCast expressionCast = expressionNode.cast(semanticScope);
 
-        output.methodEscape = true;
-        output.loopEscape = true;
-        output.allEscape = true;
+        semanticScope.setCondition(this, MethodEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AllEscape.class);
 
         ThrowNode throwNode = new ThrowNode();
         throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));

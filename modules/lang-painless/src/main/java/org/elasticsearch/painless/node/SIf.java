@@ -24,6 +24,8 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastLoop;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
@@ -78,8 +80,8 @@ public class SIf extends AStatement {
         semanticScope.replicateCondition(this, ifblockNode, LastLoop.class);
         Output ifblockOutput = ifblockNode.analyze(classNode, semanticScope.newLocalScope());
 
-        output.anyContinue = ifblockOutput.anyContinue;
-        output.anyBreak = ifblockOutput.anyBreak;
+        semanticScope.replicateCondition(ifblockNode, this, AnyContinue.class);
+        semanticScope.replicateCondition(ifblockNode, this, AnyBreak.class);
 
         IfNode ifNode = new IfNode();
         ifNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));

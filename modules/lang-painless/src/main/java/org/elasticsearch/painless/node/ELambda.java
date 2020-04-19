@@ -30,6 +30,7 @@ import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -187,7 +188,7 @@ public class ELambda extends AExpression {
         semanticScope.setCondition(blockNode, LastSource.class);
         AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope);
 
-        if (blockOutput.methodEscape == false) {
+        if (semanticScope.getCondition(blockNode, MethodEscape.class) == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
 

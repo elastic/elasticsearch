@@ -24,8 +24,13 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.WhileNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -86,13 +91,14 @@ public class SWhile extends AStatement {
             semanticScope.setCondition(blockNode, InLoop.class);
             blockOutput = blockNode.analyze(classNode, semanticScope);
 
-            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
-                throw createError(new IllegalArgumentException("Extraneous while loop."));
+            if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
+                    semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
+                throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
-            if (continuous && blockOutput.anyBreak == false) {
-                output.methodEscape = true;
-                output.allEscape = true;
+            if (continuous && semanticScope.getCondition(blockNode, AnyBreak.class) == false) {
+                semanticScope.setCondition(this, MethodEscape.class);
+                semanticScope.setCondition(this, AllEscape.class);
             }
         }
 

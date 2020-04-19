@@ -124,7 +124,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
-            Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(WATCHER_ORIGIN, request.getId());
+            Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(WATCHER_ORIGIN, request.getId() != null ?
+                    request.getId() : "_inline_");
             watch.status().setHeaders(securityHeaders);
 
             final String triggerType = watch.trigger().type();

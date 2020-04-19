@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.ir.DotSubArrayLengthNode;
@@ -83,7 +82,7 @@ public class EDot extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(this, Read.class);
         boolean write = semanticScope.getCondition(this, Write.class);
 
@@ -96,7 +95,7 @@ public class EDot extends AExpression {
         Output output = new Output();
 
         semanticScope.setCondition(prefixNode, Read.class);
-        Output prefixOutput = prefixNode.analyze(classNode, semanticScope);
+        Output prefixOutput = prefixNode.analyze(semanticScope);
         ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
         StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
 

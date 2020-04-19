@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryMathNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
@@ -67,7 +66,7 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -82,11 +81,11 @@ public class EBinary extends AExpression {
         Class<?> shiftDistance = null;
 
         semanticScope.setCondition(leftNode, Read.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Output leftOutput = analyze(leftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
 
         semanticScope.setCondition(rightNode, Read.class);
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        Output rightOutput = analyze(rightNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
         Output output = new Output();

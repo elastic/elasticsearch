@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
@@ -55,7 +54,7 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Class<?> rtnType = semanticScope.getReturnType();
         boolean isVoid = rtnType == void.class;
         boolean lastSource = semanticScope.getCondition(this, LastSource.class);
@@ -64,7 +63,7 @@ public class SExpression extends AStatement {
             semanticScope.setCondition(expressionNode, Read.class);
         }
         
-        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, semanticScope);
         Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
 
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;

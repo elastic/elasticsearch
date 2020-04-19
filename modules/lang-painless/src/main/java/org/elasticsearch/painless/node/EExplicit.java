@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -55,7 +54,7 @@ public class EExplicit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
@@ -75,7 +74,7 @@ public class EExplicit extends AExpression {
         semanticScope.setCondition(childNode, Read.class);
         semanticScope.putDecoration(childNode, new TargetType(valueType));
         semanticScope.setCondition(childNode, Explicit.class);
-        Output childOutput = analyze(childNode, classNode, semanticScope);
+        Output childOutput = analyze(childNode, semanticScope);
         PainlessCast childCast = childNode.cast(semanticScope);
 
         semanticScope.putDecoration(this, new ValueType(valueType));

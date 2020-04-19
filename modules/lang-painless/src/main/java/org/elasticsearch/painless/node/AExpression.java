@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CastNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
@@ -71,9 +70,9 @@ public abstract class AExpression extends ANode {
 //         */
 //        boolean internal = false;
 //    }
-
-    public static class Output {
-
+//
+//    public static class Output {
+//
 //        /**
 //         * Set to {@code true} when actual represents a static type and
 //         * this expression does not generate a value. Set to {@code false}
@@ -93,12 +92,12 @@ public abstract class AExpression extends ANode {
 //         * rhs actual type to avoid an unnecessary cast.
 //         */
 //        boolean isDefOptimized = false;
-
-        /**
-         * The {@link ExpressionNode}(s) generated from this expression.
-         */
-        ExpressionNode expressionNode = null;
-    }
+//
+//        /**
+//         * The {@link ExpressionNode}(s) generated from this expression.
+//         */
+//        ExpressionNode expressionNode = null;
+//    }
 
     /**
      * Standard constructor with location used for error tracking.
@@ -110,7 +109,7 @@ public abstract class AExpression extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         throw new UnsupportedOperationException();
     }
 
@@ -118,8 +117,8 @@ public abstract class AExpression extends ANode {
      * Checks for errors and collects data for the writing phase. Adds additional, common
      * error checking for conditions related to static types and partially constructed static types.
      */
-    static Output analyze(AExpression expression, ClassNode classNode, SemanticScope semanticScope) {
-        Output output = expression.analyze(classNode, semanticScope);
+    static void analyze(AExpression expression, SemanticScope semanticScope) {
+        expression.analyze(semanticScope);
 
         if (semanticScope.hasDecoration(expression, PartialCanonicalTypeName.class)) {
             throw expression.createError(new IllegalArgumentException("cannot resolve symbol " +
@@ -134,8 +133,6 @@ public abstract class AExpression extends ANode {
         if (semanticScope.hasDecoration(expression, ValueType.class) == false) {
             throw expression.createError(new IllegalStateException("value required: instead found no value"));
         }
-
-        return output;
     }
 
     // TODO: move this somewhere more appropriate

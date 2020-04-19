@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -47,13 +46,13 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
 
         List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
 
         for (SDeclaration declaration : declarationNodes) {
-            declarationOutputs.add(declaration.analyze(classNode, semanticScope));
+            declarationOutputs.add(declaration.analyze(semanticScope));
         }
 
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();

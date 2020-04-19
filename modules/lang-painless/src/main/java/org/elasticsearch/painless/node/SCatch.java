@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -73,7 +72,7 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
@@ -102,7 +101,7 @@ public class SCatch extends AStatement {
             semanticScope.replicateCondition(this, blockNode, LastSource.class);
             semanticScope.replicateCondition(this, blockNode, InLoop.class);
             semanticScope.replicateCondition(this, blockNode, LastLoop.class);
-            blockOutput = blockNode.analyze(classNode, semanticScope);
+            blockOutput = blockNode.analyze(semanticScope);
 
             semanticScope.setCondition(this, MethodEscape.class);
             semanticScope.setCondition(this, LoopEscape.class);

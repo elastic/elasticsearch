@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -65,7 +64,7 @@ public class EMapInit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
         }
@@ -104,7 +103,7 @@ public class EMapInit extends AExpression {
             semanticScope.setCondition(expression, Read.class);
             semanticScope.putDecoration(expression, new TargetType(def.class));
             semanticScope.setCondition(expression, Internal.class);
-            Output expressionOutput = analyze(expression, classNode, semanticScope);
+            Output expressionOutput = analyze(expression, semanticScope);
             keyOutputs.add(expressionOutput);
             keyCasts.add(expression.cast(semanticScope));
 
@@ -112,7 +111,7 @@ public class EMapInit extends AExpression {
             semanticScope.setCondition(expression, Read.class);
             semanticScope.putDecoration(expression, new TargetType(def.class));
             semanticScope.setCondition(expression, Internal.class);
-            expressionOutput = analyze(expression, classNode, semanticScope);
+            expressionOutput = analyze(expression, semanticScope);
             valueCasts.add(expression.cast(semanticScope));
 
             valueOutputs.add(expressionOutput);

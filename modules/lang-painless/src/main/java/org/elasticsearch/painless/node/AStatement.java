@@ -20,8 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
@@ -55,9 +53,9 @@ public abstract class AStatement extends ANode {
 //         */
 //        boolean lastLoop = false;
 //    }
-
-    public static class Output {
-
+//
+//    public static class Output {
+//
 //        /**
 //         * Set to true if a statement would cause the method to exit.  Used to
 //         * determine whether or not an auto-return is necessary.
@@ -88,12 +86,12 @@ public abstract class AStatement extends ANode {
 //         * extraneous loops.
 //         */
 //        boolean anyBreak = false;
-
-        /**
-         * The {@link StatementNode}(s) generated from this expression.
-         */
-        StatementNode statementNode = null;
-    }
+//
+//        /**
+//         * The {@link StatementNode}(s) generated from this expression.
+//         */
+//        StatementNode statementNode = null;
+//    }
 
     /**
      * Standard constructor with location used for error tracking.
@@ -105,7 +103,7 @@ public abstract class AStatement extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         throw new UnsupportedOperationException();
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -65,7 +64,7 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
         }
@@ -79,21 +78,21 @@ public class EConditional extends AExpression {
 
         semanticScope.setCondition(conditionNode, Read.class);
         semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        Output conditionOutput = analyze(conditionNode, classNode, semanticScope);
+        Output conditionOutput = analyze(conditionNode, semanticScope);
         PainlessCast conditionCast = conditionNode.cast(semanticScope);
 
         semanticScope.setCondition(leftNode, Read.class);
         semanticScope.copyDecoration(this, leftNode, TargetType.class);
         semanticScope.replicateCondition(this, leftNode, Explicit.class);
         semanticScope.replicateCondition(this, leftNode, Internal.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Output leftOutput = analyze(leftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
 
         semanticScope.setCondition(rightNode, Read.class);
         semanticScope.copyDecoration(this, rightNode, TargetType.class);
         semanticScope.replicateCondition(this, rightNode, Explicit.class);
         semanticScope.replicateCondition(this, rightNode, Internal.class);
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        Output rightOutput = analyze(rightNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
         TargetType targetType = semanticScope.getDecoration(this, TargetType.class);

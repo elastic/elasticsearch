@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -60,7 +59,7 @@ public class SDeclaration extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
@@ -79,7 +78,7 @@ public class SDeclaration extends AStatement {
         if (valueNode != null) {
             semanticScope.setCondition(valueNode, Read.class);
             semanticScope.putDecoration(valueNode, new TargetType(type));
-            expressionOutput = AExpression.analyze(valueNode, classNode, semanticScope);
+            expressionOutput = AExpression.analyze(valueNode, semanticScope);
             expressionCast = valueNode.cast(semanticScope);
         }
 

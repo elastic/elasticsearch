@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DoWhileLoopNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
@@ -61,7 +60,7 @@ public class SDo extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
         semanticScope = semanticScope.newLocalScope();
 
@@ -71,7 +70,7 @@ public class SDo extends AStatement {
 
         semanticScope.setCondition(blockNode, BeginLoop.class);
         semanticScope.setCondition(blockNode, InLoop.class);
-        Output blockOutput = blockNode.analyze(classNode, semanticScope);
+        Output blockOutput = blockNode.analyze(semanticScope);
 
         if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
                 semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
@@ -80,7 +79,7 @@ public class SDo extends AStatement {
 
         semanticScope.setCondition(conditionNode, Read.class);
         semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
+        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, semanticScope);
         PainlessCast conditionCast = conditionNode.cast(semanticScope);
 
         boolean continuous = false;

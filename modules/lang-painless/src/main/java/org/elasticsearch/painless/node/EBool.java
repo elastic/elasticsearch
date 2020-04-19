@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -62,7 +61,7 @@ public class EBool extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -77,12 +76,12 @@ public class EBool extends AExpression {
 
         semanticScope.setCondition(leftNode, Read.class);
         semanticScope.putDecoration(leftNode, new TargetType(boolean.class));
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Output leftOutput = analyze(leftNode, semanticScope);
         PainlessCast leftCast = leftNode.cast(semanticScope);
 
         semanticScope.setCondition(rightNode, Read.class);
         semanticScope.putDecoration(rightNode, new TargetType(boolean.class));
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        Output rightOutput = analyze(rightNode, semanticScope);
         PainlessCast rightCast = rightNode.cast(semanticScope);
 
         semanticScope.putDecoration(this, new ValueType(boolean.class));

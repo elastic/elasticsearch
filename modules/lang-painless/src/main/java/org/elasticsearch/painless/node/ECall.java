@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubDefNode;
 import org.elasticsearch.painless.ir.CallSubNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -84,14 +83,14 @@ public class ECall extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
 
         semanticScope.setCondition(prefixNode, Read.class);
-        Output prefixOutput = prefixNode.analyze(classNode, semanticScope);
+        Output prefixOutput = prefixNode.analyze(semanticScope);
         ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
         StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
 
@@ -116,7 +115,7 @@ public class ECall extends AExpression {
             for (AExpression argument : argumentNodes) {
                 semanticScope.setCondition(argument, Read.class);
                 semanticScope.setCondition(argument, Internal.class);
-                Output expressionOutput = analyze(argument, classNode, semanticScope);
+                Output expressionOutput = analyze(argument, semanticScope);
                 Class<?> argumentValueType = semanticScope.getDecoration(argument, ValueType.class).getValueType();
                 argumentOutputs.add(expressionOutput);
 
@@ -180,7 +179,7 @@ public class ECall extends AExpression {
                 semanticScope.setCondition(expression, Read.class);
                 semanticScope.putDecoration(expression, new TargetType(method.typeParameters.get(argument)));
                 semanticScope.setCondition(expression, Internal.class);
-                Output expressionOutput = analyze(expression, classNode, semanticScope);
+                Output expressionOutput = analyze(expression, semanticScope);
                 argumentOutputs.add(expressionOutput);
                 argumentCasts.add(expression.cast(semanticScope));
             }

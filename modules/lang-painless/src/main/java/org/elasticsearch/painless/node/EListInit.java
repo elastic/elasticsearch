@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -58,7 +57,7 @@ public class EListInit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to list initializer"));
         }
@@ -90,7 +89,7 @@ public class EListInit extends AExpression {
             semanticScope.setCondition(expression, Read.class);
             semanticScope.putDecoration(expression, new TargetType(def.class));
             semanticScope.setCondition(expression, Internal.class);
-            Output expressionOutput = analyze(expression, classNode, semanticScope);
+            Output expressionOutput = analyze(expression, semanticScope);
             valueOutputs.add(expressionOutput);
             valueCasts.add(expression.cast(semanticScope));
         }

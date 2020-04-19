@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
@@ -59,7 +58,7 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]"));
         }
@@ -81,14 +80,14 @@ public class EElvis extends AExpression {
         semanticScope.copyDecoration(this, leftNode, TargetType.class);
         semanticScope.replicateCondition(this, leftNode, Explicit.class);
         semanticScope.replicateCondition(this, leftNode, Internal.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Output leftOutput = analyze(leftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
 
         semanticScope.setCondition(rightNode, Read.class);
         semanticScope.copyDecoration(this, rightNode, TargetType.class);
         semanticScope.replicateCondition(this, rightNode, Explicit.class);
         semanticScope.replicateCondition(this, rightNode, Internal.class);
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        Output rightOutput = analyze(rightNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
         if (leftNode instanceof ENull) {

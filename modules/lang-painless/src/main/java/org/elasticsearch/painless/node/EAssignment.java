@@ -27,7 +27,6 @@ import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotNode;
 import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
@@ -82,7 +81,7 @@ public class EAssignment extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
 
         boolean cat = false;
@@ -94,14 +93,14 @@ public class EAssignment extends AExpression {
 
         semanticScope.replicateCondition(this, leftNode, Read.class);
         semanticScope.setCondition(leftNode, Write.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Output leftOutput = analyze(leftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorations.ValueType.class).getValueType();
 
         semanticScope.setCondition(rightNode, Read.class);
         Output rightOutput;
 
         if (operation != null) {
-            rightOutput = analyze(rightNode, classNode, semanticScope);
+            rightOutput = analyze(rightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
             boolean shift = false;
 
@@ -173,7 +172,7 @@ public class EAssignment extends AExpression {
         } else {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (semanticScope.getCondition(leftNode, DefOptimized.class)) {
-                rightOutput = analyze(rightNode, classNode, semanticScope);
+                rightOutput = analyze(rightNode, semanticScope);
                 Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
                 if (rightValueType == void.class) {
@@ -192,7 +191,7 @@ public class EAssignment extends AExpression {
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
                 semanticScope.putDecoration(rightNode, new TargetType(leftValueType));
-                rightOutput = analyze(rightNode, classNode, semanticScope);
+                rightOutput = analyze(rightNode, semanticScope);
                 rightCast = rightNode.cast(semanticScope);
             }
         }

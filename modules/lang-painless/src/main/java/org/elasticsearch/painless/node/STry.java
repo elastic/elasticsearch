@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -55,7 +54,7 @@ public class STry extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
 
         if (blockNode == null) {
@@ -65,7 +64,7 @@ public class STry extends AStatement {
         semanticScope.replicateCondition(this, blockNode, LastSource.class);
         semanticScope.replicateCondition(this, blockNode, InLoop.class);
         semanticScope.replicateCondition(this, blockNode, LastLoop.class);
-        Output blockOutput = blockNode.analyze(classNode, semanticScope.newLocalScope());
+        Output blockOutput = blockNode.analyze(semanticScope.newLocalScope());
 
         boolean methodEscape = semanticScope.getCondition(blockNode, MethodEscape.class);
         boolean loopEscape = semanticScope.getCondition(blockNode, LoopEscape.class);
@@ -79,7 +78,7 @@ public class STry extends AStatement {
             semanticScope.replicateCondition(this, catc, LastSource.class);
             semanticScope.replicateCondition(this, catc, InLoop.class);
             semanticScope.replicateCondition(this, catc, LastLoop.class);
-            Output catchOutput = catc.analyze(classNode, semanticScope.newLocalScope());
+            Output catchOutput = catc.analyze(semanticScope.newLocalScope());
 
             methodEscape &= semanticScope.getCondition(catc, MethodEscape.class);
             loopEscape &= semanticScope.getCondition(catc, LoopEscape.class);

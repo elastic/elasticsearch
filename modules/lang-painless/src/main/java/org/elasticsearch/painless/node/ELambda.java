@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.ReferenceNode;
@@ -97,7 +96,7 @@ public class ELambda extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
         }
@@ -186,7 +185,7 @@ public class ELambda extends AExpression {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
         semanticScope.setCondition(blockNode, LastSource.class);
-        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope);
+        AStatement.Output blockOutput = blockNode.analyze(lambdaScope);
 
         if (semanticScope.getCondition(blockNode, MethodEscape.class) == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));

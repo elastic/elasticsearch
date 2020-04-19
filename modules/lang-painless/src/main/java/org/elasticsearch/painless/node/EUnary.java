@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -61,7 +60,7 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -92,7 +91,7 @@ public class EUnary extends AExpression {
                 if (operation == Operation.SUB) {
                     childOutput = numeric.analyze(semanticScope, numeric.getNumeric().charAt(0) != '-');
                 } else {
-                    childOutput = childNode.analyze(classNode, semanticScope);
+                    childOutput = childNode.analyze(semanticScope);
                 }
             } else if (childNode instanceof EDecimal) {
                 EDecimal decimal = (EDecimal)childNode;
@@ -100,7 +99,7 @@ public class EUnary extends AExpression {
                 if (operation == Operation.SUB) {
                     childOutput = decimal.analyze(semanticScope, decimal.getDecimal().charAt(0) != '-');
                 } else {
-                    childOutput = childNode.analyze(classNode, semanticScope);
+                    childOutput = childNode.analyze(semanticScope);
                 }
             } else {
                 throw createError(new IllegalArgumentException("illegal tree structure"));
@@ -114,13 +113,13 @@ public class EUnary extends AExpression {
             if (operation == Operation.NOT) {
                 semanticScope.setCondition(childNode, Read.class);
                 semanticScope.putDecoration(childNode, new TargetType(boolean.class));
-                childOutput = analyze(childNode, classNode, semanticScope);
+                childOutput = analyze(childNode, semanticScope);
                 childCast = childNode.cast(semanticScope);
 
                 valueType = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
                 semanticScope.setCondition(childNode, Read.class);
-                childOutput = analyze(childNode, classNode, semanticScope);
+                childOutput = analyze(childNode, semanticScope);
                 Class<?> childValueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
 
                 promote = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);

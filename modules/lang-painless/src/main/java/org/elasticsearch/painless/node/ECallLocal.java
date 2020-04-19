@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.MemberCallNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -67,7 +66,7 @@ public class ECallLocal extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to function call [" + methodName + "/" + argumentNodes.size() + "]"));
@@ -185,7 +184,7 @@ public class ECallLocal extends AExpression {
             semanticScope.setCondition(expression, Read.class);
             semanticScope.putDecoration(expression, new TargetType(typeParameters.get(argument + classBindingOffset)));
             semanticScope.setCondition(expression, Internal.class);
-            Output argumentOutput = analyze(expression, classNode, semanticScope);
+            Output argumentOutput = analyze(expression, semanticScope);
             argumentOutputs.add(argumentOutput);
             argumentCasts.add(expression.cast(semanticScope));
         }

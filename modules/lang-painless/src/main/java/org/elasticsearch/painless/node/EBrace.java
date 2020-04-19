@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
@@ -68,7 +67,7 @@ public class EBrace extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         boolean read = semanticScope.getCondition(this, Read.class);
         boolean write = semanticScope.getCondition(this, Write.class);
 
@@ -77,7 +76,7 @@ public class EBrace extends AExpression {
         }
 
         semanticScope.setCondition(prefixNode, Read.class);
-        Output prefixOutput = analyze(prefixNode, classNode, semanticScope);
+        Output prefixOutput = analyze(prefixNode, semanticScope);
         Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class).getValueType();
 
         ExpressionNode expressionNode;
@@ -87,7 +86,7 @@ public class EBrace extends AExpression {
         if (prefixValueType.isArray()) {
             semanticScope.setCondition(indexNode, Read.class);
             semanticScope.putDecoration(indexNode, new TargetType(int.class));
-            Output indexOutput = analyze(indexNode, classNode, semanticScope);
+            Output indexOutput = analyze(indexNode, semanticScope);
             PainlessCast indexCast = indexNode.cast(semanticScope);
             valueType = prefixValueType.getComponentType();
 
@@ -98,7 +97,7 @@ public class EBrace extends AExpression {
             expressionNode = braceSubNode;
         } else if (prefixValueType == def.class) {
             semanticScope.setCondition(indexNode, Read.class);
-            Output indexOutput = analyze(indexNode, classNode, semanticScope);
+            Output indexOutput = analyze(indexNode, semanticScope);
 
             TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
@@ -139,7 +138,7 @@ public class EBrace extends AExpression {
                 semanticScope.setCondition(indexNode, Read.class);
                 semanticScope.putDecoration(indexNode,
                         new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
-                indexOutput = analyze(indexNode, classNode, semanticScope);
+                indexOutput = analyze(indexNode, semanticScope);
                 indexCast = indexNode.cast(semanticScope);
 
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
@@ -182,7 +181,7 @@ public class EBrace extends AExpression {
             if ((read == false || getter != null) && (write == false || setter != null)) {
                 semanticScope.setCondition(indexNode, Read.class);
                 semanticScope.putDecoration(indexNode, new TargetType(int.class));
-                indexOutput = analyze(indexNode, classNode, semanticScope);
+                indexOutput = analyze(indexNode, semanticScope);
                 indexCast = indexNode.cast(semanticScope);
 
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;

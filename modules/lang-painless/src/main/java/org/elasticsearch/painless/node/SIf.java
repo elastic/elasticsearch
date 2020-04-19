@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -59,12 +58,12 @@ public class SIf extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
 
         semanticScope.setCondition(conditionNode, Read.class);
         semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
+        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, semanticScope);
         PainlessCast conditionCast = conditionNode.cast(semanticScope);
 
         if (conditionNode instanceof EBoolean) {
@@ -78,7 +77,7 @@ public class SIf extends AStatement {
         semanticScope.replicateCondition(this, ifblockNode, LastSource.class);
         semanticScope.replicateCondition(this, ifblockNode, InLoop.class);
         semanticScope.replicateCondition(this, ifblockNode, LastLoop.class);
-        Output ifblockOutput = ifblockNode.analyze(classNode, semanticScope.newLocalScope());
+        Output ifblockOutput = ifblockNode.analyze(semanticScope.newLocalScope());
 
         semanticScope.replicateCondition(ifblockNode, this, AnyContinue.class);
         semanticScope.replicateCondition(ifblockNode, this, AnyBreak.class);

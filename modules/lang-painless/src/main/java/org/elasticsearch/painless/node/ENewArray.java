@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
@@ -65,7 +64,7 @@ public class ENewArray extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
         }
@@ -89,7 +88,7 @@ public class ENewArray extends AExpression {
             semanticScope.setCondition(expression, Read.class);
             semanticScope.putDecoration(expression, new TargetType(isInitializer ? valueType.getComponentType() : int.class));
             semanticScope.setCondition(expression, Internal.class);
-            Output expressionOutput = analyze(expression, classNode, semanticScope);
+            Output expressionOutput = analyze(expression, semanticScope);
             argumentOutputs.add(expressionOutput);
             argumentCasts.add(expression.cast(semanticScope));
         }

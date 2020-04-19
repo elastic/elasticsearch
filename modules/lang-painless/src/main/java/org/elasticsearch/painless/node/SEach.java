@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionNode;
 import org.elasticsearch.painless.ir.ForEachLoopNode;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
@@ -81,11 +80,11 @@ public class SEach extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
 
         semanticScope.setCondition(iterableNode, Read.class);
-        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, semanticScope);
+        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, semanticScope);
         Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, ValueType.class).getValueType();
 
         Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
@@ -103,7 +102,7 @@ public class SEach extends AStatement {
 
         semanticScope.setCondition(blockNode, BeginLoop.class);
         semanticScope.setCondition(blockNode, InLoop.class);
-        Output blockOutput = blockNode.analyze(classNode, semanticScope);
+        Output blockOutput = blockNode.analyze(semanticScope);
 
         if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
                 semanticScope.getCondition(blockNode, AnyContinue.class) == false) {

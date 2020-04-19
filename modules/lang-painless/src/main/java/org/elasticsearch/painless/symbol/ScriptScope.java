@@ -22,6 +22,7 @@ package org.elasticsearch.painless.symbol;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.node.ANode;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -117,5 +118,41 @@ public class ScriptScope extends Decorator {
 
     public Map<String, Object> getStaticConstants() {
         return Collections.unmodifiableMap(staticConstants);
+    }
+
+    public <T extends Decoration> T putDecoration(ANode node, T decoration) {
+        return put(node.getIdentifier(), decoration);
+    }
+
+    public <T extends Decoration> T removeDecoration(ANode node, Class<T> type) {
+        return remove(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> T getDecoration(ANode node, Class<T> type) {
+        return get(node.getIdentifier(), type);
+    }
+
+    public boolean hasDecoration(ANode node, Class<? extends Decoration> type) {
+        return has(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> boolean copyDecoration(ANode originalNode, ANode targetNode, Class<T> type) {
+        return copy(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
+    }
+
+    public boolean setCondition(ANode node, Class<? extends Condition> type) {
+        return set(node.getIdentifier(), type);
+    }
+
+    public boolean deleteCondition(ANode node, Class<? extends Condition> type) {
+        return delete(node.getIdentifier(), type);
+    }
+
+    public boolean getCondition(ANode node, Class<? extends Condition> type) {
+        return exists(node.getIdentifier(), type);
+    }
+
+    public boolean replicateCondition(ANode originalNode, ANode targetNode, Class<? extends Condition> type) {
+        return replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }
 }

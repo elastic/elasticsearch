@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
@@ -50,12 +49,12 @@ public class SThrow extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         Output output = new Output();
 
         semanticScope.setCondition(expressionNode, Read.class);
         semanticScope.putDecoration(expressionNode, new TargetType(Exception.class));
-        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, semanticScope);
         PainlessCast expressionCast = expressionNode.cast(semanticScope);
 
         semanticScope.setCondition(this, MethodEscape.class);

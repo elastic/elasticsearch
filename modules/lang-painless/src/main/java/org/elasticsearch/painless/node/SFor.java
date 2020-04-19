@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
@@ -73,7 +72,7 @@ public class SFor extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    Output analyze(SemanticScope semanticScope) {
         semanticScope = semanticScope.newLocalScope();
 
         Output initializerStatementOutput = null;
@@ -81,10 +80,10 @@ public class SFor extends AStatement {
 
         if (initializerNode != null) {
             if (initializerNode instanceof SDeclBlock) {
-                initializerStatementOutput = ((SDeclBlock)initializerNode).analyze(classNode, semanticScope);
+                initializerStatementOutput = ((SDeclBlock)initializerNode).analyze(semanticScope);
             } else if (initializerNode instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializerNode;
-                initializerExpressionOutput = AExpression.analyze(initializer, classNode, semanticScope);
+                initializerExpressionOutput = AExpression.analyze(initializer, semanticScope);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -98,7 +97,7 @@ public class SFor extends AStatement {
         if (conditionNode != null) {
             semanticScope.setCondition(conditionNode, Read.class);
             semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-            conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
+            conditionOutput = AExpression.analyze(conditionNode, semanticScope);
             conditionCast = conditionNode.cast(semanticScope);
 
             if (conditionNode instanceof EBoolean) {
@@ -119,7 +118,7 @@ public class SFor extends AStatement {
         AExpression.Output afterthoughtOutput = null;
 
         if (afterthoughtNode != null) {
-            afterthoughtOutput = AExpression.analyze(afterthoughtNode, classNode, semanticScope);
+            afterthoughtOutput = AExpression.analyze(afterthoughtNode, semanticScope);
         }
 
         Output output = new Output();
@@ -128,7 +127,7 @@ public class SFor extends AStatement {
         if (blockNode != null) {
             semanticScope.setCondition(blockNode, BeginLoop.class);
             semanticScope.setCondition(blockNode, InLoop.class);
-            blockOutput = blockNode.analyze(classNode, semanticScope);
+            blockOutput = blockNode.analyze(semanticScope);
 
             if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
                     semanticScope.getCondition(blockNode, AnyContinue.class) == false) {

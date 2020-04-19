@@ -20,12 +20,13 @@
 package org.elasticsearch.gradle.util;
 
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
 import java.io.BufferedReader;
@@ -34,10 +35,8 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Function;
 
 public class Util {
 
@@ -85,38 +84,15 @@ public class Util {
         }
     }
 
-    public static Function<FileTree, FileTree> filterByPatterns(
-        PatternSet patternSet,
-        @Nullable List<String> includePatterns,
-        @Nullable List<String> excludePatterns
-    ) {
-        return inFiles -> {
-            if (inFiles != null && inFiles.isEmpty() == false) {
-                if (includePatterns != null) {
-                    patternSet.include(includePatterns);
-                }
-                if (excludePatterns != null) {
-                    patternSet.exclude(excludePatterns);
-                }
-                return inFiles.getAsFileTree().matching(patternSet);
-            } else {
-                return null;
-            }
-        };
-    }
-
     /**
      * @param project The project to look for resources.
      * @param filter  Optional filter function to filter the returned resources
      * @return Returns the {@link FileTree} for main resources from Java projects. Returns null if no files exist.
      */
     @Nullable
-    public static FileTree getJavaMainSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
-        if (filter == null) {
-            filter = Function.identity();
-        }
+    public static FileTree getJavaMainSourceResources(Project project, Action<? super PatternFilterable> filter) {
         final Optional<FileTree> mainFileTree = getJavaMainSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
-        return filter.apply(mainFileTree.orElse(null));
+        return mainFileTree.map(files -> files.matching(filter)).orElse(null);
     }
 
     /**
@@ -125,12 +101,9 @@ public class Util {
      * @return Returns the {@link FileTree} for test resources from Java projects. Returns null if no files exist.
      */
     @Nullable
-    public static FileTree getJavaTestSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
-        if (filter == null) {
-            filter = Function.identity();
-        }
+    public static FileTree getJavaTestSourceResources(Project project, Action<? super PatternFilterable> filter) {
         final Optional<FileTree> testFileTree = getJavaTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
-        return filter.apply(testFileTree.orElse(null));
+        return testFileTree.map(files -> files.matching(filter)).orElse(null);
     }
 
     /**
@@ -139,17 +112,17 @@ public class Util {
      * @return Returns the combined {@link FileTree} for test and main resources from Java projects. Returns null if no files exist.
      */
     @Nullable
-    public static FileTree getJavaTestAndMainSourceResources(Project project, @Nullable Function<FileTree, FileTree> filter) {
-        if (filter == null) {
-            filter = Function.identity();
-        }
+    public static FileTree getJavaTestAndMainSourceResources(Project project, Action<? super PatternFilterable> filter) {
         final Optional<FileTree> testFileTree = getJavaTestSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
         final Optional<FileTree> mainFileTree = getJavaMainSourceSet(project).map(SourceSet::getResources).map(FileTree::getAsFileTree);
         if (testFileTree.isPresent() && mainFileTree.isPresent()) {
-            return filter.apply(testFileTree.get().plus(mainFileTree.get()));
-        } else {
-            return filter.apply(testFileTree.orElse(mainFileTree.orElse(null)));
+            return testFileTree.get().plus(mainFileTree.get()).matching(filter);
+        } else if(mainFileTree.isPresent()){
+            return mainFileTree.get().matching(filter);
+        }else if(testFileTree.isPresent()){
+            return testFileTree.get().matching(filter);
         }
+        return null;
     }
 
     /**
@@ -158,7 +131,7 @@ public class Util {
      */
     public static Optional<SourceSet> getJavaTestSourceSet(Project project) {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.ofNullable(null)
+            ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
     }
 
@@ -168,7 +141,7 @@ public class Util {
      */
     public static Optional<SourceSet> getJavaMainSourceSet(Project project) {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.ofNullable(null)
+            ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
     }
 }

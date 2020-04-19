@@ -13,5 +13,5 @@ artifacts {
 }
 
 validateRestSpec {
-   ignore "cat.thread_pool.json"
+  // ignore "cat.thread_pool.json"
 }

@@ -664,19 +664,18 @@ public class MetadataIndexTemplateService {
      * the event that no templates are matched, {@code null} is returned.
      */
     @Nullable
-    public static String findV2Template(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
+    public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final Map<IndexTemplateV2, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final IndexTemplateV2 template = entry.getValue();
-            if (isHidden == null || isHidden == Boolean.FALSE) {
+            if (isHidden == false) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     matchedTemplates.put(template, name);
                 }
             } else {
-                assert isHidden == Boolean.TRUE;
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
                     if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {

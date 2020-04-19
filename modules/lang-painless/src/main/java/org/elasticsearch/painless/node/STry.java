@@ -24,6 +24,9 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
@@ -47,19 +50,17 @@ public class STry extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
         if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
-        Input blockInput = new Input();
-        blockInput.lastSource = input.lastSource;
-        blockInput.inLoop = input.inLoop;
-        blockInput.lastLoop = input.lastLoop;
-
-        Output blockOutput = blockNode.analyze(classNode, semanticScope.newLocalScope(), blockInput);
+        semanticScope.replicateCondition(this, blockNode, LastSource.class);
+        semanticScope.replicateCondition(this, blockNode, InLoop.class);
+        semanticScope.replicateCondition(this, blockNode, LastLoop.class);
+        Output blockOutput = blockNode.analyze(classNode, semanticScope.newLocalScope());
 
         output.methodEscape = blockOutput.methodEscape;
         output.loopEscape = blockOutput.loopEscape;
@@ -72,12 +73,10 @@ public class STry extends AStatement {
         List<Output> catchOutputs = new ArrayList<>();
 
         for (SCatch catc : catcheNodes) {
-            Input catchInput = new Input();
-            catchInput.lastSource = input.lastSource;
-            catchInput.inLoop = input.inLoop;
-            catchInput.lastLoop = input.lastLoop;
-
-            Output catchOutput = catc.analyze(classNode, semanticScope.newLocalScope(), catchInput);
+            semanticScope.replicateCondition(this, catc, LastSource.class);
+            semanticScope.replicateCondition(this, catc, InLoop.class);
+            semanticScope.replicateCondition(this, catc, LastLoop.class);
+            Output catchOutput = catc.analyze(classNode, semanticScope.newLocalScope());
 
             output.methodEscape &= catchOutput.methodEscape;
             output.loopEscape &= catchOutput.loopEscape;

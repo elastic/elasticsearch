@@ -47,13 +47,13 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
         List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
 
         for (SDeclaration declaration : declarationNodes) {
-            declarationOutputs.add(declaration.analyze(classNode, semanticScope, new Input()));
+            declarationOutputs.add(declaration.analyze(classNode, semanticScope));
         }
 
         output.statementCount = declarationNodes.size();

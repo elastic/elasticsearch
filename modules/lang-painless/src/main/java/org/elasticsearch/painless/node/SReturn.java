@@ -47,7 +47,7 @@ public class SReturn extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
         AExpression.Output expressionOutput = null;

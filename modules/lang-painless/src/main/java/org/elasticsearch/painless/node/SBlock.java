@@ -22,6 +22,10 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
@@ -47,7 +51,7 @@ public class SBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
         if (statementNodes.isEmpty()) {
@@ -58,6 +62,11 @@ public class SBlock extends AStatement {
 
         List<Output> statementOutputs = new ArrayList<>(statementNodes.size());
 
+        boolean lastSource = semanticScope.getCondition(this, LastSource.class);
+        boolean beginLoop = semanticScope.getCondition(this, BeginLoop.class);
+        boolean inLoop = semanticScope.getCondition(this, InLoop.class);
+        boolean lastLoop = semanticScope.getCondition(this, LastLoop.class);
+
         for (AStatement statement : statementNodes) {
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
@@ -65,12 +74,21 @@ public class SBlock extends AStatement {
                 throw createError(new IllegalArgumentException("Unreachable statement."));
             }
 
-            Input statementInput = new Input();
-            statementInput.inLoop = input.inLoop;
-            statementInput.lastSource = input.lastSource && statement == last;
-            statementInput.lastLoop = (input.beginLoop || input.lastLoop) && statement == last;
+            if (inLoop) {
+                semanticScope.setCondition(statement, InLoop.class);
+            }
 
-            Output statementOutput = statement.analyze(classNode, semanticScope, statementInput);
+            if (statement == last) {
+                if (beginLoop || lastLoop) {
+                    semanticScope.setCondition(statement, LastLoop.class);
+                }
+
+                if (lastSource) {
+                    semanticScope.setCondition(statement, LastSource.class);
+                }
+            }
+
+            Output statementOutput = statement.analyze(classNode, semanticScope);
 
             output.methodEscape = statementOutput.methodEscape;
             output.loopEscape = statementOutput.loopEscape;

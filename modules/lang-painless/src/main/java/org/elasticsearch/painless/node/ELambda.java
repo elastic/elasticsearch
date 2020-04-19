@@ -29,6 +29,7 @@ import org.elasticsearch.painless.ir.ReferenceNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -183,9 +184,8 @@ public class ELambda extends AExpression {
         if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
-        AStatement.Input blockInput = new AStatement.Input();
-        blockInput.lastSource = true;
-        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope, blockInput);
+        semanticScope.setCondition(blockNode, LastSource.class);
+        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope);
 
         if (blockOutput.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));

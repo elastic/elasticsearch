@@ -29,8 +29,8 @@ import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.node.AStatement.Input;
 import org.elasticsearch.painless.node.AStatement.Output;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
@@ -173,9 +173,8 @@ public class SFunction extends ANode {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
         }
 
-        Input blockInput = new Input();
-        blockInput.lastSource = true;
-        Output blockOutput = blockNode.analyze(classNode, functionScope.newLocalScope(), blockInput);
+        functionScope.setCondition(blockNode, LastSource.class);
+        Output blockOutput = blockNode.analyze(classNode, functionScope.newLocalScope());
         boolean methodEscape = blockOutput.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {

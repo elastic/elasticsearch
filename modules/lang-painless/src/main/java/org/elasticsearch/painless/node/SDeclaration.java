@@ -60,7 +60,7 @@ public class SDeclaration extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {

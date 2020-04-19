@@ -29,32 +29,32 @@ import org.elasticsearch.painless.symbol.SemanticScope;
  */
 public abstract class AStatement extends ANode {
 
-    public static class Input {
-
-        /**
-         * Set to true when the final statement in an {@link SClass} is reached.
-         * Used to determine whether or not an auto-return is necessary.
-         */
-        boolean lastSource = false;
-
-        /**
-         * Set to true when a loop begins.  Used by {@link SBlock} to help determine
-         * when the final statement of a loop is reached.
-         */
-        boolean beginLoop = false;
-
-        /**
-         * Set to true when inside a loop.  Used by {@link SBreak} and {@link SContinue}
-         * to determine if a break/continue statement is legal.
-         */
-        boolean inLoop = false;
-
-        /**
-         * Set to true when on the last statement of a loop.  Used by {@link SContinue}
-         * to prevent extraneous continue statements.
-         */
-        boolean lastLoop = false;
-    }
+//    public static class Input {
+//
+//        /**
+//         * Set to true when the final statement in an {@link SClass} is reached.
+//         * Used to determine whether or not an auto-return is necessary.
+//         */
+//        boolean lastSource = false;
+//
+//        /**
+//         * Set to true when a loop begins.  Used by {@link SBlock} to help determine
+//         * when the final statement of a loop is reached.
+//         */
+//        boolean beginLoop = false;
+//
+//        /**
+//         * Set to true when inside a loop.  Used by {@link SBreak} and {@link SContinue}
+//         * to determine if a break/continue statement is legal.
+//         */
+//        boolean inLoop = false;
+//
+//        /**
+//         * Set to true when on the last statement of a loop.  Used by {@link SContinue}
+//         * to prevent extraneous continue statements.
+//         */
+//        boolean lastLoop = false;
+//    }
 
     public static class Output {
 
@@ -111,7 +111,7 @@ public abstract class AStatement extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         throw new UnsupportedOperationException();
     }
 }

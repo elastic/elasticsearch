@@ -27,7 +27,25 @@ import java.util.Objects;
 
 public class Decorations {
 
-    // standard input for user expressions nodes during semantic phase
+    // standard input for user statement nodes druing semantic phase
+
+    public interface LastSource extends Condition {
+
+    }
+
+    public interface BeginLoop extends Condition {
+
+    }
+
+    public interface InLoop extends Condition {
+
+    }
+
+    public interface LastLoop extends Condition {
+
+    }
+
+    // standard input for user expression nodes during semantic phase
     
     public interface Read extends Condition {
 
@@ -62,7 +80,7 @@ public class Decorations {
 
     }
 
-    // standard output for user expression nodes during semantic phase
+    // standard output for user expression node during semantic phase
     
     public static class ValueType implements Decoration {
 

@@ -26,6 +26,7 @@ import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -51,18 +52,19 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Class<?> rtnType = semanticScope.getReturnType();
         boolean isVoid = rtnType == void.class;
+        boolean lastSource = semanticScope.getCondition(this, LastSource.class);
         
-        if (input.lastSource && !isVoid) {
+        if (lastSource && !isVoid) {
             semanticScope.setCondition(expressionNode, Read.class);
         }
         
         AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
         Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
 
-        boolean rtn = input.lastSource && isVoid == false && expressionValueType != void.class;
+        boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
         semanticScope.putDecoration(expressionNode, new TargetType(rtn ? rtnType : expressionValueType));
 
         if (rtn) {

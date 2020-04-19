@@ -24,6 +24,9 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfElseNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -60,7 +63,7 @@ public class SIfElse extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
         semanticScope.setCondition(conditionNode, Read.class);
@@ -75,12 +78,10 @@ public class SIfElse extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        Input ifblockInput = new Input();
-        ifblockInput.lastSource = input.lastSource;
-        ifblockInput.inLoop = input.inLoop;
-        ifblockInput.lastLoop = input.lastLoop;
-
-        Output ifblockOutput = ifblockNode.analyze(classNode, semanticScope.newLocalScope(), ifblockInput);
+        semanticScope.replicateCondition(this, ifblockNode, LastSource.class);
+        semanticScope.replicateCondition(this, ifblockNode, InLoop.class);
+        semanticScope.replicateCondition(this, ifblockNode, LastLoop.class);
+        Output ifblockOutput = ifblockNode.analyze(classNode, semanticScope.newLocalScope());
 
         output.anyContinue = ifblockOutput.anyContinue;
         output.anyBreak = ifblockOutput.anyBreak;
@@ -90,12 +91,10 @@ public class SIfElse extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous else statement."));
         }
 
-        Input elseblockInput = new Input();
-        elseblockInput.lastSource = input.lastSource;
-        elseblockInput.inLoop = input.inLoop;
-        elseblockInput.lastLoop = input.lastLoop;
-
-        Output elseblockOutput = elseblockNode.analyze(classNode, semanticScope.newLocalScope(), elseblockInput);
+        semanticScope.replicateCondition(this, elseblockNode, LastSource.class);
+        semanticScope.replicateCondition(this, elseblockNode, InLoop.class);
+        semanticScope.replicateCondition(this, elseblockNode, LastLoop.class);
+        Output elseblockOutput = elseblockNode.analyze(classNode, semanticScope.newLocalScope());
 
         output.methodEscape = ifblockOutput.methodEscape && elseblockOutput.methodEscape;
         output.loopEscape = ifblockOutput.loopEscape && elseblockOutput.loopEscape;

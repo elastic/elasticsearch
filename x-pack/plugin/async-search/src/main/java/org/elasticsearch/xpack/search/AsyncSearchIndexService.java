@@ -265,14 +265,17 @@ class AsyncSearchIndexService {
                     return;
                 }
 
-                if (restoreResponseHeaders) {
+                if (restoreResponseHeaders && get.getSource().containsKey(RESPONSE_HEADERS_FIELD)) {
                     @SuppressWarnings("unchecked")
                     Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
                     restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                 }
 
+                long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                listener.onResponse(encoded != null ? decodeResponse(encoded) : null);
+                AsyncSearchResponse response = decodeResponse(encoded);
+                response.setExpirationTime(expirationTime);
+                listener.onResponse(encoded != null ? response : null);
             },
             listener::onFailure
         ));

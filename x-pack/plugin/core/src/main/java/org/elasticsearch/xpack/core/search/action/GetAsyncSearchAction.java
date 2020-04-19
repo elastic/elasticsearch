@@ -63,12 +63,7 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (keepAlive.getMillis() != -1 && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
-                validationException =
-                    addValidationError("keep_alive must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
-            }
-            return validationException;
+            return null;
         }
 
         /**

@@ -33,7 +33,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final boolean isPartial;
 
     private final long startTimeMillis;
-    private final long expirationTimeMillis;
+    private long expirationTimeMillis;
 
     /**
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
@@ -155,6 +155,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      */
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    public void setExpirationTime(long expirationTimeMillis) {
+        this.expirationTimeMillis = expirationTimeMillis;
     }
 
     @Override

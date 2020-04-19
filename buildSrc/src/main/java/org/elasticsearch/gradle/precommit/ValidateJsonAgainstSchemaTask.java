@@ -102,7 +102,7 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
     @TaskAction
     public void validate(InputChanges inputChanges) throws IOException {
         File jsonSchemaOnDisk = getJsonSchema();
-        getLogger().debug("JSON schema for REST spec: [{}]", jsonSchemaOnDisk.getAbsolutePath());
+        getLogger().debug("JSON schema : [{}]", jsonSchemaOnDisk.getAbsolutePath());
         JsonSchema jsonSchema = cache.computeIfAbsent(getJsonSchema(), k -> {
             SchemaValidatorsConfig config = new SchemaValidatorsConfig();
             JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
@@ -120,7 +120,7 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
                 getLogger().debug("Ignoring file [{}] due to configuration", file.getName());
             } else if (file.isDirectory() == false) {
                 // validate all files and hold on to errors for a complete report if there are failures
-                getLogger().debug("Validating REST spec [{}]", file.getName());
+                getLogger().debug("Validating JSON [{}]", file.getName());
                 try {
                     Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
                     maybeLogAndCollectError(validationMessages, errors, file);
@@ -146,10 +146,10 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
                 StandardOpenOption.APPEND
             );
             StringBuilder sb = new StringBuilder();
-            sb.append("Error validating REST specification. See the report at: ");
+            sb.append("Error validating JSON. See the report at: ");
             sb.append(getErrorReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
-            sb.append(String.format("Validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size()));
+            sb.append(String.format("JSON validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size()));
             throw new JsonSchemaException(sb.toString());
         }
     }

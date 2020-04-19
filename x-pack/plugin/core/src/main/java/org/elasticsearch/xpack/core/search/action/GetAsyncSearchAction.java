@@ -16,9 +16,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest.MIN_KEEP_ALIVE;
-
 public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
     public static final GetAsyncSearchAction INSTANCE = new GetAsyncSearchAction();
     public static final String NAME = "indices:data/read/async_search/get";

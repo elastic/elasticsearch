@@ -290,7 +290,8 @@ public class MlMetadata implements Metadata.Custom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers, NamedXContentRegistry xContentRegistry) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> securityHeaders,
+                                   NamedXContentRegistry xContentRegistry) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
             }
@@ -300,12 +301,9 @@ public class MlMetadata implements Metadata.Custom {
             Job job = jobs.get(jobId);
             DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
 
-            if (headers.isEmpty() == false) {
+            if (securityHeaders.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
                 DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
-                Map<String, String> securityHeaders = headers.entrySet().stream()
-                        .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 builder.setHeaders(securityHeaders);
                 datafeedConfig = builder.build();
             }

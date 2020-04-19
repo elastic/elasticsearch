@@ -20,6 +20,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.ClockHolder;
@@ -64,6 +66,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         // mock an index response that calls the listener
         doAnswer(invocation -> {
             IndexRequest request = (IndexRequest) invocation.getArguments()[1];
@@ -82,8 +85,10 @@ public class TransportPutWatchActionTests extends ESTestCase {
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         // set up threadcontext with some arbitrary info
         String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);
-        threadContext.putHeader(headerName, randomAlphaOfLength(10));
-        threadContext.putHeader(randomAlphaOfLength(10), "doesntmatter");
+        String authHeader = new Authentication(new User("user"), new Authentication.RealmRef("name", "type", "node"),
+                new Authentication.RealmRef("name", "type", "node")).encode();
+        threadContext.putHeader(headerName, authHeader);
+        threadContext.putHeader(randomAlphaOfLength(10), randomAlphaOfLength(10));
 
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         putWatchRequest.setId("_id");

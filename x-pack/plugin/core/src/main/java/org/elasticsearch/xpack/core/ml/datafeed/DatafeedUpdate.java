@@ -331,7 +331,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> securityHeaders) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -378,11 +378,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setIndicesOptions(indicesOptions);
         }
 
-        if (headers.isEmpty() == false) {
-            // Adjust the request, adding security headers from the current thread context
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (securityHeaders.isEmpty() == false) {
             builder.setHeaders(securityHeaders);
         }
 

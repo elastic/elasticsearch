@@ -337,19 +337,17 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
-            @Override
-            void reloadSSLContext(SSLConfiguration configuration) {
-                try {
-                    super.reloadSSLContext(configuration);
-                } catch (Exception e) {
-                    exceptionRef.set(e);
-                    throw e;
-                } finally {
-                    latch.countDown();
-                }
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                sslService.reloadSSLContext(sslConfiguration);
+            } catch (Exception e) {
+                exceptionRef.set(e);
+                throw e;
+            } finally {
+                latch.countDown();
             }
         };
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -391,19 +389,17 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
-            @Override
-            void reloadSSLContext(SSLConfiguration configuration) {
-                try {
-                    super.reloadSSLContext(configuration);
-                } catch (Exception e) {
-                    exceptionRef.set(e);
-                    throw e;
-                } finally {
-                    latch.countDown();
-                }
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                sslService.reloadSSLContext(sslConfiguration);
+            } catch (Exception e) {
+                exceptionRef.set(e);
+                throw e;
+            } finally {
+                latch.countDown();
             }
         };
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -437,19 +433,17 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
-            @Override
-            void reloadSSLContext(SSLConfiguration configuration) {
-                try {
-                    super.reloadSSLContext(configuration);
-                } catch (Exception e) {
-                    exceptionRef.set(e);
-                    throw e;
-                } finally {
-                    latch.countDown();
-                }
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                sslService.reloadSSLContext(sslConfiguration);
+            } catch (Exception e) {
+                exceptionRef.set(e);
+                throw e;
+            } finally {
+                latch.countDown();
             }
         };
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -481,19 +475,17 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final SSLConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
-            @Override
-            void reloadSSLContext(SSLConfiguration configuration) {
-                try {
-                    super.reloadSSLContext(configuration);
-                } catch (Exception e) {
-                    exceptionRef.set(e);
-                    throw e;
-                } finally {
-                    latch.countDown();
-                }
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                sslService.reloadSSLContext(sslConfiguration);
+            } catch (Exception e) {
+                exceptionRef.set(e);
+                throw e;
+            } finally {
+                latch.countDown();
             }
         };
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -532,16 +524,14 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
-            @Override
-            void reloadSSLContext(SSLConfiguration configuration) {
-                try {
-                    super.reloadSSLContext(configuration);
-                } finally {
-                    reloadLatch.countDown();
-                }
+        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+            try {
+                sslService.reloadSSLContext(sslConfiguration);
+            } finally {
+                reloadLatch.countDown();
             }
         };
+        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env.settings()).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 

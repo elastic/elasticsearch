@@ -910,3 +910,196 @@ SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender HAVING mad > 100
 null           |10789.0        
 F              |12719.0         
 ;
+
+
+// aggregates with scalars
+aggregateFunctionsWithScalars
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "min",
+AVG(cos(salary * 1.2) + 100 * (salary / 5)) AS "avg",
+SUM(-salary / 0.765 + sin((salary + 12345) / 12)) AS "sum",
+MAD(abs(salary / -0.813) / 2 + (12345 * (salary % 10))) AS "mad"
+FROM test_emp;
+
+       max        |      min      |       avg       |       sum        |       mad
+------------------+---------------+-----------------+------------------+-----------------
+155409.30000000002|23532.72       |964937.9295477575|-6307004.517507723|30811.76199261993
+;
+
+countWithScalars
+schema::cnt1:l|cnt2:l
+SELECT count(DISTINCT CASE WHEN (languages - 1) > 3 THEN (languages + 3) * 1.2 ELSE (languages - 1) * 2.7 END) AS "cnt1",
+count(CASE WHEN (languages - 2) > 2 THEN (languages + 5) * 1.2 ELSE ((languages / 0.87) - 11) * 2.7 END) AS "cnt2"
+FROM test_emp;
+
+   cnt1   |  cnt2
+----------+-------
+5         | 90
+;
+
+aggregateFunctionsWithScalarsAndGroupBy
+schema::max:d|min:d|avg:d|sum:d|mad:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "min",
+AVG(cos(salary * 1.2) + 100 * (salary / 5)) AS "avg",
+SUM(-salary / 0.765 + sin((salary + 12345) / 12)) AS "sum",
+MAD(abs(salary / -0.813) / 2 + (12345 * (salary % 10))) AS "mad",
+gender
+FROM test_emp GROUP BY gender ORDER BY gender;
+
+       max        |      min      |       avg        |        sum        |       mad       |    gender
+------------------+---------------+------------------+-------------------+-----------------+---------------
+132335.1          |23532.72       |975179.5463883684 |-637388.2516376646 |33398.4963099631 |null
+155409.30000000002|24139.08       |1009778.6217005679|-2178038.0602625553|24031.90651906518|F
+151745.40000000002|24110.25       |937180.7539433916 |-3491578.2056075027|32956.9126691267 |M
+;
+
+countWithScalarsAndGroupBy
+schema::cnt1:l|cnt2:l|gender:s
+SELECT count(DISTINCT CASE WHEN (languages - 1) > 3 THEN (languages + 3) * 1.2 ELSE (languages - 1) * 2.7 END) AS "cnt1",
+count(CASE WHEN (languages - 2) > 2 THEN (languages + 5) * 1.2 ELSE ((languages / 0.87) - 11) * 2.7 END) AS "cnt2",
+gender
+FROM test_emp GROUP BY gender ORDER BY gender;
+
+     cnt1      |     cnt2      |    gender
+---------------+---------------+---------------
+4              |10             |null
+5              |30             |F
+5              |50             |M
+;
+
+aggregatesWithScalarsAndGroupByOrderByAgg
+schema::max:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+gender
+FROM test_emp GROUP BY gender ORDER BY max DESC;
+
+       max        |    gender
+------------------+---------------
+155409.30000000002|F
+151745.40000000002|M
+132335.1          |null
+;
+
+aggregatesWithScalarsAndGroupByOrderByAggWithoutProjection
+schema::gender:s
+SELECT gender FROM test_emp GROUP BY gender ORDER BY MAX(salary % 100) DESC;
+
+    gender
+---------------
+M
+null
+F
+;
+
+topHitsWithScalars
+schema::first:s|last:s|gender:s
+SELECT FIRST(concat('aa_', substring(first_name, 3, 10)), birth_date) AS first,
+LAST(concat('bb_', substring(last_name, 4, 8)), birth_date) AS last,
+gender
+FROM test_emp GROUP BY gender ORDER By gender;
+
+     first     |     last      |    gender
+---------------+---------------+---------------
+aa_llian       |bb_kki         |null
+aa_mant        |bb_zuma        |F
+aa_mzi         |bb_ton         |M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving
+schema::max:d|min:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "min",
+gender FROM test_emp
+GROUP BY gender HAVING max > 152000 or min > 24000 ORDER BY gender;
+
+       max        |      min      |    gender
+------------------+---------------+---------------
+155409.30000000002|24139.08       |F
+151745.40000000002|24110.25       |M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving_ComplexExpressions
+schema::max:d|min:d|gender:s
+SELECT ABS((MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) + 123) / -100) AS "max",
+cos(MIN(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) % 100) AS "min",
+gender
+FROM test_emp
+GROUP BY gender HAVING (max / 10) + 10 > 165  OR ABS(min * -100) > 60 ORDER BY gender;
+
+       max        |        min        |    gender
+------------------+-------------------+---------------
+1555.323          |0.1887687166044111 |F
+1518.6840000000002|-0.6783938504738453|M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHaving_CombinedFields
+schema::min:d|max:d|gender:s
+SELECT MIN(ABS(salary * (languages / - 20.0))) AS "min",
+MAX(salary / ((languages / 3.0) + 1)) AS "max",
+gender
+FROM test_emp
+GROUP BY gender HAVING (min::long) / 120 > 12 OR ROUND(max) / 10 > 5200 ORDER BY gender;
+
+      min      |      max      |    gender
+---------------+---------------+---------------
+2436.75        |55287.75       |null
+1401.75        |52508.25       |M
+;
+
+aggregateFunctionsWithScalarsAndGroupByAndHavingConvertedToStats
+schema::max:d|min:d|gender:s
+SELECT MAX(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "max",
+MIN(CASE WHEN (salary - 10) > 70000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "min",
+gender FROM test_emp
+GROUP BY gender HAVING max > 155000 or min > 36000 ORDER BY gender;
+
+       max        |       min        |    gender
+------------------+------------------+---------------
+155409.30000000002|36803.700000000004|F
+151745.40000000002|36720.0           |M
+;
+
+percentileAggregateFunctionsWithScalars
+schema::percentile:d|percentile_rank:d|gender:s
+SELECT PERCENTILE(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END, 80) AS "percentile",
+PERCENTILE_RANK(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END, 40000) AS "percentile_rank",
+gender FROM test_emp
+GROUP BY gender ORDER BY gender;
+
+   percentile    | percentile_rank  |    gender
+-----------------+------------------+---------------
+86857.79999999999|32.69659025378865 |null
+94042.92000000001|37.03569653103581 |F
+87348.36         |44.337514210592246|M
+;
+
+extendedStatsAggregateFunctionsWithScalars
+schema::stddev_pop:d|sum_of_squares:d|var_pop:d|gender:s
+SELECT STDDEV_POP(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "stddev_pop",
+SUM_OF_SQUARES(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "sum_of_squares",
+VAR_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "var_pop",
+gender FROM test_emp
+GROUP BY gender ORDER BY gender;
+
+    stddev_pop    |   sum_of_squares    |      var_pop       |    gender
+------------------+---------------------+--------------------+---------------
+16752.73244172422 |3.06310583829007E10  |3.460331137445282E8 |null
+17427.462400181845|1.148127725047658E11 |3.1723426960671306E8|F
+15702.798665784752|1.5882243113919238E11|2.529402043805585E8 |M
+;
+
+extendedStatsAggregateFunctionsWithScalarAndSameArg
+schema::stddev_pop:d|sum_of_squares:d|var_pop:d|gender:s
+SELECT STDDEV_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "stddev_pop",
+SUM_OF_SQUARES(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "sum_of_squares",
+VAR_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "var_pop",
+gender FROM test_emp
+GROUP BY gender ORDER BY gender;
+
+    stddev_pop    |   sum_of_squares    |      var_pop       |    gender
+------------------+---------------------+--------------------+---------------
+18601.965319409886|3.4461553130896095E10|3.460331137445282E8 |null
+17811.071545718776|1.2151168881502939E11|3.1723426960671306E8|F
+15904.093950318531|1.699198993070239E11 |2.529402043805585E8 |M
+;

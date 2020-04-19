@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -87,8 +88,8 @@ import java.util.stream.StreamSupport;
 
 public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
-    private static Logger logger = LogManager.getLogger(XPackPlugin.class);
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
 
@@ -235,11 +236,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         List<Object> components = new ArrayList<>();
 
-        final SSLService sslService = new SSLService(environment);
-        setSslService(sslService);
-        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(environment, sslService, resourceWatcherService);
-
+        final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
 
@@ -343,5 +340,19 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
         return settings;
+    }
+
+    /**
+     * Handles the creation of the SSLService along with the necessary actions to enable reloading
+     * of SSLContexts when configuration files change on disk.
+     */
+    private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
+        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+        final SSLConfigurationReloader reloader =
+            new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
+        final SSLService sslService = new SSLService(environment, sslConfigurations);
+        reloader.setSSLService(sslService);
+        setSslService(sslService);
+        return sslService;
     }
 }

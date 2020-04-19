@@ -48,28 +48,30 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
+    private static final DeprecationLogger deprecationLogger
+            = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private static final DeprecationLogger deprecationLogger
-        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
@@ -81,6 +83,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -118,8 +121,9 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                     listener.onFailure(validationException);
                     return;
                 }
-
-                RollupJob job = createRollupJob(request.getConfig(), threadPool);
+                Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(ClientHelper.ROLLUP_ORIGIN,
+                        request.getConfig().getId());
+                RollupJob job = new RollupJob(request.getConfig(), securityHeaders);
                 createIndex(job, listener, persistentTasksService, client, logger);
             }
 
@@ -138,14 +142,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 "Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
                 + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
         }
-    }
-
-    private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
-        // ensure we only filter for the allowed headers
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> Rollup.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        return new RollupJob(config, filteredHeaders);
     }
 
     static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,

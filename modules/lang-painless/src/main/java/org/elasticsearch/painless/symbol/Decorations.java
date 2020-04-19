@@ -27,7 +27,7 @@ import java.util.Objects;
 
 public class Decorations {
 
-    // standard input for user statement nodes druing semantic phase
+    // standard input for user statement nodes during semantic phase
 
     public interface LastSource extends Condition {
 
@@ -42,6 +42,28 @@ public class Decorations {
     }
 
     public interface LastLoop extends Condition {
+
+    }
+
+    // standard output for user statement nodes during semantic phase
+
+    public interface MethodEscape extends Condition {
+
+    }
+
+    public interface LoopEscape extends Condition {
+
+    }
+
+    public interface AllEscape extends Condition {
+
+    }
+
+    public interface AnyContinue extends Condition {
+
+    }
+
+    public interface AnyBreak extends Condition {
 
     }
 

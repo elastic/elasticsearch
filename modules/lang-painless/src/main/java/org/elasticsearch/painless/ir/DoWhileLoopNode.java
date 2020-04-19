@@ -54,7 +54,7 @@ public class DoWhileLoopNode extends LoopNode {
         Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
         }
 
         methodWriter.goTo(start);

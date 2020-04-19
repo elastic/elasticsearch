@@ -94,11 +94,7 @@ public class SWhile extends AStatement {
                 output.methodEscape = true;
                 output.allEscape = true;
             }
-
-            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
-
-        output.statementCount = 1;
 
         WhileNode whileNode = new WhileNode();
         whileNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));

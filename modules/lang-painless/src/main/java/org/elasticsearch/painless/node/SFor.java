@@ -133,11 +133,7 @@ public class SFor extends AStatement {
                 output.methodEscape = true;
                 output.allEscape = true;
             }
-
-            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
-
-        output.statementCount = 1;
 
         ForLoopNode forLoopNode = new ForLoopNode();
         forLoopNode.setInitialzerNode(initializerNode == null ? null : initializerNode instanceof AExpression ?

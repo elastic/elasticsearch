@@ -102,7 +102,6 @@ public class SEach extends AStatement {
         semanticScope.setCondition(blockNode, BeginLoop.class);
         semanticScope.setCondition(blockNode, InLoop.class);
         Output blockOutput = blockNode.analyze(classNode, semanticScope);
-        blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
 
         if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
             throw createError(new IllegalArgumentException("Extraneous for loop."));
@@ -168,8 +167,6 @@ public class SEach extends AStatement {
             throw createError(new IllegalArgumentException("Illegal for each type " +
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
         }
-
-        output.statementCount = 1;
 
         ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
         forEachLoopNode.setConditionNode(conditionNode);

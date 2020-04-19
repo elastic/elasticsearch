@@ -156,7 +156,7 @@ public class ForEachSubArrayNode extends LoopNode {
         Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), getBlockNode().getStatementCount(), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
         }
 
         getBlockNode().continueLabel = begin;

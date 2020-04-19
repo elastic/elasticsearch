@@ -80,7 +80,6 @@ public class SIf extends AStatement {
 
         output.anyContinue = ifblockOutput.anyContinue;
         output.anyBreak = ifblockOutput.anyBreak;
-        output.statementCount = ifblockOutput.statementCount;
 
         IfNode ifNode = new IfNode();
         ifNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));

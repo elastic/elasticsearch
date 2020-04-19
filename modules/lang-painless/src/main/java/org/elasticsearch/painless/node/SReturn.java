@@ -71,8 +71,6 @@ public class SReturn extends AStatement {
         output.loopEscape = true;
         output.allEscape = true;
 
-        output.statementCount = 1;
-
         ReturnNode returnNode = new ReturnNode();
         returnNode.setExpressionNode(expressionNode == null ? null : AExpression.cast(expressionOutput.expressionNode, expressionCast));
         returnNode.setLocation(getLocation());

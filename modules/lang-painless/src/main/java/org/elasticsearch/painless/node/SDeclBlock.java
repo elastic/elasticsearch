@@ -56,8 +56,6 @@ public class SDeclBlock extends AStatement {
             declarationOutputs.add(declaration.analyze(classNode, semanticScope));
         }
 
-        output.statementCount = declarationNodes.size();
-
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
         for (Output declarationOutput : declarationOutputs) {

@@ -49,7 +49,6 @@ public class SContinue extends AStatement {
 
         output.allEscape = true;
         output.anyContinue = true;
-        output.statementCount = 1;
 
         ContinueNode continueNode = new ContinueNode();
         continueNode.setLocation(getLocation());

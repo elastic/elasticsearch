@@ -95,7 +95,6 @@ public class SBlock extends AStatement {
             output.allEscape = statementOutput.allEscape;
             output.anyContinue |= statementOutput.anyContinue;
             output.anyBreak |= statementOutput.anyBreak;
-            output.statementCount += statementOutput.statementCount;
 
             statementOutputs.add(statementOutput);
         }
@@ -108,7 +107,6 @@ public class SBlock extends AStatement {
 
         blockNode.setLocation(getLocation());
         blockNode.setAllEscape(output.allEscape);
-        blockNode.setStatementCount(output.statementCount);
 
         output.statementNode = blockNode;
 

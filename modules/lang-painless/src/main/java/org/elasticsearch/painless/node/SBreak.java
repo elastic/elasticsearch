@@ -45,7 +45,6 @@ public class SBreak extends AStatement {
         output.loopEscape = true;
         output.allEscape = true;
         output.anyBreak = true;
-        output.statementCount = 1;
 
         BreakNode breakNode = new BreakNode();
         breakNode.setLocation(getLocation());

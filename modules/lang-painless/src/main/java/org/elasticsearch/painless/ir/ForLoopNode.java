@@ -75,32 +75,20 @@ public class ForLoopNode extends LoopNode {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
+        Variable loop = writeScope.getInternalVariable("loop");
+
+        if (loop != null) {
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
+        }
+
         boolean allEscape = false;
 
         if (getBlockNode() != null) {
             allEscape = getBlockNode().doAllEscape();
 
-            int statementCount = Math.max(1, getBlockNode().getStatementCount());
-
-            if (afterthoughtNode != null) {
-                ++statementCount;
-            }
-
-            Variable loop = writeScope.getInternalVariable("loop");
-
-            if (loop != null) {
-                methodWriter.writeLoopCounter(loop.getSlot(), statementCount, location);
-            }
-
             getBlockNode().continueLabel = begin;
             getBlockNode().breakLabel = end;
             getBlockNode().write(classWriter, methodWriter, writeScope);
-        } else {
-            Variable loop = writeScope.getInternalVariable("loop");
-
-            if (loop != null) {
-                methodWriter.writeLoopCounter(loop.getSlot(), 1, location);
-            }
         }
 
         if (afterthoughtNode != null) {

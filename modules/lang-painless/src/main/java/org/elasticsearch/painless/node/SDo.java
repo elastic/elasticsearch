@@ -92,8 +92,6 @@ public class SDo extends AStatement {
             }
         }
 
-        output.statementCount = 1;
-
         DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
         doWhileLoopNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         doWhileLoopNode.setBlockNode((BlockNode)blockOutput.statementNode);

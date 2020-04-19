@@ -44,22 +44,16 @@ public class WhileNode extends LoopNode {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
+        Variable loop = writeScope.getInternalVariable("loop");
+
+        if (loop != null) {
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
+        }
+
         if (getBlockNode() != null) {
-            Variable loop = writeScope.getInternalVariable("loop");
-
-            if (loop != null) {
-                methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
-            }
-
             getBlockNode().continueLabel = begin;
             getBlockNode().breakLabel = end;
             getBlockNode().write(classWriter, methodWriter, writeScope);
-        } else {
-            Variable loop = writeScope.getInternalVariable("loop");
-
-            if (loop != null) {
-                methodWriter.writeLoopCounter(loop.getSlot(), 1, location);
-            }
         }
 
         if (getBlockNode() == null || getBlockNode().doAllEscape() == false) {

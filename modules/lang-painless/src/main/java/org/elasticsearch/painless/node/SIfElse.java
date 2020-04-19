@@ -85,7 +85,6 @@ public class SIfElse extends AStatement {
 
         output.anyContinue = ifblockOutput.anyContinue;
         output.anyBreak = ifblockOutput.anyBreak;
-        output.statementCount = ifblockOutput.statementCount;
 
         if (elseblockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous else statement."));
@@ -101,7 +100,6 @@ public class SIfElse extends AStatement {
         output.allEscape = ifblockOutput.allEscape && elseblockOutput.allEscape;
         output.anyContinue |= elseblockOutput.anyContinue;
         output.anyBreak |= elseblockOutput.anyBreak;
-        output.statementCount = Math.max(ifblockOutput.statementCount, elseblockOutput.statementCount);
 
         IfElseNode ifElseNode = new IfElseNode();
         ifElseNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));

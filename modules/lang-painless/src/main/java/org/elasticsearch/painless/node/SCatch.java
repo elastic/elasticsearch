@@ -104,7 +104,6 @@ public class SCatch extends AStatement {
             output.allEscape = blockOutput.allEscape;
             output.anyContinue = blockOutput.anyContinue;
             output.anyBreak = blockOutput.anyBreak;
-            output.statementCount = blockOutput.statementCount;
         }
 
         CatchNode catchNode = new CatchNode();

@@ -90,12 +90,6 @@ public abstract class AStatement extends ANode {
         boolean anyBreak = false;
 
         /**
-         * Set to the approximate number of statements in a loop block to prevent
-         * infinite loops during runtime.
-         */
-        int statementCount = 1;
-
-        /**
          * The {@link StatementNode}(s) generated from this expression.
          */
         StatementNode statementNode = null;

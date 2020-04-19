@@ -77,7 +77,6 @@ public class SExpression extends AStatement {
         output.methodEscape = rtn;
         output.loopEscape = rtn;
         output.allEscape = rtn;
-        output.statementCount = 1;
 
         ExpressionNode expressionNode = AExpression.cast(expressionOutput.expressionNode, expressionCast);
 

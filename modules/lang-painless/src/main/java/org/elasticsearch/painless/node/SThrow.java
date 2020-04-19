@@ -58,7 +58,6 @@ public class SThrow extends AStatement {
         output.methodEscape = true;
         output.loopEscape = true;
         output.allEscape = true;
-        output.statementCount = 1;
 
         ThrowNode throwNode = new ThrowNode();
         throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));

@@ -68,8 +68,6 @@ public class STry extends AStatement {
         output.anyContinue = blockOutput.anyContinue;
         output.anyBreak = blockOutput.anyBreak;
 
-        int statementCount = 0;
-
         List<Output> catchOutputs = new ArrayList<>();
 
         for (SCatch catc : catcheNodes) {
@@ -85,11 +83,7 @@ public class STry extends AStatement {
             output.anyBreak |= catchOutput.anyBreak;
 
             catchOutputs.add(catchOutput);
-
-            statementCount = Math.max(statementCount, catchOutput.statementCount);
         }
-
-        output.statementCount = blockOutput.statementCount + statementCount;
 
         TryNode tryNode = new TryNode();
 

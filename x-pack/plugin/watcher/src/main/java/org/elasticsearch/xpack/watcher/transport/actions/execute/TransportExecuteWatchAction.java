@@ -24,6 +24,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
@@ -48,7 +49,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -65,6 +65,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final TriggerService triggerService;
     private final WatchParser watchParser;
     private final Client client;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportExecuteWatchAction(TransportService transportService, ThreadPool threadPool,
@@ -78,6 +79,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         this.triggerService = triggerService;
         this.watchParser = watchParser;
         this.client = client;
+        this.securityContext = new SecurityContext(client.settings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -122,8 +124,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
-            final Map<String, String> headers = new HashMap<>(threadPool.getThreadContext().getHeaders());
-            watch.status().setHeaders(headers);
+            Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(WATCHER_ORIGIN, request.getId());
+            watch.status().setHeaders(securityHeaders);
 
             final String triggerType = watch.trigger().type();
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());

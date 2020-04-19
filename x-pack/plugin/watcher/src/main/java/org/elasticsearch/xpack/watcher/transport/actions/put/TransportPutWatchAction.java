@@ -23,7 +23,7 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -35,7 +35,6 @@ import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -58,12 +57,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
+    private static final ToXContent.Params DEFAULT_PARAMS =
+            WatcherParams.builder().hideSecrets(false).hideHeaders(false).includeStatus(true).build();
+
     private final ThreadPool threadPool;
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
-    private static final ToXContent.Params DEFAULT_PARAMS =
-            WatcherParams.builder().hideSecrets(false).hideHeaders(false).includeStatus(true).build();
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportPutWatchAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
@@ -73,6 +74,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
+        this.securityContext = new SecurityContext(client.settings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -85,11 +87,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
             watch.setState(request.isActive(), now);
 
-            // ensure we only filter for the allowed headers
-            Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            watch.status().setHeaders(filteredHeaders);
+            Map<String, String> securityHeaders = securityContext.extractSecurityHeadersForJob(WATCHER_ORIGIN, request.getId());
+            watch.status().setHeaders(securityHeaders);
 
             try (XContentBuilder builder = jsonBuilder()) {
                 watch.toXContent(builder, DEFAULT_PARAMS);

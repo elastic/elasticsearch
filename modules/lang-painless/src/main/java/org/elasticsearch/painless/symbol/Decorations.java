@@ -20,26 +20,24 @@
 package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.Decorator.Condition;
+import org.elasticsearch.painless.symbol.Decorator.Decoration;
 
 import java.util.Objects;
 
-public class Decoration {
+public class Decorations {
 
     // standard input for user expressions nodes during semantic phase
     
-    public static class Read {
-        private Read() {
-            // do nothing
-        }
+    public interface Read extends Condition {
+
     }
 
-    public static class Write {
-        private Write() {
-            // do nothing
-        }
+    public interface Write extends Condition {
+
     }
 
-    public static class TargetType {
+    public static class TargetType implements Decoration  {
         private final Class<?> targetType;
 
         public TargetType(Class<?> targetType) {
@@ -50,14 +48,22 @@ public class Decoration {
             return targetType;
         }
 
-        public String getCanonicalTypeName() {
+        public String getTargetCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(targetType);
         }
     }
 
+    public interface Explicit extends Condition {
+
+    }
+
+    public interface Internal extends Condition {
+
+    }
+
     // standard output for user expression nodes during semantic phase
     
-    public static class ValueType {
+    public static class ValueType implements Decoration {
         private final Class<?> valueType;
 
         public ValueType(Class<?> valueType) {
@@ -68,7 +74,7 @@ public class Decoration {
             return valueType;
         }
 
-        public String getCanonicalTypeName() {
+        public String getValueCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(valueType);
         }
     }

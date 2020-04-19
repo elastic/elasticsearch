@@ -19,12 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -52,13 +55,13 @@ public class EExplicit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
         }
@@ -69,15 +72,13 @@ public class EExplicit extends AExpression {
             throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
-        Input childInput = new Input();
-        childInput.expected = valueType;
-        childInput.explicit = true;
-        Output childOutput = analyze(childNode, classNode, semanticScope, childInput);
-        Class<?> childValueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
-        PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
-                childValueType, childInput.expected, childInput.explicit, childInput.internal);
+        semanticScope.setCondition(childNode, Read.class);
+        semanticScope.putDecoration(childNode, new TargetType(valueType));
+        semanticScope.setCondition(childNode, Explicit.class);
+        Output childOutput = analyze(childNode, classNode, semanticScope);
+        PainlessCast childCast = childNode.cast(semanticScope);
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         Output output = new Output();
         output.expressionNode = cast(childOutput.expressionNode, childCast);

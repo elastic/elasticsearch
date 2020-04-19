@@ -22,13 +22,17 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -63,35 +67,38 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        Class<?> promote = null;            // promoted type
-        Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
-        boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast
+        Class<?> promote;
+        Class<?> shiftDistance = null;
 
-        Input leftInput = new Input();
-        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
+        semanticScope.setCondition(leftNode, Read.class);
+        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
+
+        semanticScope.setCondition(rightNode, Read.class);
+        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
         Output output = new Output();
-        Input rightInput = new Input();
-        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
-
         Class<?> valueType;
+        PainlessCast leftCast = null;
+        PainlessCast rightCast = null;
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
-            leftInput.expected = String.class;
-            rightInput.expected = Pattern.class;
+            semanticScope.putDecoration(leftNode, new TargetType(String.class));
+            semanticScope.putDecoration(rightNode, new TargetType(Pattern.class));
+            leftCast = leftNode.cast(semanticScope);
+            rightCast = rightNode.cast(semanticScope);
             promote = boolean.class;
             valueType = boolean.class;
         } else {
@@ -126,9 +133,6 @@ public class EBinary extends AExpression {
             valueType = promote;
 
             if (operation == Operation.ADD && promote == String.class) {
-                leftInput.expected = leftValueType;
-                rightInput.expected = rightValueType;
-
                 if (leftOutput.expressionNode instanceof BinaryMathNode) {
                     BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
 
@@ -145,34 +149,31 @@ public class EBinary extends AExpression {
                     }
                 }
             } else if (promote == def.class || shiftDistance == def.class) {
-                leftInput.expected = leftValueType;
-                rightInput.expected = rightValueType;
+                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
 
-                if (input.expected != null) {
-                    valueType = input.expected;
+                if (targetType != null) {
+                    valueType = targetType.getTargetType();
                 }
             } else {
-                leftInput.expected = promote;
+                semanticScope.putDecoration(leftNode, new TargetType(promote));
 
                 if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
                     if (shiftDistance == long.class) {
-                        rightInput.expected = int.class;
-                        rightInput.explicit = true;
+                        semanticScope.putDecoration(rightNode, new TargetType(int.class));
+                        semanticScope.setCondition(rightNode, Explicit.class);
                     } else {
-                        rightInput.expected = shiftDistance;
+                        semanticScope.putDecoration(rightNode, new TargetType(shiftDistance));
                     }
                 } else {
-                    rightInput.expected = promote;
+                    semanticScope.putDecoration(rightNode, new TargetType(promote));
                 }
+
+                leftCast = leftNode.cast(semanticScope);
+                rightCast = rightNode.cast(semanticScope);
             }
         }
 
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
-
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         BinaryMathNode binaryMathNode = new BinaryMathNode();
         binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
@@ -183,7 +184,7 @@ public class EBinary extends AExpression {
         binaryMathNode.setShiftType(shiftDistance);
         binaryMathNode.setOperation(operation);
         binaryMathNode.setCat(false);
-        binaryMathNode.setOriginallExplicit(originallyExplicit);
+        binaryMathNode.setOriginallyExplicit(semanticScope.getCondition(this, Explicit.class));
         output.expressionNode = binaryMathNode;
 
         return output;

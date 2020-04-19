@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -34,6 +33,7 @@ import org.elasticsearch.painless.node.AStatement.Input;
 import org.elasticsearch.painless.node.AStatement.Output;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
 import java.util.ArrayList;
 import java.util.Collections;

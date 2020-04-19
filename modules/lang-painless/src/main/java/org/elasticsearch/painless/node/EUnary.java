@@ -22,13 +22,18 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -56,13 +61,13 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
@@ -71,53 +76,52 @@ public class EUnary extends AExpression {
         Class<?> valueType;
 
         Class<?> promote = null;
-        boolean originallyExplicit = input.explicit;
 
-        Input childInput = new Input();
         Output childOutput;
 
         if ((operation == Operation.SUB || operation == Operation.ADD) &&
                 (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
-            childInput.expected = input.expected;
-            childInput.explicit = input.explicit;
-            childInput.internal = input.internal;
+            semanticScope.setCondition(childNode, Read.class);
+            semanticScope.copyDecoration(this, childNode, TargetType.class);
+            semanticScope.replicateCondition(this, childNode, Explicit.class);
+            semanticScope.replicateCondition(this, childNode, Internal.class);
 
             if (childNode instanceof ENumeric) {
                 ENumeric numeric = (ENumeric)childNode;
 
                 if (operation == Operation.SUB) {
-                    childOutput = numeric.analyze(semanticScope, childInput, numeric.getNumeric().charAt(0) != '-');
+                    childOutput = numeric.analyze(semanticScope, numeric.getNumeric().charAt(0) != '-');
                 } else {
-                    childOutput = childNode.analyze(classNode, semanticScope, childInput);
+                    childOutput = childNode.analyze(classNode, semanticScope);
                 }
             } else if (childNode instanceof EDecimal) {
                 EDecimal decimal = (EDecimal)childNode;
 
                 if (operation == Operation.SUB) {
-                    childOutput = decimal.analyze(semanticScope, childInput, decimal.getDecimal().charAt(0) != '-');
+                    childOutput = decimal.analyze(semanticScope, decimal.getDecimal().charAt(0) != '-');
                 } else {
-                    childOutput = childNode.analyze(classNode, semanticScope, childInput);
+                    childOutput = childNode.analyze(classNode, semanticScope);
                 }
             } else {
                 throw createError(new IllegalArgumentException("illegal tree structure"));
             }
 
-            valueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
+            valueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
             output.expressionNode = childOutput.expressionNode;
         } else {
             PainlessCast childCast;
 
             if (operation == Operation.NOT) {
-                childInput.expected = boolean.class;
-                childOutput = analyze(childNode, classNode, semanticScope, childInput);
-                Class<?> childValueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
-                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
-                        childValueType, childInput.expected, childInput.explicit, childInput.internal);
+                semanticScope.setCondition(childNode, Read.class);
+                semanticScope.putDecoration(childNode, new TargetType(boolean.class));
+                childOutput = analyze(childNode, classNode, semanticScope);
+                childCast = childNode.cast(semanticScope);
 
                 valueType = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-                childOutput = analyze(childNode, classNode, semanticScope, new Input());
-                Class<?> childValueType = semanticScope.getDecoration(childNode, Decorator.ValueType.class).getValueType();
+                semanticScope.setCondition(childNode, Read.class);
+                childOutput = analyze(childNode, classNode, semanticScope);
+                Class<?> childValueType = semanticScope.getDecoration(childNode, ValueType.class).getValueType();
 
                 promote = AnalyzerCaster.promoteNumeric(childValueType, operation != Operation.BWNOT);
 
@@ -127,12 +131,13 @@ public class EUnary extends AExpression {
                             "[" + PainlessLookupUtility.typeToCanonicalTypeName(childValueType) + "]"));
                 }
 
-                childInput.expected = promote;
-                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
-                        childValueType, childInput.expected, childInput.explicit, childInput.internal);
+                semanticScope.putDecoration(childNode, new TargetType(promote));
+                childCast = childNode.cast(semanticScope);
 
-                if (promote == def.class && input.expected != null) {
-                    valueType = input.expected;
+                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+
+                if (promote == def.class && targetType != null) {
+                    valueType = targetType.getTargetType();
                 } else {
                     valueType = promote;
                 }
@@ -146,12 +151,12 @@ public class EUnary extends AExpression {
             unaryMathNode.setExpressionType(valueType);
             unaryMathNode.setUnaryType(promote);
             unaryMathNode.setOperation(operation);
-            unaryMathNode.setOriginallExplicit(originallyExplicit);
+            unaryMathNode.setOriginallyExplicit(semanticScope.getCondition(this, Explicit.class));
 
             output.expressionNode = unaryMathNode;
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         return output;
     }

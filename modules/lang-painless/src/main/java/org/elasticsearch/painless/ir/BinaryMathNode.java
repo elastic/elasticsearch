@@ -82,7 +82,7 @@ public class BinaryMathNode extends BinaryNode {
         return cat;
     }
 
-    public void setOriginallExplicit(boolean originallyExplicit) {
+    public void setOriginallyExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
     }
 

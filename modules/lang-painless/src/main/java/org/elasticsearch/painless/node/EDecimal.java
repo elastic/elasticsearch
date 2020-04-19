@@ -20,10 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -45,17 +47,17 @@ public class EDecimal extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        return analyze(semanticScope, input, false);
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        return analyze(semanticScope, false);
     }
 
-    Output analyze(SemanticScope semanticScope, Input input, boolean negate) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(SemanticScope semanticScope, boolean negate) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
         }
 
@@ -85,7 +87,7 @@ public class EDecimal extends AExpression {
             }
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

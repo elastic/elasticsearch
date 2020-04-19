@@ -19,10 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
@@ -34,6 +31,12 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -64,28 +67,27 @@ public class EBrace extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        boolean write = semanticScope.getCondition(this, Decorator.Write.class);
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        boolean read = semanticScope.getCondition(this, Read.class);
+        boolean write = semanticScope.getCondition(this, Write.class);
 
-        if (input.read == false && write == false) {
+        if (read == false && write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        Output prefixOutput = analyze(prefixNode, classNode, semanticScope, new Input());
-        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, Decorator.ValueType.class).getValueType();
+        semanticScope.setCondition(prefixNode, Read.class);
+        Output prefixOutput = analyze(prefixNode, classNode, semanticScope);
+        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class).getValueType();
 
         ExpressionNode expressionNode;
         Output output = new Output();
         Class<?> valueType;
 
         if (prefixValueType.isArray()) {
-            Input indexInput = new Input();
-            indexInput.expected = int.class;
-            Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-            Class<?> indexValueType = semanticScope.getDecoration(indexNode, Decorator.ValueType.class).getValueType();
-            PainlessCast indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                    indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
-
+            semanticScope.setCondition(indexNode, Read.class);
+            semanticScope.putDecoration(indexNode, new TargetType(int.class));
+            Output indexOutput = analyze(indexNode, classNode, semanticScope);
+            PainlessCast indexCast = indexNode.cast(semanticScope);
             valueType = prefixValueType.getComponentType();
 
             BraceSubNode braceSubNode = new BraceSubNode();
@@ -94,11 +96,13 @@ public class EBrace extends AExpression {
             braceSubNode.setExpressionType(valueType);
             expressionNode = braceSubNode;
         } else if (prefixValueType == def.class) {
-            Input indexInput = new Input();
-            Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
+            semanticScope.setCondition(indexNode, Read.class);
+            Output indexOutput = analyze(indexNode, classNode, semanticScope);
 
+            TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            valueType = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
+                    semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
             output.isDefOptimized = true;
 
             BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
@@ -130,13 +134,12 @@ public class EBrace extends AExpression {
             Output indexOutput;
             PainlessCast indexCast;
 
-            if ((input.read || write) && (input.read == false || getter != null) && (write == false || setter != null)) {
-                Input indexInput = new Input();
-                indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-                Class<?> indexValueType = semanticScope.getDecoration(indexNode, Decorator.ValueType.class).getValueType();
-                indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                        indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
+            if ((read == false || getter != null) && (write == false || setter != null)) {
+                semanticScope.setCondition(indexNode, Read.class);
+                semanticScope.putDecoration(indexNode,
+                        new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
+                indexOutput = analyze(indexNode, classNode, semanticScope);
+                indexCast = indexNode.cast(semanticScope);
 
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
@@ -175,13 +178,11 @@ public class EBrace extends AExpression {
             Output indexOutput;
             PainlessCast indexCast;
 
-            if ((input.read || write) && (input.read == false || getter != null) && (write == false || setter != null)) {
-                Input indexInput = new Input();
-                indexInput.expected = int.class;
-                indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-                Class<?> indexValueType = semanticScope.getDecoration(indexNode, Decorator.ValueType.class).getValueType();
-                indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                        indexValueType, indexInput.expected, indexInput.explicit, indexInput.internal);
+            if ((read == false || getter != null) && (write == false || setter != null)) {
+                semanticScope.setCondition(indexNode, Read.class);
+                semanticScope.putDecoration(indexNode, new TargetType(int.class));
+                indexOutput = analyze(indexNode, classNode, semanticScope);
+                indexCast = indexNode.cast(semanticScope);
 
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
@@ -200,7 +201,7 @@ public class EBrace extends AExpression {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."));
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         BraceNode braceNode = new BraceNode();
         braceNode.setLeftNode(prefixOutput.expressionNode);

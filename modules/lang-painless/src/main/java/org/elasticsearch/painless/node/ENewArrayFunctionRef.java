@@ -21,9 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -32,6 +29,12 @@ import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.Objects;
@@ -50,18 +53,19 @@ public class ENewArrayFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
 
         Output output = new Output();
         Class<?> valueType;
@@ -74,7 +78,7 @@ public class ENewArrayFunctionRef extends AExpression {
         String name = scriptScope.getNextSyntheticName("newarray");
         scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
 
-        if (input.expected == null) {
+        if (targetType == null) {
             valueType = String.class;
             String defReferenceEncoding = "Sthis." + name + ",0";
 
@@ -85,8 +89,8 @@ public class ENewArrayFunctionRef extends AExpression {
             output.expressionNode = defInterfaceReferenceNode;
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    getLocation(), input.expected, "this", name, 0);
-            valueType = input.expected;
+                    getLocation(), targetType.getTargetType(), "this", name, 0);
+            valueType = targetType.getTargetType();
 
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
             typedInterfaceReferenceNode.setLocation(getLocation());
@@ -95,7 +99,7 @@ public class ENewArrayFunctionRef extends AExpression {
             output.expressionNode = typedInterfaceReferenceNode;
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         VariableNode variableNode = new VariableNode();
         variableNode.setLocation(getLocation());

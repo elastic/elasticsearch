@@ -67,7 +67,7 @@ public class UnaryMathNode extends UnaryNode {
         return cat;
     }
 
-    public void setOriginallExplicit(boolean originallyExplicit) {
+    public void setOriginallyExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
     }
 

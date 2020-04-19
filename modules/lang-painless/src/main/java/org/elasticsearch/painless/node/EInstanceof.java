@@ -23,7 +23,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.InstanceofNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.Decorator;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
@@ -54,13 +56,13 @@ public class EInstanceof extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
         }
@@ -83,9 +85,9 @@ public class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        Input expressionInput = new Input();
-        Output expressionOutput = analyze(expressionNode, classNode, semanticScope, expressionInput);
-        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, Decorator.ValueType.class).getValueType();
+        semanticScope.setCondition(expressionNode, Read.class);
+        Output expressionOutput = analyze(expressionNode, classNode, semanticScope);
+        Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
 
         // record if the expression returns a primitive
         primitiveExpression = expressionValueType.isPrimitive();
@@ -93,7 +95,7 @@ public class EInstanceof extends AExpression {
         expressionType = expressionValueType.isPrimitive() ?
             PainlessLookupUtility.typeToBoxedType(expressionValueType) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(boolean.class));
+        semanticScope.putDecoration(this, new ValueType(boolean.class));
 
         InstanceofNode instanceofNode = new InstanceofNode();
         instanceofNode.setChildNode(expressionOutput.expressionNode);

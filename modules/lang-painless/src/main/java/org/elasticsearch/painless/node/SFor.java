@@ -19,14 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a for loop.
@@ -77,10 +77,7 @@ public class SFor extends AStatement {
                 initializerStatementOutput = ((SDeclBlock)initializerNode).analyze(classNode, semanticScope, new Input());
             } else if (initializerNode instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializerNode;
-
-                AExpression.Input initializerInput = new AExpression.Input();
-                initializerInput.read = false;
-                initializerExpressionOutput = AExpression.analyze(initializer, classNode, semanticScope, initializerInput);
+                initializerExpressionOutput = AExpression.analyze(initializer, classNode, semanticScope);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -92,12 +89,10 @@ public class SFor extends AStatement {
         PainlessCast conditionCast = null;
 
         if (conditionNode != null) {
-            AExpression.Input conditionInput = new AExpression.Input();
-            conditionInput.expected = boolean.class;
-            conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope, conditionInput);
-            Class<?> conditionValueType = semanticScope.getDecoration(conditionNode, Decorator.ValueType.class).getValueType();
-            conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
-                    conditionValueType, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
+            semanticScope.setCondition(conditionNode, Read.class);
+            semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
+            conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
+            conditionCast = conditionNode.cast(semanticScope);
 
             if (conditionNode instanceof EBoolean) {
                 continuous = ((EBoolean)conditionNode).getBool();
@@ -117,9 +112,7 @@ public class SFor extends AStatement {
         AExpression.Output afterthoughtOutput = null;
 
         if (afterthoughtNode != null) {
-            AExpression.Input afterthoughtInput = new AExpression.Input();
-            afterthoughtInput.read = false;
-            afterthoughtOutput = AExpression.analyze(afterthoughtNode, classNode, semanticScope, afterthoughtInput);
+            afterthoughtOutput = AExpression.analyze(afterthoughtNode, classNode, semanticScope);
         }
 
         Output output = new Output();

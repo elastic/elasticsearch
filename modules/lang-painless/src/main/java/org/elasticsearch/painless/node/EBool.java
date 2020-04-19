@@ -19,14 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -60,34 +62,30 @@ public class EBool extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
         Output output = new Output();
 
-        Input leftInput = new Input();
-        leftInput.expected = boolean.class;
-        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
+        semanticScope.setCondition(leftNode, Read.class);
+        semanticScope.putDecoration(leftNode, new TargetType(boolean.class));
+        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        PainlessCast leftCast = leftNode.cast(semanticScope);
 
-        Input rightInput = new Input();
-        rightInput.expected = boolean.class;
-        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
+        semanticScope.setCondition(rightNode, Read.class);
+        semanticScope.putDecoration(rightNode, new TargetType(boolean.class));
+        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        PainlessCast rightCast = rightNode.cast(semanticScope);
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(boolean.class));
+        semanticScope.putDecoration(this, new ValueType(boolean.class));
 
         BooleanNode booleanNode = new BooleanNode();
         booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));

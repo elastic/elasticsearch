@@ -27,8 +27,16 @@ import java.util.Set;
 
 public class Decorator {
 
-    private final ArrayList<Map<Class<?>, Object>> decorations;
-    private final ArrayList<Set<Class<?>>> conditions;
+    public interface Decoration {
+
+    }
+
+    public interface Condition {
+
+    }
+
+    private final ArrayList<Map<Class<? extends Decoration>, Decoration>> decorations;
+    private final ArrayList<Set<Class<? extends Condition>>> conditions;
 
     public Decorator(int nodeCount) {
         decorations = new ArrayList<>(nodeCount);
@@ -41,19 +49,19 @@ public class Decorator {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T put(int identifier, T decoration) {
+    public <T extends Decoration> T put(int identifier, T decoration) {
         return (T)decorations.get(identifier).put(decoration.getClass(), decoration);
     }
 
-    public <T> T remove(int identifier, Class<T> type) {
+    public <T extends Decoration> T remove(int identifier, Class<T> type) {
         return type.cast(decorations.get(identifier).remove(type));
     }
 
-    public <T> T get(int identifier, Class<T> type) {
+    public <T extends Decoration> T get(int identifier, Class<T> type) {
         return type.cast(decorations.get(identifier).get(type));
     }
 
-    public <T> boolean copy(int originalIdentifier, int targetIdentifier, Class<T> type) {
+    public <T extends Decoration> boolean copy(int originalIdentifier, int targetIdentifier, Class<T> type) {
         T decoration = get(originalIdentifier, type);
 
         if (decoration != null) {
@@ -65,19 +73,19 @@ public class Decorator {
         return false;
     }
 
-    public boolean set(int identifier, Class<?> type) {
+    public boolean set(int identifier, Class<? extends Condition> type) {
         return conditions.get(identifier).add(type);
     }
 
-    public boolean delete(int identifier, Class<?> type) {
+    public boolean delete(int identifier, Class<? extends Condition> type) {
         return conditions.get(identifier).remove(type);
     }
 
-    public boolean exists(int identifier, Class<?> type) {
+    public boolean exists(int identifier, Class<? extends Condition> type) {
         return conditions.get(identifier).contains(type);
     }
 
-    public <T> boolean replicate(int originalIdentifier, int targetIdentifier, Class<T> type) {
+    public boolean replicate(int originalIdentifier, int targetIdentifier, Class<? extends Condition> type) {
         if (exists(originalIdentifier, type)) {
             set(targetIdentifier, type);
 

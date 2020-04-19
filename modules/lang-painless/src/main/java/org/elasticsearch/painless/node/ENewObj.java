@@ -19,17 +19,20 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,8 +65,8 @@ public class ENewObj extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment cannot assign a value to new object with constructor " +
                     "[" + canonicalTypeName + "/" + argumentNodes.size() + "]"));
         }
@@ -101,17 +104,15 @@ public class ENewObj extends AExpression {
         for (int i = 0; i < argumentNodes.size(); ++i) {
             AExpression expression = argumentNodes.get(i);
 
-            Input expressionInput = new Input();
-            expressionInput.expected = types[i];
-            expressionInput.internal = true;
-            Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
+            semanticScope.setCondition(expression, Read.class);
+            semanticScope.putDecoration(expression, new TargetType(types[i]));
+            semanticScope.setCondition(expression, Internal.class);
+            Output expressionOutput = analyze(expression, classNode, semanticScope);
             argumentOutputs.add(expressionOutput);
-            Class<?> argumentValueType = semanticScope.getDecoration(expression, Decorator.ValueType.class).getValueType();
-            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    argumentValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+            argumentCasts.add(expression.cast(semanticScope));
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         NewObjectNode newObjectNode = new NewObjectNode();
 
@@ -121,7 +122,7 @@ public class ENewObj extends AExpression {
 
         newObjectNode.setLocation(getLocation());
         newObjectNode.setExpressionType(valueType);
-        newObjectNode.setRead(input.read);
+        newObjectNode.setRead(semanticScope.getCondition(this, Read.class));
         newObjectNode.setConstructor(constructor);
 
         output.expressionNode = newObjectNode;

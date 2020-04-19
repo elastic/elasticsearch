@@ -20,9 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DotNode;
@@ -39,6 +36,13 @@ import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
@@ -78,10 +82,11 @@ public class EDot extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        boolean write = semanticScope.getCondition(this, Decorator.Write.class);
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        boolean read = semanticScope.getCondition(this, Read.class);
+        boolean write = semanticScope.getCondition(this, Write.class);
 
-        if (input.read == false && write == false) {
+        if (read == false && write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
@@ -89,14 +94,14 @@ public class EDot extends AExpression {
 
         Output output = new Output();
         Class<?> valueType = null;
-        
-        Output prefixOutput = prefixNode.analyze(classNode, semanticScope, new Input());
 
+        semanticScope.setCondition(prefixNode, Read.class);
+        Output prefixOutput = prefixNode.analyze(classNode, semanticScope);
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             if (prefixOutput.isStaticType) {
                 throw createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                        "[" + semanticScope.getDecoration(prefixNode, Decorator.ValueType.class).getCanonicalTypeName() + "]"));
+                        "[" + semanticScope.getDecoration(prefixNode, ValueType.class).getValueCanonicalTypeName() + "]"));
             }
 
             String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + index;
@@ -110,7 +115,7 @@ public class EDot extends AExpression {
                             "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
                 }
 
-                if (input.read == false) {
+                if (read == false) {
                     throw createError(new IllegalArgumentException(
                             "not a statement: static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
                 }
@@ -126,7 +131,7 @@ public class EDot extends AExpression {
                 output.expressionNode = staticNode;
             }
         } else {
-            Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, Decorator.ValueType.class).getValueType();
+            Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class).getValueType();
             String targetCanonicalTypeName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
             ExpressionNode expressionNode = null;
@@ -159,8 +164,10 @@ public class EDot extends AExpression {
                             "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]"));
                 }
 
+                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
                 // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-                valueType = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+                valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
+                        semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
                 output.isDefOptimized = true;
 
                 DotSubDefNode dotSubDefNode = new DotSubDefNode();
@@ -202,7 +209,7 @@ public class EDot extends AExpression {
                             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                         }
 
-                        if ((input.read == false || getter != null) && (write == false || setter != null)) {
+                        if ((read == false || getter != null) && (write == false || setter != null)) {
                             valueType = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                         } else {
                             throw createError(new IllegalArgumentException(
@@ -235,8 +242,7 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            if ((input.read || write)
-                                    && (input.read == false || getter != null) && (write == false || setter != null)) {
+                            if ((read == false || getter != null) && (write == false || setter != null)) {
                                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
@@ -285,8 +291,7 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            if ((input.read || write)
-                                    && (input.read == false || getter != null) && (write == false || setter != null)) {
+                            if ((read == false || getter != null) && (write == false || setter != null)) {
                                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
@@ -354,7 +359,7 @@ public class EDot extends AExpression {
         }
 
         if (valueType != null) {
-            semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+            semanticScope.putDecoration(this, new ValueType(valueType));
         }
 
         return output;

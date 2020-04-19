@@ -31,7 +31,8 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.Decorator;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
@@ -79,9 +80,9 @@ public class SEach extends AStatement {
     Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
-        AExpression.Input expressionInput = new AExpression.Input();
-        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, semanticScope, expressionInput);
-        Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, Decorator.ValueType.class).getValueType();
+        semanticScope.setCondition(iterableNode, Read.class);
+        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, semanticScope);
+        Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, ValueType.class).getValueType();
 
         Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 

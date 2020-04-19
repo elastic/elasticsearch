@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import static java.util.Collections.singletonMap;
 
 public class EqualsTests extends ScriptTestCase {
+
     public void testTypesEquals() {
         assertEquals(true, exec("return false === false;"));
         assertEquals(false, exec("boolean x = false; boolean y = true; return x === y;"));

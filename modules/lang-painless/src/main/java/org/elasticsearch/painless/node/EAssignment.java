@@ -23,8 +23,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.AssignmentNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BraceNode;
@@ -35,6 +33,13 @@ import org.elasticsearch.painless.ir.DotSubDefNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -76,28 +81,27 @@ public class EAssignment extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
         boolean cat = false;
         Class<?> promote = null;
         Class<?> shiftDistance = null;
-        PainlessCast rightCast;
+        PainlessCast rightCast = null;
         PainlessCast there = null;
         PainlessCast back = null;
 
-        Input leftInput = new Input();
-        leftInput.read = input.read;
-        semanticScope.setCondition(leftNode, Decorator.Write.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
+        semanticScope.replicateCondition(this, leftNode, Read.class);
+        semanticScope.setCondition(leftNode, Write.class);
+        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorations.ValueType.class).getValueType();
 
-        Input rightInput = new Input();
+        semanticScope.setCondition(rightNode, Read.class);
         Output rightOutput;
 
         if (operation != null) {
-            rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-            Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
+            rightOutput = analyze(rightNode, classNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -150,38 +154,33 @@ public class EAssignment extends AExpression {
             if (shift) {
                 if (promote == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
-                    rightInput.expected = promote;
+                    semanticScope.putDecoration(rightNode, new TargetType(def.class));
                 } else if (shiftDistance == long.class) {
-                    rightInput.expected = int.class;
-                    rightInput.explicit = true;
+                    semanticScope.putDecoration(rightNode, new TargetType(int.class));
+                    semanticScope.setCondition(rightNode, Explicit.class);
                 } else {
-                    rightInput.expected = shiftDistance;
+                    semanticScope.putDecoration(rightNode, new TargetType(shiftDistance));
                 }
             } else {
-                rightInput.expected = promote;
+                semanticScope.putDecoration(rightNode, new TargetType(promote));
             }
 
-            rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                    rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
+            rightCast = rightNode.cast(semanticScope);
 
             there = AnalyzerCaster.getLegalCast(getLocation(), leftValueType, promote, false, false);
             back = AnalyzerCaster.getLegalCast(getLocation(), promote, leftValueType, true, false);
         } else {
-            Class<?> rightValueType;
-
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
-                rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-                rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
+                rightOutput = analyze(rightNode, classNode, semanticScope);
+                Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
                 if (rightValueType == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
                 }
 
-                rightInput.expected = rightValueType;
                 leftValueType = rightValueType;
                 leftOutput.expressionNode.setExpressionType(rightValueType);
-
                 ExpressionNode expressionNode = leftOutput.expressionNode;
 
                 if (expressionNode instanceof DotNode && ((DotNode)expressionNode).getRightNode() instanceof DotSubDefNode) {
@@ -191,16 +190,14 @@ public class EAssignment extends AExpression {
                 }
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
-                rightInput.expected = leftValueType;
-                rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-                rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
+                semanticScope.putDecoration(rightNode, new TargetType(leftValueType));
+                rightOutput = analyze(rightNode, classNode, semanticScope);
+                rightCast = rightNode.cast(semanticScope);
             }
-
-            rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                    rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
         }
 
-        Decorator.ValueType valueType = new Decorator.ValueType(input.read ? leftValueType : void.class);
+        boolean read = semanticScope.getCondition(this, Read.class);
+        ValueType valueType = new ValueType(read ? leftValueType : void.class);
         semanticScope.putDecoration(this, valueType);
 
         AssignmentNode assignmentNode = new AssignmentNode();
@@ -213,7 +210,7 @@ public class EAssignment extends AExpression {
         assignmentNode.setCompoundType(promote);
         assignmentNode.setPost(postIfRead);
         assignmentNode.setOperation(operation);
-        assignmentNode.setRead(input.read);
+        assignmentNode.setRead(read);
         assignmentNode.setCat(cat);
         assignmentNode.setThere(there);
         assignmentNode.setBack(back);

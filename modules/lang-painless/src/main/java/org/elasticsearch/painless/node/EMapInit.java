@@ -19,16 +19,19 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,12 +65,12 @@ public class EMapInit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: result not used from map initializer"));
         }
 
@@ -98,28 +101,24 @@ public class EMapInit extends AExpression {
 
         for (int i = 0; i < keyNodes.size(); ++i) {
             AExpression expression = keyNodes.get(i);
-            Input expressionInput = new Input();
-            expressionInput.expected = def.class;
-            expressionInput.internal = true;
-            Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
-            Class<?> keyValueType = semanticScope.getDecoration(expression, Decorator.ValueType.class).getValueType();
+            semanticScope.setCondition(expression, Read.class);
+            semanticScope.putDecoration(expression, new TargetType(def.class));
+            semanticScope.setCondition(expression, Internal.class);
+            Output expressionOutput = analyze(expression, classNode, semanticScope);
             keyOutputs.add(expressionOutput);
-            keyCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    keyValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+            keyCasts.add(expression.cast(semanticScope));
 
             expression = valueNodes.get(i);
-            expressionInput = new Input();
-            expressionInput.expected = def.class;
-            expressionInput.internal = true;
-            expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
-            Class<?> valueValueType = semanticScope.getDecoration(expression, Decorator.ValueType.class).getValueType();
-            valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    valueValueType, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+            semanticScope.setCondition(expression, Read.class);
+            semanticScope.putDecoration(expression, new TargetType(def.class));
+            semanticScope.setCondition(expression, Internal.class);
+            expressionOutput = analyze(expression, classNode, semanticScope);
+            valueCasts.add(expression.cast(semanticScope));
 
             valueOutputs.add(expressionOutput);
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         MapInitializationNode mapInitializationNode = new MapInitializationNode();
 

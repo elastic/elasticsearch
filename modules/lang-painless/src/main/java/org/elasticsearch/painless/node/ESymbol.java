@@ -20,13 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -48,11 +50,12 @@ public class ESymbol extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
         Class<?> valueType = null;
         Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
-        boolean write = semanticScope.getCondition(this, Decorator.Write.class);
+        boolean read = semanticScope.getCondition(this, Read.class);
+        boolean write = semanticScope.getCondition(this, Write.class);
 
         if (type != null)  {
             if (write) {
@@ -60,7 +63,7 @@ public class ESymbol extends AExpression {
                         "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
             }
 
-            if (input.read == false) {
+            if (read == false) {
                 throw createError(new IllegalArgumentException("not a statement: " +
                         "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
             }
@@ -75,7 +78,7 @@ public class ESymbol extends AExpression {
 
             output.expressionNode = staticNode;
         } else if (semanticScope.isVariableDefined(symbol)) {
-            if (input.read == false && write == false) {
+            if (read == false && write == false) {
                 throw createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
             }
 
@@ -99,7 +102,7 @@ public class ESymbol extends AExpression {
         }
 
         if (valueType != null) {
-            semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+            semanticScope.putDecoration(this, new ValueType(valueType));
         }
 
         return output;

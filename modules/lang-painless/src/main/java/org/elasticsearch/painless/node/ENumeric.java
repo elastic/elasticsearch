@@ -20,10 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -51,17 +54,17 @@ public class ENumeric extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        return analyze(semanticScope, input, false);
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        return analyze(semanticScope, false);
     }
 
-    Output analyze(SemanticScope semanticScope, Input input, boolean negate) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(SemanticScope semanticScope, boolean negate) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
         }
 
@@ -102,7 +105,8 @@ public class ENumeric extends AExpression {
             }
         } else {
             try {
-                Class<?> sort = input.expected == null ? int.class : input.expected;
+                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+                Class<?> sort = targetType == null ? int.class : targetType.getTargetType();
                 int integer = Integer.parseInt(numeric, radix);
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
@@ -131,7 +135,7 @@ public class ENumeric extends AExpression {
             }
         }
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());

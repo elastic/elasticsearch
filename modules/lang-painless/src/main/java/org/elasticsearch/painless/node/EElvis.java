@@ -21,11 +21,16 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.Decorator;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import static java.util.Objects.requireNonNull;
 
@@ -54,37 +59,37 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (semanticScope.getCondition(this, Decorator.Write.class)) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
         }
 
         Output output = new Output();
         Class<?> valueType;
 
-        if (input.expected != null && input.expected.isPrimitive()) {
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+
+        if (targetType != null && targetType.getTargetType().isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
 
-        Input leftInput = new Input();
-        leftInput.expected = input.expected;
-        leftInput.explicit = input.explicit;
-        leftInput.internal = input.internal;
-        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorator.ValueType.class).getValueType();
+        semanticScope.setCondition(leftNode, Read.class);
+        semanticScope.copyDecoration(this, leftNode, TargetType.class);
+        semanticScope.replicateCondition(this, leftNode, Explicit.class);
+        semanticScope.replicateCondition(this, leftNode, Internal.class);
+        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
 
-        Input rightInput = new Input();
-        rightInput.expected = input.expected;
-        rightInput.explicit = input.explicit;
-        rightInput.internal = input.internal;
-        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, Decorator.ValueType.class).getValueType();
-
-        valueType = input.expected;
+        semanticScope.setCondition(rightNode, Read.class);
+        semanticScope.copyDecoration(this, rightNode, TargetType.class);
+        semanticScope.replicateCondition(this, rightNode, Explicit.class);
+        semanticScope.replicateCondition(this, rightNode, Internal.class);
+        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
         if (leftNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
@@ -99,20 +104,20 @@ public class EElvis extends AExpression {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
-        if (input.expected == null) {
+        if (targetType == null) {
             Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
 
-            leftInput.expected = promote;
-            rightInput.expected = promote;
+            semanticScope.putDecoration(leftNode, new TargetType(promote));
+            semanticScope.putDecoration(rightNode, new TargetType(promote));
             valueType = promote;
+        } else {
+            valueType = targetType.getTargetType();
         }
 
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftValueType, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightValueType, rightInput.expected, rightInput.explicit, rightInput.internal);
+        PainlessCast leftCast = leftNode.cast(semanticScope);
+        PainlessCast rightCast = rightNode.cast(semanticScope);
 
-        semanticScope.putDecoration(this, new Decorator.ValueType(valueType));
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         ElvisNode elvisNode = new ElvisNode();
         elvisNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));

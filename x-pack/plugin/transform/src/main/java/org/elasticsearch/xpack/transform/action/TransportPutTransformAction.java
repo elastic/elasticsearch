@@ -37,7 +37,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -210,15 +209,10 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = threadPool.getThreadContext()
-            .getHeaders()
-            .entrySet()
-            .stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> securityHeaders = securityContext != null ? securityContext.extractSecurityHeadersForJob("ml_transform",
+                request.getConfig().getId()) : Map.of();
 
-        TransformConfig config = request.getConfig().setHeaders(filteredHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);
+        TransformConfig config = request.getConfig().setHeaders(securityHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name

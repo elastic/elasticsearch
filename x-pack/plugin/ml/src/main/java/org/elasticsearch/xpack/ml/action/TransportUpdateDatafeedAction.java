@@ -90,11 +90,12 @@ public class TransportUpdateDatafeedAction extends
         }
 
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            Map<String, String> securityHeaders = securityContext != null ? securityContext.extractSecurityHeadersForJob("ml_datafeed",
+                    request.getUpdate().getId()) : Map.of();
             datafeedConfigProvider.updateDatefeedConfig(
                 request.getUpdate().getId(),
                 request.getUpdate(),
-                headers,
+                securityHeaders,
                 jobConfigProvider::validateDatafeedJob,
                 ActionListener.wrap(
                     updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),

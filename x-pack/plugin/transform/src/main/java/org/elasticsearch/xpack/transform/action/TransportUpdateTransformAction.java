@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -154,16 +153,12 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = threadPool.getThreadContext()
-            .getHeaders()
-            .entrySet()
-            .stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        Map<String, String> securityHeaders = securityContext != null ? securityContext.extractSecurityHeadersForJob("ml_transform",
+                request.getId()) : Map.of();
 
         TransformConfigUpdate update = request.getUpdate();
-        update.setHeaders(filteredHeaders);
+        update.setHeaders(securityHeaders);
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX

@@ -19,20 +19,31 @@
 package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Collections;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -62,13 +73,16 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
-        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
+        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(cs, req);
+        ClusterState cs = getClusterState(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
+        ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
+        assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
+        for (String indexName : otherIndices) {
+            assertThat(newState.metadata().indices().get(indexName).getIndex().getName(), equalTo(indexName));
+        }
     }
 
     public void testDeleteNonexistentDataStream() {
@@ -76,7 +90,71 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-            () -> DeleteDataStreamAction.TransportAction.removeDataStream(cs, req));
+            () -> DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req));
         assertThat(e.getMessage(), containsString("data_streams matching [" + dataStreamName + "] not found"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MetadataDeleteIndexService getMetadataDeleteIndexService() {
+        MetadataDeleteIndexService s = mock(MetadataDeleteIndexService.class);
+        when(s.deleteIndices(any(ClusterState.class), any(Set.class)))
+            .thenAnswer(mockInvocation -> {
+                ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
+                Set<Index> indices = (Set<Index>) mockInvocation.getArguments()[1];
+
+                final Metadata.Builder b = Metadata.builder(currentState.metadata());
+                for (Index index : indices) {
+                    b.remove(index.getName());
+                }
+
+                return ClusterState.builder(currentState).metadata(b.build()).build();
+            });
+
+        return s;
+    }
+
+    /**
+     * Constructs {@code ClusterState} with the specified data streams and indices.
+     *
+     * @param dataStreams The names of the data streams to create with their respective number of backing indices
+     * @param indexNames  The names of indices to create that do not back any data streams
+     */
+    private static ClusterState getClusterState(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
+        Metadata.Builder builder = Metadata.builder();
+
+        List<IndexMetadata> allIndices = new ArrayList<>();
+        for (Tuple<String, Integer> dsTuple : dataStreams) {
+            List<IndexMetadata> backingIndices = new ArrayList<>();
+            for (int backingIndexNumber = 1; backingIndexNumber <= dsTuple.v2(); backingIndexNumber++) {
+                backingIndices.add(createIndexMetadata(DataStream.getBackingIndexName(dsTuple.v1(), backingIndexNumber), true));
+            }
+            allIndices.addAll(backingIndices);
+
+            DataStream ds = new DataStream(dsTuple.v1(), "@timestamp",
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
+            builder.put(ds);
+        }
+
+        for (String indexName : indexNames) {
+            allIndices.add(createIndexMetadata(indexName, false));
+        }
+
+        for (IndexMetadata index : allIndices) {
+            builder.put(index, false);
+        }
+
+        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
+
+    private static IndexMetadata createIndexMetadata(String name, boolean hidden) {
+        Settings.Builder b = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.hidden", hidden);
+
+        return IndexMetadata.builder(name)
+            .settings(b)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
     }
 }

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.Collections;
-import java.util.Map;
-
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.Repository;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
@@ -58,4 +58,5 @@ public interface RepositoryPlugin {
                                                                     ClusterService clusterService) {
         return Collections.emptyMap();
     }
+
 }

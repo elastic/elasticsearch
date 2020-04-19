@@ -36,13 +36,16 @@ if "%1" == "nojava" (
    exit /b
 )
 
-if defined JAVA_HOME (
-  set JAVA="%JAVA_HOME%\bin\java.exe"
-  set JAVA_TYPE=JAVA_HOME
-) else (
+rem compariing to empty string makes this equivalent to bash -v check on env var
+rem and allows to effectively force use of the bundled jdk when launching ES
+rem by setting JAVA_HOME=
+if "%JAVA_HOME%" == "" (
   set JAVA="%ES_HOME%\jdk\bin\java.exe"
   set JAVA_HOME="%ES_HOME%\jdk"
   set JAVA_TYPE=bundled jdk
+) else (
+  set JAVA="%JAVA_HOME%\bin\java.exe"
+  set JAVA_TYPE=JAVA_HOME
 )
 
 if not exist !JAVA! (

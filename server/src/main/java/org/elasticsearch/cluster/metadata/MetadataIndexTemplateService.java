@@ -268,7 +268,7 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Add the given component template to the cluster state. If {@code create} is true, an
+     * Add the given index template to the cluster state. If {@code create} is true, an
      * exception will be thrown if the component template already exists
      */
     public void putIndexTemplateV2(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
@@ -305,7 +305,23 @@ public class MetadataIndexTemplateService {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
-        Map<String, List<String>> overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
+        Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, name, template.indexPatterns(), true,
+            template.priority());
+        if (overlaps.size() > 0) {
+            String error = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
+                    "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not " +
+                    "match during index creation, please use a different priority",
+                name,
+                template.indexPatterns(),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream()
+                    .map(e -> e.getKey() + " => " + e.getValue())
+                    .collect(Collectors.joining(",")),
+                template.priority());
+            throw new IllegalArgumentException(error);
+        }
+
+        overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
         if (overlaps.size() > 0) {
             String warning = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
                     "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
@@ -317,7 +333,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecated(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -385,6 +401,15 @@ public class MetadataIndexTemplateService {
      */
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                 final List<String> indexPatterns) {
+        return findConflictingV2Templates(state, candidateName, indexPatterns, false, null);
+    }
+
+    /**
+     * Return a map of v2 template names to their index patterns for v2 templates that would overlap
+     * with the given template's index patterns.
+     */
+    static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
+                                                                final List<String> indexPatterns, boolean checkPriority, Long priority) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : state.metadata().templatesV2().entrySet()) {
@@ -392,9 +417,11 @@ public class MetadataIndexTemplateService {
             IndexTemplateV2 template = entry.getValue();
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
-                logger.debug("old template {} and index template {} would overlap: {} <=> {}",
-                    candidateName, name, indexPatterns, template.indexPatterns());
-                overlappingTemplates.put(name, template.indexPatterns());
+                if (checkPriority == false || Objects.equals(priority, template.priority())) {
+                    logger.debug("old template {} and index template {} would overlap: {} <=> {}",
+                        candidateName, name, indexPatterns, template.indexPatterns());
+                    overlappingTemplates.put(name, template.indexPatterns());
+                }
             }
         }
         return overlappingTemplates;
@@ -531,7 +558,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                deprecationLogger.deprecated(warning);
+                deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
@@ -637,19 +664,18 @@ public class MetadataIndexTemplateService {
      * the event that no templates are matched, {@code null} is returned.
      */
     @Nullable
-    public static String findV2Template(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
+    public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final Map<IndexTemplateV2, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final IndexTemplateV2 template = entry.getValue();
-            if (isHidden == null || isHidden == Boolean.FALSE) {
+            if (isHidden == false) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     matchedTemplates.put(template, name);
                 }
             } else {
-                assert isHidden == Boolean.TRUE;
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
                     if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
@@ -664,11 +690,24 @@ public class MetadataIndexTemplateService {
         }
 
         final List<IndexTemplateV2> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparingLong(IndexTemplateV2::priority).reversed());
+        CollectionUtil.timSort(candidates, Comparator.comparing(IndexTemplateV2::priority,
+            Comparator.nullsLast(Comparator.reverseOrder())));
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);
-        return matchedTemplates.get(winner);
+        String winnerName = matchedTemplates.get(winner);
+
+        // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
+        // a restored index cluster state that modified a component template used by this global template such that it has this setting)
+        // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
+        // template that contributes to the index template resolved settings
+        if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
+            IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+            throw new IllegalStateException("global index template [" + winnerName + "], composed of component templates [" +
+                String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
+        }
+
+        return winnerName;
     }
 
     /**
@@ -715,14 +754,14 @@ public class MetadataIndexTemplateService {
     /**
      * Resolve the given v2 template into a collected {@link Settings} object
      */
-    public static Settings resolveSettings(final ClusterState state, final String templateName) {
-        final IndexTemplateV2 template = state.metadata().templatesV2().get(templateName);
+    public static Settings resolveSettings(final Metadata metadata, final String templateName) {
+        final IndexTemplateV2 template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve settings for a template [" + templateName +
             "] that did not exist in the cluster state";
         if (template == null) {
             return Settings.EMPTY;
         }
-        final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         List<Settings> componentSettings = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
@@ -760,14 +799,14 @@ public class MetadataIndexTemplateService {
     /**
      * Resolve the given v2 template into an ordered list of aliases
      */
-    public static List<Map<String, AliasMetadata>> resolveAliases(final ClusterState state, final String templateName) {
-        final IndexTemplateV2 template = state.metadata().templatesV2().get(templateName);
+    public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final String templateName) {
+        final IndexTemplateV2 template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
         if (template == null) {
             return List.of();
         }
-        final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
+        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         List<Map<String, AliasMetadata>> aliases = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)

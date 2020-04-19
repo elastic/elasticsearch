@@ -61,6 +61,10 @@ public class Decorator {
         return type.cast(decorations.get(identifier).get(type));
     }
 
+    public boolean has(int identifier, Class<? extends Decoration> type) {
+        return decorations.get(identifier).containsKey(type);
+    }
+
     public <T extends Decoration> boolean copy(int originalIdentifier, int targetIdentifier, Class<T> type) {
         T decoration = get(originalIdentifier, type);
 

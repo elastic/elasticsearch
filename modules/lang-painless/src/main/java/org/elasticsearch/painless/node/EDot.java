@@ -38,6 +38,7 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -49,8 +50,6 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a field load/store and defers to a child subnode.
@@ -93,15 +92,27 @@ public class EDot extends AExpression {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
-        Class<?> valueType = null;
 
         semanticScope.setCondition(prefixNode, Read.class);
         Output prefixOutput = prefixNode.analyze(classNode, semanticScope);
+        ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
+        StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
+
+        if (prefixValueType != null && prefixStaticType != null) {
+            throw createError(new IllegalStateException("cannot have both " +
+                    "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
+                    "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
+        }
 
         if (prefixOutput.partialCanonicalTypeName != null) {
-            if (prefixOutput.isStaticType) {
+            if (prefixValueType != null) {
                 throw createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                        "[" + semanticScope.getDecoration(prefixNode, ValueType.class).getValueCanonicalTypeName() + "]"));
+                        "[" + prefixValueType.getValueCanonicalTypeName() + "]"));
+            }
+
+            if (prefixStaticType != null) {
+                throw createError(new IllegalArgumentException("value required: instead found unexpected type " +
+                        "[" + prefixStaticType.getStaticType() + "]"));
             }
 
             String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + index;
@@ -115,33 +126,18 @@ public class EDot extends AExpression {
                             "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
                 }
 
-                if (read == false) {
-                    throw createError(new IllegalArgumentException(
-                            "not a statement: static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
-                }
-
-                valueType = type;
-                output.isStaticType = true;
+                semanticScope.putDecoration(this, new StaticType(type));
 
                 StaticNode staticNode = new StaticNode();
-
                 staticNode.setLocation(getLocation());
-                staticNode.setExpressionType(valueType);
-
+                staticNode.setExpressionType(type);
                 output.expressionNode = staticNode;
             }
         } else {
-            Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class).getValueType();
-            String targetCanonicalTypeName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
-
             ExpressionNode expressionNode = null;
+            Class<?> valueType = null;
 
-            if (prefixValueType.isArray()) {
-                if (prefixOutput.isStaticType) {
-                    throw createError(new IllegalArgumentException("value required: " +
-                            "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]"));
-                }
-
+            if (prefixValueType != null && prefixValueType.getValueType().isArray()) {
                 if ("length".equals(index)) {
                     if (write) {
                         throw createError(new IllegalArgumentException(
@@ -151,19 +147,14 @@ public class EDot extends AExpression {
                     valueType = int.class;
                 } else {
                     throw createError(new IllegalArgumentException(
-                            "Field [" + index + "] does not exist for type [" + targetCanonicalTypeName + "]."));
+                            "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."));
                 }
 
                 DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
                 dotSubArrayLengthNode.setLocation(getLocation());
-                dotSubArrayLengthNode.setExpressionType(valueType);
+                dotSubArrayLengthNode.setExpressionType(int.class);
                 expressionNode = dotSubArrayLengthNode;
-            } else if (prefixValueType == def.class) {
-                if (prefixOutput.isStaticType) {
-                    throw createError(new IllegalArgumentException("value required: " +
-                            "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]"));
-                }
-
+            } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
                 TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
                 // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
                 valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
@@ -176,33 +167,48 @@ public class EDot extends AExpression {
                 dotSubDefNode.setValue(index);
                 expressionNode = dotSubDefNode;
             } else {
-                PainlessField field =
-                        scriptScope.getPainlessLookup().lookupPainlessField(prefixValueType, prefixOutput.isStaticType, index);
+                Class<?> prefixType;
+                String prefixCanonicalTypeName;
+                boolean isStatic;
+
+                if (prefixValueType != null) {
+                    prefixType = prefixValueType.getValueType();
+                    prefixCanonicalTypeName = prefixValueType.getValueCanonicalTypeName();
+                    isStatic = false;
+                } else if (prefixStaticType != null) {
+                    prefixType = prefixStaticType.getStaticType();
+                    prefixCanonicalTypeName = prefixStaticType.getStaticCanonicalTypeName();
+                    isStatic = true;
+                } else {
+                    throw createError(new IllegalStateException("value required: instead found no value"));
+                }
+
+                PainlessField field = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessField(prefixType, isStatic, index);
 
                 if (field == null) {
                     PainlessMethod getter;
                     PainlessMethod setter;
 
-                    getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false,
+                    getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
                             "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                     if (getter == null) {
-                        getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false,
+                        getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
                                 "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
                     }
 
-                    setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false,
+                    setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
                             "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                     if (getter != null || setter != null) {
                         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
                             throw createError(new IllegalArgumentException(
-                                    "Illegal get shortcut on field [" + index + "] for type [" + targetCanonicalTypeName + "]."));
+                                    "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
                         }
 
                         if (setter != null && (setter.returnType != void.class || setter.typeParameters.size() != 1)) {
                             throw createError(new IllegalArgumentException(
-                                    "Illegal set shortcut on field [" + index + "] for type [" + targetCanonicalTypeName + "]."));
+                                    "Illegal set shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
                         }
 
                         if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
@@ -213,7 +219,7 @@ public class EDot extends AExpression {
                             valueType = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                         } else {
                             throw createError(new IllegalArgumentException(
-                                    "Illegal shortcut on field [" + index + "] for type [" + targetCanonicalTypeName + "]."));
+                                    "Illegal shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
                         }
 
                         DotSubShortcutNode dotSubShortcutNode = new DotSubShortcutNode();
@@ -222,19 +228,19 @@ public class EDot extends AExpression {
                         dotSubShortcutNode.setGetter(getter);
                         dotSubShortcutNode.setSetter(setter);
                         expressionNode = dotSubShortcutNode;
-                    } else {
-                        if (Map.class.isAssignableFrom(prefixValueType)) {
-                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
-                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "put", 2);
+                    } else if (isStatic == false) {
+                        if (Map.class.isAssignableFrom(prefixValueType.getValueType())) {
+                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
+                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "put", 2);
 
                             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
                                 throw createError(new IllegalArgumentException(
-                                        "Illegal map get shortcut for type [" + targetCanonicalTypeName + "]."));
+                                        "Illegal map get shortcut for type [" + prefixCanonicalTypeName + "]."));
                             }
 
                             if (setter != null && setter.typeParameters.size() != 2) {
                                 throw createError(new IllegalArgumentException(
-                                        "Illegal map set shortcut for type [" + targetCanonicalTypeName + "]."));
+                                        "Illegal map set shortcut for type [" + prefixCanonicalTypeName + "]."));
                             }
 
                             if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
@@ -246,7 +252,7 @@ public class EDot extends AExpression {
                                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
-                                        "Illegal map shortcut for type [" + targetCanonicalTypeName + "]."));
+                                        "Illegal map shortcut for type [" + prefixCanonicalTypeName + "]."));
                             }
 
                             ConstantNode constantNode = new ConstantNode();
@@ -263,7 +269,7 @@ public class EDot extends AExpression {
                             expressionNode = mapSubShortcutNode;
                         }
 
-                        if (List.class.isAssignableFrom(prefixValueType)) {
+                        if (List.class.isAssignableFrom(prefixType)) {
                             int index;
 
                             try {
@@ -272,18 +278,18 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("invalid list index [" + this.index + "]"));
                             }
 
-                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
-                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "set", 2);
+                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
+                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "set", 2);
 
                             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
                                     getter.typeParameters.get(0) != int.class)) {
                                 throw createError(new IllegalArgumentException(
-                                        "Illegal list get shortcut for type [" + targetCanonicalTypeName + "]."));
+                                        "Illegal list get shortcut for type [" + prefixCanonicalTypeName + "]."));
                             }
 
                             if (setter != null && (setter.typeParameters.size() != 2 || setter.typeParameters.get(0) != int.class)) {
                                 throw createError(new IllegalArgumentException(
-                                        "Illegal list set shortcut for type [" + targetCanonicalTypeName + "]."));
+                                        "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."));
                             }
 
                             if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
@@ -295,7 +301,7 @@ public class EDot extends AExpression {
                                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
-                                        "Illegal list shortcut for type [" + targetCanonicalTypeName + "]."));
+                                        "Illegal list shortcut for type [" + prefixCanonicalTypeName + "]."));
                             }
 
                             ConstantNode constantNode = new ConstantNode();
@@ -313,9 +319,14 @@ public class EDot extends AExpression {
                         }
                     }
 
-                    if (expressionNode == null) {
-                        throw createError(new IllegalArgumentException(
-                                "field [" + typeToCanonicalTypeName(prefixValueType) + ", " + index + "] not found"));
+                    if (valueType == null) {
+                        if (prefixValueType != null) {
+                            throw createError(new IllegalArgumentException(
+                                    "field [" + prefixValueType.getValueCanonicalTypeName() + ", " + index + "] not found"));
+                        } else {
+                            throw createError(new IllegalArgumentException(
+                                    "field [" + prefixStaticType.getStaticCanonicalTypeName() + ", " + index + "] not found"));
+                        }
                     }
                 } else {
                     if (write && Modifier.isFinal(field.javaField.getModifiers())) {
@@ -332,6 +343,8 @@ public class EDot extends AExpression {
                     expressionNode = dotSubNode;
                 }
             }
+
+            semanticScope.putDecoration(this, new ValueType(valueType));
 
             if (isNullSafe) {
                 if (write) {
@@ -356,10 +369,6 @@ public class EDot extends AExpression {
             dotNode.setLocation(getLocation());
             dotNode.setExpressionType(valueType);
             output.expressionNode = dotNode;
-        }
-
-        if (valueType != null) {
-            semanticScope.putDecoration(this, new ValueType(valueType));
         }
 
         return output;

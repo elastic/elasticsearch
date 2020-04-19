@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -52,30 +53,26 @@ public class ESymbol extends AExpression {
     @Override
     Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
-        Class<?> valueType = null;
-        Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
+        Class<?> staticType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
         boolean read = semanticScope.getCondition(this, Read.class);
         boolean write = semanticScope.getCondition(this, Write.class);
 
-        if (type != null)  {
+        if (staticType != null)  {
             if (write) {
                 throw createError(new IllegalArgumentException("invalid assignment: " +
-                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
+                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
             }
 
             if (read == false) {
                 throw createError(new IllegalArgumentException("not a statement: " +
-                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
+                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "] not used"));
             }
 
-            valueType = type;
-            output.isStaticType = true;
+            semanticScope.putDecoration(this, new StaticType(staticType));
 
             StaticNode staticNode = new StaticNode();
-
             staticNode.setLocation(getLocation());
-            staticNode.setExpressionType(valueType);
-
+            staticNode.setExpressionType(staticType);
             output.expressionNode = staticNode;
         } else if (semanticScope.isVariableDefined(symbol)) {
             if (read == false && write == false) {
@@ -88,21 +85,16 @@ public class ESymbol extends AExpression {
                 throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
             }
 
-            valueType = variable.getType();
+            Class<?> valueType = variable.getType();
+            semanticScope.putDecoration(this, new ValueType(valueType));
 
             VariableNode variableNode = new VariableNode();
-
             variableNode.setLocation(getLocation());
             variableNode.setExpressionType(valueType);
             variableNode.setName(symbol);
-
             output.expressionNode = variableNode;
         } else {
             output.partialCanonicalTypeName = symbol;
-        }
-
-        if (valueType != null) {
-            semanticScope.putDecoration(this, new ValueType(valueType));
         }
 
         return output;

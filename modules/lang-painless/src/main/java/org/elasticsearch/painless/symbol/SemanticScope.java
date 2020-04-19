@@ -310,6 +310,10 @@ public abstract class SemanticScope {
         return scriptScope.get(node.getIdentifier(), type);
     }
 
+    public boolean hasDecoration(ANode node, Class<? extends Decoration> type) {
+        return scriptScope.has(node.getIdentifier(), type);
+    }
+
     public <T extends Decoration> boolean copyDecoration(ANode originalNode, ANode targetNode, Class<T> type) {
         return scriptScope.copy(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }

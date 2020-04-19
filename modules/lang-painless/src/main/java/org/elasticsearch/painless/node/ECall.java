@@ -27,13 +27,13 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -44,8 +44,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a method call and defers to a child subnode.
@@ -91,25 +89,26 @@ public class ECall extends AExpression {
                     "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
 
-        Output output = new Output();
-        Class<?> valueType;
-
         semanticScope.setCondition(prefixNode, Read.class);
         Output prefixOutput = prefixNode.analyze(classNode, semanticScope);
-        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class).getValueType();
+        ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
+        StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
+
+        if (prefixValueType != null && prefixStaticType != null) {
+            throw createError(new IllegalStateException("cannot have both " +
+                    "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
+                    "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
+        }
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
         }
 
+        Output output = new Output();
+        Class<?> valueType;
         ExpressionNode expressionNode;
 
-        if (prefixValueType == def.class) {
-            if (prefixOutput.isStaticType) {
-                throw createError(new IllegalArgumentException("value required: " +
-                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]"));
-            }
-
+        if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
             List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
 
             for (AExpression argument : argumentNodes) {
@@ -141,12 +140,31 @@ public class ECall extends AExpression {
             callSubDefNode.setName(methodName);
             expressionNode = callSubDefNode;
         } else {
-            PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                    prefixValueType, prefixOutput.isStaticType, methodName, argumentNodes.size());
+            PainlessMethod method;
+            Class<?> boxType;
 
-            if (method == null) {
-                throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(prefixValueType) + ", " +
-                        "" + methodName + "/" + argumentNodes.size() + "] not found"));
+            if (prefixValueType != null) {
+                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
+                        prefixValueType.getValueType(), false, methodName, argumentNodes.size());
+                boxType = prefixValueType.getValueType();
+
+                if (method == null) {
+                    throw createError(new IllegalArgumentException("member method " +
+                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
+                            "not found"));
+                }
+            } else if (prefixStaticType != null) {
+                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
+                        prefixStaticType.getStaticType(), true, methodName, argumentNodes.size());
+                boxType = prefixStaticType.getStaticType();
+
+                if (method == null) {
+                    throw createError(new IllegalArgumentException("static method " +
+                            "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
+                            "not found"));
+                }
+            } else {
+                throw createError(new IllegalStateException("value required: instead found no value"));
             }
 
             semanticScope.getScriptScope().markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
@@ -176,7 +194,7 @@ public class ECall extends AExpression {
             callSubNode.setLocation(getLocation());
             callSubNode.setExpressionType(valueType);
             callSubNode.setMethod(method);
-            callSubNode.setBox(prefixValueType);
+            callSubNode.setBox(boxType);
             expressionNode = callSubNode;
         }
 

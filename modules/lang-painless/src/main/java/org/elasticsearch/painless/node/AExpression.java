@@ -27,6 +27,7 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -66,12 +67,12 @@ public abstract class AExpression extends ANode {
 
     public static class Output {
 
-        /**
-         * Set to {@code true} when actual represents a static type and
-         * this expression does not generate a value. Set to {@code false}
-         * when actual is the type of value this expression generates.
-         */
-        boolean isStaticType = false;
+//        /**
+//         * Set to {@code true} when actual represents a static type and
+//         * this expression does not generate a value. Set to {@code false}
+//         * when actual is the type of value this expression generates.
+//         */
+//        boolean isStaticType = false;
 
         /**
          * Used to build a fully-qualified type name when the name comes
@@ -95,8 +96,8 @@ public abstract class AExpression extends ANode {
     /**
      * Standard constructor with location used for error tracking.
      */
-    AExpression(int indentifier, Location location) {
-        super(indentifier, location);
+    AExpression(int identifier, Location location) {
+        super(identifier, location);
     }
 
     /**
@@ -117,9 +118,13 @@ public abstract class AExpression extends ANode {
             throw expression.createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
         }
 
-        if (output.isStaticType) {
+        if (semanticScope.hasDecoration(expression, StaticType.class)) {
             throw expression.createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                    "[" + semanticScope.getDecoration(expression, ValueType.class).getValueCanonicalTypeName() + "]"));
+                    "[" + semanticScope.getDecoration(expression, StaticType.class).getStaticCanonicalTypeName() + "]"));
+        }
+
+        if (semanticScope.hasDecoration(expression, ValueType.class) == false) {
+            throw expression.createError(new IllegalStateException("value required: instead found no value"));
         }
 
         return output;

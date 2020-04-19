@@ -78,4 +78,20 @@ public class Decorations {
             return PainlessLookupUtility.typeToCanonicalTypeName(valueType);
         }
     }
+
+    public static class StaticType implements Decoration {
+        private final Class<?> staticType;
+
+        public StaticType(Class<?> staticType) {
+            this.staticType = Objects.requireNonNull(staticType);
+        }
+
+        public Class<?> getStaticType() {
+            return staticType;
+        }
+
+        public String getStaticCanonicalTypeName() {
+            return PainlessLookupUtility.typeToCanonicalTypeName(staticType);
+        }
+    }
 }

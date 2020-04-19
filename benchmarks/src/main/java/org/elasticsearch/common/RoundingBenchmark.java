@@ -1,6 +1,5 @@
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.Rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateFormatter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -46,6 +45,9 @@ public class RoundingBenchmark {
     @Param({"MONTH_OF_YEAR", "HOUR_OF_DAY"})
     public String timeUnit;
 
+    @Param({"1", "1000000"})
+    public int count;
+
     private long min;
     private long max; 
     private long[] dates;
@@ -56,7 +58,7 @@ public class RoundingBenchmark {
         String[] r = range.split(" to ");
         min = FORMATTER.parseMillis(r[0]);
         max = FORMATTER.parseMillis(r[1]);
-        dates = new long[1_000_000];
+        dates = new long[count];
         long date = min;
         long diff = (max - min) / dates.length;
         for (int i = 0; i < dates.length; i++) {
@@ -73,20 +75,17 @@ public class RoundingBenchmark {
             break;
         case "es":
             rounderBuilder = () -> rounding.rounder(min, max);
+            break;
+        default:
+            throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
         }
     }
 
     @Benchmark
-    public void million(Blackhole bh) {
+    public void benchmark(Blackhole bh) {
         LongUnaryOperator rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
             bh.consume(rounder.applyAsLong(dates[i]));
         }
-    }
-
-    @Benchmark
-    public long once() {
-        LongUnaryOperator rounder = rounderBuilder.get();
-        return rounder.applyAsLong(dates[0]);
     }
 }

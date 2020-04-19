@@ -395,17 +395,17 @@ public abstract class Rounding implements Writeable {
                     return offset.localToFirstUtc(unit.roundFloor(offset.utcToLocalTime(utcMillis)));
                 };
             }
-            return new RoundFromStartOfPrevious(lookup, unit.field.getBaseUnit().getDuration().toMillis());
+            return new NotRoundingToMidnight(lookup, unit.field.getBaseUnit().getDuration().toMillis());
         }
 
         /**
          * Resolves gaps and overlaps in the local timeline by rounding down from just before the gaps.
          */
-        private class RoundFromStartOfPrevious implements LongUnaryOperator, LocalTimeOffset.Strategy {
+        private class NotRoundingToMidnight implements LongUnaryOperator, LocalTimeOffset.Strategy {
             private final LongFunction<LocalTimeOffset> lookup;
             private final long unitMillis;
 
-            public RoundFromStartOfPrevious(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
+            public NotRoundingToMidnight(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
                 this.lookup = lookup;
                 this.unitMillis = unitMillis;
             }

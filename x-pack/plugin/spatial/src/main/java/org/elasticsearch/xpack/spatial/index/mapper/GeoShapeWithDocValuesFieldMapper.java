@@ -35,6 +35,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeDVIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 
 import java.io.IOException;
 import java.util.HashMap;

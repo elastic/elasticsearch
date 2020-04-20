@@ -4,13 +4,15 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 
 import java.io.IOException;
 

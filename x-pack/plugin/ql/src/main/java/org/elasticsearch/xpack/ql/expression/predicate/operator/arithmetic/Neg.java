@@ -53,7 +53,7 @@ public class Neg extends UnaryScalarFunction {
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".neg(" + script + ")");
+        return Scripts.formatTemplate(Scripts.QL_SCRIPTS + ".neg(" + script + ")");
     }
 
     @Override

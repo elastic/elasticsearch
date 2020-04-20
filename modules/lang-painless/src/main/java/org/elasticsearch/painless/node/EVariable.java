@@ -31,9 +31,9 @@ import java.util.Objects;
 /**
  * Represents a variable load/store.
  */
-public final class EVariable extends AStoreable {
+public class EVariable extends AExpression {
 
-    private final String name;
+    protected final String name;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -42,39 +42,29 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false && input.write == false) {
+            throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+        }
+
+        Output output = new Output();
+
         Variable variable = scope.getVariable(location, name);
 
-        if (write && variable.isFinal()) {
+        if (input.write && variable.isFinal()) {
             throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
         }
 
-        actual = variable.getType();
-    }
+        output.actual = variable.getType();
 
-    @Override
-    VariableNode write(ClassNode classNode) {
         VariableNode variableNode = new VariableNode();
 
         variableNode.setLocation(location);
-        variableNode.setExpressionType(actual);
+        variableNode.setExpressionType(output.actual);
         variableNode.setName(name);
 
-        return variableNode;
-    }
+        output.expressionNode = variableNode;
 
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(name);
+        return output;
     }
 }

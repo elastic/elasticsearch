@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -356,7 +356,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private boolean hasIngestPipeline(final ClusterState clusterState, final String pipelineId) {
         final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
-        final IngestMetadata ingestMetadata = clusterState.getMetaData().custom(IngestMetadata.TYPE);
+        final IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
 
         // we ensure that we both have the pipeline and its version represents the current (or later) version
         if (ingestMetadata != null) {
@@ -396,12 +396,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
-        final IndexTemplateMetaData template = clusterState.getMetaData().getTemplates().get(templateName);
+        final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);
     }
 
-    // FIXME this should use the IndexTemplateMetaDataUpgrader
+    // FIXME this should use the IndexTemplateMetadataUpgrader
     private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
@@ -510,7 +510,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 currents.add(".monitoring-alerts-" + TEMPLATE_VERSION);
 
                 Set<String> indices = new HashSet<>();
-                for (ObjectObjectCursor<String, IndexMetaData> index : clusterState.getMetaData().indices()) {
+                for (ObjectObjectCursor<String, IndexMetadata> index : clusterState.getMetadata().indices()) {
                     String indexName =  index.key;
 
                     if (Regex.simpleMatch(indexPatterns, indexName)) {

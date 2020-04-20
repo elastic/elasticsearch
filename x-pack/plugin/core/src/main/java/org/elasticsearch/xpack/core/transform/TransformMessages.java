@@ -56,6 +56,7 @@ public class TransformMessages {
     public static final String TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD =
         "Cannot change the current sync configuration of transform [{0}] from [{1}] to [{2}]";
     public static final String LOG_TRANSFORM_CONFIGURATION_BAD_QUERY = "Failed to parse query for transform";
+    public static final String LOG_TRANSFORM_CONFIGURATION_BAD_SCRIPT = "Failed to parse script for transform";
     public static final String LOG_TRANSFORM_CONFIGURATION_BAD_GROUP_BY = "Failed to parse group_by for pivot transform";
     public static final String LOG_TRANSFORM_CONFIGURATION_BAD_AGGREGATION = "Failed to parse aggregation for pivot transform";
     public static final String LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE =

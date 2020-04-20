@@ -77,6 +77,10 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy;
     }
 
+    /**
+     * Get the realm where the effective user comes from.
+     * The effective user is the es-security-runas-user if present or the authenticated user.
+     */
     public RealmRef getSourceRealm() {
         return lookedUpBy == null ? authenticatedBy : lookedUpBy;
     }
@@ -143,6 +147,14 @@ public class Authentication implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    /**
+     * Generates XContent without the start/end object.
+     */
+    public void toXContentFragment(XContentBuilder builder) throws IOException {
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
@@ -162,7 +174,6 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
-        return builder.endObject();
     }
 
     @Override

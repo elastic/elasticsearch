@@ -32,6 +32,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,18 +50,21 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     public static final String NAME = "top_metrics";
 
     private final SortBuilder<?> sort;
-    private final String metric;
+    private final int size;
+    private final List<String> metrics;
 
     /**
      * Build the request.
      * @param name the name of the metric
      * @param sort the sort key used to select the top metrics
-     * @param metric the name of the field to select
+     * @param size number of results to return per bucket
+     * @param metrics the names of the fields to select
      */
-    public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, String metric) {
+    public TopMetricsAggregationBuilder(String name, SortBuilder<?> sort, int size, String... metrics) {
         super(name);
         this.sort = sort;
-        this.metric = metric;
+        this.size = size;
+        this.metrics = Arrays.asList(metrics);
     }
 
     @Override
@@ -74,7 +79,12 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             builder.startArray("sort");
             sort.toXContent(builder, params);
             builder.endArray();
-            builder.startObject("metric").field("field", metric).endObject();
+            builder.field("size", size);
+            builder.startArray("metrics");
+            for (String metric: metrics) {
+                builder.startObject().field("field", metric).endObject();
+            }
+            builder.endArray();
         }
         return builder.endObject();
     }
@@ -85,13 +95,18 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
     }
 }

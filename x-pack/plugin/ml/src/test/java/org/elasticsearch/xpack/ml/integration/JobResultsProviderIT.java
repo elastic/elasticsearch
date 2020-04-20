@@ -18,8 +18,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -89,7 +90,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
@@ -106,14 +107,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        jobProvider = new JobResultsProvider(client(), builder.build());
+        jobProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver());
         ThreadPool tp = mock(ThreadPool.class);
         ClusterSettings clusterSettings = new ClusterSettings(builder.build(),
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                ClusterService.USER_DEFINED_META_DATA,
+                ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
@@ -141,8 +142,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertThat(mappingProperties.keySet(), hasItem("by_field_1"));
 
         // Check aliases have been created
-        assertThat(getAliases(sharedResultsIndex), containsInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
-            AnomalyDetectorsIndex.resultsWriteAlias(job1.getId())));
+        assertThat(getAliases(sharedResultsIndex), containsInAnyOrder(
+            AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job1.getId())
+        ));
 
         // Now let's create a second job to test things work when the index exists already
         assertThat(mappingProperties.keySet(), not(hasItem("by_field_2")));
@@ -186,8 +189,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertThat(mappingProperties.keySet(), hasItem("by_field"));
 
         // Check aliases have been created
-        assertThat(getAliases(customIndex), containsInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()),
-            AnomalyDetectorsIndex.resultsWriteAlias(job.getId())));
+        assertThat(getAliases(customIndex), containsInAnyOrder(
+            AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job.getId())
+        ));
     }
 
     @AwaitsFix(bugUrl ="https://github.com/elastic/elasticsearch/issues/40134")
@@ -223,9 +228,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
+        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetaData typeMappings = indexMappings.get(sharedResultsIndex);
+        MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
         assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
@@ -314,7 +319,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         List<Calendar> updatedCalendars = getCalendars(null);
         assertEquals(5, updatedCalendars.size());
         for (Calendar cal: updatedCalendars) {
-            assertThat("bar", not(isIn(cal.getJobIds())));
+            assertThat("bar", is(not(in(cal.getJobIds()))));
         }
 
         Calendar catFoo = getCalendar("cat foo calendar");
@@ -336,17 +341,17 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         updatedCalendars = getCalendars(null);
         assertEquals(5, updatedCalendars.size());
         for (Calendar cal: updatedCalendars) {
-            assertThat("bar", not(isIn(cal.getJobIds())));
-            assertThat("cat", not(isIn(cal.getJobIds())));
+            assertThat("bar", is(not(in(cal.getJobIds()))));
+            assertThat("cat", is(not(in(cal.getJobIds()))));
         }
     }
 
     private Map<String, Object> getIndexMappingProperties(String index) {
         GetMappingsRequest request = new GetMappingsRequest().indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
+        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetaData typeMappings = indexMappings.get(index);
+        MappingMetadata typeMappings = indexMappings.get(index);
         assertNotNull("expected " + index + " in " + indexMappings, typeMappings);
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
@@ -365,12 +370,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Set<String> getAliases(String index) {
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(
-            new GetAliasesRequest().indices(index)).actionGet();
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = getAliasesResponse.getAliases();
+        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
-        List<AliasMetaData> aliasMetaData = aliases.get(index);
-        return aliasMetaData.stream().map(AliasMetaData::alias).collect(Collectors.toSet());
+        List<AliasMetadata> aliasMetadataList = aliases.get(index);
+        for (AliasMetadata aliasMetadata : aliasMetadataList) {
+            assertThat("Anomalies aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
+        }
+        return aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toSet());
     }
 
     private List<Calendar> getCalendars(String jobId) throws Exception {

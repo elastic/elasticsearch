@@ -265,7 +265,7 @@ value of the variable/field and can result in data loss.
 |Remainder|%=
 |Addition|+=
 |Subtraction|-=
-|Left Shift|<<=
+|Left Shift|+++<<=+++
 |Right Shift|>>=
 |Unsigned Right Shift|>>>=
 |Bitwise And|&=

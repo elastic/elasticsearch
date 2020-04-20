@@ -21,8 +21,12 @@ public class LogstashInfoTransportAction extends XPackInfoFeatureTransportAction
     private final XPackLicenseState licenseState;
 
     @Inject
-    public LogstashInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                       Settings settings, XPackLicenseState licenseState) {
+    public LogstashInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.LOGSTASH.name(), transportService, actionFilters);
         this.enabled = XPackSettings.LOGSTASH_ENABLED.get(settings);
         this.licenseState = licenseState;

@@ -66,9 +66,9 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
-            termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(),
+            termVectorsRequest.routing(clusterState.metadata().resolveIndexRouting(termVectorsRequest.routing(),
                 termVectorsRequest.index()));
-            if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
+            if (!clusterState.metadata().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null,
                         new MultiTermVectorsResponse.Failure(termVectorsRequest.index(), termVectorsRequest.id(),
                         new IndexNotFoundException(termVectorsRequest.index()))));
@@ -76,7 +76,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             }
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
             if (termVectorsRequest.routing() == null &&
-                clusterState.getMetaData().routingRequired(concreteSingleIndex)) {
+                clusterState.getMetadata().routingRequired(concreteSingleIndex)) {
                 responses.set(i, new MultiTermVectorsItemResponse(null,
                         new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.id(),
                                 new RoutingMissingException(concreteSingleIndex, termVectorsRequest.id()))));

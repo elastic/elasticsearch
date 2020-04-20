@@ -46,6 +46,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
+    private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
+    private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
             "index_lifecycle_explain_response",
@@ -63,6 +65,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     (Long) (a[8]),
                     (Long) (a[9]),
                     (Long) (a[10]),
+                    (String) a[16],
+                    (String) a[17],
                     (BytesReference) a[11],
                     (PhaseExecutionInfo) a[12]
                 // a[13] == "age"
@@ -89,6 +93,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), AGE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_AUTO_RETRYABLE_ERROR_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_RETRY_COUNT_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REPOSITORY_NAME);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SNAPSHOT_NAME);
     }
 
     private final String index;
@@ -106,23 +112,28 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final PhaseExecutionInfo phaseExecutionInfo;
     private final Boolean isAutoRetryableError;
     private final Integer failedStepRetryCount;
+    private final String repositoryName;
+    private final String snapshotName;
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, Long lifecycleDate,
             String phase, String action, String step, String failedStep, Boolean isAutoRetryableError, Integer failedStepRetryCount,
-            Long phaseTime, Long actionTime, Long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
+            Long phaseTime, Long actionTime, Long stepTime, String repositoryName, String snapshotName, BytesReference stepInfo,
+            PhaseExecutionInfo phaseExecutionInfo) {
         return new IndexLifecycleExplainResponse(index, true, policyName, lifecycleDate, phase, action, step, failedStep,
-            isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
+            isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo,
+            phaseExecutionInfo);
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
         return new IndexLifecycleExplainResponse(index, false, null, null, null, null, null, null, null, null, null, null, null, null,
-            null);
+            null, null, null);
     }
 
     private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, Long lifecycleDate,
                                           String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
                                           Integer failedStepRetryCount, Long phaseTime, Long actionTime, Long stepTime,
-                                          BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
+                                          String repositoryName, String snapshotName, BytesReference stepInfo,
+                                          PhaseExecutionInfo phaseExecutionInfo) {
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
@@ -157,6 +168,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.failedStepRetryCount = failedStepRetryCount;
         this.stepInfo = stepInfo;
         this.phaseExecutionInfo = phaseExecutionInfo;
+        this.repositoryName = repositoryName;
+        this.snapshotName = snapshotName;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -181,6 +194,13 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 isAutoRetryableError = null;
                 failedStepRetryCount = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+               repositoryName = in.readOptionalString();
+               snapshotName = in.readOptionalString();
+            } else {
+                repositoryName = null;
+                snapshotName = null;
+            }
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -195,6 +215,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepTime = null;
             stepInfo = null;
             phaseExecutionInfo = null;
+            repositoryName = null;
+            snapshotName = null;
         }
     }
 
@@ -217,6 +239,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 out.writeOptionalBoolean(isAutoRetryableError);
                 out.writeOptionalVInt(failedStepRetryCount);
+            }
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+                out.writeOptionalString(repositoryName);
+                out.writeOptionalString(snapshotName);
             }
         }
     }
@@ -289,6 +315,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }
     }
 
+    public String getRepositoryName() {
+        return repositoryName;
+    }
+
+    public String getSnapshotName() {
+        return snapshotName;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -327,6 +361,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (failedStepRetryCount != null) {
                 builder.field(FAILED_STEP_RETRY_COUNT_FIELD.getPreferredName(), failedStepRetryCount);
             }
+            if (repositoryName != null) {
+                builder.field(REPOSITORY_NAME.getPreferredName(), repositoryName);
+            }
+            if (snapshotName != null) {
+                builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);
+            }
             if (stepInfo != null && stepInfo.length() > 0) {
                 builder.rawField(STEP_INFO_FIELD.getPreferredName(), stepInfo.streamInput(), XContentType.JSON);
             }
@@ -341,7 +381,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     @Override
     public int hashCode() {
         return Objects.hash(index, managedByILM, policyName, lifecycleDate, phase, action, step, failedStep, isAutoRetryableError,
-            failedStepRetryCount, phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
+            failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo, phaseExecutionInfo);
     }
 
     @Override
@@ -366,6 +406,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 Objects.equals(phaseTime, other.phaseTime) &&
                 Objects.equals(actionTime, other.actionTime) &&
                 Objects.equals(stepTime, other.stepTime) &&
+                Objects.equals(repositoryName, other.repositoryName) &&
+                Objects.equals(snapshotName, other.snapshotName) &&
                 Objects.equals(stepInfo, other.stepInfo) &&
                 Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
     }

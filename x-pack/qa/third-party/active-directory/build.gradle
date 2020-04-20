@@ -13,8 +13,6 @@ processTestResources {
   from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 // we have to repeat these patterns because the security test resources are effectively in the src of this p
 forbiddenPatterns {
   exclude '**/*.key'

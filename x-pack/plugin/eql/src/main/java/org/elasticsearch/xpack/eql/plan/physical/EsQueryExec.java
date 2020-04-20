@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.eql.execution.search.Querier;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Results;
@@ -49,7 +50,7 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public void execute(EqlSession session, ActionListener<Results> listener) {
-        throw new UnsupportedOperationException();
+        new Querier(session).query(output, queryContainer, index, listener);
     }
 
     @Override
@@ -76,5 +77,9 @@ public class EsQueryExec extends LeafExec {
     @Override
     public String nodeString() {
         return nodeName() + "[" + index + "," + queryContainer + "]";
+    }
+
+    public QueryContainer queryContainer() {
+        return queryContainer;
     }
 }

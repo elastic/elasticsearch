@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,12 +38,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
+
+    private static final Logger LOGGER = LogManager.getLogger(RootObjectMapper.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
@@ -130,7 +138,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                        || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
+                        || processField(builder, fieldName, fieldNode, parserContext)) {
                     iterator.remove();
                 }
             }
@@ -139,7 +147,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @SuppressWarnings("unchecked")
         protected boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode,
-                                       Version indexVersionCreated) {
+                                       ParserContext parserContext) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -163,7 +171,7 @@ public class RootObjectMapper extends ObjectMapper {
                           "template_1" : {
                               "match" : "*_test",
                               "match_mapping_type" : "string",
-                              "mapping" : { "type" : "string", "store" : "yes" }
+                              "mapping" : { "type" : "keyword", "store" : "yes" }
                           }
                       }
                   ]
@@ -183,6 +191,7 @@ public class RootObjectMapper extends ObjectMapper {
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
                     if (template != null) {
+                        validateDynamicTemplate(parserContext, template);
                         templates.add(template);
                     }
                 }
@@ -332,5 +341,115 @@ public class RootObjectMapper extends ObjectMapper {
         if (numericDetection.explicit() || includeDefaults) {
             builder.field("numeric_detection", numericDetection.value());
         }
+    }
+
+    private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
+                                                DynamicTemplate dynamicTemplate) {
+
+        if (containsSnippet(dynamicTemplate.getMapping(), "{name}")) {
+            // Can't validate template, because field names can't be guessed up front.
+            return;
+        }
+
+        final XContentFieldType[] types;
+        if (dynamicTemplate.getXContentFieldType() != null) {
+            types = new XContentFieldType[]{dynamicTemplate.getXContentFieldType()};
+        } else {
+            types = XContentFieldType.values();
+        }
+
+        Exception lastError = null;
+        boolean dynamicTemplateInvalid = true;
+
+        for (XContentFieldType contentFieldType : types) {
+            String defaultDynamicType = contentFieldType.defaultMappingType();
+            String mappingType = dynamicTemplate.mappingType(defaultDynamicType);
+            Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+            if (typeParser == null) {
+                lastError = new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
+                continue;
+            }
+
+            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
+            fieldTypeConfig.remove("type");
+            try {
+                Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                if (fieldTypeConfig.isEmpty()) {
+                    Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
+                    BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
+                    dummyBuilder.build(builderContext);
+                    dynamicTemplateInvalid = false;
+                    break;
+                } else {
+                    lastError = new IllegalArgumentException("Unused mapping attributes [" + fieldTypeConfig + "]");
+                }
+            } catch (Exception e) {
+                lastError = e;
+            }
+        }
+
+        final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
+        if (dynamicTemplateInvalid) {
+            String message = String.format(Locale.ROOT, "dynamic template [%s] has invalid content [%s]",
+                dynamicTemplate.getName(), Strings.toString(dynamicTemplate));
+            if (failInvalidDynamicTemplates) {
+                throw new IllegalArgumentException(message, lastError);
+            } else {
+                final String deprecationMessage;
+                if (lastError != null) {
+                     deprecationMessage = String.format(Locale.ROOT, "%s, caused by [%s]", message, lastError.getMessage());
+                } else {
+                    deprecationMessage = message;
+                }
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", deprecationMessage);
+            }
+        }
+    }
+
+    private static boolean containsSnippet(Map<?, ?> map, String snippet) {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            String key = entry.getKey().toString();
+            if (key.contains(snippet)) {
+                return true;
+            }
+
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                if (containsSnippet((Map<?, ?>) value, snippet)) {
+                    return true;
+                }
+            } else if (value instanceof List) {
+                if (containsSnippet((List<?>) value, snippet)) {
+                    return true;
+                }
+            } else if (value instanceof String) {
+                String valueString = (String) value;
+                if (valueString.contains(snippet)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsSnippet(List<?> list, String snippet) {
+        for (Object value : list) {
+            if (value instanceof Map) {
+                if (containsSnippet((Map<?, ?>) value, snippet)) {
+                    return true;
+                }
+            } else if (value instanceof List) {
+                if (containsSnippet((List<?>) value, snippet)) {
+                    return true;
+                }
+            } else if (value instanceof String) {
+                String valueString = (String) value;
+                if (valueString.contains(snippet)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

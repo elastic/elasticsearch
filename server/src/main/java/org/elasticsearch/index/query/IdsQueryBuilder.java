@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -137,16 +135,25 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (ids.isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+            // no mappings yet
+            return new MatchNoneQueryBuilder();
+        }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
-        if (idField == null) {
-            return new MatchNoDocsQuery("No mappings");
+        if (idField == null || ids.isEmpty()) {
+            throw new IllegalStateException("Rewrite first");
         }
-        if (this.ids.isEmpty()) {
-             return Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
-        } else {
-            return idField.termsQuery(new ArrayList<>(ids), context);
-        }
+        return idField.termsQuery(new ArrayList<>(ids), context);
     }
 
     @Override

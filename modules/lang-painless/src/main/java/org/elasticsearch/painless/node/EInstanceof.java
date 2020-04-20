@@ -33,13 +33,10 @@ import java.util.Objects;
  * <p>
  * Unlike java's, this works for primitive types too.
  */
-public final class EInstanceof extends AExpression {
-    private AExpression expression;
-    private final String type;
+public class EInstanceof extends AExpression {
 
-    private Class<?> resolvedType;
-    private Class<?> instanceType;
-    private boolean primitiveExpression;
+    protected final AExpression expression;
+    protected final String type;
 
     public EInstanceof(Location location, AExpression expression, String type) {
         super(location);
@@ -48,7 +45,23 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + type + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from instanceof with target type [" + type + "]"));
+        }
+
+        Class<?> resolvedType;
+        Class<?> expressionType;
+        boolean primitiveExpression;
+
+        Output output = new Output();
+
         // ensure the specified type is part of the definition
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -61,36 +74,31 @@ public final class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        expression.analyze(scriptRoot, scope);
-        expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, scope);
+        Input expressionInput = new Input();
+        Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        expressionInput.expected = expressionOutput.actual;
+        expression.cast(expressionInput, expressionOutput);
 
         // record if the expression returns a primitive
-        primitiveExpression = expression.actual.isPrimitive();
+        primitiveExpression = expressionOutput.actual.isPrimitive();
         // map to wrapped type for primitive types
-        instanceType = expression.actual.isPrimitive() ?
-            PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
+        expressionType = expressionOutput.actual.isPrimitive() ?
+            PainlessLookupUtility.typeToBoxedType(expressionOutput.actual) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        actual = boolean.class;
-    }
+        output.actual = boolean.class;
 
-    @Override
-    InstanceofNode write(ClassNode classNode) {
         InstanceofNode instanceofNode = new InstanceofNode();
 
-        instanceofNode.setChildNode(expression.write(classNode));
+        instanceofNode.setChildNode(expression.cast(expressionOutput));
 
         instanceofNode.setLocation(location);
-        instanceofNode.setExpressionType(actual);
-        instanceofNode.setInstanceType(instanceType);
+        instanceofNode.setExpressionType(output.actual);
+        instanceofNode.setInstanceType(expressionType);
         instanceofNode.setResolvedType(resolvedType);
         instanceofNode.setPrimitiveResult(primitiveExpression);
 
-        return instanceofNode;
-    }
+        output.expressionNode = instanceofNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(expression, type);
+        return output;
     }
 }

@@ -5,14 +5,19 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class InternalInferModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -30,17 +35,18 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
             new Request(
                 randomAlphaOfLength(10),
                 Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
-                randomInferenceConfig(),
+                randomInferenceConfigUpdate(),
                 randomBoolean()) :
             new Request(
                 randomAlphaOfLength(10),
                 randomMap(),
-                randomInferenceConfig(),
+                randomInferenceConfigUpdate(),
                 randomBoolean());
     }
 
-    private static InferenceConfig randomInferenceConfig() {
-        return randomFrom(RegressionConfigTests.randomRegressionConfig(), ClassificationConfigTests.randomClassificationConfig());
+    private static InferenceConfigUpdate randomInferenceConfigUpdate() {
+        return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
+            ClassificationConfigUpdateTests.randomClassificationConfigUpdate());
     }
 
     private static Map<String, Object> randomMap() {
@@ -60,4 +66,23 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, Version version) {
+        if (version.before(Version.V_7_8_0)) {
+            InferenceConfigUpdate update = null;
+            if (instance.getUpdate() instanceof ClassificationConfigUpdate) {
+                update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) instance.getUpdate().toConfig());
+            }
+            else if (instance.getUpdate() instanceof RegressionConfigUpdate) {
+                update = RegressionConfigUpdate.fromConfig((RegressionConfig) instance.getUpdate().toConfig());
+            }
+            else {
+                fail("unknown update type " + instance.getUpdate().getName());
+            }
+            return new Request(instance.getModelId(), instance.getObjectsToInfer(), update, instance.isPreviouslyLicensed());
+        }
+        return instance;
+    }
+
 }

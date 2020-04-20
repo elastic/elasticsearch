@@ -142,7 +142,7 @@
         id: "start_given_empty_dest_index"
 
 ---
-"Test start classification analysis when the dependent variable cardinality is too low or too high":
+"Test start classification analysis when the dependent variable cardinality is too low":
   - do:
       indices.create:
         index: index-with-dep-var-with-too-high-card
@@ -177,24 +177,5 @@
 
   - do:
       catch: /Field \[keyword_field\] must have at least \[2\] distinct values but there were \[1\]/
-      ml.start_data_frame_analytics:
-        id: "classification-cardinality-limits"
-
-  - do:
-      index:
-        index: index-with-dep-var-with-too-high-card
-        body: { numeric_field: 2.0, keyword_field: "class_b" }
-
-  - do:
-      index:
-        index: index-with-dep-var-with-too-high-card
-        body: { numeric_field: 3.0, keyword_field: "class_c" }
-
-  - do:
-      indices.refresh:
-        index: index-with-dep-var-with-too-high-card
-
-  - do:
-      catch: /Field \[keyword_field\] must have at most \[2\] distinct values but there were at least \[3\]/
       ml.start_data_frame_analytics:
         id: "classification-cardinality-limits"

@@ -167,12 +167,12 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
         });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
-        expected = expectScriptThrows(ClassCastException.class, false, () -> {
+        expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals("cc", exec("return (String)(char)'cc'"));
         });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));

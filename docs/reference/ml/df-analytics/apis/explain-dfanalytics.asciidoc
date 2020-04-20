@@ -58,15 +58,13 @@ they are not included in the explanation.
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
-
 [[ml-explain-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`data_frame_analytics_config`::
-  (Optional, object) Intended configuration of {dfanalytics-job}. Note that `id` 
-  and `dest` don't need to be provided in the context of this API.
+A {dataframe-analytics-config} as described in <<put-dfanalytics>>.
+Note that `id` and `dest` don't need to be provided in the context of this API.
 
-
+[role="child_attributes"]
 [[ml-explain-dfanalytics-results]]
 ==== {api-response-body-title}
 
@@ -74,11 +72,49 @@ The API returns a response that contains the following:
 
 `field_selection`::
 (array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=field-selection]
+An array of objects that explain selection for each field, sorted by 
+the field names.
++
+.Properties of `field_selection` objects
+[%collapsible%open]
+====
+`is_included`:::
+(boolean) Whether the field is selected to be included in the analysis.
+
+`is_required`:::
+(boolean) Whether the field is required.
+
+`feature_type`:::
+(string) The feature type of this field for the analysis. May be `categorical` 
+or `numerical`.
+
+`mapping_types`:::
+(string) The mapping types of the field.
+
+`name`:::
+(string) The field name.
+
+`reason`:::
+(string) The reason a field is not selected to be included in the analysis.
+====
 
 `memory_estimation`::
 (object) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=memory-estimation]
+An object containing the memory estimates.
++
+.Properties of `memory_estimation`
+[%collapsible%open]
+====
+`expected_memory_with_disk`:::
+(string) Estimated memory usage under the assumption that overflowing to disk is 
+allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
+than `expected_memory_without_disk` as using disk allows to limit the main 
+memory needed to perform {dfanalytics}.
+
+`expected_memory_without_disk`:::
+(string) Estimated memory usage under the assumption that the whole 
+{dfanalytics} should happen in memory (i.e. without overflowing to disk).
+====
 
 
 [[ml-explain-dfanalytics-example]]
@@ -88,14 +124,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=memory-estimation]
 --------------------------------------------------
 POST _ml/data_frame/analytics/_explain
 {
-  "data_frame_analytics_config": {
-    "source": {
-      "index": "houses_sold_last_10_yrs"
-    },
-    "analysis": {
-      "regression": {
-        "dependent_variable": "price"
-      }
+  "source": {
+    "index": "houses_sold_last_10_yrs"
+  },
+  "analysis": {
+    "regression": {
+      "dependent_variable": "price"
     }
   }
 }

@@ -10,15 +10,19 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Objects;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
-public abstract class RegexMatch<T> extends UnaryScalarFunction {
+public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFunction {
 
     private final T pattern;
     
@@ -54,8 +58,30 @@ public abstract class RegexMatch<T> extends UnaryScalarFunction {
         // right() is not directly foldable in any context but Like can fold it.
         return field().foldable();
     }
-    
+
     @Override
+    public Boolean fold() {
+        Object val = field().fold();
+        return RegexProcessor.RegexOperation.match(val, pattern().asJavaRegex());
+    }
+
+    @Override
+    protected Processor makeProcessor() {
+        return new RegexProcessor(pattern().asJavaRegex());
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        ScriptTemplate fieldAsScript = asScript(field());
+        return new ScriptTemplate(
+                formatTemplate(format("{sql}.", "regex({},{})", fieldAsScript.template())),
+                paramsBuilder()
+                        .script(fieldAsScript.params())
+                        .variable(pattern.asJavaRegex())
+                        .build(),
+                dataType());
+    }
+
     public boolean equals(Object obj) {
         return super.equals(obj) && Objects.equals(((RegexMatch<?>) obj).pattern(), pattern());
     }

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,6 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +40,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
@@ -88,7 +91,9 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final NamedXContentRegistry xContentRegistry,
         final Environment environment,
         final NodeEnvironment nodeEnvironment,
-        final NamedWriteableRegistry namedWriteableRegistry) {
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final IndexNameExpressionResolver expressionResolver,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled) {
             /*
              * Since we have set the service type to notify, by default systemd will wait up to sixty seconds for the process to send the

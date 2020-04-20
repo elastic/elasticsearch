@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -232,7 +232,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                 index = new IndexId(in);
             } else {
-                index = new IndexId(in.readString(), IndexMetaData.INDEX_UUID_NA_VALUE);
+                index = new IndexId(in.readString(), IndexMetadata.INDEX_UUID_NA_VALUE);
             }
         }
 
@@ -245,7 +245,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         /**
-         * Gets the {@link IndexId} of the recovery source. May contain {@link IndexMetaData#INDEX_UUID_NA_VALUE} as the index uuid if it
+         * Gets the {@link IndexId} of the recovery source. May contain {@link IndexMetadata#INDEX_UUID_NA_VALUE} as the index uuid if it
          * was created by an older version master in a mixed version cluster.
          *
          * @return IndexId

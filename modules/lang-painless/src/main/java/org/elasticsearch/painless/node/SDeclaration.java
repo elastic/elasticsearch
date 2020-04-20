@@ -30,12 +30,12 @@ import java.util.Objects;
 /**
  * Represents a single variable declaration.
  */
-public final class SDeclaration extends AStatement {
+public class SDeclaration extends AStatement {
 
-    private DType type;
+    protected final DType type;
     protected final String name;
     protected final boolean requiresDefault;
-    private AExpression expression;
+    protected final AExpression expression;
 
     public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
         super(location);
@@ -47,38 +47,31 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
-        type = resolvedType;
+
+        AExpression.Output expressionOutput = null;
 
         if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = resolvedType.getType();
+            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
-    }
 
-    @Override
-    DeclarationNode write(ClassNode classNode) {
         DeclarationNode declarationNode = new DeclarationNode();
-
-        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
-
+        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expressionOutput));
         declarationNode.setLocation(location);
-        declarationNode.setDeclarationType(((DResolvedType)type).getType());
+        declarationNode.setDeclarationType(resolvedType.getType());
         declarationNode.setName(name);
         declarationNode.setRequiresDefault(requiresDefault);
 
-        return declarationNode;
-    }
+        output.statementNode = declarationNode;
 
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
+        return output;
     }
 }

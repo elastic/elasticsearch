@@ -33,7 +33,15 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
     }
 
     @Override
-    public void testSelectFromIndexWithoutTypes() throws Exception {
+    public void testSelectColumnFromMissingIndex() throws Exception {
+        try (Connection c = esJdbc()) {
+            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT abc FROM test").executeQuery());
+            assertEquals("Found 1 problem\nline 1:17: Unknown index [test]", e.getMessage());
+        }
+    }
+
+    @Override
+    public void testSelectFromEmptyIndex() throws Exception {
         // Create an index without any types
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
@@ -41,9 +49,19 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
 
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
-            // see https://github.com/elastic/elasticsearch/issues/34719
-            //assertEquals("Found 1 problem\nline 1:15: [test] doesn't have any types so it is incompatible with sql", e.getMessage());
-            assertEquals("Found 1 problem\nline 1:15: Unknown index [test]", e.getMessage());
+            assertEquals("Found 1 problem\nline 1:8: Cannot determine columns for [*]", e.getMessage());
+        }
+    }
+
+    @Override
+    public void testSelectColumnFromEmptyIndex() throws Exception {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
+
+        try (Connection c = esJdbc()) {
+            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT abc FROM test").executeQuery());
+            assertEquals("Found 1 problem\nline 1:8: Unknown column [abc]", e.getMessage());
         }
     }
 

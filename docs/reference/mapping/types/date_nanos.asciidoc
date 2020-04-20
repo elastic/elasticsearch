@@ -71,7 +71,7 @@ GET my_index/_search
 {
   "docvalue_fields" : [
     {
-      "field" : "my_ip_field",
+      "field" : "date",
       "format": "strict_date_time" <7>
     }
   ]
@@ -94,6 +94,6 @@ same mapping parameters than with the `date` field can be used.
 [[date-nanos-limitations]]
 ==== Limitations
 
-Aggregations are still on millisecond resolution, even when using a
-`date_nanos` field.
+Aggregations are still on millisecond resolution, even when using a `date_nanos`
+field. This limitation also affects <<transforms,{transforms}>>.
 

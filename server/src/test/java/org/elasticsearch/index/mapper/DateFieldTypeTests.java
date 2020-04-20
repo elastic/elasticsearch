@@ -33,7 +33,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -41,13 +41,14 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
@@ -226,12 +227,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
-                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true);
+                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
@@ -249,12 +250,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
-                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-                null, null, () -> nowInMillis, null, null, () -> true);
+                null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";
@@ -268,6 +269,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
         assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+
+        instant1 = nowInMillis;
+        instant2 = instant1 + 100;
+        expected = new DateRangeIncludingNowQuery(new IndexOrDocValuesQuery(
+            LongPoint.newRangeQuery("field", instant1, instant2),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+        ));
+        assertEquals(expected,
+            ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -286,15 +296,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         docValuesField.setLongValue(1459641600000L);
         w.addDocument(doc);
         // Create the doc values reader
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        IndexSettings indexSettings =  new IndexSettings(IndexMetaData.builder("foo").settings(settings).build(), settings);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        IndexSettings indexSettings =  new IndexSettings(IndexMetadata.builder("foo").settings(settings).build(), settings);
         SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(indexSettings.getIndex(), "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);
         assertTrue(reader.leaves().size() > 0);
-        AtomicNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
+        LeafNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
         SortedNumericDocValues docValues = a.getLongValues();
         assertEquals(0, docValues.nextDoc());
         assertEquals(1, docValues.nextDoc());

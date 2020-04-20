@@ -30,9 +30,9 @@ import java.util.Objects;
 /**
  * Represents a static type target.
  */
-public final class EStatic extends AExpression {
+public class EStatic extends AExpression {
 
-    private final String type;
+    protected final String type;
 
     public EStatic(Location location, String type) {
         super(location);
@@ -41,26 +41,29 @@ public final class EStatic extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot write a value to a static type [" + type + "]"));
+        }
 
-        if (actual == null) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+        }
+
+        Output output = new Output();
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+
+        if (output.actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
-    }
 
-    @Override
-    StaticNode write(ClassNode classNode) {
         StaticNode staticNode = new StaticNode();
 
         staticNode.setLocation(location);
-        staticNode.setExpressionType(actual);
+        staticNode.setExpressionType(output.actual);
 
-        return staticNode;
-    }
+        output.expressionNode = staticNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(type);
+        return output;
     }
 }

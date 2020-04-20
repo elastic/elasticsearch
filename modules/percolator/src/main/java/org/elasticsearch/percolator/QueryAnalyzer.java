@@ -40,6 +40,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -149,6 +150,10 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+            if (parent instanceof DateRangeIncludingNowQuery) {
+                terms.add(Result.UNKNOWN);
+                return QueryVisitor.EMPTY_VISITOR;
+            }
             this.verified = isVerified(parent);
             if (occur == Occur.MUST || occur == Occur.FILTER) {
                 ResultBuilder builder = new ResultBuilder(true);

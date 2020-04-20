@@ -47,7 +47,6 @@ import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.LongFunction;
-import java.util.function.LongUnaryOperator;
 
 /**
  * A {@linkplain Writeable} strategy for rounding milliseconds since epoch.
@@ -157,6 +156,12 @@ public abstract class Rounding implements Writeable, PreparedRounding {
          */
         abstract long roundFloor(long utcMillis);
 
+        /**
+         * When looking up {@link LocalTimeOffset} go this many milliseconds
+         * in the past from the minimum millis since epoch that we plan to
+         * look up so that we can see transitions that we might have rounded
+         * down beyond. 
+         */
         abstract long extraLocalOffsetLookup();
 
         public byte getId() {
@@ -365,29 +370,50 @@ public abstract class Rounding implements Writeable, PreparedRounding {
 
         @Override
         public PreparedRounding prepare(long minUtcMillis, long maxUtcMillis) {
-            minUtcMillis -= unit.extraLocalOffsetLookup();
-            LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(
-                    timeZone, minUtcMillis, maxUtcMillis);
+            long minLookup = minUtcMillis - unit.extraLocalOffsetLookup();
+            long maxLookup = maxUtcMillis;
+
+            long unitMillis = 0;
+            if (false == unitRoundsToMidnight) {
+                /*
+                 * Units that round to midnight can round down from two
+                 * units worth of millis in the future to find the
+                 * nextRoundingValue. 
+                 */
+                unitMillis = unit.field.getBaseUnit().getDuration().toMillis();
+                maxLookup += 2 * unitMillis;
+            }
+            LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
             if (lookup == null) {
+                // Range too long, just use java.time
                 return prepareJavaTime();
             }
-            LocalTimeOffset firstOffset = lookup.apply(minUtcMillis);
-            LocalTimeOffset lastOffset = lookup.apply(maxUtcMillis);
+
+            LocalTimeOffset firstOffset = lookup.apply(minLookup);
+            LocalTimeOffset lastOffset = lookup.apply(maxLookup);
             if (firstOffset == lastOffset) {
-                return new FixedOffsetRounder(firstOffset);
+                // The time zone is effectively fixed
+                if (unitRoundsToMidnight) {
+                    if (firstOffset.millis() == 0) {
+                        new UtcToMidnightRounding();
+                    }
+                    return new FixedToMidnightRounding(firstOffset);
+                }
+                return new FixedNotToMidnightRounding(firstOffset, unitMillis);
             }
+
             if (unitRoundsToMidnight) {
-                return new ToMidnightRounder(lookup);
+                return new ToMidnightRounding(lookup);
             }
-            return new NotToMidnightRounder(lookup, unit.field.getBaseUnit().getDuration().toMillis());
+            return new NotToMidnightRounding(lookup, unitMillis);
         }
 
         @Override
         PreparedRounding prepareJavaTime() {
             if (unitRoundsToMidnight) {
-                return new JavaTimeToMidnightRounder();
+                return new JavaTimeToMidnightRounding();
             }
-            return new JavaTimeNotToMidnightRounder();
+            return new JavaTimeNotToMidnightRounding(unit.field.getBaseUnit().getDuration().toMillis());
         }
 
         @Override
@@ -422,10 +448,23 @@ public abstract class Rounding implements Writeable, PreparedRounding {
             return "Rounding[" + unit + " in " + timeZone + "]";
         }
 
-        private class FixedOffsetRounder implements PreparedRounding {
+        private class UtcToMidnightRounding implements PreparedRounding {
+            @Override
+            public long round(long utcMillis) {
+                return unit.roundFloor(utcMillis);
+            }
+
+            @Override
+            public long nextRoundingValue(long utcMillis) {
+                // TODO this is used in date range's collect so we should optimize it too
+                return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
+            }
+        }
+
+        private class FixedToMidnightRounding implements PreparedRounding {
             private final LocalTimeOffset offset;
 
-            public FixedOffsetRounder(LocalTimeOffset offset) {
+            FixedToMidnightRounding(LocalTimeOffset offset) {
                 this.offset = offset;
             }
 
@@ -436,15 +475,29 @@ public abstract class Rounding implements Writeable, PreparedRounding {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // NOCOMMIT implement
-                return prepareJavaTime().nextRoundingValue(utcMillis);
+                // TODO this is used in date range's collect so we should optimize it too
+                return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
             }
         }
 
-        private class ToMidnightRounder implements PreparedRounding {
+        private class FixedNotToMidnightRounding extends AbstractNotToMidnightRounding {
+            private final LocalTimeOffset offset;
+
+            FixedNotToMidnightRounding(LocalTimeOffset offset, long unitMillis) {
+                super(unitMillis);
+                this.offset = offset;
+            }
+
+            @Override
+            public long round(long utcMillis) {
+                return offset.localToUtcInThisOffset(unit.roundFloor(offset.utcToLocalTime(utcMillis)));
+            }
+        }
+
+        private class ToMidnightRounding implements PreparedRounding {
             private final LongFunction<LocalTimeOffset> lookup;
 
-            public ToMidnightRounder(LongFunction<LocalTimeOffset> lookup) {
+            public ToMidnightRounding(LongFunction<LocalTimeOffset> lookup) {
                 this.lookup = lookup;
             }
 
@@ -456,18 +509,17 @@ public abstract class Rounding implements Writeable, PreparedRounding {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // NOCOMMIT implement me
-                return prepareJavaTime().nextRoundingValue(utcMillis);
+                // TODO this is actually used date range's collect so we should optimize it
+                return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
             }
         }
 
-        private class NotToMidnightRounder implements PreparedRounding, LocalTimeOffset.Strategy {
+        private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
             private final LongFunction<LocalTimeOffset> lookup;
-            private final long unitMillis;
 
-            public NotToMidnightRounder(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
+            public NotToMidnightRounding(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
+                super(unitMillis);
                 this.lookup = lookup;
-                this.unitMillis = unitMillis;
             }
 
             @Override
@@ -475,12 +527,6 @@ public abstract class Rounding implements Writeable, PreparedRounding {
                 LocalTimeOffset offset = lookup.apply(utcMillis);
                 long roundedLocalMillis = unit.roundFloor(offset.utcToLocalTime(utcMillis));
                 return offset.localToUtc(roundedLocalMillis, this);
-            }
-
-            @Override
-            public long nextRoundingValue(long utcMillis) {
-                // NOCOMMIT implement
-                return prepareJavaTime().nextRoundingValue(utcMillis);
             }
 
             @Override
@@ -509,11 +555,10 @@ public abstract class Rounding implements Writeable, PreparedRounding {
             }
         }
 
-        private class JavaTimeToMidnightRounder implements PreparedRounding {
+        private class JavaTimeToMidnightRounding implements PreparedRounding {
             @Override
             public long round(long utcMillis) {
-                Instant instant = Instant.ofEpochMilli(utcMillis);
-                LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, timeZone);
+                LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), timeZone);
                 LocalDateTime localMidnight = truncateLocalDateTime(localDateTime);
                 return firstTimeOnDay(localMidnight);
             }
@@ -564,7 +609,11 @@ public abstract class Rounding implements Writeable, PreparedRounding {
             }
         }
 
-        private class JavaTimeNotToMidnightRounder implements PreparedRounding {
+        private class JavaTimeNotToMidnightRounding extends AbstractNotToMidnightRounding {
+            JavaTimeNotToMidnightRounding(long unitMillis) {
+                super(unitMillis);
+            }
+
             @Override
             public long round(long utcMillis) {
                 Instant instant = Instant.ofEpochMilli(utcMillis);
@@ -586,17 +635,6 @@ public abstract class Rounding implements Writeable, PreparedRounding {
                     // There was a transition in between the input time and the truncated time. Return to the transition time and
                     // round that down instead.
                     instant = previousTransitionInstant.minusNanos(1_000_000);
-                }
-            }
-
-            @Override
-            public long nextRoundingValue(long utcMillis) {
-                final long unitSize = unit.field.getBaseUnit().getDuration().toMillis();
-                final long roundedAfterOneIncrement = round(utcMillis + unitSize);
-                if (utcMillis < roundedAfterOneIncrement) {
-                    return roundedAfterOneIncrement;
-                } else {
-                    return round(utcMillis + 2 * unitSize);
                 }
             }
 
@@ -622,6 +660,24 @@ public abstract class Rounding implements Writeable, PreparedRounding {
                     // The chosen local time didn't happen. This means we were given a time in an hour (or a minute) whose start
                     // is missing due to an offset transition, so the time cannot be truncated.
                     return null;
+                }
+            }
+        }
+
+        private abstract class AbstractNotToMidnightRounding implements PreparedRounding {
+            protected final long unitMillis;
+
+            AbstractNotToMidnightRounding(long unitMillis) {
+                this.unitMillis = unitMillis;
+            }
+
+            @Override
+            public final long nextRoundingValue(long utcMillis) {
+                final long roundedAfterOneIncrement = round(utcMillis + unitMillis);
+                if (utcMillis < roundedAfterOneIncrement) {
+                    return roundedAfterOneIncrement;
+                } else {
+                    return round(utcMillis + 2 * unitMillis);
                 }
             }
         }

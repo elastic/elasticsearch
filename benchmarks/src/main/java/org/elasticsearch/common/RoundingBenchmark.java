@@ -16,7 +16,6 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 @Fork(1)
@@ -31,7 +30,7 @@ public class RoundingBenchmark {
     @Param({
         "2000-01-01 to 2020-01-01",
         "2000-01-01 to 2001-01-01",
-        "2000-01-01 to 2000-01-02",
+        "2000-10-01 to 2001-11-01",
         "2000-10-29 to 2000-10-30"
     })
     public String range;

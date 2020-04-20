@@ -53,8 +53,8 @@ The {ref}/indices-shrink-index.html[Shrink index API] can shrink an existing ind
 
 The <<docs-reindex,Reindex API>> can be used to reindex from an existing index to a new index with fewer shards. After the data has been reindexed, the initial oversharded index can be deleted.
 
-[float]
-==== 6. Reindex indices from shorter periods into longer periods
+[[reindex-indices-from-shorter-periods-into-longer-periods]]
+==== Reindex indices from shorter periods into longer periods
 
 The <<docs-reindex,Reindex API>> can be used to reindex multiple small indices covering shorter time periods into a larger index covering a longer time period. For example, daily indices from October with naming patterns such as `foo-2019.10.11` could be combined into a monthly `foo-2019.10` index, like this:
 

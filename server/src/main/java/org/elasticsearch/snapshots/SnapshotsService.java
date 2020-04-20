@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -607,7 +608,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotFromRepository(entry.repository(), entry.getSnapshots(), null, entry.repositoryStateId(),
+            deleteSnapshotsFromRepository(entry.repository(), entry.getSnapshots(), null, entry.repositoryStateId(),
                     state.nodes().getMinNodeVersion());
         }
     }
@@ -991,7 +992,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Deletes a snapshot from the repository or aborts a running snapshot.
      * First checks if the snapshot is still running and if so cancels the snapshot and then deletes it from the repository.
      * If the snapshot is not running, moves to trying to find a matching {@link Snapshot} for the given name in the repository and if
-     * one is found deletes it by invoking {@link #deleteCompletedSnapshot}.
+     * one is found deletes it by invoking {@link #deleteCompletedSnapshots}.
      *
      * @param repositoryName  repositoryName
      * @param snapshotNames   snapshotNames
@@ -1078,20 +1079,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (runningSnapshot == null) {
                     threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                        repositoriesService.repository(repositoryName).getRepositoryData(
-                            ActionListener.wrap(repositoryData -> {
-                                final String[] snapshotNamePatterns = snapshotNames.toArray(Strings.EMPTY_ARRAY);
-                                List<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
-                                    .stream()
-                                    .filter(s -> Regex.simpleMatch(snapshotNamePatterns, s.getName()))
-                                    .collect(Collectors.toList());
-                                // If we can't find the snapshot by the given name in the repository at all or if the snapshot we find in
-                                // the repository is not the one we expected to find when waiting for a finishing snapshot we fail.
-                                if (matchedEntry.isEmpty() == false) {
-                                    deleteCompletedSnapshot(matchedEntry, repositoryName, repositoryData.getGenId(), Priority.NORMAL, l);
-                                } else {
-                                    l.onFailure(new SnapshotMissingException(repositoryName, snapshotNames.toString()));
-                                }
+                            repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData -> {
+                                final List<SnapshotId> foundSnapshots = matchingSnapshotIds(repositoryData, snapshotNames, repositoryName);
+                                deleteCompletedSnapshots(foundSnapshots, repositoryName, repositoryData.getGenId(), Priority.NORMAL, l);
                             }, l::onFailure))));
                     return;
                 }
@@ -1099,14 +1089,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 addListener(runningSnapshot, ActionListener.wrap(
                     result -> {
                         logger.debug("deleted snapshot completed - deleting files");
-                        // TODO: resolve other snapshots as well
-                        deleteCompletedSnapshot(Collections.singletonList(result.v2().snapshotId()), repositoryName,
-                                result.v1().getGenId(), Priority.IMMEDIATE, listener);
+                        final List<SnapshotId> foundSnapshots = matchingSnapshotIds(result.v1(), snapshotNames, repositoryName);
+                        assert foundSnapshots.contains(runningSnapshot.getSnapshotId()) : "Expected new RepositoryData to contain ["
+                                + runningSnapshot + "] but it only contained snapshots " + result.v1().getSnapshotIds();
+                        deleteCompletedSnapshots(foundSnapshots, repositoryName, result.v1().getGenId(), Priority.IMMEDIATE, listener);
                     },
                     e -> {
                         if (abortedDuringInit) {
                             logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
-                            listener.onResponse(null);
+                            final Collection<String> remainingPatterns = snapshotNames.stream()
+                                    .filter(name -> runningSnapshot.getSnapshotId().getName().equals(name)).collect(Collectors.toList());
+                            if (remainingPatterns.isEmpty()) {
+                                listener.onResponse(null);
+                                return;
+                            }
+                            threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+                                    repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
+                                            deleteCompletedSnapshots(
+                                                    matchingSnapshotIds(repositoryData, remainingPatterns, repositoryName), repositoryName,
+                                                    repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
                         } else {
                             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
                                 != null) {
@@ -1123,6 +1124,30 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ));
             }
         });
+    }
+
+    private static List<SnapshotId> matchingSnapshotIds(RepositoryData repositoryData, Collection<String> snapshotsOrPatterns,
+                                                        String repositoryName) {
+        final Map<String, SnapshotId> allSnapshotIds = repositoryData.getSnapshotIds().stream().collect(
+                Collectors.toMap(SnapshotId::getName, Function.identity()));
+        final List<SnapshotId> foundSnapshots = new ArrayList<>();
+        for (String snapshotOrPattern : snapshotsOrPatterns) {
+            if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                final SnapshotId foundId = allSnapshotIds.get(snapshotOrPattern);
+                if (foundId == null) {
+                    throw new SnapshotMissingException(repositoryName, snapshotOrPattern);
+                } else {
+                    foundSnapshots.add(allSnapshotIds.get(snapshotOrPattern));
+                }
+            } else {
+                for (Map.Entry<String, SnapshotId> entry : allSnapshotIds.entrySet()) {
+                    if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
+                        foundSnapshots.add(entry.getValue());
+                    }
+                }
+            }
+        }
+        return foundSnapshots;
     }
 
     // Return in-progress snapshot entry by name and repository in the given cluster state or null if none is found
@@ -1154,8 +1179,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryStateId Repository generation to base the delete on
      * @param listener          Listener to complete when done
      */
-    private void deleteCompletedSnapshot(List<SnapshotId> snapshotIds, String repoName, long repositoryStateId, Priority priority,
-                                         ActionListener<Void> listener) {
+    private void deleteCompletedSnapshots(List<SnapshotId> snapshotIds, String repoName, long repositoryStateId, Priority priority,
+                                          ActionListener<Void> listener) {
         logger.debug("deleting snapshots {} assuming repository generation [{}] and with priority [{}]", snapshotIds, repositoryStateId,
             priority);
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
@@ -1212,7 +1237,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                deleteSnapshotFromRepository(repoName, snapshotIds, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
+                deleteSnapshotsFromRepository(repoName, snapshotIds, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
             }
         });
     }
@@ -1280,11 +1305,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
      * @param minNodeVersion    minimum node version in the cluster
      */
-    private void deleteSnapshotFromRepository(String repoName, Collection<SnapshotId> snapshotIds, @Nullable ActionListener<Void> listener,
-                                              long repositoryStateId, Version minNodeVersion) {
+    private void deleteSnapshotsFromRepository(String repoName, Collection<SnapshotId> snapshotIds, @Nullable ActionListener<Void> listener,
+                                               long repositoryStateId, Version minNodeVersion) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(repoName);
-            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshot(snapshotIds,
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(snapshotIds,
                 repositoryStateId,
                 minCompatibleVersion(minNodeVersion, repoName, repositoryData, snapshotIds),
                 ActionListener.wrap(v -> {

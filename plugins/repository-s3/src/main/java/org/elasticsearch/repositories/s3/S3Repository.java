@@ -249,12 +249,12 @@ class S3Repository extends BlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshot(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
                                 ActionListener<Void> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.deleteSnapshot(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     /**

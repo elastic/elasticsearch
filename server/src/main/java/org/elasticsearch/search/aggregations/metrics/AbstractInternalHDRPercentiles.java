@@ -86,7 +86,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return value(Double.parseDouble(name));
     }
 
-    DocValueFormat formatter() {
+    public DocValueFormat formatter() {
         return format;
     }
 
@@ -96,8 +96,16 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return state.getEstimatedFootprintInBytes();
     }
 
-    DoubleHistogram getState() {
+    public DoubleHistogram getState() {
         return state;
+    }
+
+    public double[] getKeys() {
+        return keys;
+    }
+
+    public boolean keyed() {
+        return keyed;
     }
 
     @Override

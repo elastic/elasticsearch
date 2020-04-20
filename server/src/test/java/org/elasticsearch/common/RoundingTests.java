@@ -233,7 +233,7 @@ public class RoundingTests extends ESTestCase {
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
             long[] bounds = randomDateBounds();
-            LongUnaryOperator rounder = rounding.rounder(bounds[0], bounds[1]);
+            PreparedRounding prepared = rounding.prepare(bounds[0], bounds[1]);
 
             // Check that rounding is internally consistent and consistent with nextRoundingValue
             long date = dateBetween(bounds[0], bounds[1]);
@@ -242,8 +242,8 @@ public class RoundingTests extends ESTestCase {
             if (randomBoolean()) {
                 nastyDate(date, tz, unitMillis);
             }
-            final long roundedDate = rounder.applyAsLong(date);
-            final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
+            final long roundedDate = prepared.round(date);
+            final long nextRoundingValue = prepared.nextRoundingValue(roundedDate);
 
             assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
 
@@ -259,14 +259,22 @@ public class RoundingTests extends ESTestCase {
             }
 
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
-            LongUnaryOperator javaTimeRounder = rounding.javaTimeRounder();
+            PreparedRounding javaTimeRounding = rounding.prepareJavaTime();
             for (int d = 0; d < 1000; d++) {
                 date = dateBetween(bounds[0], bounds[1]);
-                long javaRounded = javaTimeRounder.applyAsLong(date);
-                long esRounded = rounder.applyAsLong(date);
+                long javaRounded = javaTimeRounding.round(date);
+                long esRounded = prepared.round(date);
                 if (javaRounded != esRounded) {
                     fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
                             + Instant.ofEpochMilli(javaRounded) + "] but instead rounded to [" + Instant.ofEpochMilli(esRounded) + "]");
+                }
+                long javaNextRoundingValue = javaTimeRounding.nextRoundingValue(date);
+                long esNextRoundingValue = prepared.nextRoundingValue(date);
+                if (javaNextRoundingValue != esNextRoundingValue) {
+                    fail("Expected [" + rounding + "] to round [" + Instant.ofEpochMilli(date) + "] to ["
+                            + Instant.ofEpochMilli(esRounded) + "] and nextRoundingValue to be ["
+                            + Instant.ofEpochMilli(javaNextRoundingValue) + "] but instead was to ["
+                            + Instant.ofEpochMilli(esNextRoundingValue) + "]");
                 }
             }
         }

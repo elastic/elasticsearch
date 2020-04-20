@@ -51,7 +51,7 @@ public class RoundingBenchmark {
     private long min;
     private long max; 
     private long[] dates;
-    private Supplier<LongUnaryOperator> rounderBuilder;
+    private Supplier<PreparedRounding> rounderBuilder;
 
     @Setup
     public void buildDates() {
@@ -71,10 +71,10 @@ public class RoundingBenchmark {
         Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.valueOf(timeUnit)).timeZone(ZoneId.of(zone)).build();
         switch (rounder) {
         case "java time":
-            rounderBuilder = () -> rounding.javaTimeRounder();
+            rounderBuilder = rounding::prepareJavaTime;
             break;
         case "es":
-            rounderBuilder = () -> rounding.rounder(min, max);
+            rounderBuilder = () -> rounding.prepare(min, max);
             break;
         default:
             throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
@@ -82,10 +82,18 @@ public class RoundingBenchmark {
     }
 
     @Benchmark
-    public void benchmark(Blackhole bh) {
-        LongUnaryOperator rounder = rounderBuilder.get();
+    public void round(Blackhole bh) {
+        PreparedRounding rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.applyAsLong(dates[i]));
+            bh.consume(rounder.round(dates[i]));
+        }
+    }
+
+    @Benchmark
+    public void nextRoundingValue(Blackhole bh) {
+        PreparedRounding rounder = rounderBuilder.get();
+        for (int i = 0; i < dates.length; i++) {
+            bh.consume(rounder.nextRoundingValue(dates[i]));
         }
     }
 }

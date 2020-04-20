@@ -998,7 +998,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshotNames   snapshotNames
      * @param listener        listener
      */
-    public void deleteSnapshot(final String repositoryName, final Collection<String> snapshotNames, final ActionListener<Void> listener) {
+    public void deleteSnapshots(final String repositoryName, final Collection<String> snapshotNames, final ActionListener<Void> listener) {
         logger.info("deleting snapshots {} from repository [{}]", snapshotNames, repositoryName);
 
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(Priority.NORMAL) {
@@ -1168,7 +1168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Deletes a snapshot that is assumed to be in the repository and not tracked as in-progress in the cluster state.
+     * Deletes snapshots that are assumed to be in the repository and not tracked as in-progress in the cluster state.
      *
      * @param snapshotIds       Snapshots to delete
      * @param repoName          Repository name
@@ -1190,7 +1190,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
                 if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
                     throw new ConcurrentSnapshotExecutionException(repoName, snapshotIds.toString(),
-                        "cannot delete snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+                        "cannot delete snapshots while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
                 }
                 RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
                 if (restoreInProgress != null) {

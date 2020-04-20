@@ -38,7 +38,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                           ActionListener<Void> listener) {
         if (requestInfo.getRequest() instanceof IndicesRequest) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            if (supports(indicesRequest) && licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            boolean shouldIntercept = licenseState.isSecurityEnabled() && licenseState.isDocumentAndFieldLevelSecurityAllowed();
+            if (supports(indicesRequest) && shouldIntercept) {
                 final IndicesAccessControl indicesAccessControl =
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 for (String index : indicesRequest.indices()) {

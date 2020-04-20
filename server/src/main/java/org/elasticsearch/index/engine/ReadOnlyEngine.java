@@ -41,6 +41,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -175,6 +176,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
+        assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES), Lucene.SOFT_DELETES_FIELD);
     }
 
@@ -485,6 +487,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected static DirectoryReader openDirectory(Directory directory) throws IOException {
+        assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
         final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
         return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
     }

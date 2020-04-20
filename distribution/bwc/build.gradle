@@ -149,7 +149,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           spec.workingDir = checkoutDir
           spec.commandLine "git", "checkout", refspec
         }
-        String checkoutHash = GlobalBuildInfoPlugin.gitRevision(checkoutDir)
+        String checkoutHash = GlobalBuildInfoPlugin.gitInfo(checkoutDir).revision
         logger.lifecycle("Checkout hash for ${project.path} is ${checkoutHash}")
         file("${project.buildDir}/refspec").text = checkoutHash
       }

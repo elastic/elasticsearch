@@ -109,7 +109,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
+                internalCluster().validateClusterFormed();
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
@@ -289,7 +289,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
                     @Override
                     public Settings onNodeStopped(String nodeName) throws Exception {
-                        ensureClusterSizeConsistency();
+                        internalCluster().validateClusterFormed();
                         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                         assertAcked(client().admin().indices().prepareDelete(OTHER_INDEX_NAME));
                         return super.onNodeStopped(nodeName);
@@ -375,6 +375,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         ensureGreen(indices);
     }
 
+    /**
+     * Creates a number of dangling indices by first creating then, then stopping a data node
+     * and deleting the indices while the node is stopped.
+     * @param indices the indices to create and delete
+     * @return the name of the stopped node
+     */
     private String createDanglingIndices(String... indices) throws Exception {
         createIndices(indices);
 
@@ -390,7 +396,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                ensureClusterSizeConsistency();
+                internalCluster().validateClusterFormed();
                 stoppedNodeName.set(nodeName);
                 for (String index : indices) {
                     assertAcked(client().admin().indices().prepareDelete(index));

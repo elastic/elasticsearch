@@ -1078,11 +1078,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (runningSnapshot == null) {
-                    threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                            repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData -> {
-                                final List<SnapshotId> foundSnapshots = matchingSnapshotIds(repositoryData, snapshotNames, repositoryName);
-                                deleteCompletedSnapshots(foundSnapshots, repositoryName, repositoryData.getGenId(), Priority.NORMAL, l);
-                            }, l::onFailure))));
+                    resolveAndDeleteSnapshots(snapshotNames, listener, repositoryName);
                     return;
                 }
                 logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
@@ -1103,11 +1099,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 listener.onResponse(null);
                                 return;
                             }
-                            threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                                    repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
-                                            deleteCompletedSnapshots(
-                                                    matchingSnapshotIds(repositoryData, remainingPatterns, repositoryName), repositoryName,
-                                                    repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
+                            resolveAndDeleteSnapshots(remainingPatterns, listener, repositoryName);
                         } else {
                             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
                                 != null) {
@@ -1124,6 +1116,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ));
             }
         });
+    }
+
+    private void resolveAndDeleteSnapshots(Collection<String> snapshotsOrPatterns, ActionListener<Void> listener, String repositoryName) {
+        threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+                repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
+                        deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotsOrPatterns, repositoryName), repositoryName,
+                                repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
     }
 
     private static List<SnapshotId> matchingSnapshotIds(RepositoryData repositoryData, Collection<String> snapshotsOrPatterns,
@@ -1157,14 +1156,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (snapshots == null) {
             return null;
         }
-        for (String snapshotName : snapshotNames) {
-            for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                if (entry.repository().equals(repositoryName)) {
-                    if (Regex.isSimpleMatchPattern(snapshotName) && entry.snapshot().getSnapshotId().getName().equals(snapshotName)) {
-                        return entry;
-                    } else if (Regex.simpleMatch(snapshotName, entry.snapshot().getSnapshotId().getName())) {
-                        return entry;
-                    }
+        final String[] snapshotsOrPatterns = snapshotNames.toArray(Strings.EMPTY_ARRAY);
+        for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+            if (entry.repository().equals(repositoryName)) {
+                if (Regex.simpleMatch(snapshotsOrPatterns, entry.snapshot().getSnapshotId().getName())) {
+                    return entry;
                 }
             }
         }
@@ -1259,8 +1255,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Version minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final Repository repository = repositoriesService.repository(repositoryName);
-        for (SnapshotId snapshotId :
-            snapshotIds.stream().filter(snapshotId -> excluded.contains(snapshotId) == false).collect(Collectors.toList())) {
+        for (SnapshotId snapshotId : snapshotIds.stream().filter(snapshotId -> excluded == null || excluded.contains(snapshotId) == false)
+                .collect(Collectors.toList())) {
             final Version known = repositoryData.getVersion(snapshotId);
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs
             if (known == null) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.dangling.import_index;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

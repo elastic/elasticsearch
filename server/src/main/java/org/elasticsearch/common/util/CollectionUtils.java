@@ -42,9 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {

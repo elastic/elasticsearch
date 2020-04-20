@@ -44,7 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptySet;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 
 /** A dummy repository for testing which just needs restore overridden */
@@ -91,7 +91,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
         listener.onResponse(new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.singletonMap(indexId, emptySet()), ShardGenerations.EMPTY));
+            Collections.singletonMap(indexId, emptyList()), ShardGenerations.EMPTY));
     }
 
     @Override

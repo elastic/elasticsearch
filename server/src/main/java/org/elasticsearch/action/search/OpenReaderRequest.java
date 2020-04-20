@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -48,8 +49,8 @@ public final class OpenReaderRequest extends ActionRequest implements IndicesReq
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     public OpenReaderRequest(String[] indices, IndicesOptions indicesOptions, TimeValue keepAlive, String routing, String preference) {
-        this.indices = indices;
-        this.indicesOptions = indicesOptions;
+        this.indices = Objects.requireNonNull(indices);
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
         this.keepAlive = keepAlive;
         this.routing = routing;
         this.preference = preference;
@@ -77,8 +78,11 @@ public final class OpenReaderRequest extends ActionRequest implements IndicesReq
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+        if (indices.length == 0) {
+            validationException = addValidationError("[index] is not specified", validationException);
+        }
         if (keepAlive == null) {
-            validationException = addValidationError("keep_alive is not specified", validationException);
+            validationException = addValidationError("[keep_alive] is not specified", validationException);
         }
         return validationException;
     }

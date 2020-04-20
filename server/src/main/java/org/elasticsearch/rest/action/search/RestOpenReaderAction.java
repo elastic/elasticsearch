@@ -43,9 +43,7 @@ public class RestOpenReaderAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_open_reader"),
-            new Route(POST, "/{index}/_open_reader"));
+        return List.of(new Route(POST, "/{index}/_open_reader"));
     }
 
     @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -170,6 +171,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats getRecoveryStats() {
         return stats.getRecoveryStats();
+    }
+
+    @Nullable
+    public BulkStats getBulk() {
+        return stats.getBulk();
     }
 
     @Override

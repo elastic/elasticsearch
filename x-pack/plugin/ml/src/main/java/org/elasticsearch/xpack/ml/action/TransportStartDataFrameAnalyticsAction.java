@@ -643,9 +643,9 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, StartDataFrameAnalyticsAction.TaskParams params,
                                      PersistentTaskState state) {
-            logger.info("[{}] Starting data frame analytics", params.getId());
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
             DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? null : analyticsTaskState.getState();
+            logger.info("[{}] Starting data frame analytics from state [{}]", params.getId(), analyticsState);
 
             // If we are "stopping" there is nothing to do and we should stop
             if (DataFrameAnalyticsState.STOPPING.equals(analyticsState)) {

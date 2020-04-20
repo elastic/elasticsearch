@@ -220,9 +220,10 @@ public final class RepositoryData {
             if (snapshotIds == null) {
                 allIndexSnapshots.put(indexId, List.of(snapshotId));
             } else {
-                final List<SnapshotId> copy = new ArrayList<>(snapshotIds);
+                final List<SnapshotId> copy = new ArrayList<>(snapshotIds.size() + 1);
+                copy.addAll(snapshotIds);
                 copy.add(snapshotId);
-                allIndexSnapshots.put(indexId, List.copyOf(copy));
+                allIndexSnapshots.put(indexId, Collections.unmodifiableList(copy));
             }
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, newSnapshotVersions, allIndexSnapshots,
@@ -275,7 +276,7 @@ public final class RepositoryData {
                 }
                 remaining = new ArrayList<>(snapshotIds);
                 remaining.remove(listIndex);
-                remaining = List.copyOf(remaining);
+                remaining = Collections.unmodifiableList(remaining);
             } else {
                 remaining = snapshotIds;
             }
@@ -523,7 +524,7 @@ public final class RepositoryData {
                             }
                         }
                         assert indexId != null;
-                        indexSnapshots.put(indexId, List.copyOf(snapshotIds));
+                        indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
                         for (int i = 0; i < gens.size(); i++) {
                             shardGenerations.put(indexId, i, gens.get(i));
                         }

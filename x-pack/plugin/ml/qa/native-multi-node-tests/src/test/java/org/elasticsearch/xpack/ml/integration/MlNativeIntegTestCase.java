@@ -79,7 +79,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -98,7 +97,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return Arrays.asList(
             LocalStateCompositeXPackPlugin.class,
             Netty4Plugin.class,
-            ReindexPlugin.class,
             // The monitoring plugin requires script and gsub processors to be loaded
             IngestCommonPlugin.class,
             // The monitoring plugin script processor references painless. Include this for script compilation.
@@ -133,7 +131,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        builder.put(ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put("xpack.security.transport.ssl.enabled", true);

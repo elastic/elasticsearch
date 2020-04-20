@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.rest.CompatibleConstants;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -82,7 +83,7 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             doSection.setIgnoreWarnings(true);
 
             String compatibleHeader = createCompatibleHeader();
-            // for cat apis accept headers would break tests which expect txt response
+            //TODO for cat apis accept headers would break tests which expect txt response
             if (doSection.getApiCallSection().getApi().startsWith("cat") == false) {
                 doSection.getApiCallSection()
                     .addHeaders(
@@ -99,7 +100,7 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
     }
 
     private static String createCompatibleHeader() {
-        return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleConstants.COMPATIBLE_VERSION;
+        return "application/vnd.elasticsearch+json;compatible-with=" + Version.minimumRestCompatibilityVersion().major;
     }
 
     private static Map<ClientYamlTestCandidate, ClientYamlTestCandidate> getLocalCompatibilityTests() throws Exception {

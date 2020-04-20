@@ -369,6 +369,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         nonReplicatedSettings.add(IndexMetadata.INDEX_PRIORITY_SETTING);
         nonReplicatedSettings.add(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS);
         nonReplicatedSettings.add(IndexMetadata.INDEX_HIDDEN_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.PREFER_V2_TEMPLATES_SETTING);
 
         nonReplicatedSettings.add(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING);
         nonReplicatedSettings.add(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);

@@ -65,22 +65,22 @@ to the voting configuration exclusion list using the
 # Add node to voting configuration exclusions list and wait for the system
 # to auto-reconfigure the node out of the voting configuration up to the
 # default timeout of 30 seconds
-POST /_cluster/voting_config_exclusions/node_name
+POST /_cluster/voting_config_exclusions?node_names=node_name
 
 # Add node to voting configuration exclusions list and wait for
 # auto-reconfiguration up to one minute
-POST /_cluster/voting_config_exclusions/node_name?timeout=1m
+POST /_cluster/voting_config_exclusions?node_names=node_name&timeout=1m
 --------------------------------------------------
 // TEST[skip:this would break the test cluster if executed]
 
-The node that should be added to the exclusions list is specified using
-<<cluster-nodes,node filters>> in place of `node_name` here. If a call to the
-voting configuration exclusions API fails, you can safely retry it.  Only a
-successful response guarantees that the node has actually been removed from the
-voting configuration and will not be reinstated. If it's the active master that
-was removed from the voting configuration, then it will abdicate to another
-master-eligible node that's still in the voting configuration, if such a node
-is available.
+The nodes that should be added to the exclusions list are specified by name
+using the `?node_names` query parameter, or by their persistent node IDs using
+the `?node_ids` query parameter. If a call to the voting configuration
+exclusions API fails, you can safely retry it. Only a successful response
+guarantees that the node has actually been removed from the voting configuration
+and will not be reinstated. If the elected master node is excluded from the
+voting configuration then it will abdicate to another master-eligible node that
+is still in the voting configuration if such a node is available.
 
 Although the voting configuration exclusions API is most useful for down-scaling
 a two-node to a one-node cluster, it is also possible to use it to remove
@@ -119,7 +119,7 @@ operation.
 If a node is excluded from the voting configuration because it is to be shut
 down permanently, its exclusion can be removed after it is shut down and removed
 from the cluster. Exclusions can also be cleared if they were created in error
-or were only required temporarily:
+or were only required temporarily by specifying `?wait_for_removal=false`.
 
 [source,console]
 --------------------------------------------------

@@ -131,7 +131,7 @@ public class S3ClientSettingsTests extends ESTestCase {
 
         {
             final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type", Settings.EMPTY));
-            assertTrue(refinedSettings == baseSettings);
+            assertSame(refinedSettings, baseSettings);
         }
 
         {
@@ -139,6 +139,16 @@ public class S3ClientSettingsTests extends ESTestCase {
             final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type",
                 Settings.builder().put("endpoint", endpoint).build()));
             assertThat(refinedSettings.endpoint, is(endpoint));
+            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
+            assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
+            assertThat(credentials.getAWSSecretKey(), is("secret_key"));
+            assertThat(credentials.getSessionToken(), is("session_token"));
+        }
+
+        {
+            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type",
+                    Settings.builder().put("path_style_access", true).build()));
+            assertThat(refinedSettings.pathStyleAccess, is(true));
             S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
             assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
             assertThat(credentials.getAWSSecretKey(), is("secret_key"));

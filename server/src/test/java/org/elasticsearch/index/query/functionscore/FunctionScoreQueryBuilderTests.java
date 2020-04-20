@@ -844,7 +844,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         context = createShardContext();
         rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertTrue("script should query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        assertTrue("function script query should be cacheable" + queryBuilder.toString(), context.isCacheable());
 
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
         queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
@@ -852,15 +852,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         context = createShardContext();
         rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertFalse("random score should query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        assertFalse("function random query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {
         FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
         for (FilterFunctionBuilder builder : filterFunctionBuilders) {
-            if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {
-                return false;
-            } else if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
+            if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
                 && ((RandomScoreFunctionBuilder) builder.getScoreFunction()).getSeed() == null) {
                 return false;
             }

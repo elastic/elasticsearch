@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -96,7 +97,16 @@ public class NodeClient extends AbstractClient {
 
             @Override
             public void handleException(TransportException exp) {
-                listener.onFailure(exp);
+                if (exp instanceof RemoteTransportException) {
+                    final Throwable cause = exp.unwrapCause();
+                    if (cause instanceof Exception) {
+                        listener.onFailure((Exception) cause);
+                    } else {
+                        listener.onFailure(exp);
+                    }
+                } else {
+                    listener.onFailure(exp);
+                }
             }
 
             @Override

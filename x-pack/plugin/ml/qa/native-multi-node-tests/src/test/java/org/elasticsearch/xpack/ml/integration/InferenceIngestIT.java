@@ -121,6 +121,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                 assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
+                fail(ex.getMessage());
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -176,6 +177,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                 assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
+                fail(ex.getMessage());
             }
         }, 30, TimeUnit.SECONDS);
     }

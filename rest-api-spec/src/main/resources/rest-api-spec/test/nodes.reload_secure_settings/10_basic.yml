@@ -1,5 +1,8 @@
 ---
 "node_reload_secure_settings test wrong password":
+  - skip:
+      version: " - 7.9.99"
+      reason:  "support for reloading password protected keystores was introduced in 8.0.0"
 
   - do:
       nodes.reload_secure_settings:
@@ -7,7 +10,7 @@
         body:
           secure_settings_password: awrongpasswordhere
   - set:
-    nodes._arbitrary_key_: node_id
+      nodes._arbitrary_key_: node_id
 
   - is_true: nodes
   - is_true: cluster_name
@@ -21,7 +24,7 @@
       nodes.reload_secure_settings: {}
 
   - set:
-    nodes._arbitrary_key_: node_id
+      nodes._arbitrary_key_: node_id
 
   - is_true: nodes
   - is_true: cluster_name

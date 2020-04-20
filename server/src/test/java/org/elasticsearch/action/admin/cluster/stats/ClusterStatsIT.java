@@ -210,12 +210,13 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testAllocatedProcessors() throws Exception {
-        // start one node with 7 processors.
-        internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
+        // the node.processors setting is bounded above by Runtime#availableProcessors
+        final int nodeProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
+        internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), nodeProcessors).build());
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(7));
+        assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(nodeProcessors));
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {

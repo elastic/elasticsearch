@@ -1,5 +1,5 @@
 [[ilm-shrink]]
-==== Shrink
+=== Shrink
 
 Phases allowed: warm
 

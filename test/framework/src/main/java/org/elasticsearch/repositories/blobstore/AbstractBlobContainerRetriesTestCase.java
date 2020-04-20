@@ -286,7 +286,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         final Exception exception = expectThrows(Exception.class, () -> {
             try (InputStream stream = randomBoolean() ?
-                blobContainer.readBlob("read_blob_incomplete", 0, 1):
+                blobContainer.readBlob("read_blob_incomplete", 0, minIncompleteContentToSend() + 1):
                 blobContainer.readBlob("read_blob_incomplete")) {
                 Streams.readFully(stream);
             }
@@ -348,7 +348,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         }
         exchange.getResponseHeaders().add("Content-Type", bytesContentType());
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
-        final int bytesToSend = randomIntBetween(minIncompleteContentToSend(), length - 1);
+        int minSend = Math.min(minIncompleteContentToSend(), length - 1);
+        final int bytesToSend = randomIntBetween(minSend, length - 1);
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }

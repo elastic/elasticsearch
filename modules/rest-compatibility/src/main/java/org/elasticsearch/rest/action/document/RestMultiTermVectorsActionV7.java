@@ -42,12 +42,14 @@ public class RestMultiTermVectorsActionV7 extends RestMultiTermVectorsAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_mtermvectors"),
+        return List.of(
+            new Route(GET, "/_mtermvectors"),
             new Route(POST, "/_mtermvectors"),
             new Route(GET, "/{index}/_mtermvectors"),
             new Route(POST, "/{index}/_mtermvectors"),
             new Route(GET, "/{index}/{type}/_mtermvectors"),
-            new Route(POST, "/{index}/{type}/_mtermvectors"));
+            new Route(POST, "/{index}/{type}/_mtermvectors")
+        );
     }
 
     @Override
@@ -60,8 +62,7 @@ public class RestMultiTermVectorsActionV7 extends RestMultiTermVectorsAction {
         TypeConsumer typeConsumer = new TypeConsumer(request, "_type");
 
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
-        TermVectorsRequest template = new TermVectorsRequest()
-            .index(request.param("index"));
+        TermVectorsRequest template = new TermVectorsRequest().index(request.param("index"));
 
         RestTermVectorsAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));

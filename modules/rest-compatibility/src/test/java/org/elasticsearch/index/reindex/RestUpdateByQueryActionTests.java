@@ -57,7 +57,9 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     }
 
     public void testParseEmpty() throws IOException {
-        UpdateByQueryRequest request = action.buildRequest(new FakeCompatRestRequestBuilder(new NamedXContentRegistry(emptyList())).build());
+        UpdateByQueryRequest request = action.buildRequest(
+            new FakeCompatRestRequestBuilder(new NamedXContentRegistry(emptyList())).build()
+        );
         // assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }

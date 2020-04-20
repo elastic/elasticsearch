@@ -56,7 +56,9 @@ public class RestDeleteByQueryActionV7Tests extends RestActionTestCase {
     }
 
     public void testParseEmpty() throws IOException {
-        DeleteByQueryRequest request = action.buildRequest(new FakeCompatRestRequestBuilder(new NamedXContentRegistry(emptyList())).build());
+        DeleteByQueryRequest request = action.buildRequest(
+            new FakeCompatRestRequestBuilder(new NamedXContentRegistry(emptyList())).build()
+        );
         // assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }

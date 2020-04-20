@@ -61,7 +61,7 @@ public class RestTermVectorsActionV7 extends RestTermVectorsAction {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TypeConsumer typeConsumer = new TypeConsumer(request,"_type");
+        TypeConsumer typeConsumer = new TypeConsumer(request, "_type");
 
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
 
@@ -79,6 +79,5 @@ public class RestTermVectorsActionV7 extends RestTermVectorsAction {
 
         return channel -> client.termVectors(termVectorsRequest, new RestToXContentListener<>(channel));
     }
-
 
 }

@@ -394,9 +394,6 @@ public abstract class Rounding implements Writeable, PreparedRounding {
             if (firstOffset == lastOffset) {
                 // The time zone is effectively fixed
                 if (unitRoundsToMidnight) {
-                    if (firstOffset.millis() == 0) {
-                        new UtcToMidnightRounding();
-                    }
                     return new FixedToMidnightRounding(firstOffset);
                 }
                 return new FixedNotToMidnightRounding(firstOffset, unitMillis);
@@ -448,19 +445,6 @@ public abstract class Rounding implements Writeable, PreparedRounding {
             return "Rounding[" + unit + " in " + timeZone + "]";
         }
 
-        private class UtcToMidnightRounding implements PreparedRounding {
-            @Override
-            public long round(long utcMillis) {
-                return unit.roundFloor(utcMillis);
-            }
-
-            @Override
-            public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
-            }
-        }
-
         private class FixedToMidnightRounding implements PreparedRounding {
             private final LocalTimeOffset offset;
 
@@ -480,17 +464,23 @@ public abstract class Rounding implements Writeable, PreparedRounding {
             }
         }
 
-        private class FixedNotToMidnightRounding extends AbstractNotToMidnightRounding {
+        private class FixedNotToMidnightRounding implements PreparedRounding {
             private final LocalTimeOffset offset;
+            private final long unitMillis;
 
             FixedNotToMidnightRounding(LocalTimeOffset offset, long unitMillis) {
-                super(unitMillis);
                 this.offset = offset;
+                this.unitMillis = unitMillis;
             }
 
             @Override
             public long round(long utcMillis) {
                 return offset.localToUtcInThisOffset(unit.roundFloor(offset.utcToLocalTime(utcMillis)));
+            }
+
+            @Override
+            public final long nextRoundingValue(long utcMillis) {
+                return round(utcMillis + unitMillis);
             }
         }
 

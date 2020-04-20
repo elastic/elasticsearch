@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Fork(1)
-@Warmup(iterations = 3)
+@Warmup(iterations = 5)
 @Measurement(iterations = 3)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -28,17 +28,17 @@ public class RoundingBenchmark {
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("date_optional_time");
 
     @Param({
-        "2000-01-01 to 2020-01-01",
-        "2000-01-01 to 2001-01-01",
-        "2000-10-01 to 2001-11-01",
-        "2000-10-29 to 2000-10-30"
+        "2000-01-01 to 2020-01-01", // A super long range
+        "2000-10-01 to 2001-11-01", // A whole month which is pretty believable
+        "2000-10-29 to 2000-10-30", // A date right around daylight savings time.
+        "2000-06-01 to 2000-06-02"  // A date fully in one time zone. Should be much faster than above.
     })
     public String range;
 
     @Param({"java time", "es"})
     public String rounder;
 
-    @Param({"UTC", "UTC-5", "America/New_York"})
+    @Param({"UTC", "America/New_York"})
     public String zone;
 
     @Param({"MONTH_OF_YEAR", "HOUR_OF_DAY"})

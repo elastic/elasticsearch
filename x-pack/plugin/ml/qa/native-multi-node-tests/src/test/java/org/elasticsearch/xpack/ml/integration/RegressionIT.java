@@ -68,7 +68,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 null,
                 null)
         );
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -126,7 +125,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -182,7 +180,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 destIndex,
                 null,
                 new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -242,7 +239,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -311,7 +307,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null));
-        registerAnalytics(firstJob);
         putAnalytics(firstJob);
 
         String secondJobId = "regression_two_jobs_with_same_randomize_seed_2";
@@ -321,7 +316,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed));
 
-        registerAnalytics(secondJob);
         putAnalytics(secondJob);
 
         // Let's run both jobs in parallel and wait until they are finished
@@ -343,7 +337,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         indexData(sourceIndex, 100, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
-        registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -383,7 +376,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 destIndex,
                 null,
                 new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null));
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(jobId);

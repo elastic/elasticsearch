@@ -273,8 +273,7 @@ class AsyncSearchIndexService {
 
                 long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                AsyncSearchResponse response = decodeResponse(encoded);
-                response.setExpirationTime(expirationTime);
+                AsyncSearchResponse response = decodeResponse(encoded, expirationTime);
                 listener.onResponse(encoded != null ? response : null);
             },
             listener::onFailure
@@ -334,11 +333,11 @@ class AsyncSearchIndexService {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    AsyncSearchResponse decodeResponse(String value) throws IOException {
+    AsyncSearchResponse decodeResponse(String value, long expirationTime) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
-                return new AsyncSearchResponse(in);
+                return new AsyncSearchResponse(in, expirationTime);
             }
         }
     }

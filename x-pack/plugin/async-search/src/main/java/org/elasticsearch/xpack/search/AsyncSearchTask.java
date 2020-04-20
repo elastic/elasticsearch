@@ -341,7 +341,7 @@ final class AsyncSearchTask extends SearchTask {
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,
-                new ShardSearchFailure(exc, shardTarget.getNodeIdText() != null ? shardTarget : null));
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override

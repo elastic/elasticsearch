@@ -74,13 +74,18 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
+        this(in, null);
+    }
+    
+    public AsyncSearchResponse(StreamInput in, Long expirationTime) throws IOException {
         this.id = in.readOptionalString();
         this.error = in.readOptionalWriteable(ElasticsearchException::new);
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
         this.startTimeMillis = in.readLong();
-        this.expirationTimeMillis = in.readLong();
+        long origExpiration = in.readLong();
+        this.expirationTimeMillis = expirationTime == null ? origExpiration : expirationTime;
     }
 
     @Override

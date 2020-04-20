@@ -56,7 +56,7 @@ The <<docs-reindex,Reindex API>> can be used to reindex from an existing index t
 [[reindex-indices-from-shorter-periods-into-longer-periods]]
 ==== Reindex indices from shorter periods into longer periods
 
-The <<docs-reindex,Reindex API>> can be used to reindex multiple small indices covering shorter time periods into a larger index covering a longer time period. For example, daily indices from October with naming patterns such as `foo-2019.10.11` could be combined into a monthly `foo-2019.10` index, like this:
+You can use the <<docs-reindex,reindex API>> to reindex multiple small indices covering shorter time periods into a larger index covering a longer time period. For example, daily indices from October with naming patterns such as `foo-2019.10.11` could be combined into a monthly `foo-2019.10` index, like this:
 
 [source,console]
 --------------------------------------------------

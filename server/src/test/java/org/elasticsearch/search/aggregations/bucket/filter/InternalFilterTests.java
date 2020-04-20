@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
@@ -37,11 +36,6 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected void extraAssertReduced(InternalFilter reduced, List<InternalFilter> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Reader<InternalFilter> instanceReader() {
-        return InternalFilter::new;
     }
 
     @Override

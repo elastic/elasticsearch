@@ -53,6 +53,14 @@ beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore
 the `node.local_storage` setting has been removed.
 
 [float]
+==== `auth.password` for HTTP monitoring is removed
+
+In Elasticsearch 7.7.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password`
+was deprecated in favor of setting `xpack.monitoring.exporters.<exporterName>.auth.secure_password`.
+In Elasticsearch 8.0.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password` is
+removed.
+
+[float]
 ==== Option to disable basic license features is deprecated
 
 In Elasticsearch 7.8.0, the following settings have been deprecated:

@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Script cache and compilation rate limiter.
@@ -44,8 +46,6 @@ public class ScriptCache {
 
     private final Cache<CacheKey, Object> cache;
     private final ScriptMetrics scriptMetrics;
-
-    private final Object lock = new Object();
 
     // Mutable fields, visible for tests
     long lastInlineCompileTime;
@@ -98,18 +98,10 @@ public class ScriptCache {
     ) {
         String lang = scriptEngine.getType();
         CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);
-        Object compiledScript = cache.get(cacheKey);
 
-        if (compiledScript != null) {
-            return context.factoryClazz.cast(compiledScript);
-        }
-
-        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
-        synchronized (lock) {
-            // Retrieve it again in case it has been put by a different thread
-            compiledScript = cache.get(cacheKey);
-
-            if (compiledScript == null) {
+        // Relying on computeIfAbsent to avoid multiple threads from compiling the same script
+        try {
+            return context.factoryClazz.cast(cache.computeIfAbsent(cacheKey, key -> {
                 try {
                     // Either an un-cached inline script or indexed script
                     // If the script type is inline the name will be the same as the code for identification in exceptions
@@ -121,7 +113,11 @@ public class ScriptCache {
                     }
                     // Check whether too many compilations have happened
                     checkCompilationLimit();
-                    compiledScript = scriptEngine.compile(id, idOrCode, context, options);
+                    Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
+                    // Since the cache key is the script content itself we don't need to
+                    // invalidate/check the cache if an indexed script changes.
+                    scriptMetrics.onCompilation();
+                    return compiledScript;
                 } catch (ScriptException good) {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
@@ -129,16 +125,16 @@ public class ScriptCache {
                     throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]",
                             exception);
                 }
-
-                // Since the cache key is the script content itself we don't need to
-                // invalidate/check the cache if an indexed script changes.
-                scriptMetrics.onCompilation();
-                cache.put(cacheKey, compiledScript);
+            }));
+        } catch (ExecutionException executionException) {
+            Throwable cause = executionException.getCause();
+            if(cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else {
+                // No non-RuntimeExceptions are thrown from the loader, this should not happen. -> throwing generic exception.
+                throw new ElasticsearchException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", cause);
             }
-
         }
-
-        return context.factoryClazz.cast(compiledScript);
     }
 
     public ScriptStats stats() {

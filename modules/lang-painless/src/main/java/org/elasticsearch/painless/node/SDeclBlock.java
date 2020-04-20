@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
@@ -46,25 +47,14 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDeclBlock(this, input);
+    }
 
-        List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
-
+    @Override
+    void analyze(SemanticScope semanticScope) {
         for (SDeclaration declaration : declarationNodes) {
-            declarationOutputs.add(declaration.analyze(semanticScope));
+            declaration.analyze(semanticScope);
         }
-
-        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
-
-        for (Output declarationOutput : declarationOutputs) {
-            declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
-        }
-
-        declarationBlockNode.setLocation(getLocation());
-
-        output.statementNode = declarationBlockNode;
-
-        return output;
     }
 }

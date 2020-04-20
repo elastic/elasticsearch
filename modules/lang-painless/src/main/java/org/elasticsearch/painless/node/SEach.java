@@ -21,25 +21,22 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ConditionNode;
-import org.elasticsearch.painless.ir.ForEachLoopNode;
-import org.elasticsearch.painless.ir.ForEachSubArrayNode;
-import org.elasticsearch.painless.ir.ForEachSubIterableNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
-import java.util.Iterator;
 import java.util.Objects;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
@@ -80,11 +77,14 @@ public class SEach extends AStatement {
     }
 
     @Override
-    Output analyze(SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitEach(this, input);
+    }
 
+    @Override
+    void analyze(SemanticScope semanticScope) {
         semanticScope.setCondition(iterableNode, Read.class);
-        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, semanticScope);
+        AExpression.analyze(iterableNode, semanticScope);
         Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, ValueType.class).getValueType();
 
         Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
@@ -95,6 +95,7 @@ public class SEach extends AStatement {
 
         semanticScope = semanticScope.newLocalScope();
         Variable variable = semanticScope.defineVariable(getLocation(), clazz, symbol, true);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
 
         if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -102,81 +103,34 @@ public class SEach extends AStatement {
 
         semanticScope.setCondition(blockNode, BeginLoop.class);
         semanticScope.setCondition(blockNode, InLoop.class);
-        Output blockOutput = blockNode.analyze(semanticScope);
+        blockNode.analyze(semanticScope);
 
         if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
                 semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
             throw createError(new IllegalArgumentException("Extraneous for loop."));
         }
 
-        ConditionNode conditionNode;
-
         if (iterableValueType.isArray()) {
-            Variable array =
-                    semanticScope.defineVariable(getLocation(), iterableValueType, "#array" + getLocation().getOffset(), true);
-            Variable index = semanticScope.defineVariable(getLocation(), int.class, "#index" + getLocation().getOffset(), true);
-            Class<?> indexed = iterableValueType.getComponentType();
-            PainlessCast cast = AnalyzerCaster.getLegalCast(getLocation(), indexed, variable.getType(), true, true);
-
-            ForEachSubArrayNode forEachSubArrayNode = new ForEachSubArrayNode();
-            forEachSubArrayNode.setConditionNode(expressionOutput.expressionNode);
-            forEachSubArrayNode.setBlockNode((BlockNode)blockOutput.statementNode);
-            forEachSubArrayNode.setLocation(getLocation());
-            forEachSubArrayNode.setVariableType(variable.getType());
-            forEachSubArrayNode.setVariableName(variable.getName());
-            forEachSubArrayNode.setCast(cast);
-            forEachSubArrayNode.setArrayType(array.getType());
-            forEachSubArrayNode.setArrayName(array.getName());
-            forEachSubArrayNode.setIndexType(index.getType());
-            forEachSubArrayNode.setIndexName(index.getName());
-            forEachSubArrayNode.setIndexedType(indexed);
-            forEachSubArrayNode.setContinuous(false);
-            conditionNode = forEachSubArrayNode;
+            semanticScope.putDecoration(this, new ExpressionPainlessCast(
+                    AnalyzerCaster.getLegalCast(getLocation(), iterableValueType.getComponentType(), variable.getType(), true, true)));
         } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
-            // We must store the iterator as a variable for securing a slot on the stack, and
-            // also add the location offset to make the name unique in case of nested for each loops.
-            Variable iterator = semanticScope.defineVariable(getLocation(), Iterator.class, "#itr" + getLocation().getOffset(), true);
-
-            PainlessMethod method;
-
-            if (iterableValueType == def.class) {
-                method = null;
-            } else {
-                method = semanticScope.getScriptScope().getPainlessLookup().
+            if (iterableValueType != def.class) {
+                PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().
                         lookupPainlessMethod(iterableValueType, false, "iterator", 0);
 
                 if (method == null) {
                     throw createError(new IllegalArgumentException(
                             "method [" + typeToCanonicalTypeName(iterableValueType) + ", iterator/0] not found"));
                 }
+
+                semanticScope.putDecoration(this, new IterablePainlessMethod(method));
             }
 
-            PainlessCast cast = AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true);
-
-            ForEachSubIterableNode forEachSubIterableNode = new ForEachSubIterableNode();
-            forEachSubIterableNode.setConditionNode(expressionOutput.expressionNode);
-            forEachSubIterableNode.setBlockNode((BlockNode)blockOutput.statementNode);
-            forEachSubIterableNode.setLocation(getLocation());
-            forEachSubIterableNode.setVariableType(variable.getType());
-            forEachSubIterableNode.setVariableName(variable.getName());
-            forEachSubIterableNode.setCast(cast);
-            forEachSubIterableNode.setIteratorType(iterator.getType());
-            forEachSubIterableNode.setIteratorName(iterator.getName());
-            forEachSubIterableNode.setMethod(method);
-            forEachSubIterableNode.setContinuous(false);
-            conditionNode = forEachSubIterableNode;
+            semanticScope.putDecoration(this, new ExpressionPainlessCast(
+                    AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true)));
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
         }
-
-        ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
-        forEachLoopNode.setConditionNode(conditionNode);
-        forEachLoopNode.setLocation(getLocation());
-
-        output.statementNode = forEachLoopNode;
-
-        return output;
-
     }
 }

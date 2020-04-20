@@ -26,7 +26,7 @@ import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-public class WhileNode extends LoopNode {
+public class WhileLoopNode extends LoopNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

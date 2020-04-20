@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
@@ -142,20 +143,9 @@ public abstract class AExpression extends ANode {
         boolean isExplicitCast = semanticScope.getCondition(this, Explicit.class);
         boolean isInternalCast = semanticScope.getCondition(this, Internal.class);
 
-        return AnalyzerCaster.getLegalCast(getLocation(), valueType, targetType, isExplicitCast, isInternalCast);
-    }
+        PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), valueType, targetType, isExplicitCast, isInternalCast);
+        semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
 
-    static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {
-        if (painlessCast == null) {
-            return expressionNode;
-        }
-
-        CastNode castNode = new CastNode();
-        castNode.setLocation(expressionNode.getLocation());
-        castNode.setExpressionType(painlessCast.targetType);
-        castNode.setCast(painlessCast);
-        castNode.setChildNode(expressionNode);
-
-        return castNode;
+        return painlessCast;
     }
 }

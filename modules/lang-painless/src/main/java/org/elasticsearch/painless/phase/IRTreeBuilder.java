@@ -21,24 +21,66 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.BreakNode;
+import org.elasticsearch.painless.ir.CastNode;
+import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ConditionNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.ir.ContinueNode;
+import org.elasticsearch.painless.ir.DeclarationBlockNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.ir.DoWhileLoopNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
+import org.elasticsearch.painless.ir.ForEachLoopNode;
+import org.elasticsearch.painless.ir.ForEachSubArrayNode;
+import org.elasticsearch.painless.ir.ForEachSubIterableNode;
+import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.IRNode;
+import org.elasticsearch.painless.ir.IfElseNode;
+import org.elasticsearch.painless.ir.IfNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.ir.ThrowNode;
+import org.elasticsearch.painless.ir.TryNode;
+import org.elasticsearch.painless.ir.WhileLoopNode;
+import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.SBlock;
+import org.elasticsearch.painless.node.SBreak;
+import org.elasticsearch.painless.node.SCatch;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.node.SContinue;
+import org.elasticsearch.painless.node.SDeclBlock;
+import org.elasticsearch.painless.node.SDeclaration;
+import org.elasticsearch.painless.node.SDo;
+import org.elasticsearch.painless.node.SEach;
+import org.elasticsearch.painless.node.SExpression;
+import org.elasticsearch.painless.node.SFor;
 import org.elasticsearch.painless.node.SFunction;
+import org.elasticsearch.painless.node.SIf;
+import org.elasticsearch.painless.node.SIfElse;
+import org.elasticsearch.painless.node.SReturn;
+import org.elasticsearch.painless.node.SThrow;
+import org.elasticsearch.painless.node.STry;
+import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
+
+import java.util.Iterator;
 
 public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
 
@@ -46,8 +88,30 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
 
     private ClassNode irClassNode;
 
-    public IRNode visit(ANode userNode, ScriptScope scriptScope) {
-        return userNode.visit(this, scriptScope);
+    protected IRNode visit(ANode userNode, ScriptScope scriptScope) {
+        return userNode == null ? null : userNode.visit(this, scriptScope);
+    }
+
+    protected ExpressionNode injectCast(AExpression userExpressionNode, ScriptScope scriptScope) {
+        ExpressionNode irExpressionNode = (ExpressionNode)visit(userExpressionNode, scriptScope);
+
+        if (irExpressionNode == null) {
+            return irExpressionNode;
+        }
+
+        ExpressionPainlessCast expressionPainlessCast = scriptScope.getDecoration(userExpressionNode, ExpressionPainlessCast.class);
+
+        if (expressionPainlessCast == null) {
+            return irExpressionNode;
+        }
+
+        CastNode castNode = new CastNode();
+        castNode.setLocation(irExpressionNode.getLocation());
+        castNode.setExpressionType(expressionPainlessCast.getExpressionPainlessCast().targetType);
+        castNode.setCast(expressionPainlessCast.getExpressionPainlessCast());
+        castNode.setChildNode(irExpressionNode);
+
+        return castNode;
     }
 
     @Override
@@ -99,9 +163,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
                     } else if (returnType == double.class) {
                         constantNode.setConstant(0d);
                     } else {
-                        throw userFunctionNode.createError(new IllegalStateException("unexpected automatic return type " +
-                                "[" + PainlessLookupUtility.typeToCanonicalTypeName(returnType) + "] " +
-                                "for function [" + functionName + "] with [" + functionArity + "] parameters"));
+                        throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
                     }
 
                     irExpressionNode = constantNode;
@@ -111,8 +173,7 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
                     irExpressionNode.setExpressionType(returnType);
                 }
             } else {
-                throw userFunctionNode.createError(new IllegalStateException("not all paths provide a return value " +
-                        "for function [" + functionName + "] with [" + functionArity + "] parameters"));
+                throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
             }
 
             ReturnNode irReturnNode = new ReturnNode();
@@ -149,5 +210,219 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
         irBlockNode.setAllEscape(scriptScope.getCondition(userBlockNode, AllEscape.class));
 
         return irBlockNode;
+    }
+
+    @Override
+    public IfNode visitIf(SIf userIfNode, ScriptScope scriptScope) {
+        IfNode irIfNode = new IfNode();
+        irIfNode.setConditionNode(injectCast(userIfNode.getConditionNode(), scriptScope));
+        irIfNode.setBlockNode((BlockNode)visit(userIfNode.getIfblockNode(), scriptScope));
+        irIfNode.setLocation(irIfNode.getLocation());
+
+        return irIfNode;
+    }
+
+    @Override
+    public IfElseNode visitIfElse(SIfElse userIfNode, ScriptScope scriptScope) {
+        IfElseNode irIfElseNode = new IfElseNode();
+        irIfElseNode.setConditionNode(injectCast(userIfNode.getConditionNode(), scriptScope));
+        irIfElseNode.setBlockNode((BlockNode)visit(userIfNode.getIfblockNode(), scriptScope));
+        irIfElseNode.setElseBlockNode((BlockNode)visit(userIfNode.getElseblockNode(), scriptScope));
+        irIfElseNode.setLocation(irIfElseNode.getLocation());
+
+        return irIfElseNode;
+    }
+
+    @Override
+    public WhileLoopNode visitWhile(SWhile userWhileNode, ScriptScope scriptScope) {
+        WhileLoopNode irWhileLoopNode = new WhileLoopNode();
+        irWhileLoopNode.setConditionNode(injectCast(userWhileNode.getConditionNode(), scriptScope));
+        irWhileLoopNode.setBlockNode((BlockNode)visit(userWhileNode.getBlockNode(), scriptScope));
+        irWhileLoopNode.setLocation(irWhileLoopNode.getLocation());
+        irWhileLoopNode.setContinuous(scriptScope.getCondition(userWhileNode, ContinuousLoop.class));
+
+        return irWhileLoopNode;
+    }
+
+    @Override
+    public DoWhileLoopNode visitDo(SDo userDoNode, ScriptScope scriptScope) {
+        DoWhileLoopNode irDoWhileLoopNode = new DoWhileLoopNode();
+        irDoWhileLoopNode.setConditionNode(injectCast(userDoNode.getConditionNode(), scriptScope));
+        irDoWhileLoopNode.setBlockNode((BlockNode)visit(userDoNode.getBlockNode(), scriptScope));
+        irDoWhileLoopNode.setLocation(userDoNode.getLocation());
+        irDoWhileLoopNode.setContinuous(scriptScope.getCondition(userDoNode, ContinuousLoop.class));
+
+        return irDoWhileLoopNode;
+    }
+
+    @Override
+    public ForLoopNode visitFor(SFor userForNode, ScriptScope scriptScope) {
+        ForLoopNode irForLoopNode = new ForLoopNode();
+        irForLoopNode.setInitialzerNode(visit(userForNode.getInitializerNode(), scriptScope));
+        irForLoopNode.setConditionNode(injectCast(userForNode.getConditionNode(), scriptScope));
+        irForLoopNode.setAfterthoughtNode((ExpressionNode)visit(userForNode.getAfterthoughtNode(), scriptScope));
+        irForLoopNode.setBlockNode((BlockNode)visit(userForNode.getBlockNode(), scriptScope));
+        irForLoopNode.setLocation(userForNode.getLocation());
+        irForLoopNode.setContinuous(scriptScope.getCondition(userForNode, ContinuousLoop.class));
+
+        return irForLoopNode;
+    }
+
+    @Override
+    public ForEachLoopNode visitEach(SEach userEachNode, ScriptScope scriptScope) {
+        Variable variable = scriptScope.getDecoration(userEachNode, SemanticVariable.class).getSemanticVariable();
+        ExpressionNode irIterableNode = (ExpressionNode)visit(userEachNode.getIterableNode(), scriptScope);
+        Class<?> iterableValueType = scriptScope.getDecoration(userEachNode, ValueType.class).getValueType();
+        BlockNode irBlockNode = (BlockNode)visit(userEachNode, scriptScope);
+
+        ConditionNode irConditionNode;
+
+        if (iterableValueType.isArray()) {
+            ForEachSubArrayNode irForEachSubArrayNode = new ForEachSubArrayNode();
+            irForEachSubArrayNode.setConditionNode(irIterableNode);
+            irForEachSubArrayNode.setBlockNode(irBlockNode);
+            irForEachSubArrayNode.setLocation(userEachNode.getLocation());
+            irForEachSubArrayNode.setVariableType(variable.getType());
+            irForEachSubArrayNode.setVariableName(variable.getName());
+            irForEachSubArrayNode.setCast(
+                    scriptScope.getDecoration(userEachNode, ExpressionPainlessCast.class).getExpressionPainlessCast());
+            irForEachSubArrayNode.setArrayType(iterableValueType);
+            irForEachSubArrayNode.setArrayName("#array" + userEachNode.getLocation().getOffset());
+            irForEachSubArrayNode.setIndexType(int.class);
+            irForEachSubArrayNode.setIndexName("#index" + userEachNode.getLocation().getOffset());
+            irForEachSubArrayNode.setIndexedType(iterableValueType.getComponentType());
+            irForEachSubArrayNode.setContinuous(false);
+            irConditionNode = irForEachSubArrayNode;
+        } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
+            ForEachSubIterableNode irForEachSubIterableNode = new ForEachSubIterableNode();
+            irForEachSubIterableNode.setConditionNode(irIterableNode);
+            irForEachSubIterableNode.setBlockNode(irBlockNode);
+            irForEachSubIterableNode.setLocation(userEachNode.getLocation());
+            irForEachSubIterableNode.setVariableType(variable.getType());
+            irForEachSubIterableNode.setVariableName(variable.getName());
+            irForEachSubIterableNode.setCast(
+                    scriptScope.getDecoration(userEachNode, ExpressionPainlessCast.class).getExpressionPainlessCast());
+            irForEachSubIterableNode.setIteratorType(Iterator.class);
+            irForEachSubIterableNode.setIteratorName("#itr" + userEachNode.getLocation().getOffset());
+            irForEachSubIterableNode.setMethod(iterableValueType == def.class ? null :
+                    scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class).getIterablePainlessMethod());
+            irForEachSubIterableNode.setContinuous(false);
+            irConditionNode = irForEachSubIterableNode;
+        } else {
+            throw userEachNode.createError(new IllegalStateException("illegal tree structure"));
+        }
+
+        ForEachLoopNode irForEachLoopNode = new ForEachLoopNode();
+        irForEachLoopNode.setConditionNode(irConditionNode);
+        irForEachLoopNode.setLocation(userEachNode.getLocation());
+
+        return irForEachLoopNode;
+    }
+
+    @Override
+    public DeclarationBlockNode visitDeclBlock(SDeclBlock userDeclBlockNode, ScriptScope scriptScope) {
+        DeclarationBlockNode irDeclarationBlockNode = new DeclarationBlockNode();
+
+        for (SDeclaration userDeclarationNode : userDeclBlockNode.getDeclarationNodes()) {
+            irDeclarationBlockNode.addDeclarationNode((DeclarationNode)visit(userDeclarationNode, scriptScope));
+        }
+
+        irDeclarationBlockNode.setLocation(userDeclBlockNode.getLocation());
+
+        return irDeclarationBlockNode;
+    }
+
+    @Override
+    public DeclarationNode visitDeclaration(SDeclaration userDeclarationNode, ScriptScope scriptScope) {
+        Variable variable = scriptScope.getDecoration(userDeclarationNode, SemanticVariable.class).getSemanticVariable();
+
+        DeclarationNode declarationNode = new DeclarationNode();
+        declarationNode.setExpressionNode(injectCast(userDeclarationNode.getValueNode(), scriptScope));
+        declarationNode.setLocation(userDeclarationNode.getLocation());
+        declarationNode.setDeclarationType(variable.getType());
+        declarationNode.setName(variable.getName());
+
+        return declarationNode;
+    }
+
+    @Override
+    public ReturnNode visitReturn(SReturn userReturnNode, ScriptScope scriptScope) {
+        ReturnNode irReturnNode = new ReturnNode();
+        irReturnNode.setExpressionNode(injectCast(userReturnNode.getExpressionNode(), scriptScope));
+        irReturnNode.setLocation(userReturnNode.getLocation());
+
+        return irReturnNode;
+    }
+
+    @Override
+    public StatementNode visitExpression(SExpression userExpressionNode, ScriptScope scriptScope) {
+        StatementNode irStatementNode;
+        ExpressionNode irExpressionNode = injectCast(userExpressionNode.getExpressionNode(), scriptScope);
+
+        if (scriptScope.getCondition(userExpressionNode, MethodEscape.class)) {
+            ReturnNode returnNode = new ReturnNode();
+            returnNode.setExpressionNode(irExpressionNode);
+            returnNode.setLocation(userExpressionNode.getLocation());
+            irStatementNode = returnNode;
+        } else {
+            StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
+            statementExpressionNode.setExpressionNode(irExpressionNode);
+            statementExpressionNode.setLocation(userExpressionNode.getLocation());
+            irStatementNode = statementExpressionNode;
+        }
+
+        return irStatementNode;
+    }
+
+    @Override
+    public TryNode visitTry(STry userTryNode, ScriptScope scriptScope) {
+        TryNode irTryNode = new TryNode();
+
+        for (SCatch userCatchNode : userTryNode.getCatchNodes()) {
+            irTryNode.addCatchNode((CatchNode)visit(userCatchNode, scriptScope));
+        }
+
+        irTryNode.setBlockNode((BlockNode)visit(userTryNode.getBlockNode(), scriptScope));
+        irTryNode.setLocation(userTryNode.getLocation());
+
+        return irTryNode;
+    }
+
+    @Override
+    public CatchNode visitCatch(SCatch userCatchNode, ScriptScope scriptScope) {
+        Variable variable = scriptScope.getDecoration(userCatchNode, SemanticVariable.class).getSemanticVariable();
+
+        CatchNode irCatchNode = new CatchNode();
+        irCatchNode.setExceptionType(variable.getType());
+        irCatchNode.setSymbol(variable.getName());
+        irCatchNode.setBlockNode((BlockNode)visit(userCatchNode.getBlockNode(), scriptScope));
+        irCatchNode.setLocation(userCatchNode.getLocation());
+
+        return irCatchNode;
+    }
+
+    @Override
+    public ThrowNode visitThrow(SThrow userThrowNode, ScriptScope scriptScope) {
+        ThrowNode irThrowNode = new ThrowNode();
+        irThrowNode.setExpressionNode(injectCast(userThrowNode.getExpressionNode(), scriptScope));
+        irThrowNode.setLocation(userThrowNode.getLocation());
+
+        return irThrowNode;
+    }
+
+    @Override
+    public ContinueNode visitContinue(SContinue userContinueNode, ScriptScope scriptScope) {
+        ContinueNode irContinueNode = new ContinueNode();
+        irContinueNode.setLocation(userContinueNode.getLocation());
+
+        return irContinueNode;
+    }
+
+    @Override
+    public BreakNode visitBreak(SBreak userBreakNode, ScriptScope scriptScope) {
+        BreakNode irBreakNode = new BreakNode();
+        irBreakNode.setLocation(userBreakNode.getLocation());
+
+        return irBreakNode;
     }
 }

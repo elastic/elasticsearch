@@ -19,9 +19,12 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.Decorator.Condition;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -153,5 +156,50 @@ public class Decorations {
 
     public interface DefOptimized extends Condition {
 
+    }
+
+    // additional output acquired during the semantic process
+
+    public interface ContinuousLoop extends Condition {
+
+    }
+
+    public static class ExpressionPainlessCast implements Decoration {
+
+        private final PainlessCast expressionPainlessCast;
+
+        public ExpressionPainlessCast(PainlessCast expressionPainlessCast) {
+            this.expressionPainlessCast = Objects.requireNonNull(expressionPainlessCast);
+        }
+
+        public PainlessCast getExpressionPainlessCast() {
+            return expressionPainlessCast;
+        }
+    }
+
+    public static class SemanticVariable implements Decoration {
+
+        private final Variable semanticVariable;
+
+        public SemanticVariable(Variable semanticVariable) {
+            this.semanticVariable = semanticVariable;
+        }
+
+        public Variable getSemanticVariable() {
+            return semanticVariable;
+        }
+    }
+
+    public static class IterablePainlessMethod implements Decoration {
+
+        private final PainlessMethod iterablePainlessMethod;
+
+        public IterablePainlessMethod(PainlessMethod iterablePainlessMethod) {
+            this.iterablePainlessMethod = Objects.requireNonNull(iterablePainlessMethod);
+        }
+
+        public PainlessMethod getIterablePainlessMethod() {
+            return iterablePainlessMethod;
+        }
     }
 }

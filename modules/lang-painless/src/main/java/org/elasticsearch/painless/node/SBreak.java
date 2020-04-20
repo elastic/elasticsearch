@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.BreakNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
@@ -37,9 +38,12 @@ public class SBreak extends AStatement {
     }
 
     @Override
-    Output analyze(SemanticScope semanticScope) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitBreak(this, input);
+    }
 
+    @Override
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, InLoop.class) == false) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
@@ -47,12 +51,5 @@ public class SBreak extends AStatement {
         semanticScope.setCondition(this, AllEscape.class);
         semanticScope.setCondition(this, LoopEscape.class);
         semanticScope.setCondition(this, AnyBreak.class);
-
-        BreakNode breakNode = new BreakNode();
-        breakNode.setLocation(getLocation());
-
-        output.statementNode = breakNode;
-
-        return output;
     }
 }

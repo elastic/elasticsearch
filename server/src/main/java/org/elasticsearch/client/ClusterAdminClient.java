@@ -519,17 +519,17 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete snapshot.
      */
-    ActionFuture<AcknowledgedResponse> deleteSnapshots(DeleteSnapshotRequest request);
+    ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request);
 
     /**
      * Delete snapshot.
      */
-    void deleteSnapshots(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
+    void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Delete snapshot.
      */
-    DeleteSnapshotRequestBuilder prepareDeleteSnapshots(String repository, String[] snapshot);
+    DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String[] snapshot);
 
     /**
      * Restores a snapshot.

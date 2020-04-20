@@ -942,17 +942,17 @@ public abstract class AbstractClient implements Client {
 
 
         @Override
-        public ActionFuture<AcknowledgedResponse> deleteSnapshots(DeleteSnapshotRequest request) {
+        public ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request) {
             return execute(DeleteSnapshotAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteSnapshots(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
+        public void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteSnapshotAction.INSTANCE, request, listener);
         }
 
         @Override
-        public DeleteSnapshotRequestBuilder prepareDeleteSnapshots(String repository, String[] names) {
+        public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String[] names) {
             return new DeleteSnapshotRequestBuilder(this, DeleteSnapshotAction.INSTANCE, repository, names);
         }
 

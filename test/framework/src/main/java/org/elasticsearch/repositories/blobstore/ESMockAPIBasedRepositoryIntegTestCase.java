@@ -156,7 +156,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         ensureGreen(index);
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshots(repository, new String[]{snapshot}).get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, new String[]{snapshot}).get());
     }
 
     protected static String httpServerUrl() {

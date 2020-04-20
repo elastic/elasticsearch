@@ -131,7 +131,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            client().admin().cluster().prepareDeleteSnapshots(REPO, new String[]{snapshotName}).get();
+            client().admin().cluster().prepareDeleteSnapshot(REPO, new String[]{snapshotName}).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }
@@ -235,7 +235,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             assertBusy(() -> {
                 try {
                     logger.info("--> cancelling snapshot {}", secondSnapName);
-                    client().admin().cluster().prepareDeleteSnapshots(REPO, new String[]{secondSnapName}).get();
+                    client().admin().cluster().prepareDeleteSnapshot(REPO, new String[]{secondSnapName}).get();
                 } catch (ConcurrentSnapshotExecutionException e) {
                     logger.info("--> attempted to stop second snapshot", e);
                     // just wait and retry
@@ -439,7 +439,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            client().admin().cluster().prepareDeleteSnapshots(REPO, new String[]{snapshotName}).get();
+            client().admin().cluster().prepareDeleteSnapshot(REPO, new String[]{snapshotName}).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }

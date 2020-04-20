@@ -50,7 +50,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(repositoryName, snapshotName);
-        getClient().admin().cluster().deleteSnapshots(deleteSnapshotRequest, new ActionListener<>() {
+        getClient().admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
 
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {

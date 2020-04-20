@@ -125,7 +125,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             assertTrue(
-                client().admin().cluster().prepareDeleteSnapshots(REPOSITORY_NAME, new String[]{SNAPSHOT_NAME}).get().isAcknowledged());
+                client().admin().cluster().prepareDeleteSnapshot(REPOSITORY_NAME, new String[]{SNAPSHOT_NAME}).get().isAcknowledged());
         } finally {
             setClusterReadOnly(false);
         }

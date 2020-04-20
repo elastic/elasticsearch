@@ -183,7 +183,8 @@ public class MetadataCreateIndexService {
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
             if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
-                deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
+                deprecationLogger.deprecatedAndMaybeLog("index_name_starts_with_dot",
+                    "index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {
                 // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
@@ -327,7 +328,7 @@ public class MetadataCreateIndexService {
 
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(currentState.metadata(),
-                request.index(), isHiddenFromRequest);
+                request.index(), isHiddenFromRequest == null ? false : isHiddenFromRequest);
 
             if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create

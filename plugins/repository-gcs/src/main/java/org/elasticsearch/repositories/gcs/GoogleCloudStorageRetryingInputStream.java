@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +54,9 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
 
     private final BlobId blobId;
 
+    private final long start;
+    private final long length;
+
     private final int maxRetries;
 
     private InputStream currentStream;
@@ -62,31 +65,79 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
     private long currentOffset;
     private boolean closed;
 
-    GoogleCloudStorageRetryingInputStream(Storage client, BlobId blobId) throws IOException {
+    GoogleCloudStorageRetryingInputStream(Storage client, BlobId blobId, long start, long length) throws IOException {
         this.client = client;
         this.blobId = blobId;
+        this.start = start;
+        this.length = length;
         this.maxRetries = client.getOptions().getRetrySettings().getMaxAttempts() + 1;
         currentStream = openStream();
     }
 
+    private static final int DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
+
     private InputStream openStream() throws IOException {
         try {
             final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(() -> client.reader(blobId));
-            if (currentOffset > 0L) {
-                readChannel.seek(currentOffset);
-            }
-            return Channels.newInputStream(new ReadableByteChannel() {
+            final long end = start + length < 0L ? Long.MAX_VALUE : start + length; // inclusive
+            final SeekableByteChannel adaptedChannel = new SeekableByteChannel() {
+
+                long position;
+
                 @SuppressForbidden(reason = "Channel is based of a socket not a file")
                 @Override
                 public int read(ByteBuffer dst) throws IOException {
+                    final long remainingBytesToRead = end - position;
+                    assert remainingBytesToRead >= 0L;
+                    // The SDK uses the maximum between chunk size and dst.remaining() to determine fetch size
+                    // We can be smarter here and only fetch what's needed when we know the length
+                    if (remainingBytesToRead < DEFAULT_CHUNK_SIZE) {
+                        readChannel.setChunkSize(Math.toIntExact(remainingBytesToRead));
+                    }
+                    if (remainingBytesToRead < dst.remaining()) {
+                        dst.limit(dst.position() + Math.toIntExact(remainingBytesToRead));
+                    }
                     try {
-                        return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                        int read = SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                        if (read > 0) {
+                            position += read;
+                        }
+                        return read;
                     } catch (StorageException e) {
                         if (e.getCode() == HTTP_NOT_FOUND) {
-                            throw new NoSuchFileException("Blob [" + blobId.getName() + "] does not exist");
+                            throw new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + e.getMessage());
                         }
                         throw e;
+                    } finally {
+                        readChannel.setChunkSize(0); // set to default again
                     }
+                }
+
+                @Override
+                public int write(ByteBuffer src) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long position() {
+                    return position;
+                }
+
+                @Override
+                public SeekableByteChannel position(long newPosition) throws IOException {
+                    readChannel.seek(newPosition);
+                    this.position = newPosition;
+                    return this;
+                }
+
+                @Override
+                public long size() {
+                    return length;
+                }
+
+                @Override
+                public SeekableByteChannel truncate(long size) {
+                    throw new UnsupportedOperationException();
                 }
 
                 @Override
@@ -98,7 +149,11 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
                 public void close() throws IOException {
                     SocketAccess.doPrivilegedVoidIOException(readChannel::close);
                 }
-            });
+            };
+            if (currentOffset > 0 || start > 0) {
+                adaptedChannel.position(Math.addExact(start, currentOffset));
+            }
+            return Channels.newInputStream(adaptedChannel);
         } catch (StorageException e) {
             throw addSuppressedExceptions(e);
         }
@@ -147,7 +202,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
             throw addSuppressedExceptions(e);
         }
         logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], attempt [{}] of [{}], retrying",
-            blobId, currentOffset, attempt, MAX_SUPPRESSED_EXCEPTIONS), e);
+            blobId, currentOffset, attempt, maxRetries), e);
         attempt += 1;
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);

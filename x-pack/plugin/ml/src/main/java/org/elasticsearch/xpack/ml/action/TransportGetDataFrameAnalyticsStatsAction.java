@@ -212,11 +212,15 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, ActionListener.wrap(
             multiSearchResponse -> {
-                for (MultiSearchResponse.Item itemResponse : multiSearchResponse.getResponses()) {
+                MultiSearchResponse.Item[] itemResponses = multiSearchResponse.getResponses();
+                for (int i = 0; i < itemResponses.length; ++i) {
+                    MultiSearchResponse.Item itemResponse = itemResponses[i];
                     if (itemResponse.isFailure()) {
+                        SearchRequest itemRequest = multiSearchRequest.requests().get(i);
                         logger.error(
                             new ParameterizedMessage(
-                                "[{}] Item failure encountered during multi search: {}", configId, itemResponse.getFailureMessage()),
+                                "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
+                                configId, itemRequest.indices(), itemRequest.source(), itemResponse.getFailureMessage()),
                             itemResponse.getFailure());
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
                         return;

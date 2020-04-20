@@ -309,7 +309,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // the index does not exist yet (and this is a valid request), so match index
                 // templates to look for pipelines in either a matching V2 template (which takes
                 // precedence), or if a V2 template does not match, any V1 templates
-                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), null);
+                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
                 if (v2Template != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {

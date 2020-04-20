@@ -173,8 +173,9 @@ public class InferenceIngestIT extends ESRestTestCase {
                 assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
                 // can get both
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                String entityString = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(entityString, containsString("\"inference_count\":15"));
+                assertThat(entityString, containsString("\"inference_count\":10"));
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());

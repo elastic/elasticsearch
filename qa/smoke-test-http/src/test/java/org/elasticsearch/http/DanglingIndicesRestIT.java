@@ -43,9 +43,11 @@ import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_IN
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  * This class tests the dangling indices REST API.  These tests are here
@@ -159,6 +161,14 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assertThat(deleteResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 
         assertBusy(() -> assertThat("Expected dangling index to be deleted", listDanglingIndexIds(), hasSize(0)));
+
+        // The dangling index that we deleted ought to have been removed from disk. Check by
+        // creating and deleting another index, which creates a new tombstone entry, which should
+        // not cause the deleted dangling index to be considered "live" again, just because its
+        // tombstone has been pushed out of the graveyard.
+        createIndex("additional");
+        deleteIndex("additional");
+        assertThat(listDanglingIndexIds(), is(empty()));
     }
 
     private List<String> listDanglingIndexIds() throws IOException {
@@ -214,19 +224,24 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      */
     private Map<String, String> createIndices(String... indices) throws IOException {
         assert indices.length > 0;
+
         for (String index : indices) {
             String indexSettings = "{"
                 + "  \"settings\": {"
                 + "    \"index\": {"
                 + "      \"number_of_shards\": 1,"
-                + "      \"number_of_replicas\": 2"
+                + "      \"number_of_replicas\": 2,"
+                + "      \"routing\": {"
+                + "        \"allocation\": {"
+                + "          \"total_shards_per_node\": 1"
+                + "        }"
+                + "      }"
                 + "    }"
                 + "  }"
                 + "}";
             Request request = new Request("PUT", "/" + index);
             request.setJsonEntity(indexSettings);
-            final Response response = getRestClient().performRequest(request);
-            assertOK(response);
+            assertOK(getRestClient().performRequest(request));
         }
         ensureGreen(indices);
 

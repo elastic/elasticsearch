@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Represents a request to delete a particular dangling index, specified by its UUID. The {@link #acceptDataLoss}
@@ -43,7 +44,7 @@ public class DeleteDanglingIndexRequest extends AcknowledgedRequest<DeleteDangli
 
     public DeleteDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
         super();
-        this.indexUUID = Strings.requireNonEmpty(indexUUID, "indexUUID cannot be null or empty");
+        this.indexUUID = Objects.requireNonNull(indexUUID, "indexUUID cannot be null");
         this.acceptDataLoss = acceptDataLoss;
     }
 

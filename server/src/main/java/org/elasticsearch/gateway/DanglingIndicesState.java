@@ -43,9 +43,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.util.CollectionUtils.map;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -177,7 +177,9 @@ public class DanglingIndicesState implements ClusterStateListener {
         for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
         }
-        excludeIndexPathIds.addAll(map(existingDanglingIndices.keySet(), Index::getUUID));
+        for (Index index : existingDanglingIndices.keySet()) {
+            excludeIndexPathIds.add(index.getUUID());
+        }
         try {
             final List<IndexMetadata> indexMetadataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetadata> newIndices = new HashMap<>(indexMetadataList.size());
@@ -195,11 +197,6 @@ public class DanglingIndicesState implements ClusterStateListener {
                     if (this.isAutoImportDanglingIndicesEnabled) {
                         logger.info(
                             "[{}] dangling index exists on local file system, but not in cluster metadata, auto import to cluster state",
-                            indexMetadata.getIndex()
-                        );
-                    } else {
-                        logger.info(
-                            "[{}] dangling index exists on local file system, but not in cluster metadata",
                             indexMetadata.getIndex()
                         );
                     }

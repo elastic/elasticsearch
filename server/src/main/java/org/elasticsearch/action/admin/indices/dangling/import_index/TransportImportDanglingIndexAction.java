@@ -33,7 +33,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -139,7 +138,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
                 logger.debug(
                     "Metadata versions {} found for index UUID [{}], selecting the highest",
-                    CollectionUtils.map(metaDataSortedByVersion, IndexMetadata::getVersion),
+                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
                     indexUUID
                 );
 

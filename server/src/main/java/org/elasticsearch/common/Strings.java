@@ -853,41 +853,4 @@ public class Strings {
             return sb.toString();
         }
     }
-
-    /**
-     * Checks that the specified String reference is:
-     *
-     * <ul>
-     * <li>not {@code null} and throws a customized {@link NullPointerException} if it is.
-     * <li>not empty (i.e. has zero length) and throws an  {@link IllegalArgumentException} if it is.
-     * </ul>
-     *
-     * This method is designed primarily for doing parameter validation in methods and
-     * constructors with multiple parameters, as demonstrated below:
-     *
-     * <blockquote><pre>
-     * public Foo(String bar, String baz) {
-     *     this.bar = Strings.requireNonEmpty(bar, "bar must not be null or empty");
-     *     this.baz = Strings.requireNonEmpty(baz, "baz must not be null or empty");
-     * }
-     * </pre></blockquote>
-     *
-     * @param obj     the String reference to check for nullity or zero-length
-     * @param message detail message to be used in the event that an exception is thrown
-     * @return {@code obj} if not {@code null} or zero-length
-     * @throws NullPointerException if {@code obj} is {@code null}
-     * @throws IllegalArgumentException if {@code obj.isEmpty()} returns {@code true}
-     */
-    public static String requireNonEmpty(String obj, String message) {
-        if (obj == null) {
-            throw new NullPointerException(message);
-        }
-
-        if (obj.isEmpty()) {
-            throw new IllegalArgumentException(message);
-        }
-
-        return obj;
-    }
-
 }

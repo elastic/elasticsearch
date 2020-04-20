@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Represents a request to import a particular dangling index, specified
@@ -44,7 +45,7 @@ public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingI
 
     public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
         super(new String[0]);
-        this.indexUUID = Strings.requireNonEmpty(indexUUID, "indexUUID cannot be null or empty");
+        this.indexUUID = Objects.requireNonNull(indexUUID, "indexUUID cannot be null");
         this.acceptDataLoss = acceptDataLoss;
     }
 

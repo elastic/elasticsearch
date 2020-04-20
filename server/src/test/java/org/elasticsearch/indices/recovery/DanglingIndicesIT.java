@@ -38,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
-import static org.elasticsearch.common.util.CollectionUtils.map;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -269,8 +268,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true)).actionGet();
 
-        final List<DanglingIndexInfo> danglingIndices = listDanglingIndices();
-        assertThat(map(danglingIndices, DanglingIndexInfo::getIndexName).toString(), danglingIndices, is(empty()));
+        assertThat(listDanglingIndices(), is(empty()));
     }
 
     /**

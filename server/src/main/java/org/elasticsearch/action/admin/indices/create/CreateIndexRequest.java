@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -163,11 +164,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    public CreateIndexRequest preferV2Templates(Boolean preferV2Templates) {
+    public CreateIndexRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
         this.preferV2Templates = preferV2Templates;
         return this;
     }
 
+    @Nullable
     public Boolean preferV2Templates() {
         return this.preferV2Templates;
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
@@ -95,7 +96,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest preferV2Templates(Boolean preferV2Templates) {
+    public CreateIndexClusterStateUpdateRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
         this.preferV2Templates = preferV2Templates;
         return this;
     }
@@ -151,6 +152,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return copySettings;
     }
 
+    @Nullable
     public Boolean preferV2Templates() {
         return preferV2Templates;
     }

@@ -201,11 +201,12 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this.requests;
     }
 
-    public BulkRequest preferV2Templates(Boolean preferV2Templates) {
+    public BulkRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
         this.preferV2Templates = preferV2Templates;
         return this;
     }
 
+    @Nullable
     public Boolean preferV2Templates() {
         return this.preferV2Templates;
     }

@@ -46,6 +46,7 @@ services:
     entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
+      # BusyBox's wget implementation struggles with SSL, so tail the log instead
       test: ["CMD", "grep", "-q", "Active license is now", "/usr/share/elasticsearch/logs/console.log"]
       interval: 10s
       timeout: 2s
@@ -95,6 +96,7 @@ services:
     entrypoint: /docker-test-entrypoint.sh
     healthcheck:
       start_period: 15s
+      # BusyBox's wget implementation struggles with SSL, so tail the log instead
       test: ["CMD", "grep", "-q", "Active license is now", "/usr/share/elasticsearch/logs/console.log"]
       interval: 10s
       timeout: 2s
@@ -129,7 +131,7 @@ services:
         hard: 65536
     healthcheck:
       start_period: 15s
-      test: ["CMD", "grep", "-q", "Active license is now", "/usr/share/elasticsearch/logs/console.log"]
+      test: ["CMD", "wget", "-q", "http://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5
@@ -160,7 +162,7 @@ services:
         hard: -1
     healthcheck:
       start_period: 15s
-      test: ["CMD", "grep", "-q", "Active license is now", "/usr/share/elasticsearch/logs/console.log"]
+      test: ["CMD", "wget", "-q", "http://localhost:9200"]
       interval: 10s
       timeout: 2s
       retries: 5

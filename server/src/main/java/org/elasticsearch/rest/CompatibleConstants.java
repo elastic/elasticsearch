@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
-
 public class CompatibleConstants {
 
     /**
@@ -28,6 +26,5 @@ public class CompatibleConstants {
      */
     public static final String COMPATIBLE_ACCEPT_HEADER = "Accept";
     public static final String COMPATIBLE_CONTENT_TYPE_HEADER = "Content-Type";
-    public static final String COMPATIBLE_PARAMS_KEY = "Compatible-With";
 
 }

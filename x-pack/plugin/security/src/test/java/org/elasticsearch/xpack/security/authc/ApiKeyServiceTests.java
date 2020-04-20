@@ -98,6 +98,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     @Before
     public void setupMocks() {
         this.licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
 
         this.client = mock(Client.class);

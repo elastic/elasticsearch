@@ -3,8 +3,8 @@
 
 Phases allowed: warm
 
-Shrinks an existing index into a new index with fewer primary shards. 
-This action sets the index to <<dynamic-index-settings, read-only>>. 
+Sets an index to <<dynamic-index-settings, read-only>> 
+and shrinks it into a new index with fewer primary shards. 
 The name of the new index is of the form `shrink-<original-index-name>`. 
 For example, if the name of the source index is _logs_, 
 the name of the shrunken index is _shrink-logs_.

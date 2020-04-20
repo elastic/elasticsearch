@@ -5,6 +5,12 @@ Phases allowed: hot.
 
 Rolls an alias over to a new index when the existing index meets one of the rollover conditions.
 
+IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>, 
+policy execution waits until the leader index rolls over (or is
+<<skipping-rollover, otherwise marked complete>>), 
+then converts the follower index into a regular index with the 
+<<ilm-unfollow-action,the Unfollow action>>.
+
 For a managed index to be rolled over: 
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my_index-000001`).
@@ -29,13 +35,6 @@ PUT my_index-000001
   }
 }
 --------------------------------------------------
-
-[IMPORTANT]
-If the rollover action is used on a <<ccr-put-follow,follower index>>, 
-policy execution waits until the leader index rolls over (or is
-<<skipping-rollover, otherwise marked complete>>), 
-then converts the follower index into a regular index with the 
-<<ilm-unfollow-action,the Unfollow action>>.
 
 [[ilm-rollover-options]]
 ==== Rollover options
@@ -85,7 +84,7 @@ PUT _ilm/policy/my_policy
 ===== Roll over based on document count
 
 This example rolls the index over when it contains at least
-100000000 documents.
+one hundred million documents.
 
 [source,console]
 --------------------------------------------------

@@ -6,23 +6,23 @@
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
 
-{ilm-init} splits the index lifecycle into four _phases_: 
+{ilm-init} defines four index lifecycle _phases_: 
 
-* Hot--the index is actively being updated and queried.
-* Warm--the index is no longer being updated but is still being queried.
-* Cold--the index is no longer being updated and is seldom queried. The
+* Hot: The index is actively being updated and queried.
+* Warm: The index is no longer being updated but is still being queried.
+* Cold: The index is no longer being updated and is seldom queried. The
 information still needs to be searchable, but it's okay if those queries are
 slower.
-* Delete--the index is no longer needed and can safely be removed.
+* Delete: The index is no longer needed and can safely be removed.
 
 An index's _lifecycle policy_ specifies which phases 
 are applicable, what actions are performed in each phase,
 and when it transitions between phases. 
 
-To automatically apply a lifecycle policy to new time-series indices when they roll over, 
-associate the policy with the index template. 
-To manage indices that don't roll over, you can manually apply a lifecycle
-policy when creating the index.
+You can manually apply a lifecycle policy when you create an index. 
+For time series indices, you need to associate the lifecycle policy with
+the index template used to create new indices in the series. 
+When an index rolls over, a manually-applied policy isn't automatically applied to the new index.
 
 [discrete]
 [[ilm-phase-transitions]]
@@ -31,7 +31,7 @@ policy when creating the index.
 {ilm-init} moves indices through the lifecycle according to their age. 
 To control the timing of these transitions, you set a _minimum age_ for each phase. 
 For an index to move to the next phase, all actions in the current phase must be complete and 
-the index must be older than the minimum age. 
+the index must be older than the minimum age of the next phase. 
 
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete. 

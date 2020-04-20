@@ -1,5 +1,5 @@
 [[ilm-set-priority]]
-=== Set Priority
+=== Set priority
 
 Phases allowed: hot, warm, cold.
 

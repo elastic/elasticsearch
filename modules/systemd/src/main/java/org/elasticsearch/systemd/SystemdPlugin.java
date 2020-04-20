@@ -21,6 +21,7 @@ package org.elasticsearch.systemd;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -79,7 +80,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         enabled = Boolean.TRUE.toString().equals(esSDNotify);
     }
 
-    Scheduler.Cancellable extender;
+    final SetOnce<Scheduler.Cancellable> extender = new SetOnce<>();
 
     @Override
     public Collection<Object> createComponents(
@@ -102,7 +103,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
              * timeout. Therefore, every fifteen seconds we send systemd a message via sd_notify to extend the timeout by thirty seconds.
              * We will cancel this scheduled task after we successfully notify systemd that we are ready.
              */
-            extender = threadPool.scheduleWithFixedDelay(
+            extender.set(threadPool.scheduleWithFixedDelay(
                 () -> {
                     final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
                     if (rc < 0) {
@@ -110,7 +111,9 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
                     }
                 },
                 TimeValue.timeValueSeconds(15),
-                ThreadPool.Names.SAME);
+                ThreadPool.Names.SAME));
+        } else {
+            extender.set(null);
         }
         return List.of();
     }
@@ -131,8 +134,8 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             // treat failure to notify systemd of readiness as a startup failure
             throw new RuntimeException("sd_notify returned error [" + rc + "]");
         }
-        assert extender != null;
-        final boolean cancelled = extender.cancel();
+        assert extender.get() != null;
+        final boolean cancelled = extender.get().cancel();
         assert cancelled;
     }
 

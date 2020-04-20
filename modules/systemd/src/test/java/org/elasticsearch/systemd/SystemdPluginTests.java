@@ -63,28 +63,28 @@ public class SystemdPluginTests extends ESTestCase {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertTrue(plugin.isEnabled());
-        assertNotNull(plugin.extender);
+        assertNotNull(plugin.extender.get());
     }
 
     public void testIsNotPackageDistribution() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender);
+        assertNull(plugin.extender.get());
     }
 
     public void testIsImplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender);
+        assertNull(plugin.extender.get());
     }
 
     public void testIsExplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
         plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender);
+        assertNull(plugin.extender.get());
     }
 
     public void testInvalid() {
@@ -102,7 +102,7 @@ public class SystemdPluginTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             (maybe, plugin) -> {
                 assertThat(maybe, OptionalMatchers.isEmpty());
-                verify(plugin.extender).cancel();
+                verify(plugin.extender.get()).cancel();
             });
     }
 
@@ -185,7 +185,7 @@ public class SystemdPluginTests extends ESTestCase {
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertNotNull(plugin.extender);
         } else {
-            assertNull(plugin.extender);
+            assertNull(plugin.extender.get());
         }
 
         boolean success = false;

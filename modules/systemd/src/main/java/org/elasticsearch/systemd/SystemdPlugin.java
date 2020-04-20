@@ -127,6 +127,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     @Override
     public void onNodeStarted() {
         if (enabled == false) {
+            assert extender.get() == null;
             return;
         }
         final int rc = sd_notify(0, "READY=1");

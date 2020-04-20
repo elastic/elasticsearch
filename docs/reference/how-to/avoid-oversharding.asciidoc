@@ -40,8 +40,8 @@ Creating indices covering longer time periods will also reduce the index, and th
 If creating indices using Logstash, the {logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-index[index] property of the Elasticsearch output can be modified to a <<date-math-index-names,date math expression>> covering a longer time period. For example, use `logstash-%{+YYYY.MM}`` instead of `logstash-%{+YYYY.MM.dd}`` to create monthly, rather than daily, indices. Beats also allow changing the date math expression defined in the `index` property of the Elasticsearch output, such as for {filebeat-ref}/elasticsearch-output.html#index-option-es[Filebeat].
 
 
-[float]
-==== 4. Shrink an existing index to fewer shards
+[[shrink-existing-index-to-fewer-shards]]
+==== Shrink an existing index to fewer shards
 
 The {ref}/indices-shrink-index.html[Shrink index API] can shrink an existing index down to a fewer shards.
 

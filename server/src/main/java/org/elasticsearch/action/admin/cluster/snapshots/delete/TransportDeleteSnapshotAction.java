@@ -36,11 +36,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Transport action for delete snapshot operation
  */
-public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
+public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotsRequest, AcknowledgedResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -48,7 +49,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              DeleteSnapshotRequest::new,indexNameExpressionResolver);
+              DeleteSnapshotsRequest::new,indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }
 
@@ -63,15 +64,15 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteSnapshotRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteSnapshotsRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteSnapshotRequest request, ClusterState state,
+    protected void masterOperation(Task task, final DeleteSnapshotsRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        snapshotsService.deleteSnapshot(request.repository(), request.snapshot(),
+        snapshotsService.deleteSnapshot(request.repository(), Arrays.asList(request.snapshots()),
             ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
     }
 }

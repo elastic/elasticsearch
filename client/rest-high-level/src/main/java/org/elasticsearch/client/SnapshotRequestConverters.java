@@ -29,7 +29,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
@@ -173,15 +173,15 @@ final class SnapshotRequestConverters {
         return request;
     }
 
-    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
+    static Request deleteSnapshot(DeleteSnapshotsRequest deleteSnapshotsRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(deleteSnapshotRequest.repository())
-            .addPathPart(deleteSnapshotRequest.snapshot())
+            .addPathPart(deleteSnapshotsRequest.repository())
+            .addCommaSeparatedPathParts(deleteSnapshotsRequest.snapshots())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
+        parameters.withMasterTimeout(deleteSnapshotsRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

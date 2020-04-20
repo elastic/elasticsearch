@@ -39,6 +39,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -85,9 +86,9 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
+    public void deleteSnapshot(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
                                ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
+        in.deleteSnapshot(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
     @Override

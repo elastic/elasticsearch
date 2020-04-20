@@ -74,7 +74,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
@@ -519,17 +519,17 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete snapshot.
      */
-    ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request);
+    ActionFuture<AcknowledgedResponse> deleteSnapshots(DeleteSnapshotsRequest request);
 
     /**
      * Delete snapshot.
      */
-    void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
+    void deleteSnapshots(DeleteSnapshotsRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Delete snapshot.
      */
-    DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String snapshot);
+    DeleteSnapshotRequestBuilder prepareDeleteSnapshots(String repository, String[] snapshot);
 
     /**
      * Restores a snapshot.

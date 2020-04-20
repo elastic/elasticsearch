@@ -21,7 +21,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -132,7 +132,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         assertTrue(client().admin()
                 .cluster()
-                .prepareDeleteSnapshot("test-repo", snapshotName)
+                .prepareDeleteSnapshots("test-repo", new String[]{snapshotName})
                 .get()
                 .isAcknowledged());
     }
@@ -215,7 +215,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
+        client().admin().cluster().deleteSnapshots(new DeleteSnapshotsRequest("test-repo", snapshotName)).actionGet();
 
         assertConsistentRepository(repo, genericExec);
 

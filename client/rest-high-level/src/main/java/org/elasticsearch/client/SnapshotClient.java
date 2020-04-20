@@ -30,7 +30,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -335,13 +335,13 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      *
-     * @param deleteSnapshotRequest the request
+     * @param deleteSnapshotsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest,
+    public AcknowledgedResponse delete(DeleteSnapshotsRequest deleteSnapshotsRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotsRequest,
             SnapshotRequestConverters::deleteSnapshot, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
@@ -351,14 +351,14 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      *
-     * @param deleteSnapshotRequest the request
+     * @param deleteSnapshotsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
+    public Cancellable deleteAsync(DeleteSnapshotsRequest deleteSnapshotsRequest, RequestOptions options,
                                    ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotsRequest,
             SnapshotRequestConverters::deleteSnapshot, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }

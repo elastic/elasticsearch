@@ -41,7 +41,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -429,7 +429,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
             scheduleNow(this::disconnectOrRestartMasterNode);
             testClusterNodes.randomDataNodeSafe().client.admin().cluster()
-                .prepareDeleteSnapshot(repoName, snapshotName).execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
+                    .prepareDeleteSnapshots(repoName, new String[]{snapshotName})
+                    .execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
@@ -476,7 +477,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             public void clusterChanged(ClusterChangedEvent event) {
                 final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
                 if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
-                    client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
+                    client().admin().cluster().prepareDeleteSnapshots(repoName, new String[] {snapshotName})
+                            .execute(deleteSnapshotStepListener);
                     masterNode.clusterService.removeListener(this);
                 }
             }
@@ -532,8 +534,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final StepListener<Boolean> deleteSnapshotStepListener = new StepListener<>();
 
         continueOrDie(createOtherSnapshotResponseStepListener,
-            createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-                new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.wrap(
+            createSnapshotResponse -> client().admin().cluster().deleteSnapshots(
+                new DeleteSnapshotsRequest(repoName, snapshotName), ActionListener.wrap(
                     resp -> deleteSnapshotStepListener.onResponse(true),
                     e -> {
                         final Throwable unwrapped =
@@ -608,7 +610,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createOtherSnapshotResponseStepListener,
             createSnapshotResponse -> {
                 scheduleNow(
-                    () -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener));
+                    () -> client().admin().cluster().prepareDeleteSnapshots(repoName, new String[] {snapshotName})
+                            .execute(deleteSnapshotStepListener));
                 scheduleNow(() -> client().admin().cluster().restoreSnapshot(
                     new RestoreSnapshotRequest(repoName, secondSnapshotName).waitForCompletion(true)
                         .renamePattern("(.+)").renameReplacement("restored_$1"),
@@ -796,8 +799,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(snapshotStartedListener, snapshotResponse -> {
             createdSnapshot.set(true);
-            testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
-                new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+            testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshots(
+                new DeleteSnapshotsRequest(repoName, snapshotName), noopListener());
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {

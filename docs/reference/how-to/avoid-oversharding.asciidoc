@@ -45,7 +45,7 @@ If creating indices using Logstash, the {logstash-ref}/plugins-outputs-elasticse
 
 The {ref}/indices-shrink-index.html[Shrink index API] can shrink an existing index down to a fewer shards.
 
-{ref}/index-lifecycle-management.html[Index Lifecycle Management] also has a shrink action available as part of its warm phase.
+<<index-lifecycle-management,{ilm}>> also has a <<ilm-shrink-action,shrink action>> available for indices in the warm phase.
 
 
 [[reindex-an-existing-index-to-fewer-shards]]

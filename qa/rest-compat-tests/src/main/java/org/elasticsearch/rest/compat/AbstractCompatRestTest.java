@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 /**
@@ -42,7 +43,6 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
     protected AbstractCompatRestTest(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
-
 
     private static final Logger staticLogger = LogManager.getLogger(AbstractCompatRestTest.class);
 
@@ -66,38 +66,48 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             });
             finalTestCandidates.add(testCandidates.toArray());
         }
-        localCandidates.keySet().forEach(lc -> finalTestCandidates.add(new Object[]{lc}));
+        localCandidates.keySet().forEach(lc -> finalTestCandidates.add(new Object[] { lc }));
         return finalTestCandidates;
     }
 
-
     private static void mutateTestCandidate(ClientYamlTestCandidate testCandidate) {
-        testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(ds -> {
+        testCandidate.getSetupSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(updateDoSection());
+        testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(updateDoSection());
+    }
+
+    private static Consumer<? super ExecutableSection> updateDoSection() {
+        return ds -> {
             DoSection doSection = (DoSection) ds;
-            //TODO: be more selective here
+            // TODO: be more selective here
             doSection.setIgnoreWarnings(true);
 
             String compatibleHeader = createCompatibleHeader();
-            //TODO decide which one to use - Accept or Content-Type
-            doSection.getApiCallSection()
-                     .addHeaders(Map.of(
-                         CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader,
-                         "Content-Type", compatibleHeader
-                         ));
-        });
+            // for cat apis accept headers would break tests which expect txt response
+            if (doSection.getApiCallSection().getApi().startsWith("cat") == false) {
+                doSection.getApiCallSection()
+                    .addHeaders(
+                        Map.of(
+                            CompatibleConstants.COMPATIBLE_ACCEPT_HEADER,
+                            compatibleHeader,
+                            CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER,
+                            compatibleHeader
+                        )
+                    );
+            }
+
+        };
     }
 
     private static String createCompatibleHeader() {
         return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleConstants.COMPATIBLE_VERSION;
     }
 
-
     private static Map<ClientYamlTestCandidate, ClientYamlTestCandidate> getLocalCompatibilityTests() throws Exception {
-        Iterable<Object[]> candidates =
-            ESClientYamlSuiteTestCase.createParameters(ExecutableSection.XCONTENT_REGISTRY, COMPAT_TESTS_PATH);
+        Iterable<Object[]> candidates = ESClientYamlSuiteTestCase.createParameters(ExecutableSection.XCONTENT_REGISTRY, COMPAT_TESTS_PATH);
         Map<ClientYamlTestCandidate, ClientYamlTestCandidate> localCompatibilityTests = new HashMap<>();
         StreamSupport.stream(candidates.spliterator(), false)
-            .flatMap(Arrays::stream).forEach(o -> localCompatibilityTests.put((ClientYamlTestCandidate) o, (ClientYamlTestCandidate) o));
+            .flatMap(Arrays::stream)
+            .forEach(o -> localCompatibilityTests.put((ClientYamlTestCandidate) o, (ClientYamlTestCandidate) o));
         return localCompatibilityTests;
     }
 }

@@ -310,6 +310,11 @@ See <<ml-get-bucket>>,
 
 See <<snapshot-restore>>.
 
+[role="exclude",id="_repository_plugins"]
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -385,3 +390,16 @@ coming::[7.x]
 === Data stream APIs
 
 coming::[7.x]
+
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>

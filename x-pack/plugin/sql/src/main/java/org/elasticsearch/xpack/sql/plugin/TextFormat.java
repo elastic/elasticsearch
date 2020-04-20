@@ -258,6 +258,7 @@ enum TextFormat {
     }
 
     static TextFormat fromMediaTypeOrFormat(String accept) {
+        //TODO we should include version parsing here too. This and XContentType should be unified somehow..
         for (TextFormat text : values()) {
             String contentType = text.contentType();
             if (contentType.equalsIgnoreCase(accept)

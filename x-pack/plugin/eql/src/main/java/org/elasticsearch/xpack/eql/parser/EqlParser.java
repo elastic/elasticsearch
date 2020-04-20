@@ -134,16 +134,6 @@ public class EqlParser {
         }
 
         @Override
-        public void exitJoin(EqlBaseParser.JoinContext context) {
-            Token token = context.JOIN().getSymbol();
-            throw new ParsingException(
-                "Join is not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
         public void exitPipe(EqlBaseParser.PipeContext context) {
             Token token = context.PIPE().getSymbol();
             throw new ParsingException(
@@ -158,16 +148,6 @@ public class EqlParser {
             Token token = context.relationship;
             throw new ParsingException(
                 "Process relationships are not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
-        public void exitSequence(EqlBaseParser.SequenceContext context) {
-            Token token = context.SEQUENCE().getSymbol();
-            throw new ParsingException(
-                "Sequence is not supported",
                 null,
                 token.getLine(),
                 token.getCharPositionInLine());

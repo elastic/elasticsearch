@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
@@ -284,7 +286,15 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Integer datePart(String dateField, Object dateTime, String tzId) {
-        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
+    }
+
+    public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {
+        return (String) DateTimeFormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
+    public static Object dateTimeParse(String dateField, String pattern, String tzId) {
+        return DateTimeParseProcessor.process(dateField, pattern);
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

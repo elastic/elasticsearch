@@ -50,7 +50,7 @@ final class JdbcTestUtils {
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
-    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
+    static void logResultSetMetaData(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
@@ -146,7 +146,7 @@ final class JdbcTestUtils {
         BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
-    
+
     static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
@@ -154,7 +154,7 @@ final class JdbcTestUtils {
     /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
-     * 
+     *
      * Currently able to resolve resources inside the classpath either from:
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).

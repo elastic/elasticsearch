@@ -53,6 +53,11 @@ public class PCallInvoke extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to method call [" + name + "/" + arguments.size() + "]"));
+        }
+
         Output output = new Output();
 
         Input prefixInput = new Input();
@@ -88,8 +93,6 @@ public class PCallInvoke extends AExpression {
         Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
 
-        output.statement = true;
-
         CallNode callNode = new CallNode();
 
         callNode.setLeftNode(prefix.cast(prefixOutput));
@@ -101,10 +104,5 @@ public class PCallInvoke extends AExpression {
         output.expressionNode = callNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
     }
 }

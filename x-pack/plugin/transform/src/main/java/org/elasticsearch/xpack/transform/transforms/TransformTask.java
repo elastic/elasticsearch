@@ -13,9 +13,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -51,6 +53,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     private static final IndexerState[] RUNNING_STATES = new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING };
     public static final String SCHEDULE_NAME = TransformField.TASK_NAME + "/schedule";
 
+    private final ParentTaskAssigningClient parentTaskClient;
     private final TransformTaskParams transform;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
@@ -65,6 +68,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         String type,
         String action,
         TaskId parentTask,
+        Client client,
         TransformTaskParams transform,
         TransformState state,
         SchedulerEngine schedulerEngine,
@@ -73,6 +77,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         Map<String, String> headers
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
+        this.parentTaskClient = new ParentTaskAssigningClient(client, parentTask);
         this.transform = transform;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
@@ -104,6 +109,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         this.initialPosition = initialPosition;
 
         this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, this);
+    }
+
+    public ParentTaskAssigningClient getParentTaskClient() {
+        return parentTaskClient;
     }
 
     public String getTransformId() {
@@ -170,6 +179,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         ClientTransformIndexer indexer = getIndexer();
         if (indexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
+                parentTaskClient,
                 transform.getId(),
                 context.getCheckpoint(),
                 initialPosition,
@@ -410,6 +420,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
     }
 
+    @Override
+    public boolean shouldCancelChildrenOnCancellation() {
+        // shutdown implements graceful shutdown of children
+        return false;
+    }
+
     /**
      * Attempt to gracefully cleanup the transform so it can be terminated.
      * This tries to remove the job from the scheduler and completes the persistent task
@@ -421,7 +437,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         markAsCompleted();
     }
 
-    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
+    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
         updatePersistentTaskState(state, ActionListener.wrap(success -> {
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);

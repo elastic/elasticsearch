@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -108,7 +108,7 @@ public class DatafeedManager {
                 }, finishHandler::accept
         );
 
-        datafeedJobBuilder.build(datafeedId, datafeedJobHandler);
+        datafeedJobBuilder.build(datafeedId, task.getParentTaskId(), datafeedJobHandler);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
@@ -279,12 +279,12 @@ public class DatafeedManager {
         return holder.getJobId();
     }
 
-    private JobState getJobState(PersistentTasksCustomMetaData tasks, String jobId) {
+    private JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
         return MlTasks.getJobStateModifiedForReassignments(jobId, tasks);
     }
 
-    private boolean jobHasOpenAutodetectCommunicator(PersistentTasksCustomMetaData tasks, String jobId) {
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+    private boolean jobHasOpenAutodetectCommunicator(PersistentTasksCustomMetadata tasks, String jobId) {
+        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
             return false;
         }
@@ -436,7 +436,7 @@ public class DatafeedManager {
 
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
@@ -501,7 +501,7 @@ public class DatafeedManager {
 
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask, String jobId) {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             if (getJobState(tasks, jobId) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, jobId)) {
                 runTask(datafeedTask);
             } else {
@@ -531,11 +531,11 @@ public class DatafeedManager {
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            if (tasksToRun.isEmpty() || event.metaDataChanged() == false) {
+            if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
-            PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            PersistentTasksCustomMetaData currentTasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             if (Objects.equals(previousTasks, currentTasks)) {
                 return;
             }

@@ -117,7 +117,7 @@ public enum XContentType {
     };
 
     private static final Pattern COMPATIBLE_API_HEADER_PATTERN = Pattern.compile(
-        "application/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
+        "(application|text)/(vnd.elasticsearch\\+)?([^;]+)(\\s*;\\s*compatible-with=(\\d+))?",
         Pattern.CASE_INSENSITIVE);
 
     /**
@@ -126,7 +126,9 @@ public enum XContentType {
      * also supports a wildcard accept for {@code application/*}. This method can be used to parse the {@code Accept} HTTP header or a
      * format query string parameter. This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaTypeOrFormat(String mediaType) {
+    public static XContentType fromMediaTypeOrFormat(String mediaTypeHeaderValue) {
+        String mediaType = parseMediaType(mediaTypeHeaderValue);
+
         if (mediaType == null) {
             return null;
         }
@@ -136,7 +138,7 @@ public enum XContentType {
             }
         }
         final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
-        if (lowercaseMediaType.startsWith("application/*")) {
+        if (lowercaseMediaType.startsWith("application/*") || lowercaseMediaType.equals("*/*")) {
             return JSON;
         }
 
@@ -165,11 +167,12 @@ public enum XContentType {
         return null;
     }
 
+    //public scope needed for text formats hack
     public static String parseMediaType(String mediaType) {
         if (mediaType != null) {
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
             if (matcher.find()) {
-                return "application/" + matcher.group(2).toLowerCase(Locale.ROOT);
+                return (matcher.group(1) + "/" + matcher.group(3)).toLowerCase(Locale.ROOT);
             }
         }
 
@@ -179,9 +182,9 @@ public enum XContentType {
     public static String parseVersion(String mediaType){
         if(mediaType != null){
             Matcher matcher = COMPATIBLE_API_HEADER_PATTERN.matcher(mediaType);
-            if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(1))) {
+            if (matcher.find() && "vnd.elasticsearch+".equalsIgnoreCase(matcher.group(2))) {
 
-                return matcher.group(4);
+                return matcher.group(5);
             }
         }
         return null;

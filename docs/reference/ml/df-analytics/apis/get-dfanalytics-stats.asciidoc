@@ -35,7 +35,6 @@ privileges:
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
-
 [[ml-get-dfanalytics-stats-path-params]]
 ==== {api-path-parms-title}
 
@@ -59,7 +58,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
-
+[role="child_attributes"]
 [[ml-get-dfanalytics-stats-response-body]]
 ==== {api-response-body-title}
 

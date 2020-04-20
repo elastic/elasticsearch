@@ -41,7 +41,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -1655,7 +1655,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
-        final Set<String> excludedNodeIds = new HashSet<>();
+        final Set<String> excludedNodeNames = new HashSet<>();
         if (autoManageMasterNodes && nodeAndClients.size() > 0) {
 
             final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
@@ -1667,19 +1667,19 @@ public final class InternalTestCluster extends TestCluster {
                 // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
                 // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
                 // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed
-                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeIds::add);
-                assert excludedNodeIds.size() == stoppingMasters;
+                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeNames::add);
+                assert excludedNodeNames.size() == stoppingMasters;
 
-                logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeIds);
+                logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
                     client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-                            new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(Strings.EMPTY_ARRAY))).get();
+                            new AddVotingConfigExclusionsRequest(excludedNodeNames.toArray(Strings.EMPTY_ARRAY))).get();
                 } catch (InterruptedException | ExecutionException e) {
                     throw new AssertionError("unexpected", e);
                 }
             }
         }
-        return excludedNodeIds;
+        return excludedNodeNames;
     }
 
     private void removeExclusions(Set<String> excludedNodeIds) {
@@ -2075,7 +2075,7 @@ public final class InternalTestCluster extends TestCluster {
             ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
-                assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1),
+                assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
                         greaterThan(shard));
                 OperationRouting operationRouting = clusterService.operationRouting();
                 while (true) {

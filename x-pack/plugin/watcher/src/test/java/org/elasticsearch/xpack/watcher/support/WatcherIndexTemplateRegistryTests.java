@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -306,9 +306,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                                             Map<String, Integer> existingTemplates,
                                             Map<String, LifecyclePolicy> existingPolicies,
                                             DiscoveryNodes nodes) {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> indexTemplates = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> indexTemplates = ImmutableOpenMap.builder();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
-            final IndexTemplateMetaData mockTemplate = mock(IndexTemplateMetaData.class);
+            final IndexTemplateMetadata mockTemplate = mock(IndexTemplateMetadata.class);
             when(mockTemplate.version()).thenReturn(template.getValue());
             when(mockTemplate.getVersion()).thenReturn(template.getValue());
             indexTemplates.put(template.getKey(), mockTemplate);
@@ -319,7 +319,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
         return ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .templates(indexTemplates.build())
                 .transientSettings(nodeSettings)
                 .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
@@ -349,14 +349,14 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(Map<String, Integer> existingTemplates) {
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
-            metaDataBuilder.put(IndexTemplateMetaData.builder(template.getKey())
+            metadataBuilder.put(IndexTemplateMetadata.builder(template.getKey())
                     .version(template.getValue())
                     .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))));
         }
 
-        return ClusterState.builder(new ClusterName("foo")).metaData(metaDataBuilder.build()).build();
+        return ClusterState.builder(new ClusterName("foo")).metadata(metadataBuilder.build()).build();
     }
 
     private static class TestPutIndexTemplateResponse extends AcknowledgedResponse {

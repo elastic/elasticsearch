@@ -26,7 +26,6 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -79,11 +78,6 @@ public class DockerTests extends PackagingTestCase {
         assumeTrue("only Docker", distribution().isDocker());
     }
 
-    @AfterClass
-    public static void teardownSuite() {
-        removeContainer();
-    }
-
     @Before
     public void setupTest() throws IOException {
         installation = runContainer(distribution());
@@ -92,6 +86,7 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
+        removeContainer();
         rm(tempDir);
     }
 
@@ -570,7 +565,7 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final Result containerLogs = getContainerLogs();
 
-        assertThat("Container logs don't contain abbreviated class names", containerLogs.stdout, containsString("o.e.n.Node"));
+        assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
         assertThat("Container logs don't contain INFO level messages", containerLogs.stdout, containsString("INFO"));
     }
 

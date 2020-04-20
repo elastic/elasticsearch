@@ -37,11 +37,15 @@ public class ENull extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
+        }
 
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from null constant."));
+            throw createError(new IllegalArgumentException("not a statement: null constant not used"));
         }
+
+        Output output = new Output();
 
         if (input.expected != null) {
             if (input.expected.isPrimitive()) {
@@ -62,10 +66,5 @@ public class ENull extends AExpression {
         output.expressionNode = nullNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString();
     }
 }

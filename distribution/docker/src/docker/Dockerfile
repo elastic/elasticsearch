@@ -14,7 +14,7 @@
 FROM ${base_image} AS builder
 
 RUN for iter in {1..10}; do yum update --setopt=tsflags=nodocs -y && \
-    yum install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
+    yum install --setopt=tsflags=nodocs -y epel-release && yum install --setopt=tsflags=nodocs -y dpkg wget gzip shadow-utils tar && \
     yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
 
@@ -40,11 +40,13 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 #
 # The tini GitHub page gives instructions for verifying the binary using
 # gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against a checksum that we have
-# computed.
-ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini${tini_suffix} /tini
-COPY config/tini${tini_suffix}.sha512 /tini.sha512
-RUN sha512sum -c /tini.sha512 && chmod +x /tini
+# build. Instead, we check the binary against a checksum that they provide.
+RUN wget --no-check-certificate --no-cookies --quiet https://github.com/krallin/tini/releases/download/v0.19.0/tini-\$(dpkg --print-architecture) \
+    && wget --no-check-certificate --no-cookies --quiet https://github.com/krallin/tini/releases/download/v0.19.0/tini-\$(dpkg --print-architecture).sha256sum \
+    && echo "\$(cat tini-\$(dpkg --print-architecture).sha256sum)" | sha256sum -c \
+    && rm -f tini-\$(dpkg --print-architecture).sha256sum \
+    && mv tini-\$(dpkg --print-architecture) /tini \
+    && chmod +x /tini
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):

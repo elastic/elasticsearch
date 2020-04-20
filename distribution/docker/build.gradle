@@ -38,13 +38,12 @@ ext.expansions = { architecture, oss, local ->
   final String classifier = "aarch64".equals(architecture) ? "linux-aarch64" : "linux-x86_64"
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
-    'base_image'          : "aarch64".equals(architecture) ? "arm64v8/centos:7" : "centos:7",
+    'base_image'          : "centos:7",
     'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
-    'tini_suffix'         : "aarch64".equals(architecture) ? "-arm64" : "",
     'version'             : VersionProperties.elasticsearch
   ]
 }

@@ -187,7 +187,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertTrue(foundRemoveWrite);
     }
 
-    public void testValidation() {
+    public void testAliasValidation() {
         String index1 = randomAlphaOfLength(10);
         String aliasWithWriteIndex = randomAlphaOfLength(10);
         String index2 = randomAlphaOfLength(10);
@@ -213,16 +213,19 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata metadata = metadataBuilder.build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex));
-        assertThat(exception.getMessage(), equalTo("source alias [" + aliasWithNoWriteIndex + "] does not point to a write index"));
+            MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5)));
+        assertThat(exception.getMessage(),
+            equalTo("source alias or data stream [" + aliasWithNoWriteIndex + "] does not point to a write index"));
         exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, randomFrom(index1, index2)));
-        assertThat(exception.getMessage(), equalTo("source alias is a [concrete index], but an [alias] was expected"));
+            MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5)));
+        assertThat(exception.getMessage(),
+            equalTo("source alias or data stream is a [concrete index] but [alias] or [data_stream] was expected"));
+        final String aliasName = randomAlphaOfLength(5);
         exception = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.validate(metadata, randomAlphaOfLength(5))
+            MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5))
         );
-        assertThat(exception.getMessage(), equalTo("source alias does not exist"));
-        MetadataRolloverService.validate(metadata, aliasWithWriteIndex);
+        assertThat(exception.getMessage(), equalTo("source alias or data stream [" + aliasName + "] does not exist"));
+        MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5));
     }
 
     public void testGenerateRolloverIndexName() {
@@ -324,7 +327,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, false));
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
@@ -344,7 +347,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, false));
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
@@ -367,7 +370,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, false));
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 

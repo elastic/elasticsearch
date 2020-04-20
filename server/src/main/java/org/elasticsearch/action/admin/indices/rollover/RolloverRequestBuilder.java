@@ -34,7 +34,7 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
     }
 
     public RolloverRequestBuilder setAlias(String alias) {
-        this.request.setAlias(alias);
+        this.request.setAliasOrDataStream(alias);
         return this;
     }
 

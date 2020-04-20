@@ -132,7 +132,7 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
 
     public void testStoragePreventsAllocation() {
         ClusterState lastState = null;
-        int maxRounds = state.getRoutingNodes().unassigned().size() + 1;
+        int maxRounds = state.getRoutingNodes().unassigned().size() + 3; // (allocated + start + detect-same)
         int round = 0;
         while (lastState != state && round < maxRounds) {
             boolean prevents = hasAllocatableSubjectShards();
@@ -277,7 +277,7 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
         };
 
         ClusterState lastState = null;
-        int maxRounds = state.getRoutingNodes().unassigned().size() + 1;
+        int maxRounds = state.getRoutingNodes().unassigned().size() + 3; // (allocate + start + detect-same)
         int round = 0;
         while (lastState != state && round < maxRounds) {
             ClusterState simulatedState = ReactiveStorageDecider.simulateStartAndAllocate(state, createContext(mockDecider));

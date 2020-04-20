@@ -17,8 +17,8 @@ However, even though shards start to be more memory efficient at around 1GB, a c
 
 Try these six methods to reduce oversharding.
 
-[float]
-==== 1. Reduce the number of shards for new indices
+[[reduce-shards-for-new-indices]]
+==== Reduce the number of shards for new indices
 
 The `index.number_of_shards` setting can be specified for new indices created with the <<indices-create-index,Create Index API>> or as part of <<indices-templates,index templates>> for indices automatically created by <<index-lifecycle-management,Index Lifecycle Management>>. For Elasticsearch versions below 7.0, the default value for this setting was `5`. For versions 7.0 and higher, the default value for this setting is `1`.
 

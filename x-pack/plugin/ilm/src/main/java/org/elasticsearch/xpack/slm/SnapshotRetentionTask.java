@@ -362,6 +362,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             for (SnapshotInfo info : snapshots) {
                 final String policyId = getPolicyId(info);
                 final long deleteStartTime = nowNanoSupplier.getAsLong();
+                // TODO: Use snapshot multi-delete instead of this loop
                 deleteSnapshot(policyId, repo, info.snapshotId(), slmStats, ActionListener.wrap(acknowledgedResponse -> {
                     deleted.incrementAndGet();
                     if (acknowledgedResponse.isAcknowledged()) {
@@ -418,7 +419,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         ActionListener<AcknowledgedResponse> listener) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
         CountDownLatch latch = new CountDownLatch(1);
-        client.admin().cluster().prepareDeleteSnapshot(repo, new String[]{snapshot.getName()})
+        client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.getName())
             .execute(new LatchedActionListener<>(ActionListener.wrap(acknowledgedResponse -> {
                     if (acknowledgedResponse.isAcknowledged()) {
                         logger.debug("[{}] snapshot [{}] deleted successfully", repo, snapshot);

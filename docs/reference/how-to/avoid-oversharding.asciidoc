@@ -48,8 +48,8 @@ The {ref}/indices-shrink-index.html[Shrink index API] can shrink an existing ind
 {ref}/index-lifecycle-management.html[Index Lifecycle Management] also has a shrink action available as part of its warm phase.
 
 
-[float]
-==== 5. Reindex an existing index to fewer shards
+[[reindex-an-existing-index-to-fewer-shards]]
+==== Reindex an existing index to fewer shards
 
 The <<docs-reindex,Reindex API>> can be used to reindex from an existing index to a new index with fewer shards. After the data has been reindexed, the initial oversharded index can be deleted.
 

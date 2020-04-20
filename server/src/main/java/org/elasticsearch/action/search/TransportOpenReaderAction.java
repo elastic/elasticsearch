@@ -22,8 +22,10 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -90,7 +92,7 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
             ActionListener.map(listener, r -> new OpenReaderResponse(r.getReaderId())));
     }
 
-    static final class ShardOpenReaderRequest extends TransportRequest {
+    static final class ShardOpenReaderRequest extends TransportRequest implements IndicesRequest {
         final SearchShardTarget searchShardTarget;
         final TimeValue keepAlive;
 
@@ -110,6 +112,16 @@ public class TransportOpenReaderAction extends HandledTransportAction<OpenReader
             super.writeTo(out);
             searchShardTarget.writeTo(out);
             out.writeTimeValue(keepAlive);
+        }
+
+        @Override
+        public String[] indices() {
+            return searchShardTarget.getOriginalIndices().indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return searchShardTarget.getOriginalIndices().indicesOptions();
         }
     }
 

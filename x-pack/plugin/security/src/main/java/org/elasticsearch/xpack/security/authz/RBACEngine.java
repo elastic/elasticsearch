@@ -278,7 +278,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so we can skip security here.
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (isReaderContextsRelatedAction(action)) {
+            } else if (action.equals(ClearReaderAction.NAME)) {
                 // NORELEASE: ensure security works correctly
                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
@@ -595,11 +595,5 @@ public class RBACEngine implements AuthorizationEngine {
         return action.equals(SubmitAsyncSearchAction.NAME) ||
             action.equals(GetAsyncSearchAction.NAME) ||
             action.equals(DeleteAsyncSearchAction.NAME);
-    }
-
-    private static boolean isReaderContextsRelatedAction(String action) {
-        return action.equals(SearchTransportService.SHARD_OPEN_READER_NAME) ||
-            action.equals(ClearReaderAction.NAME) ||
-            action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 }

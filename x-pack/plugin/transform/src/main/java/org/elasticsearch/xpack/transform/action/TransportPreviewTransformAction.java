@@ -64,7 +64,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.transform.transforms.TransformIndexer.COMPOSITE_AGGREGATION_NAME;
+import static org.elasticsearch.xpack.transform.transforms.pivot.Pivot.COMPOSITE_AGGREGATION_NAME;
 
 public class TransportPreviewTransformAction extends HandledTransportAction<
     PreviewTransformAction.Request,

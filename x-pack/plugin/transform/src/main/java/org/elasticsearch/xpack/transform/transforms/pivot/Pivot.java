@@ -37,10 +37,13 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
+import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -57,7 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class Pivot {
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
-    private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
+    public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
@@ -159,6 +162,42 @@ public class Pivot {
         cachedCompositeAggregation.size(pageSize);
 
         return cachedCompositeAggregation;
+    }
+
+    public ChangeCollector buildChangeCollector(String synchronizationField) {
+        Map<String, FieldCollector> fieldCollectors = new HashMap<>();
+
+        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
+            switch (entry.getValue().getType()) {
+                case TERMS:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.TermsFieldCollector(entry.getValue().getField(), entry.getKey())
+                    );
+                    break;
+                case HISTOGRAM:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.HistogramFieldCollector(entry.getValue().getField(), entry.getKey())
+                    );
+                    break;
+                case DATE_HISTOGRAM:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
+                            entry.getValue().getField(),
+                            entry.getKey(),
+                            ((DateHistogramGroupSource) entry.getValue()).getRounding(),
+                            entry.getKey().equals(synchronizationField)
+                        )
+                    );
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return new CompositeBucketsChangeCollector(createCompositeAggregationSources(config, true), fieldCollectors);
     }
 
     public SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {

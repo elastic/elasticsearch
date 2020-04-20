@@ -268,6 +268,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+    private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
     public IndexShard(
@@ -366,6 +367,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        this.refreshPendingLocationListener = new RefreshPendingLocationListener();
     }
 
     public ThreadPool getThreadPool() {
@@ -2673,7 +2675,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 similarityService.similarity(mapperService), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-                Collections.singletonList(refreshListeners),
+                List.of(refreshListeners, refreshPendingLocationListener),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
@@ -3184,15 +3186,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
+    /**
+     * Returns true if this shard has some scheduled refresh that is pending because of search-idle.
+     */
+    public final boolean hasRefreshPending() {
+        return pendingRefreshLocation.get() != null;
+    }
+
     private void setRefreshPending(Engine engine) {
-        Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
-        Translog.Location location;
-        do {
-            location = this.pendingRefreshLocation.get();
-            if (location != null && lastWriteLocation.compareTo(location) <= 0) {
-                break;
+        final Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
+        pendingRefreshLocation.updateAndGet(curr -> {
+            if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
+                return lastWriteLocation;
+            } else {
+                return curr;
             }
-        } while (pendingRefreshLocation.compareAndSet(location, lastWriteLocation) == false);
+        });
+    }
+
+    private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
+        Translog.Location lastWriteLocation;
+
+        @Override
+        public void beforeRefresh() {
+            lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh) {
+                pendingRefreshLocation.updateAndGet(pendingLocation -> {
+                    if (pendingLocation == null || pendingLocation.compareTo(lastWriteLocation) <= 0) {
+                        return null;
+                    } else {
+                        return pendingLocation;
+                    }
+                });
+            }
+        }
     }
 
     /**

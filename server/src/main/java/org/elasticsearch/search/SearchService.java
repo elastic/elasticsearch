@@ -1113,7 +1113,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        if (indexShard.isSearchIdle()) {
+        if (indexShard.hasRefreshPending()) {
             return new CanMatchResponse(true, null);
         }
         // we don't want to use the reader wrapper since it could run costly operations

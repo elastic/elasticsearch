@@ -252,8 +252,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private void deleteSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
-        assertThat(client.snapshot().delete(
-                new DeleteSnapshotRequest(repoName, name), RequestOptions.DEFAULT).isAcknowledged(), is(true));
+        assertThat(client.snapshot().delete(new DeleteSnapshotRequest(repoName, name), RequestOptions.DEFAULT).isAcknowledged(), is(true));
     }
 
     @SuppressWarnings("unchecked")

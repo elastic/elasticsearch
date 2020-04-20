@@ -179,11 +179,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareDeleteSnapshot(repoName, new String[]{newSnapshotName}).get();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, newSnapshotName).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
 
         final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
-        client().admin().cluster().prepareDeleteSnapshot(repoName, new String[]{fakeOldSnapshot.getName()}).get();
+        client().admin().cluster().prepareDeleteSnapshot(repoName, fakeOldSnapshot.getName()).get();
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
@@ -215,7 +215,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         ensureGreen(index);
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, new String[] {snapshot}).get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
 
         final RepositoryStats repositoryStats = StreamSupport.stream(
             internalCluster().getInstances(RepositoriesService.class).spliterator(), false)

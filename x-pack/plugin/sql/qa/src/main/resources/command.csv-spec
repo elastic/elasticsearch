@@ -44,6 +44,8 @@ CURTIME          |SCALAR
 DATEADD          |SCALAR
 DATEDIFF         |SCALAR
 DATEPART         |SCALAR
+DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
@@ -60,8 +62,8 @@ DAY_OF_WEEK      |SCALAR
 DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
-DOY              |SCALAR         
-HOUR             |SCALAR         
+DOY              |SCALAR
+HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR
 ISODAYOFWEEK     |SCALAR
@@ -213,41 +215,41 @@ TODAY          |SCALAR
 showTables
 SHOW TABLES;
 
-       name    |     type   |  kind   
-logs           |BASE TABLE  |INDEX
-test_alias     |VIEW        |ALIAS
-test_alias_emp |VIEW        |ALIAS 
-test_emp       |BASE TABLE  |INDEX  
-test_emp_copy  |BASE TABLE  |INDEX  
+       name    |  type |  kind   
+logs           |TABLE  |INDEX
+test_alias     |VIEW   |ALIAS
+test_alias_emp |VIEW   |ALIAS 
+test_emp       |TABLE  |INDEX  
+test_emp_copy  |TABLE  |INDEX  
 ;
 
 showTablesSimpleLike
 SHOW TABLES LIKE 'test_emp';
 
- name:s        | type:s     | kind:s
-test_emp       |BASE TABLE  |INDEX
+ name:s        | type:s| kind:s
+test_emp       |TABLE  |INDEX
 ;
 
 showTablesMultiLike
 SHOW TABLES LIKE 'test_emp%';
 
- name:s        | type:s    |kind:s
-test_emp       |BASE TABLE |INDEX     
-test_emp_copy  |BASE TABLE |INDEX     
+ name:s        |type:s |kind:s
+test_emp       |TABLE  |INDEX     
+test_emp_copy  |TABLE  |INDEX     
 ;
 
 showTablesIdentifier
 SHOW TABLES "test_emp";
 
- name:s        | type:s     |kind:s
-test_emp       |BASE TABLE  |INDEX
+ name:s        |type:s |kind:s
+test_emp       |TABLE  |INDEX
 ;
 
 showTablesIdentifierPattern
 SHOW TABLES "test_e*,-test_emp";
 
- name:s        | type:s    |kind:s
-test_emp_copy  |BASE TABLE |INDEX
+ name:s        |type:s |kind:s
+test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesIdentifierPatternOnAliases

@@ -66,6 +66,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -791,7 +792,18 @@ public abstract class StreamOutput extends OutputStream {
                         // joda does not understand "Z" for utc, so we must special case
                         o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
                         o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-                    }));
+                    }),
+            entry(
+                    Set.class,
+                    (o, v) -> {
+                        if (v instanceof LinkedHashSet) {
+                            o.writeByte((byte) 24);
+                        } else {
+                            o.writeByte((byte) 25);
+                        }
+                        o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
+                    }
+            ));
 
     private static Class<?> getGenericType(Object value) {
         if (value instanceof List) {
@@ -800,6 +812,8 @@ public abstract class StreamOutput extends OutputStream {
             return Object[].class;
         } else if (value instanceof Map) {
             return Map.class;
+        } else if (value instanceof Set) {
+            return Set.class;
         } else if (value instanceof ReadableInstant) {
             return ReadableInstant.class;
         } else if (value instanceof BytesReference) {
@@ -824,7 +838,7 @@ public abstract class StreamOutput extends OutputStream {
         if (writer != null) {
             writer.write(this, value);
         } else {
-            throw new IOException("can not write type [" + type + "]");
+            throw new IllegalArgumentException("can not write type [" + type + "]");
         }
     }
 
@@ -839,24 +853,24 @@ public abstract class StreamOutput extends OutputStream {
             for (Object v : list) {
                 checkWriteable(v);
             }
-        } else if (value instanceof Object[]) {
+        } else if (type == Object[].class) {
             Object[] array = (Object[]) value;
             for (Object v : array) {
                 checkWriteable(v);
             }
-        } else if (value instanceof Map) {
+        } else if (type == Map.class) {
             @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) value;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 checkWriteable(entry.getKey());
                 checkWriteable(entry.getValue());
             }
-        } else if (value instanceof Set) {
+        } else if (type == Set.class) {
             @SuppressWarnings("unchecked") Set<Object> set = (Set<Object>) value;
             for (Object v : set) {
                 checkWriteable(v);
             }
         } else if (WRITERS.containsKey(type) == false) {
-            throw new IllegalArgumentException("Cannot write type [" + type + "] to stream");
+            throw new IllegalArgumentException("Cannot write type [" + type.getCanonicalName() + "] to stream");
         }
     }
 

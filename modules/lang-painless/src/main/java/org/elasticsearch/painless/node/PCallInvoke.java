@@ -53,6 +53,11 @@ public class PCallInvoke extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to method call [" + name + "/" + arguments.size() + "]"));
+        }
+
         Output output = new Output();
 
         Input prefixInput = new Input();

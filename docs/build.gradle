@@ -58,6 +58,7 @@ testClusters.integTest {
     }
     setting 'xpack.autoscaling.enabled', 'true'
     setting 'xpack.eql.enabled', 'true'
+    keystorePassword 's3cr3t'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
@@ -90,13 +91,13 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
     return
   }
   // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
     return
   }
   // FIXME
   subproj.afterEvaluate { // need to wait until the project has been configured
     testClusters.integTest {
-      plugin file(subproj.bundlePlugin.archiveFile)
+      plugin subproj.bundlePlugin.archiveFile
     }
     tasks.integTest.dependsOn subproj.bundlePlugin
   }
@@ -551,7 +552,7 @@ buildRestTests.setups['node_upgrade'] = '''
               number_of_replicas: 1
             mappings:
               properties:
-                name:
+                group:
                   type: keyword
                 startup_time_before:
                   type: long
@@ -563,17 +564,17 @@ buildRestTests.setups['node_upgrade'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"name": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
             {"index":{}}
-            {"name": "B", "startup_time_before": 99, "startup_time_after": 93}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
             {"index":{}}
-            {"name": "C", "startup_time_before": 111, "startup_time_after": 72}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
             {"index":{}}
-            {"name": "D", "startup_time_before": 97, "startup_time_after": 98}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
             {"index":{}}
-            {"name": "E", "startup_time_before": 101, "startup_time_after": 102}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
             {"index":{}}
-            {"name": "F", "startup_time_before": 99, "startup_time_after": 98}'''
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
 
 // Used by iprange agg
 buildRestTests.setups['iprange'] = '''

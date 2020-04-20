@@ -64,7 +64,6 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-COPY bin/curl /usr/bin/curl
 
 # 1. Sync the user and group permissions of /etc/passwd
 # 2. Set correct permissions of the entrypoint

@@ -46,12 +46,12 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final int maxDocCount;
     private final double precision;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(RareTermsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        valuesSourceRegistryBuilder.register(RareTermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             RareTermsAggregatorFactory.bytesSupplier());
 
-        valuesSourceRegistry.register(RareTermsAggregationBuilder.NAME,
+        valuesSourceRegistryBuilder.register(RareTermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             RareTermsAggregatorFactory.numericSupplier());
     }

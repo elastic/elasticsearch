@@ -47,8 +47,8 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        GeoBoundsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        GeoBoundsAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private boolean wrapLongitude = true;

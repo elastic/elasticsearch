@@ -45,8 +45,8 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        AvgAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        AvgAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public AvgAggregationBuilder(String name) {

@@ -93,8 +93,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        TermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        TermsAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private BucketOrder order = BucketOrder.compound(BucketOrder.count(false)); // automatically adds tie-breaker key asc order

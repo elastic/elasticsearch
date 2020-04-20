@@ -47,8 +47,8 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MissingAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        MissingAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public MissingAggregationBuilder(String name) {

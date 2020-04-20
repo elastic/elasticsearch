@@ -49,8 +49,8 @@ public class ExtendedStatsAggregationBuilder
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        ExtendedStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        ExtendedStatsAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
     private double sigma = 2.0;
 

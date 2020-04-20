@@ -56,8 +56,8 @@ public final class CardinalityAggregationBuilder
         PARSER.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        CardinalityAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        CardinalityAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private Long precisionThreshold = null;

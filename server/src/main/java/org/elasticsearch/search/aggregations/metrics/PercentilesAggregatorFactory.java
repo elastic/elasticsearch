@@ -47,8 +47,8 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(PercentilesAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        valuesSourceRegistryBuilder.register(PercentilesAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new PercentilesAggregatorSupplier() {
                 @Override

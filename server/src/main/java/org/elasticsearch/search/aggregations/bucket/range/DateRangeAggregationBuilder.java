@@ -58,8 +58,8 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         return RangeAggregator.Range.fromXContent(parser);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistry, NAME);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder, NAME);
     }
 
     public DateRangeAggregationBuilder(String name) {

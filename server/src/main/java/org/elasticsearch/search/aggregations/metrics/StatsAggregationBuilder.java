@@ -55,8 +55,8 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
         super(clone, factoriesBuilder, metadata);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        StatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        StatsAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     @Override

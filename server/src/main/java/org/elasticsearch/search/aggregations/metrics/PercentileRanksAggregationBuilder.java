@@ -46,8 +46,8 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
                 PercentilesConfig.TDigest::new,
                 VALUES_FIELD);
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        PercentileRanksAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        PercentileRanksAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {

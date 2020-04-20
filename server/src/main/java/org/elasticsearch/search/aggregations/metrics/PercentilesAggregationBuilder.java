@@ -56,8 +56,8 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
                 PercentilesConfig.TDigest::new,
                 PERCENTS_FIELD);
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        PercentilesAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {

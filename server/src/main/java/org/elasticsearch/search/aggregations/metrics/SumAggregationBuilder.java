@@ -45,8 +45,8 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        SumAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        SumAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public SumAggregationBuilder(String name) {

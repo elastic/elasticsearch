@@ -55,8 +55,8 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         return Range.fromXContent(parser);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistry, NAME);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder, NAME);
     }
 
     public RangeAggregationBuilder(String name) {

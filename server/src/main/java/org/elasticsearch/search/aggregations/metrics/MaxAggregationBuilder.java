@@ -45,8 +45,8 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MaxAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        MaxAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public MaxAggregationBuilder(String name) {

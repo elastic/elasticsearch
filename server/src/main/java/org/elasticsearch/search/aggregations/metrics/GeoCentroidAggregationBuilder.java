@@ -47,8 +47,8 @@ public class GeoCentroidAggregationBuilder
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        GeoCentroidAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        GeoCentroidAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     public GeoCentroidAggregationBuilder(String name) {

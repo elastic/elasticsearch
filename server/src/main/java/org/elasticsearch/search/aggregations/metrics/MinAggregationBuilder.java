@@ -58,8 +58,8 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         return new MinAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        MinAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        MinAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     /**

@@ -92,8 +92,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName), null);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        SignificantTermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        SignificantTermsAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private IncludeExclude includeExclude = null;

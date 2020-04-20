@@ -111,8 +111,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 Histogram.ORDER_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        DateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        DateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();

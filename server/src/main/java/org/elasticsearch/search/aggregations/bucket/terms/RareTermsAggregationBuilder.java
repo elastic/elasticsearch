@@ -61,8 +61,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         PARSER.declareDouble(RareTermsAggregationBuilder::setPrecision, PRECISION);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        RareTermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        RareTermsAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private IncludeExclude includeExclude = null;

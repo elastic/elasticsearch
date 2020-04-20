@@ -79,8 +79,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             Histogram.ORDER_FIELD);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        HistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    public static void registerAggregators(ValuesSourceRegistry.ValuesSourceRegistryBuilder valuesSourceRegistryBuilder) {
+        HistogramAggregatorFactory.registerAggregators(valuesSourceRegistryBuilder);
     }
 
     private double interval;

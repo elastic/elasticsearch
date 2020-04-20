@@ -136,6 +136,6 @@ rm -rf \
 rm -rf "$target"/etc/ld.so.cache "$target"/var/cache/ldconfig
 mkdir -p --mode=0755 "$target"/var/cache/ldconfig
 
-# Write out the base filesystem. The command changes directory to $target,
+# Write out the base filesystem. The -C option changes directory to $target,
 # so '.' refers to that directory
-tar --numeric-owner -c -f "$output_file" -C "$target" .
+tar czf "$output_file" --numeric-owner -C "$target" .

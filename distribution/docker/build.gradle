@@ -28,7 +28,7 @@ dependencies {
 }
 
 private static String baseImageFilename(final String architecture) {
-  return "elasticsearch-baseimage-${architecture}.tar"
+  return "elasticsearch-baseimage-${architecture}.tar.gz"
 }
 
 ext.expansions = { architecture, oss, local ->

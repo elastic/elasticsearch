@@ -615,6 +615,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
+            // NORELEASE: either wrap the searcher with the right security context or make sure the user owns it.
             final ReaderContext readerContext = findReaderContext(request.readerId());
             final long keepAlive = request.keepAlive().millis();
             checkKeepAliveLimit(keepAlive);
@@ -1120,6 +1121,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        // TODO: support can_match with reader contexts after https://github.com/elastic/elasticsearch/pull/54966
         assert request.readerId() == null : "request with reader_id bypass can_match phase";
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());

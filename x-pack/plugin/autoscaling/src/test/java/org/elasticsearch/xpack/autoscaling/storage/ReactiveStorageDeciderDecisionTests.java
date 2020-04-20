@@ -228,7 +228,7 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
     public void testStoragePreventsRemain() {
         allocate();
         // we can only decide on a move for started shards (due to for instance ThrottlingAllocationDecider assertion).
-        for (int i = 0; i < randomIntBetween(1, 4); ++i) {
+        for (int i = 0; i < randomIntBetween(1, 4) || hasStartedSubjectShard() == false; ++i) {
             startRandomShards();
         }
 
@@ -241,6 +241,9 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
             CAN_ALLOCATE_NO_DECIDER
         );
         verify(ReactiveStorageDecider::storagePreventsRemainOrMove, false);
+
+        // maybe relocate, which means no longer started. This is OK for scale, since it simulates start.
+        startRandomShards();
 
         verifyScale(
             AutoscalingDecisionType.SCALE_UP,
@@ -352,6 +355,10 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
     private boolean hasUnassignedSubjectShards() {
         return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
             .anyMatch(shard -> subjectShards.contains(shard.shardId()));
+    }
+
+    private boolean hasStartedSubjectShard() {
+        return state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).stream().filter(ShardRouting::primary).map(ShardRouting::shardId).anyMatch(subjectShards::contains);
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {

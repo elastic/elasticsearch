@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.Streams;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -196,7 +197,29 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
-        return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName));
+        return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), 0, Long.MAX_VALUE);
+    }
+
+    /**
+     * Returns an {@link java.io.InputStream} for the given blob's position and length
+     *
+     * @param blobName name of the blob
+     * @param position starting position to read from
+     * @param length length of bytes to read
+     * @return the InputStream used to read the blob's content
+     */
+    InputStream readBlob(String blobName, long position, long length) throws IOException {
+        if (position < 0L) {
+            throw new IllegalArgumentException("position must be non-negative");
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("length must be non-negative");
+        }
+        if (length == 0) {
+            return new ByteArrayInputStream(new byte[0]);
+        } else {
+            return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), position, length);
+        }
     }
 
     /**

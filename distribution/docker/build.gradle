@@ -28,17 +28,15 @@ dependencies {
 }
 
 ext.expansions = { architecture, oss, local ->
-  String base_image = null
+  String base_image = centos:7
   String tini_arch = null
   String classifier = null
   switch (architecture) {
     case "aarch64":
-      base_image = "arm64v8/centos:7"
       tini_arch = "arm64"
       classifier = "linux-aarch64"
       break;
     case "x64":
-      base_image = "amd64/centos:7"
       tini_arch = "amd64"
       classifier = "linux-x86_64"
       break;

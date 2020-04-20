@@ -221,7 +221,7 @@
           index_patterns: ["eggplant"]
           template:
             settings:
-              number_of_shards: 3
+              number_of_replicas: 2
 
   - do:
       indices.create:
@@ -232,4 +232,4 @@
       indices.get:
         index: eggplant
 
-  - match: {eggplant.settings.index.number_of_shards: "1"}
+  - match: {eggplant.settings.index.number_of_replicas: "1"}

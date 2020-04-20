@@ -52,7 +52,6 @@ testClusters.integTest {
   setting 'xpack.security.audit.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.ml.min_disk_space_off_heap', '200mb'
-  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
 

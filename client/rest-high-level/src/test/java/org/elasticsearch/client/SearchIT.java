@@ -98,6 +98,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -1227,7 +1228,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         FieldCapabilitiesResponse response = execute(request,
             highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
 
-        assertEquals(new String[] {"index1", "index2"}, response.getIndices());
+        assertThat(response.getIndices(), arrayContaining("index1", "index2"));
 
         // Check the capabilities for the 'rating' field.
         assertTrue(response.get().containsKey("rating"));

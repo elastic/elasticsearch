@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -66,11 +65,6 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
         ParsedMedianAbsoluteDeviation parsedMAD = (ParsedMedianAbsoluteDeviation) parsedAggregation;
         // Double.compare handles NaN, which we use for no result
         assertEquals(internalMAD.getMedianAbsoluteDeviation(), parsedMAD.getMedianAbsoluteDeviation(), 0);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalMedianAbsoluteDeviation> instanceReader() {
-        return InternalMedianAbsoluteDeviation::new;
     }
 
     @Override

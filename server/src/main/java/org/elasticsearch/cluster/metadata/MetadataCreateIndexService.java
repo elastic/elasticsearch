@@ -328,7 +328,7 @@ public class MetadataCreateIndexService {
 
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(currentState.metadata(),
-                request.index(), isHiddenFromRequest);
+                request.index(), isHiddenFromRequest == null ? false : isHiddenFromRequest);
             final boolean preferV2Templates = resolvePreferV2Templates(request);
 
             if (v2Template != null && preferV2Templates) {

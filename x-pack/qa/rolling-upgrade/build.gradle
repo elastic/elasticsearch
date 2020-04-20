@@ -142,6 +142,11 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    if (bwcVersion.onOrAfter("8.0.0")) {
+      systemProperty 'tests.rest.blacklist', [
+        'upgraded_cluster/100_geo_shape_doc_values/Test upgraded 8.x cluster with 8.x and 7.x geo_shape fields'
+      ]
+    }
     systemProperty 'tests.upgrade_from_version', oldVersion
   }
 

@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.spatial.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.index.mapper.MultiGeoShapeValues;
@@ -20,14 +23,36 @@ import org.elasticsearch.xpack.spatial.index.mapper.MultiGeoShapeValues;
 import java.io.IOException;
 import java.util.Map;
 
-public final class GeoShapeBoundsAggregator extends GeoBoundsAggregator {
+public final class GeoShapeBoundsAggregator extends MetricsAggregator {
     private final GeoShapeValuesSource valuesSource;
+    private final boolean wrapLongitude;
+    protected DoubleArray tops;
+    protected DoubleArray bottoms;
+    protected DoubleArray posLefts;
+    protected DoubleArray posRights;
+    protected DoubleArray negLefts;
+    protected DoubleArray negRights;
 
     public GeoShapeBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
                              GeoShapeValuesSource valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException {
-        // the valuesSource as GeoPoint passed to GeoBoundsAggregator is not used
-        super(name, aggregationContext, parent, ValuesSource.GeoPoint.EMPTY, wrapLongitude, metadata);
+        super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
+        this.wrapLongitude = wrapLongitude;
+        if (valuesSource != null) {
+            final BigArrays bigArrays = context.bigArrays();
+            tops = bigArrays.newDoubleArray(1, false);
+            tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
+            bottoms = bigArrays.newDoubleArray(1, false);
+            bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
+            posLefts = bigArrays.newDoubleArray(1, false);
+            posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
+            posRights = bigArrays.newDoubleArray(1, false);
+            posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
+            negLefts = bigArrays.newDoubleArray(1, false);
+            negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
+            negRights = bigArrays.newDoubleArray(1, false);
+            negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
+        }
     }
 
     @Override
@@ -79,5 +104,31 @@ public final class GeoShapeBoundsAggregator extends GeoBoundsAggregator {
                 }
             }
         };
+    }
+
+
+    @Override
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+        if (valuesSource == null) {
+            return buildEmptyAggregation();
+        }
+        double top = tops.get(owningBucketOrdinal);
+        double bottom = bottoms.get(owningBucketOrdinal);
+        double posLeft = posLefts.get(owningBucketOrdinal);
+        double posRight = posRights.get(owningBucketOrdinal);
+        double negLeft = negLefts.get(owningBucketOrdinal);
+        double negRight = negRights.get(owningBucketOrdinal);
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata());
+    }
+
+    @Override
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metadata());
+    }
+
+    @Override
+    public void doClose() {
+        Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
     }
 }

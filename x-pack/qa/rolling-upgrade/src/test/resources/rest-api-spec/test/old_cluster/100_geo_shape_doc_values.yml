@@ -1,5 +1,9 @@
 ---
 "Test 7.x geo_shape fields":
+  - skip:
+      version: "8.0.0 -"
+      reason: This is meant to run on 7.x indices
+
   - do:
       indices.create:
         index: old_locations
@@ -8,6 +12,14 @@
             properties:
               location:
                 type: geo_shape
+
+
+  - do:
+      indices.get_field_mapping:
+        index: old_locations
+        fields: location
+        include_defaults: true
+  - match: { old_locations.mappings.location.mapping.location.doc_values: null }
 
   - do:
       index:

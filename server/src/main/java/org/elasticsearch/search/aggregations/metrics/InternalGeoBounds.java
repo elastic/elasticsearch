@@ -40,8 +40,8 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     public final double negRight;
     public final boolean wrapLongitude;
 
-    InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-                      double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metadata) {
+    public InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
+                             double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metadata) {
         super(name, metadata);
         this.top = top;
         this.bottom = bottom;

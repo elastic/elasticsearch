@@ -277,6 +277,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
+            if (reader() != null) {
+                validationException = addValidationError("using [reader] is not allowed in a scroll context", validationException);
+            }
         }
         if (source != null) {
             if (source.aggregations() != null) {

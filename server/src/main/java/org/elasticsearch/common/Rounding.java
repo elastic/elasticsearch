@@ -384,6 +384,11 @@ public abstract class Rounding implements Writeable {
             if (FORCE_JAVA_TIME_ROUNDING) { // NOCOMMIT just for testing against all tests
                 return javaTimeRounder();
             }
+            // TODO if the time zone is fixed across the range then use the implementation above.
+            /*
+             * Once we do the above TODO we can drop "shardRounding" from
+             * date histogram entirely.  
+             */
             LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(
                     timeZone, minUtcMillis - unit.extraLocalOffsetLookup(), maxUtcMillis);
             if (lookup == null) {
@@ -439,7 +444,7 @@ public abstract class Rounding implements Writeable {
                 if (overlap.firstNonOverlappingLocalTime() - overlap.firstOverlappingLocalTime() >= unitMillis) {
                     return overlap.localToUtcInThisOffset(localMillis);
                 }
-                return overlap.previous().localToUtc(localMillis, this); // This is only right in Lord_Howe
+                return overlap.previous().localToUtc(localMillis, this); // This is mostly for Asia/Lord_Howe
             }
         }
 

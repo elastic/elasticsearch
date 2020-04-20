@@ -131,7 +131,7 @@ public abstract class LocalTimeOffset {
      * jumped over that time. If a local time occurs in a previous transition
      * then uses <strong>that</strong> transition to convert it to utc.
      */
-    public final long localToFirstUtc(long localMillis) { // TODO *first* isn't quite righ because of gap handling. "sensible" might be?
+    public final long localToFirstUtc(long localMillis) { // TODO *first* isn't quite right because of gap handling. "sensible" might be?
         return localToUtc(localMillis, FIRST_STRAT);
     }
     private static final Strategy FIRST_STRAT = new Strategy() {
@@ -424,7 +424,7 @@ public abstract class LocalTimeOffset {
         private final ZoneId zone;
         private final long minUtcMillis;
         private final long maxUtcMillis;
-        private final LocalTimeOffset[] transitions;
+        private final LocalTimeOffset[] offsets;
         private final long[] transitionOutUtcMillis;
 
         private PreBuiltOffsetLookup(ZoneId zone, ZoneRules rules,
@@ -432,9 +432,9 @@ public abstract class LocalTimeOffset {
             this.zone = zone;
             this.minUtcMillis = minUtcMillis;
             this.maxUtcMillis = maxUtcMillis;
-            this.transitions = new LocalTimeOffset[transitions.size() + 1];
+            this.offsets = new LocalTimeOffset[transitions.size() + 1];
             this.transitionOutUtcMillis = new long[transitions.size()];
-            this.transitions[0] = new NoPrevious(transitions.get(0).getOffsetBefore().getTotalSeconds() * 1000);
+            this.offsets[0] = new NoPrevious(transitions.get(0).getOffsetBefore().getTotalSeconds() * 1000);
             int i = 0;
             for (ZoneOffsetTransition t : transitions) {
                 long utcStart = transitionOutUtcMillis[i] = t.toEpochSecond() * 1000;
@@ -444,15 +444,15 @@ public abstract class LocalTimeOffset {
                 if (t.isGap()) {
                     long firstMissingLocalTime = utcStart + offsetBeforeMillis;
                     long firstLocalTimeAfterGap = utcStart + offsetAfterMillis;
-                    next = new Gap(offsetAfterMillis, this.transitions[i], utcStart, firstMissingLocalTime, firstLocalTimeAfterGap);
+                    next = new Gap(offsetAfterMillis, this.offsets[i], utcStart, firstMissingLocalTime, firstLocalTimeAfterGap);
                 } else {
                     long firstOverlappingLocalTime = utcStart + offsetAfterMillis;
                     long firstNonOverlappingLocalTime = utcStart + offsetBeforeMillis;
-                    next = new Overlap(offsetAfterMillis, this.transitions[i], utcStart,
+                    next = new Overlap(offsetAfterMillis, this.offsets[i], utcStart,
                             firstOverlappingLocalTime, firstNonOverlappingLocalTime);
                 }
                 i++;
-                this.transitions[i] = next;
+                this.offsets[i] = next;
             }
         }
 
@@ -472,8 +472,8 @@ public abstract class LocalTimeOffset {
             } else {
                 index++;
             }
-            assert index < transitions.length : "binarySearch did something weird";
-            return transitions[index];
+            assert index < offsets.length : "binarySearch did something weird";
+            return offsets[index];
         }
 
         @Override
@@ -483,7 +483,7 @@ public abstract class LocalTimeOffset {
         }
 
         List<LocalTimeOffset> transitions() {
-            return unmodifiableList(Arrays.asList(transitions));
+            return unmodifiableList(Arrays.asList(offsets));
         }
     }
 }

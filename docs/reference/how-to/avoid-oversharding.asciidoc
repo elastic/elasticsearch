@@ -11,7 +11,8 @@ Each segment has metadata that needs to be kept in (heap) memory. These include 
 
 However, even though shards start to be more memory efficient at around 1GB, a cluster full of 1GB shards will likely still perform poorly. This is because having many small shards can also have a negative impact on search and indexing operations. Each query or indexing operation is executed in a single thread per shard of indices being queried or indexed to. The node receiving a request from a client becomes responsible for distributing that request to the appropriate shards as well as reducing the results from those individual shards into a single response. Even assuming that a cluster has sufficient <<modules-threadpool,search threadpool threads>> available to immediately process the requested action against all shards required by the request, the overhead associated with making network requests to the nodes holding those shards and with having to merge the results of results from many small shards can lead to increased latency. This in turn can lead to exhaustion of the threadpool and, as a result, decreased throughput.
 
-[float]
+[discrete]
+[[reduce-shard-counts-increase-shard-size]]
 === How to reduce shard counts and increase shard size
 
 Try these six methods to reduce oversharding.

@@ -375,6 +375,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
 
+`prediction_field_type`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+
 `results_field`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]

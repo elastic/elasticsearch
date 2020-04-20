@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -550,7 +551,9 @@ public class TrainedModelProvider {
             failures == null ? 0L : Double.valueOf(failures.getValue()).longValue(),
             modelId,
             null,
-            timeStamp == null ? Instant.now() : Instant.ofEpochMilli(Double.valueOf(timeStamp.getValue()).longValue())
+            timeStamp == null || (Numbers.isValidDouble(timeStamp.getValue()) == false) ?
+                Instant.now() :
+                Instant.ofEpochMilli(Double.valueOf(timeStamp.getValue()).longValue())
         );
     }
 

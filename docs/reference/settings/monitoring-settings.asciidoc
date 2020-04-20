@@ -27,6 +27,7 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 ==== General Monitoring Settings
 
 `xpack.monitoring.enabled`::
+deprecated:[7.8.0,Basic License features should always be enabled] +
 Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
 +
 --

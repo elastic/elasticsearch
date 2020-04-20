@@ -377,7 +377,10 @@ class BuildPlugin implements Plugin<Project> {
                 // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
                 publication.pom.withXml(this.&addScmInfo)
                 publication.pom.withXml { xml ->
-                    Node dependenciesNode = (xml.asNode().get('dependencies') as NodeList).get(0) as Node
+                    Node root = xml.asNode();
+                    root.appendNode('name', project.name)
+                    root.appendNode('description', project.description)
+                    Node dependenciesNode = (root.get('dependencies') as NodeList).get(0) as Node
                     project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).allDependencies.each { dependency ->
                         if (dependency instanceof ProjectDependency) {
                             def dependencyNode = dependenciesNode.appendNode('dependency')

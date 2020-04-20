@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
+import java.util.Map;
+
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
  * <p>
@@ -76,7 +78,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
+    public static class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
         public GeoShapeFieldType() {
             super();
         }
@@ -93,6 +95,18 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+    }
+
+    public static final class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+
+        @Override
+        protected AbstractGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
+            if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
+                return new LegacyGeoShapeFieldMapper.Builder(name,
+                    (LegacyGeoShapeFieldMapper.DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
+            }
+            return new GeoShapeFieldMapper.Builder(name);
         }
     }
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -265,10 +264,6 @@ public class AnalyticsProcessManager {
         headerRecord[headerRecord.length - 2] = ".";
         headerRecord[headerRecord.length - 1] = ".";
         process.writeRecord(headerRecord);
-    }
-
-    private void indexDataCounts(DataCounts dataCounts) {
-        IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias());
     }
 
     private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, @Nullable BytesReference state,

@@ -398,6 +398,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                      final StartDatafeedAction.DatafeedParams params,
                                      final PersistentTaskState state) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
+            DatafeedState datafeedState = (DatafeedState) state;
+
+            // If we are "stopping" there is nothing to do
+            if (DatafeedState.STOPPING.equals(datafeedState)) {
+                logger.info("[{}] datafeed got reassigned while stopping. Marking as completed", params.getDatafeedId());
+                datafeedTask.markAsCompleted();
+                return;
+            }
             datafeedTask.datafeedManager = datafeedManager;
             datafeedManager.run(datafeedTask,
                     (error) -> {

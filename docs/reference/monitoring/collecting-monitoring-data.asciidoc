@@ -30,8 +30,8 @@ To learn about monitoring in general, see <<monitor-elasticsearch-cluster>>.
 
 . Configure your cluster to collect monitoring data:
 
-.. Verify that the `xpack.monitoring.enabled` setting is `true`, which is its
-default value, on each node in the cluster. For more information, see
+.. Verify that the deprecated `xpack.monitoring.enabled` setting is not set to
+`false` on any node in the cluster. For more information, see
 <<monitoring-settings>>.
 
 .. Verify that the `xpack.monitoring.elasticsearch.collection.enabled` setting

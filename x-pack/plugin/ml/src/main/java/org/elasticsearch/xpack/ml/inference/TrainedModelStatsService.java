@@ -105,6 +105,7 @@ public class TrainedModelStatsService {
     }
 
     void stop() {
+        logger.info("About to stop TrainedModelStatsService");
         stopped = true;
         statsQueue.clear();
 
@@ -115,6 +116,7 @@ public class TrainedModelStatsService {
     }
 
     void start() {
+        logger.info("About to start TrainedModelStatsService");
         stopped = false;
         scheduledFuture = threadPool.scheduleWithFixedDelay(this::updateStats,
             PERSISTENCE_INTERVAL,
@@ -126,11 +128,13 @@ public class TrainedModelStatsService {
             return;
         }
         if (verifiedStatsIndexCreated == false) {
+            logger.info("About to create the stats index as it does not exist yet");
             try {
                 PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
                 MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
                 listener.actionGet();
                 verifiedStatsIndexCreated = true;
+                logger.info("Created stats index");
             } catch (Exception e) {
                 logger.error("failure creating ml stats index for storing model stats", e);
                 return;

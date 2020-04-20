@@ -72,6 +72,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .setSettings(Settings.builder().put("location", repo).put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES))
         );
 
+        // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work, but
+        // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = between(10, 10_000); i >= 0; i--) {

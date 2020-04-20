@@ -52,7 +52,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
-import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
@@ -119,11 +118,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.loaded = false;
-        if (INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false) {
-            // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work
-            // TODO this restriction can be lifted when https://github.com/elastic/elasticsearch/issues/55142 is resolved.
-            throw new IllegalArgumentException("searchable snapshots requires [" + INDEX_SOFT_DELETES_SETTING.getKey() + "] to be [true]");
-        }
         assert invariant();
     }
 

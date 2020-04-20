@@ -28,48 +28,6 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: "*locations"
-        size: 10
-        body:
-          query:
-            match_all: {}
-  - match: {hits.total:      3    }
-  - length: {hits.hits:      3    }
-
-  - do:
-      catch: bad_request
-      search:
-        rest_total_hits_as_int: true
-        index: old_locations
-        size: 0
-        body:
-          aggs:
-            my_agg:
-              geo_bounds:
-                field: location
-                wrap_longitude: true
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: "*locations"
-        size: 0
-        body:
-          aggs:
-            my_agg:
-              geo_bounds:
-                field: location
-                wrap_longitude: true
-  - match: {hits.total:      1    }
-  - match: { aggregations.my_agg.bounds.top_left.lat: -21.760000032372773 }
-  - match: { aggregations.my_agg.bounds.top_left.lon: 34.24999997019768 }
-  - match: { _shards.failures.0.index: old_locations }
-  - match: { _shards.failures.0.reason.type: illegal_argument_exception }
-  - match: { _shards.failures.0.reason.reason: "Can't load fielddata on [location] because fielddata is unsupported on fields of type [geo_shape]. Use doc values instead." }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
         index: new_locations
         size: 0
         body:

@@ -14,7 +14,7 @@
   - do:
       index:
         index:  old_locations
-        id:     mixed_point_with_doc_value
+        id:     mixed_point_without_doc_value
         body:   { location: "POINT(11.25 43.24)" }
 
   - do:

@@ -41,7 +41,6 @@ import org.gradle.work.Incremental;
 import org.gradle.work.InputChanges;
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -128,7 +127,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         if (errors.isEmpty()) {
             Files.writeString(getReport().toPath(), "Success! No validation errors found.", StandardOpenOption.CREATE);
         } else {
-            try (FileWriter fileWriter = new FileWriter(getReport()); PrintWriter printWriter = new PrintWriter(fileWriter)) {
+            try (PrintWriter printWriter = new PrintWriter(getReport())) {
                 printWriter.printf("Schema: %s%n", jsonSchemaOnDisk);
                 printWriter.println("----------Validation Errors-----------");
                 errors.values().stream().flatMap(Collection::stream).forEach(printWriter::println);

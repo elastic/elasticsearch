@@ -29,7 +29,6 @@ import com.networknt.schema.ValidationMessage;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -62,7 +61,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private final ObjectMapper mapper = new ObjectMapper();
     private Set<String> ignore = new HashSet<>();
     private File jsonSchema;
-    private FileTree inputFiles;
+    private FileCollection inputFiles;
 
     @Incremental
     @InputFiles
@@ -70,7 +69,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         return inputFiles;
     }
 
-    public void setInputFiles(FileTree inputFiles) {
+    public void setInputFiles(FileCollection inputFiles) {
         this.inputFiles = inputFiles;
     }
 
@@ -108,7 +107,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         Map<File, Set<String>> errors = new LinkedHashMap<>();
         // incrementally evaluate input files
         StreamSupport.stream(inputChanges.getFileChanges(getInputFiles()).spliterator(), false)
-            .filter(f -> ChangeType.REMOVED.equals(f.getChangeType()) == false)
+            .filter(f -> f.getChangeType() != ChangeType.REMOVED)
             .forEach(fileChange -> {
                 File file = fileChange.getFile();
                 if (ignore.contains(file.getName())) {

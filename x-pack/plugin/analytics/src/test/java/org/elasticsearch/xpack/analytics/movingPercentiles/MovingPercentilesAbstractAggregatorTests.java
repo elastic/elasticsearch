@@ -55,7 +55,8 @@ public abstract class MovingPercentilesAbstractAggregatorTests extends Aggregato
     }
 
     private void check(int shift, int window) throws IOException {
-        MovingPercentilesPipelineAggregationBuilder builder = new MovingPercentilesPipelineAggregationBuilder("MovingPercentiles", "percentiles", window);
+        MovingPercentilesPipelineAggregationBuilder builder =
+            new MovingPercentilesPipelineAggregationBuilder("MovingPercentiles", "percentiles", window);
         builder.setShift(shift);
 
         Query query = new MatchAllDocsQuery();

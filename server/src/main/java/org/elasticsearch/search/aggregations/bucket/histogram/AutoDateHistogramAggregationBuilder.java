@@ -19,14 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import static java.util.Map.entry;
-
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -46,6 +38,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Map.entry;
 
 public class AutoDateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
@@ -110,20 +110,6 @@ public class AutoDateHistogramAggregationBuilder
 
     private String minimumIntervalExpression;
 
-    public String getMinimumIntervalExpression() {
-        return minimumIntervalExpression;
-    }
-
-    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
-            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
-                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
-        }
-        this.minimumIntervalExpression = minimumIntervalExpression;
-        return this;
-    }
-
-
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
         super(name);
@@ -138,9 +124,17 @@ public class AutoDateHistogramAggregationBuilder
         }
     }
 
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(numBuckets);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalString(minimumIntervalExpression);
+        }
+    }
+
     protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.numBuckets = clone.numBuckets;
         this.minimumIntervalExpression = clone.minimumIntervalExpression;
     }
@@ -152,21 +146,26 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
     public String getType() {
         return NAME;
+    }
+
+    public String getMinimumIntervalExpression() {
+        return minimumIntervalExpression;
+    }
+
+    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
+        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
+            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
+                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
+        }
+        this.minimumIntervalExpression = minimumIntervalExpression;
+        return this;
     }
 
     public AutoDateHistogramAggregationBuilder setNumBuckets(int numBuckets) {
@@ -179,6 +178,11 @@ public class AutoDateHistogramAggregationBuilder
 
     public int getNumBuckets() {
         return numBuckets;
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override
@@ -199,7 +203,7 @@ public class AutoDateHistogramAggregationBuilder
         }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, queryShardContext, parent,
             subFactoriesBuilder,
-            metaData);
+            metadata);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
@@ -300,6 +304,11 @@ public class AutoDateHistogramAggregationBuilder
                 && Objects.deepEquals(innerIntervals, other.innerIntervals)
                 && Objects.equals(dateTimeUnit, other.dateTimeUnit)
                 ;
+        }
+
+        @Override
+        public String toString() {
+            return "RoundingInfo[" + rounding + " " + Arrays.toString(innerIntervals) + "]";
         }
     }
 }

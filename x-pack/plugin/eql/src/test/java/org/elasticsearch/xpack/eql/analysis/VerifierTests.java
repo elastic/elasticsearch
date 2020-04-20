@@ -99,21 +99,9 @@ public class VerifierTests extends ESTestCase {
                         "  and child of [file where file_name=\"svchost.exe\" and opcode=0]"));
     }
 
-    public void testSequencesUnsupported() {
-        assertEquals("1:1: Sequence is not supported", errorParsing("sequence\n" +
-                "  [process where serial_event_id = 1]\n" +
-                "  [process where serial_event_id = 2]"));
-    }
-
-    public void testJoinUnsupported() {
-        assertEquals("1:1: Join is not supported", errorParsing("join by user_name\n" +
-                "  [process where opcode in (1,3) and process_name=\"smss.exe\"]\n" +
-                "  [process where opcode in (1,3) and process_name == \"python.exe\"]"));
-    }
-
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unknown function [arrayContains]",
+        assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
                 error("registry where arrayContains(bytes_written_string_list, 'En')"));
         assertEquals("1:16: Unknown function [arraySearch]",
             error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
@@ -131,14 +119,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:25: Unknown function [endsWith]",
-                error("file where opcode=0 and endsWith(file_name, 'loREr.exe')"));
-        assertEquals("1:25: Unknown function [startsWith]",
-                error("file where opcode=0 and startsWith(file_name, 'explORER.EXE')"));
-        assertEquals("1:25: Unknown function [stringContains]",
-                error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
-        assertEquals("1:25: Unknown function [indexOf]",
-                error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",
                 error("process where add(serial_event_id, 0) == 1"));
         assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",
@@ -151,12 +131,6 @@ public class VerifierTests extends ESTestCase {
                 error("process where serial_event_id == number('5')"));
         assertEquals("1:15: Unknown function [concat]",
                 error("process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'"));
-        assertEquals("1:15: Unknown function [between]",
-                error("process where between(process_name, \"s\", \"e\") == \"yst\""));
-        assertEquals("1:15: Unknown function [cidrMatch]",
-                error("network where cidrMatch(source_address, \"192.168.0.0/16\", \"10.6.48.157/8\")"));
-        assertEquals("1:22: Unknown function [between]",
-                error("process where length(between(process_name, 'g', 'e')) > 0"));
     }
 
     // Test unsupported array indexes
@@ -298,6 +272,12 @@ public class VerifierTests extends ESTestCase {
                 error(idxr, "foo where ip_range_field == ''"));
     }
 
+    public void testMixedSet() {
+        final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
+        assertEquals("1:11: 2nd argument of [long_field in (1, 'string')] must be [long], found value ['string'] type [keyword]",
+            error(idxr, "foo where long_field in (1, 'string')"));
+    }
+
     public void testObject() {
         final IndexResolution idxr = loadIndexResolution("mapping-object.json");
         accept(idxr, "foo where endgame.pid == 0");
@@ -356,5 +336,13 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'");
         accept(idxr, "foo where multi_field_nested.end_date == ''");
         accept(idxr, "foo where multi_field_nested.start_date == 'bar'");
+    }
+
+    public void testStringFunctionWithText() {
+        final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
+        assertEquals("1:15: [string(multi_field.english)] cannot operate on field " +
+                "of data type [text]: No keyword/multi-field defined exact matches for [english]; " +
+                "define one or use MATCH/QUERY instead",
+            error(idxr, "process where string(multi_field.english) == 'foo'"));
     }
 }

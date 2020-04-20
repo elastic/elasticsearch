@@ -32,15 +32,14 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    //TODO maybe we should aim for having a type for version instead of string/byte
-    private final Map<RestRequest.Method, Map<String,RestHandler>> methodHandlers;
+    private final Map<RestRequest.Method, Map<Version,RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, String version, RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, Version version, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
-            methodHandlers.putIfAbsent(method, new HashMap<>());
-            methodHandlers.get(method).put(version, handler);
+            methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
+                .put(version, handler);
         }
     }
 
@@ -48,10 +47,10 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, String version, RestRequest.Method... methods) {
+    MethodHandlers addMethods(RestHandler handler, Version version, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
-            methodHandlers.putIfAbsent(method, new HashMap<>());
-            RestHandler existing = methodHandlers.get(method).put(version, handler);
+            RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
+                .put(version, handler);
             if (existing != null) {
                 throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
             }
@@ -59,13 +58,30 @@ final class MethodHandlers {
         return this;
     }
 
+    /**
+     * Return a handler for a given method and a version
+     * If a handler for a given version is not found, the handler for Version.CURRENT is returned.
+     * We only expect Version.CURRENT or Version.CURRENT -1. This is validated.
+     *
+     * Handlers can be registered under the same path and method, but will require to have different versions (CURRENT or CURRENT-1)
+     *
+     * //todo What if a handler was added in V8 but was not present in V7?
+     *
+     * @param method a REST method under which a handler was registered
+     * @param version a Version under which a handler was registered
+     * @return a handler
+     */
     @Nullable
-    RestHandler getHandler(RestRequest.Method method, String version) {
-        Map<String, RestHandler> versionToHandlers = methodHandlers.get(method);
+    RestHandler getHandler(RestRequest.Method method, Version version) {
+        Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
+
+        if(versionToHandlers == null){
+            return null;
+        }
         if (versionToHandlers.containsKey(version)) {
             return versionToHandlers.get(version);
         }
-        return versionToHandlers.get(String.valueOf(Version.CURRENT.major));
+        return versionToHandlers.get(Version.CURRENT);
     }
 
     /**

@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -58,8 +58,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.license.LicensesMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -156,7 +156,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
-            assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+            assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
         });
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
@@ -169,7 +169,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
-            assertNotNull(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
+            assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
         });
     }
 
@@ -343,14 +343,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected final Index resolveLeaderIndex(String index) {
         GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
-        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     protected final Index resolveFollowerIndex(String index) {
         GetIndexResponse getIndexResponse = followerClient().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
-        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
+        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
@@ -388,7 +388,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 statsResponse.getFollowStats().getStatsResponses(), empty());
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            final PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertThat(tasks.tasks(), empty());
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -729,9 +729,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 AutoFollowMetadata empty =
                     new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metaData(MetaData.builder(currentState.getMetaData())
+                newState.metadata(Metadata.builder(currentState.getMetadata())
                     .putCustom(AutoFollowMetadata.TYPE, empty)
-                    .removeCustom(PersistentTasksCustomMetaData.TYPE)
+                    .removeCustom(PersistentTasksCustomMetadata.TYPE)
                     .build());
                 return newState.build();
             }

@@ -48,6 +48,14 @@ public class EConditional extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
+        }
+
         Output output = new Output();
 
         Input conditionInput = new Input();
@@ -98,10 +106,5 @@ public class EConditional extends AExpression {
         output.expressionNode = conditionalNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, left, right);
     }
 }

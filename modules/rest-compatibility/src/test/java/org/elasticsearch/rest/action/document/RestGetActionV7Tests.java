@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,6 +26,8 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 public class RestGetActionV7Tests extends RestActionTestCase {
+    final String mimeType = "application/vnd.elasticsearch+json;compatible-with=7";
+    final List<String> contentTypeHeader = Collections.singletonList(mimeType);
 
     @Before
     public void setUpAction() {

@@ -352,6 +352,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+            } catch (final RestRequest.CompatibleApiHeadersCombinationException e){
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                innerRestRequest = RestRequest.requestNoValidation(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }
@@ -384,12 +387,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
         try {
-            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestWithoutContentType(xContentRegistry, httpRequest, httpChannel);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestNoValidation(xContentRegistry, httpRequest, httpChannel);
         }
     }
 }

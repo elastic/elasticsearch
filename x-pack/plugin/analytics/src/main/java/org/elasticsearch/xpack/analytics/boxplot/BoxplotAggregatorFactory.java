@@ -11,7 +11,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -41,19 +40,17 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
                              QueryShardContext queryShardContext,
                              AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                             Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData)
+                                        Map<String, Object> metadata)
         throws IOException {
-        return new BoxplotAggregator(name, null, config.format(), compression, searchContext, parent,
-            pipelineAggregators, metaData);
+        return new BoxplotAggregator(name, null, config.format(), compression, searchContext, parent, metadata);
     }
 
     @Override
@@ -61,8 +58,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             BoxplotAggregationBuilder.NAME);
 
@@ -71,6 +67,6 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((BoxplotAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), compression,
-            searchContext, parent, pipelineAggregators, metaData);
+            searchContext, parent, metadata);
     }
 }

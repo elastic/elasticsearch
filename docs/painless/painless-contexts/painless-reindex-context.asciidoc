@@ -19,9 +19,6 @@ reindexed into a target index.
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`)::
         The name of the index.
 
-{ref}/mapping-type-field.html[`ctx['_type']`] (`String`)::
-        The type of document within an index.
-
 {ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
         The unique document id.
 
@@ -44,9 +41,6 @@ reindexed into a target index.
 
 {ref}/mapping-index-field.html[`ctx['_index']`]::
         Modify this to change the destination index for the current document.
-
-{ref}/mapping-type-field.html[`ctx['_type']`]::
-        Modify this to change the type for the current document.
 
 {ref}/mapping-id-field.html[`ctx['_id']`]::
         Modify this to change the id for the current document.

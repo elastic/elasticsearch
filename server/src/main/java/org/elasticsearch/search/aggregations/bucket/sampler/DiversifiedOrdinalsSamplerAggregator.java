@@ -31,12 +31,10 @@ import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -46,9 +44,9 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
 
     DiversifiedOrdinalsSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+            SearchContext context, Aggregator parent, Map<String, Object> metadata,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
+        super(name, shardSize, factories, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }

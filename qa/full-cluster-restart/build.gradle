@@ -59,8 +59,9 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     systemProperty 'tests.is_old_cluster', 'false'
   }
 
+  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
-    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.old_cluster_version', oldVersion
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")

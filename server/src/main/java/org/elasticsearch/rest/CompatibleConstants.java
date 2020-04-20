@@ -19,15 +19,12 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
-
 public class CompatibleConstants {
 
     /**
      * TODO revisit when https://github.com/elastic/elasticsearch/issues/52370 is resolved
      */
-    public static final String COMPATIBLE_HEADER = "Accept";
-    public static final String COMPATIBLE_PARAMS_KEY = "Compatible-With";
-    public static final String COMPATIBLE_VERSION = "" + (Version.CURRENT.major - 1);
+    public static final String COMPATIBLE_ACCEPT_HEADER = "Accept";
+    public static final String COMPATIBLE_CONTENT_TYPE_HEADER = "Content-Type";
 
 }

@@ -121,4 +121,21 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.parseVersion("APPLICATION/JSON"),
             nullValue());
     }
+
+    public void testVersionParsingOnText() {
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.parseVersion("text/vnd.elasticsearch+csv;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("text/vnd.elasticsearch+text;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("text/vnd.elasticsearch+tab-separated-values;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("text/csv"),
+            nullValue());
+
+        assertThat(XContentType.parseVersion("TEXT/VND.ELASTICSEARCH+CSV;COMPATIBLE-WITH=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("TEXT/csv"),
+            nullValue());
+    }
 }

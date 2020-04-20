@@ -53,6 +53,16 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to capturing function reference [" + variable + ":"  + call + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: capturing function reference [" + variable + ":"  + call + "] not used"));
+        }
+
         FunctionRef ref = null;
 
         Output output = new Output();
@@ -99,10 +109,5 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
     @Override
     public List<Class<?>> getCaptures() {
         return Collections.singletonList(captured.getType());
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(variable, call);
     }
 }

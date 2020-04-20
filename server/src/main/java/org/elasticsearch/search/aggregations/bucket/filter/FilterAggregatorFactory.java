@@ -29,11 +29,9 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class FilterAggregatorFactory extends AggregatorFactory {
@@ -42,8 +40,8 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     private Query filter;
 
     public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         filter = filterBuilder.toQuery(queryShardContext);
     }
 
@@ -52,7 +50,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
      * necessary. This is done lazily so that the {@link Weight} is only created
      * if the aggregation collects documents reducing the overhead of the
      * aggregation in the case where no documents are collected.
-     * 
+     *
      * Note that as aggregations are initialsed and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
@@ -72,9 +70,8 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, pipelineAggregators, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, metadata);
     }
 
 }

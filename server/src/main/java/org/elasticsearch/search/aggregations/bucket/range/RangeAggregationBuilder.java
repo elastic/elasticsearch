@@ -70,13 +70,13 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         super(in, InternalRange.FACTORY, Range::new);
     }
 
-    protected RangeAggregationBuilder(RangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected RangeAggregationBuilder(RangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new RangeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new RangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -166,7 +166,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
-                metaData);
+                metadata);
     }
 
     @Override

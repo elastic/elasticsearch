@@ -39,25 +39,29 @@ import static java.util.Collections.singletonMap;
 public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
     /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
+     * Parameter that controls whether certain REST apis should include type names in their requests.
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        CreateIndexRequest createIndexRequest = prepareV7Request(request);
+        return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
+    }
+
+    // default scope for testing
+    CreateIndexRequest prepareV7Request(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is not replaced with _doc
+            request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
             sourceAsMap = prepareMappingsV7(sourceAsMap, request);
 
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
@@ -66,11 +70,11 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
+        return createIndexRequest;
     }
 
     static Map<String, Object> prepareMappingsV7(Map<String, Object> source, RestRequest request) {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
@@ -83,6 +87,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
             @SuppressWarnings("unchecked")
             Map<String, Object> typedMappings = (Map<String, Object>) mappings.get(typeName);
 
+            // the internal representation still uses single type `_doc`.
             newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, typedMappings));
             return newSource;
         } else {

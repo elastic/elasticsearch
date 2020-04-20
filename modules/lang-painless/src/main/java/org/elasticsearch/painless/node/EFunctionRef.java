@@ -50,6 +50,16 @@ public class EFunctionRef extends AExpression implements ILambda {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to function reference [" + type + ":"  + call + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: function reference [" + type + ":"  + call + "] not used"));
+        }
+
         FunctionRef ref;
 
         Output output = new Output();
@@ -84,10 +94,5 @@ public class EFunctionRef extends AExpression implements ILambda {
     @Override
     public List<Class<?>> getCaptures() {
         return Collections.emptyList();
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, call);
     }
 }

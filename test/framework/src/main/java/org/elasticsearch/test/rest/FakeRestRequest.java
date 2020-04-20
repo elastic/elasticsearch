@@ -188,7 +188,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withHeaders(Map<String, List<String>> headers) {
-            this.headers = headers;
+            this.headers.putAll(headers);
             return this;
         }
 
@@ -223,6 +223,19 @@ public class FakeRestRequest extends RestRequest {
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers);
             return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
+        }
+
+        @Override
+        public String toString() {
+            return "Builder{" +
+                "xContentRegistry=" + xContentRegistry +
+                ", headers=" + headers +
+                ", params=" + params +
+                ", content=" + content +
+                ", path='" + path + '\'' +
+                ", method=" + method +
+                ", address=" + address +
+                '}';
         }
     }
 }

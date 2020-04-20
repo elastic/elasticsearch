@@ -38,6 +38,11 @@ public class RestGetActionV7 extends RestGetAction {
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     @Override
+    public String getName() {
+        return "document_get_action_v7";
+    }
+
+    @Override
     public List<Route> routes() {
         assert Version.CURRENT.major == 8 : "REST API compatibility for version 7 is only supported on version 8";
 
@@ -52,7 +57,7 @@ public class RestGetActionV7 extends RestGetAction {
     }
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 }

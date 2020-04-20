@@ -197,17 +197,11 @@ xpack.monitoring.exporters:
 
 `auth.username`::
 
-The username is required if `auth.secure_password` or `auth.password` is supplied.
+The username is required if `auth.secure_password` is supplied.
 
 `auth.secure_password` (<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)::
 
-The password for the `auth.username`. Takes precedence over `auth.password` if it is also specified.
-
-`auth.password`::
-
-The password for the `auth.username`. If `auth.secure_password` is also specified, this setting is ignored.
-
-deprecated[7.7.0, Use `auth.secure_password` instead.]
+The password for the `auth.username`.
 
 `connection.timeout`::
 

@@ -1642,7 +1642,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request) {
+        public ActionFuture<RolloverResponse> rolloverIndex(RolloverRequest request) {
             return execute(RolloverAction.INSTANCE, request);
         }
 

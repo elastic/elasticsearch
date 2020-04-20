@@ -47,7 +47,7 @@ functions, set the interval to the same value as the bucket span.
 
 
 [discrete]
-[[aggs-limits-dfeeds]]
+[[aggs-include-jobs]]
 ==== Including aggregations in {anomaly-jobs}
 
 When you create or update an {anomaly-job}, you can include the names of

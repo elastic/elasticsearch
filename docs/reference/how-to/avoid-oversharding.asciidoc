@@ -24,8 +24,8 @@ The `index.number_of_shards` setting can be specified for new indices created wi
 
 The <<rollover-index-api-example,rollover request>> body can also override that same `index.number_of_shards` setting.
 
-[float]
-==== 2. Create larger shards by increasing the rollover thresholds
+[[create-larger-shards-by-increasing-rollover-thresholds]]
+==== Create larger shards by increasing rollover thresholds
 
 If indices are rolled over by either directly using the Rollover API or by specifying the Index Lifecycle Management {ref}/_actions.html#ilm-rollover-action[Rollover action], then the rollover condition thresholds (`max_age`, `max_docs`, `max_size`) can be increased to allow the indices to grow to a larger size before being rolled over, thereby generating larger shards.
 

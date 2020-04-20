@@ -150,6 +150,7 @@ public final class SecurityMocks {
         final Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         final ClusterService clusterService = mock(ClusterService.class);
 

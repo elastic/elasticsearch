@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
@@ -164,7 +165,8 @@ public class MetadataTests extends ESTestCase {
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(),
-                equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
+                equalTo("index, alias, and data stream names need to be unique, but the following duplicates were found [index (alias " +
+                    "of [index]) conflicts with index]"));
         }
     }
 
@@ -199,7 +201,7 @@ public class MetadataTests extends ESTestCase {
             metadataBuilder.build();
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), startsWith("index and alias names need to be unique"));
+            assertThat(e.getMessage(), startsWith("index, alias, and data stream names need to be unique"));
         }
     }
 
@@ -926,7 +928,8 @@ public class MetadataTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
-            containsString("data stream [" + dataStreamName + "] conflicts with existing concrete index [" + dataStreamName + "]"));
+            containsString("index, alias, and data stream names need to be unique, but the following duplicates were found [data " +
+                "stream [" + dataStreamName + "] conflicts with index]"));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
@@ -940,7 +943,8 @@ public class MetadataTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
-            containsString("data stream [" + dataStreamName + "] conflicts with existing alias [" + dataStreamName + "]"));
+            containsString("index, alias, and data stream names need to be unique, but the following duplicates were found [" +
+                dataStreamName + " (alias of [" + DataStream.getBackingIndexName(dataStreamName, 1) + "]) conflicts with data stream]"));
     }
 
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
@@ -1086,8 +1090,6 @@ public class MetadataTests extends ESTestCase {
     }
 
     public static Metadata randomMetadata() {
-        DataStream randomDataStream = DataStreamTests.randomInstance();
-
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
@@ -1107,15 +1109,13 @@ public class MetadataTests extends ESTestCase {
             .indexGraveyard(IndexGraveyardTests.createRandom())
             .version(randomNonNegativeLong())
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
-            .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance())
-            .put(randomDataStream);
+            .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance());
 
+        DataStream randomDataStream = DataStreamTests.randomInstance();
         for (Index index : randomDataStream.getIndices()) {
-            md.put(IndexMetadata.builder(index.getName())
-                .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
-                .numberOfShards(1)
-                .numberOfReplicas(1));
+            md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
         }
+        md.put(randomDataStream);
 
         return md.build();
     }

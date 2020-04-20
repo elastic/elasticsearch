@@ -95,7 +95,9 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        if (enabled) {
+        if (enabled == false) {
+            extender.set(null);
+        } else {
             /*
              * Since we have set the service type to notify, by default systemd will wait up to sixty seconds for the process to send the
              * READY=1 status via sd_notify. Since our startup can take longer than that (e.g., if we are upgrading on-disk metadata) then
@@ -112,8 +114,6 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
                 },
                 TimeValue.timeValueSeconds(15),
                 ThreadPool.Names.SAME));
-        } else {
-            extender.set(null);
         }
         return List.of();
     }

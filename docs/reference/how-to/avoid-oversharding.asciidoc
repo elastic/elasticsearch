@@ -29,7 +29,7 @@ You can override the `index.number_of_shards`  when rolling over an index using 
 
 You can roll over indices using the <<indices-rollover-index,rollover index API>> or by specifying the <<ilm-rollover-action,rollover action>> in an {ilm-init} policy. If using an {ilm-init} policy, increase the rollover condition thresholds (`max_age`, `max_docs`, `max_size`)  to allow the indices to grow to a larger size before being rolled over, which creates larger shards.
 
-Take special note of any indices that are empty. These may be managed by an ILM policy that is rolling over the indices because the `max_age` threshold is met. In this case, you may need to adjust the policy to make use of the `max_docs` or `max_size` properties to prevent the creation of these empty indices. One example where this may happen is if one or more Beats stop sending data. If the ILM-managed indices for those Beats are configured to rollover daily, then new, empty indices will be generated each day. Empty indices can be identified using the following {ref}/cat-count.html[cat count API]: `GET /_cat/count?v`.
+Take special note of any empty indices. These may be managed by an {ilm-init} policy that is rolling over the indices because the `max_age` threshold is met. In this case, you may need to adjust the policy to make use of the `max_docs` or `max_size` properties to prevent the creation of these empty indices. One example where this may happen is if one or more {beats} stop sending data. If the {ilm-init}-managed indices for those {beats{ are configured to rollover daily, then new, empty indices will be generated each day. Empty indices can be identified using the <<cat-count,cat count API>>.
 
 
 [[create-larger-shards-with-index-patterns]]

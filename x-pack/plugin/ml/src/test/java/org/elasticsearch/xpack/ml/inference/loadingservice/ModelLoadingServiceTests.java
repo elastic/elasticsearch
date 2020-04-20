@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atMost;
@@ -194,7 +195,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model3);
             }
-        }));
+        }), anyBoolean());
 
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
@@ -209,13 +210,13 @@ public class ModelLoadingServiceTests extends ESTestCase {
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model1);
             }
-        }));
+        }), anyBoolean());
         verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
             @Override
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model2);
             }
-        }));
+        }), anyBoolean());
 
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
@@ -229,7 +230,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             public boolean matches(final Object o) {
                 return ((InferenceStats)o).getModelId().equals(model3);
             }
-        }));
+        }), anyBoolean());
 
         // Load model 2
         for(int i = 0; i < 10; i++) {
@@ -278,7 +279,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
 
         verify(trainedModelProvider, times(10)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class));
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
     public void testGetCachedMissingModel() throws Exception {
@@ -306,7 +307,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
 
         verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model), eq(true), any());
-        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class));
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
     public void testGetMissingModel() {
@@ -352,7 +353,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
 
         verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), eq(true), any());
-        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class));
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
     @SuppressWarnings("unchecked")

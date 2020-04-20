@@ -153,7 +153,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             preferV2Templates = in.readOptionalBoolean();
         }
     }
@@ -855,7 +855,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalBoolean(preferV2Templates);
         }
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Arrays;
@@ -60,11 +59,6 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
             assertEquals(reduced.state.quantile(0), min, 0d);
             assertEquals(reduced.state.quantile(1), max, 0d);
         }
-    }
-
-    @Override
-    protected Reader<InternalTDigestPercentileRanks> instanceReader() {
-        return InternalTDigestPercentileRanks::new;
     }
 
     @Override

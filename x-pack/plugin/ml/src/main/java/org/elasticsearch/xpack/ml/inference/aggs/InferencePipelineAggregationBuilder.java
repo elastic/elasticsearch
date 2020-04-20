@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
@@ -43,10 +44,9 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
 
-    public static String NAME = "inference-pipeline-agg";
+    public static String NAME = "inference_model";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
-    public static final ParseField BUCKET_PATH_MAP = new ParseField("bucket_path_map");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
     @SuppressWarnings("unchecked")
@@ -57,8 +57,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     );
 
     static {
-        PARSER.declareObject(constructorArg(), (p, c) -> p.mapStrings(), BUCKET_PATH_MAP);
-        PARSER.declareStringArray((a,b) -> {}, BUCKETS_PATH_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> p.mapStrings(), BUCKETS_PATH_FIELD);
         PARSER.declareString(InferencePipelineAggregationBuilder::setModelId, MODEL_ID);
         PARSER.declareNamedObject(InferencePipelineAggregationBuilder::setInferenceConfig,
             (p, c, n) -> p.namedObject(LenientlyParsedInferenceConfig.class, n, c), INFERENCE_CONFIG);
@@ -112,6 +111,14 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     @Override
+    protected void validate(ValidationContext context) {
+        context.validateHasParent(NAME, name);
+        if (modelId == null) {
+            context.addValidationError("Model Id must be set");
+        }
+    }
+
+    @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeMap(bucketPathMap, StreamOutput::writeString, StreamOutput::writeString);
@@ -141,7 +148,9 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         }
 
         InferenceConfigUpdate update;
-        if (inferenceConfig instanceof RegressionConfig) {
+        if (inferenceConfig == null) {
+            update = new EmptyConfigUpdate();
+        } else if (inferenceConfig instanceof RegressionConfig) {
             update = RegressionConfigUpdate.fromConfig((RegressionConfig)inferenceConfig);
         } else if (inferenceConfig instanceof ClassificationConfig) {
             update = ClassificationConfigUpdate.fromConfig((ClassificationConfig)inferenceConfig);
@@ -156,9 +165,14 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     @Override
+    protected boolean overrideBucketsPath() {
+        return true;
+    }
+
+    @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID.getPreferredName(), modelId);
-        builder.field(BUCKET_PATH_MAP.getPreferredName(), bucketPathMap);
+        builder.field(BUCKETS_PATH_FIELD.getPreferredName(), bucketPathMap);
         if (inferenceConfig != null) {
             builder.startObject(INFERENCE_CONFIG.getPreferredName());
             builder.field(inferenceConfig.getName(), inferenceConfig);
@@ -166,13 +180,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         }
         builder.field(GAP_POLICY.getPreferredName(), gapPolicy.getName());
         return builder;
-    }
-
-    @Override
-    protected void validate(ValidationContext context) {
-        if (modelId == null) {
-            context.addValidationError("Model Id must be set");
-        }
     }
 
     @Override

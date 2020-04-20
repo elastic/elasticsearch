@@ -39,7 +39,7 @@ dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
@@ -104,6 +104,9 @@ subprojects {
     testRuntime "org.jline:jline-style:${jlineVersion}"
 
     testRuntime "org.elasticsearch:jna:${versions.jna}"
+
+    // spatial dependency
+    testRuntime project(path: xpackModule('spatial'))
   }
 
   if (project.name != 'security') {
@@ -113,7 +116,6 @@ subprojects {
 
     testClusters.integTest {
       testDistribution = 'DEFAULT'
-      setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
     }

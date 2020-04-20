@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -55,7 +56,7 @@ public class LocalModelTests extends ESTestCase {
 
     public void testClassificationInfer() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
@@ -126,7 +127,7 @@ public class LocalModelTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testClassificationInferWithDifferentPredictionFieldTypes() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
@@ -183,7 +184,7 @@ public class LocalModelTests extends ESTestCase {
 
     public void testRegression() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
@@ -209,7 +210,7 @@ public class LocalModelTests extends ESTestCase {
 
     public void testAllFieldsMissing() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
@@ -238,7 +239,7 @@ public class LocalModelTests extends ESTestCase {
 
     public void testInferPersistsStatsAfterNumberOfCalls() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
+        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
@@ -273,7 +274,7 @@ public class LocalModelTests extends ESTestCase {
             public boolean matches(Object o) {
                 return ((InferenceStats)o).getInferenceCount() == 99L;
             }
-        }));
+        }), anyBoolean());
     }
 
     private static <T extends InferenceConfig> SingleValueInferenceResults getSingleValue(Model model,

@@ -36,6 +36,12 @@ import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
 class AsyncSearchMaintenanceService implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AsyncSearchMaintenanceService.class);
 
+    /**
+     * Controls the interval at which the cleanup is scheduled.
+     * Defaults to 1h. It is an undocumented/expert setting that
+     * is mainly used by integration tests to make the garbage
+     * collection of search responses more reactive.
+     */
     public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING =
         Setting.timeSetting("async_search.index_cleanup_interval", TimeValue.timeValueHours(1), Setting.Property.NodeScope);
 

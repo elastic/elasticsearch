@@ -66,7 +66,7 @@ GET /_search
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
-<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable 
+<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable
 <<fielddata, fielddata>>.
 
 Response:
@@ -188,20 +188,12 @@ the following:
 |=========================================================
 
 | 1  | Product A (100)
-| 2  | Product Z (52)
-| 3  | Product C (50)
-| 4  | Product G (45)
-| 5  | Product B (43)
+| 2  | Product C (54)
+| 3  | Product Z (52)
+| 4  | Product G (47)
+| 5  | Product H (44)
 
 |=========================================================
-
-Because Product A was returned from all shards we know that its document count value is accurate. Product C was only
-returned by shards A and C so its document count is shown as 50 but this is not an accurate count. Product C exists on
-shard B, but its count of 4 was not high enough to put Product C into the top 5 list for that shard. Product Z was also
-returned only by 2 shards but the third shard does not contain the term. There is no way of knowing, at the point of
-combining the results to produce the final list of terms, that there is an error in the document count for Product C and
-not for Product Z. Product H has a document count of 44 across all 3 shards but was not included in the final list of
-terms because it did not make it into the top five terms on any of the shards.
 
 ==== Shard Size
 
@@ -673,7 +665,7 @@ GET /_search
 
 ===== Filtering Values with partitions
 
-Sometimes there are too many unique terms to process in a single request/response pair so 
+Sometimes there are too many unique terms to process in a single request/response pair so
 it can be useful to break the analysis up into multiple requests.
 This can be achieved by grouping the field's values into a number of partitions at query-time and processing
 only one partition in each request.
@@ -712,10 +704,10 @@ GET /_search
 This request is finding the last logged access date for a subset of customer accounts because we
 might want to expire some customer accounts who haven't been seen for a long while.
 The `num_partitions` setting has requested that the unique account_ids are organized evenly into twenty
-partitions (0 to 19). and the `partition` setting in this request filters to only consider account_ids falling 
+partitions (0 to 19). and the `partition` setting in this request filters to only consider account_ids falling
 into partition 0. Subsequent requests should ask for partitions 1 then 2 etc to complete the expired-account analysis.
 
-Note that the `size` setting for the number of results returned needs to be tuned with the `num_partitions`. 
+Note that the `size` setting for the number of results returned needs to be tuned with the `num_partitions`.
 For this particular account-expiration example the process for balancing values for `size` and `num_partitions` would be as follows:
 
 1. Use the `cardinality` aggregation to estimate the total number of unique account_id values
@@ -724,8 +716,8 @@ For this particular account-expiration example the process for balancing values 
 4. Run a test request
 
 If we have a circuit-breaker error we are trying to do too much in one request and must increase `num_partitions`.
-If the request was successful but the last account ID in the date-sorted test response was still an account we might want to 
-expire then we may be missing accounts of interest and have set our numbers too low. We must either 
+If the request was successful but the last account ID in the date-sorted test response was still an account we might want to
+expire then we may be missing accounts of interest and have set our numbers too low. We must either
 
 * increase the `size` parameter to return more results per partition (could be heavy on memory) or
 * increase the `num_partitions` to consider less accounts per request (could increase overall processing time as we need to make more requests)

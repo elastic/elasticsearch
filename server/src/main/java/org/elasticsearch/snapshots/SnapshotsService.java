@@ -1119,6 +1119,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void resolveAndDeleteSnapshots(Collection<String> snapshotsOrPatterns, ActionListener<Void> listener, String repositoryName) {
+        assert snapshotsOrPatterns.isEmpty() == false;
         threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
                 repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
                         deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotsOrPatterns, repositoryName), repositoryName,

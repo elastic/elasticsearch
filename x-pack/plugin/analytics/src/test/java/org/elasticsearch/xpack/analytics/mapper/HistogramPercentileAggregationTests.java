@@ -87,7 +87,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.recordValue(value);
             if ((i + 1) % frq == 0) {
-                client().bulk(bulkRequest);
+                client().bulk(bulkRequest).actionGet();
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
                 List<Integer> counts = new ArrayList<>();
@@ -171,6 +171,8 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         PutMappingRequest request2 = new PutMappingRequest("pre_agg").source(xContentBuilder2);
         client().admin().indices().putMapping(request2).actionGet();
 
+        System.err.println("FUCK");
+
         TDigestState histogram = new TDigestState(compression);
         BulkRequest bulkRequest = new BulkRequest();
 
@@ -188,7 +190,8 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.add(value);
             if ((i + 1) % frq == 0) {
-                client().bulk(bulkRequest);
+                System.err.println("FUCK2");
+                client().bulk(bulkRequest).actionGet();
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
                 List<Integer> counts = new ArrayList<>();

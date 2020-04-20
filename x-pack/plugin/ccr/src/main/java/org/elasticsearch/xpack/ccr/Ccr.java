@@ -13,6 +13,7 @@ import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -189,7 +190,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
             ccrLicenseChecker,
             restoreSourceService,
-            new CcrRepositoryManager(settings, clusterService, client),
+            new CcrRepositoryManager(settings, clusterService, (NodeClient) client),
             new ShardFollowTaskCleaner(clusterService, threadPool, client),
             new AutoFollowCoordinator(
                 settings,

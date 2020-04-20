@@ -26,6 +26,7 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
@@ -51,7 +52,7 @@ import java.util.stream.Collectors;
 /**
  * Incremental task to validate a set of JSON files against against a schema.
  */
-public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
+public class ValidateJsonAgainstSchemaTask extends DefaultTask {
 
     private static final ObjectMapper mapper = new ObjectMapper();
     private Set<String> ignore = new HashSet<>();
@@ -88,12 +89,7 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
     }
 
     @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + this.getName());
-    }
-
-    @OutputFile
-    public File getErrorReport() {
+    public File getReport() {
         return new File(getProject().getBuildDir(), "reports/validateJson.txt");
     }
 
@@ -123,23 +119,23 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
         });
 
         if (errors.isEmpty()) {
-            Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
+            Files.writeString(getReport().toPath(), "Success! No validation errors found.", StandardOpenOption.CREATE);
         } else {
             // build output and throw exception
-            Files.writeString(getErrorReport().toPath(), String.format("Schema: %s", jsonSchemaOnDisk), StandardOpenOption.CREATE);
+            Files.writeString(getReport().toPath(), String.format("Schema: %s", jsonSchemaOnDisk), StandardOpenOption.CREATE);
             Files.writeString(
-                getErrorReport().toPath(),
+                getReport().toPath(),
                 System.lineSeparator() + "----------Validation Errors-----------" + System.lineSeparator(),
                 StandardOpenOption.APPEND
             );
             Files.write(
-                getErrorReport().toPath(),
+                getReport().toPath(),
                 errors.values().stream().flatMap(Collection::stream).collect(Collectors.toList()),
                 StandardOpenOption.APPEND
             );
             StringBuilder sb = new StringBuilder();
             sb.append("Error validating JSON. See the report at: ");
-            sb.append(getErrorReport().toURI().toASCIIString());
+            sb.append(getReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
             sb.append(
                 String.format("JSON validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())

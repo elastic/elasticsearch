@@ -138,7 +138,8 @@ public class MetadataRolloverService {
             .settings(createIndexRequest.settings())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings());
+            .mappings(createIndexRequest.mappings())
+            .preferV2Templates(createIndexRequest.preferV2Templates());
     }
 
     /**
@@ -175,7 +176,7 @@ public class MetadataRolloverService {
             }
         }
 
-        final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden);
+        final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
             List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
             for (Map<String, AliasMetadata> aliasConfig : aliases) {

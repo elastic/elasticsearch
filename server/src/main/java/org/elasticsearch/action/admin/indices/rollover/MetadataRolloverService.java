@@ -38,10 +38,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -95,7 +93,7 @@ public class MetadataRolloverService {
                 return rolloverAlias(currentState, (IndexAbstraction.Alias) indexAbstraction, aliasOrDataStream, newIndexName,
                     createIndexRequest, metConditions, silent);
             case DATA_STREAM:
-                return  rolloverDataStream(currentState, (IndexAbstraction.DataStream) indexAbstraction, aliasOrDataStream, newIndexName,
+                return  rolloverDataStream(currentState, (IndexAbstraction.DataStream) indexAbstraction, aliasOrDataStream,
                     createIndexRequest, metConditions, silent);
             default:
                 // the validate method above prevents this case
@@ -138,9 +136,8 @@ public class MetadataRolloverService {
     }
 
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream rolloverTarget, String dataStreamName,
-                                              String newIndexName, CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
+                                              CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                               boolean silent) throws Exception {
-        final Metadata metadata = currentState.metadata();
         final DataStream dataStream = rolloverTarget.getDataStream();
         final IndexMetadata originalWriteIndex = rolloverTarget.getWriteIndex();
         final String newWriteIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
@@ -148,13 +145,7 @@ public class MetadataRolloverService {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareCreateIndexRequest(newWriteIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> {
-                List<Index> indices = new ArrayList<>(dataStream.getIndices());
-                indices.add(indexMetadata.getIndex());
-                DataStream newDs = new DataStream(dataStream.getName(), dataStream.getTimeStampField(), indices,
-                    dataStream.getGeneration() + 1);
-                builder.put(newDs);
-            });
+            (builder, indexMetadata) -> builder.put(dataStream.rollover(indexMetadata.getIndex())));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -200,10 +191,7 @@ public class MetadataRolloverService {
         if (settings != null) {
             b.put(settings);
         }
-        createIndexRequest.cause(cause);
-        createIndexRequest.index(targetIndexName);
-        return new CreateIndexClusterStateUpdateRequest(
-            "rollover_index", targetIndexName, providedIndexName)
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndexName, providedIndexName)
             .ackTimeout(createIndexRequest.timeout())
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
             .settings(b.build())

@@ -86,7 +86,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         // This means that new models will not be usable on nodes that cannot handle multiple definition documents
         if (state.nodes().getMinNodeVersion().before(Version.V_7_8_0)) {
             listener.onFailure(ExceptionsHelper.badRequestException(
-                "Creating a new model that all nodes are at least version [{}]",
+                "Creating a new model requires that all nodes are at least version [{}]",
                 request.getTrainedModelConfig().getModelId(),
                 Version.V_7_8_0.toString()));
             return;

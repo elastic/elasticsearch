@@ -152,6 +152,7 @@ public class TrainedModelProvider {
                         "Unable to store model as compressed definition has length [{}] the limit is [{}]",
                         compressedString.length(),
                         MAX_COMPRESSED_STRING_SIZE));
+                return;
             }
             List<String> chunkedStrings = chunkStringWithSize(compressedString, COMPRESSED_STRING_CHUNK_SIZE);
             for(int i = 0; i < chunkedStrings.size(); ++i) {

@@ -32,8 +32,8 @@ If indices are rolled over by either directly using the Rollover API or by speci
 Take special note of any indices that are empty. These may be managed by an ILM policy that is rolling over the indices because the `max_age` threshold is met. In this case, you may need to adjust the policy to make use of the `max_docs` or `max_size` properties to prevent the creation of these empty indices. One example where this may happen is if one or more Beats stop sending data. If the ILM-managed indices for those Beats are configured to rollover daily, then new, empty indices will be generated each day. Empty indices can be identified using the following {ref}/cat-count.html[cat count API]: `GET /_cat/count?v`.
 
 
-[float]
-==== 3. Create larger shards by using index patterns spanning longer time periods
+[[create-larger-shards-with-index-patterns]]
+==== Create larger shards by using index patterns spanning longer time periods
 
 Creating indices covering longer time periods will also reduce the index, and thereby shard, counts and increase index sizes. For example, instead of daily indices, create monthly, or even yearly indices.
 

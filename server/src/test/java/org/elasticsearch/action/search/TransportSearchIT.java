@@ -91,7 +91,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             for (String node : internalCluster().nodesInclude("test")) {
                 final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
                 for (IndexShard indexShard : indicesService.indexServiceSafe(resolveIndex("test"))) {
-                    IndexShardTestCase.isSearchIdle(indexShard);
+                    assertTrue(indexShard.isSearchIdle());
                 }
             }
         });

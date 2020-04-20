@@ -1113,6 +1113,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
+        if (indexShard.isSearchIdle()) {
+            return new CanMatchResponse(true, null);
+        }
         // we don't want to use the reader wrapper since it could run costly operations
         // and we can afford false positives.
         try (Engine.Searcher searcher = indexShard.acquireCanMatchSearcher()) {
@@ -1135,9 +1138,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        indexShard.awaitShardSearchActive(ignored -> ActionListener.completeWith(listener, () -> canMatch(request)));
+        try {
+            listener.onResponse(canMatch(request));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

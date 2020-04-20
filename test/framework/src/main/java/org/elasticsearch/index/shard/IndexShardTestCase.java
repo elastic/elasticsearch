@@ -877,8 +877,4 @@ public abstract class IndexShardTestCase extends ESTestCase {
             }
         };
     }
-
-    public static boolean isSearchIdle(IndexShard shard) {
-        return shard.isSearchIdle();
-    }
 }

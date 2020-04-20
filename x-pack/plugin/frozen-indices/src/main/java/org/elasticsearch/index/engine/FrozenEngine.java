@@ -67,7 +67,7 @@ import java.util.function.Function;
  * The internal reopen of readers is treated like a refresh and refresh listeners are called up-on reopen. This allows to consume refresh
  * stats in order to obtain the number of reopens.
  */
-public final class FrozenEngine extends ReadOnlyEngine {
+public class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
     private final SegmentsStats segmentsStats;

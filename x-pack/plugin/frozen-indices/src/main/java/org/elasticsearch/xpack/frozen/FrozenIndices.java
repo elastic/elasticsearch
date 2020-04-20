@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.FrozenEngine;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -36,12 +37,24 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            return Optional.of(FrozenEngine::new);
+            if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+                return Optional.of(config -> new FrozenEngine(config) {
+                    @Override
+                    protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
+                        // searchable snapshots may not satisfy this property but that's ok since they're only subject to file-based
+                        // recoveries and the files "on disk" never change
+                    }
+                });
+            } else {
+                return Optional.of(FrozenEngine::new);
+            }
         } else {
             return Optional.empty();
         }

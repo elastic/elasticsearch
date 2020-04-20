@@ -269,7 +269,7 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
         DeleteSnapshotsRequest deleteSnapshotsRequest = new DeleteSnapshotsRequest();
         deleteSnapshotsRequest.repository(repository);
-        deleteSnapshotsRequest.snapshots(new String[]{snapshot});
+        deleteSnapshotsRequest.snapshots(snapshot);
         RequestConvertersTests.setRandomMasterTimeout(deleteSnapshotsRequest, expectedParams);
 
         Request request = SnapshotRequestConverters.deleteSnapshot(deleteSnapshotsRequest);

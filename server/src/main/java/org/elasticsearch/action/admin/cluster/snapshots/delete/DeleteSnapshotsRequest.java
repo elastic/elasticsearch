@@ -144,7 +144,7 @@ public class DeleteSnapshotsRequest extends MasterNodeRequest<DeleteSnapshotsReq
      *
      * @return this request
      */
-    public DeleteSnapshotsRequest snapshots(String[] snapshots) {
+    public DeleteSnapshotsRequest snapshots(String... snapshots) {
         this.snapshots = snapshots;
         return this;
     }

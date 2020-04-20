@@ -74,6 +74,7 @@ public class RestIndexActionV7 {
     }
 
     public static class CompatibleCreateHandler extends RestIndexAction.CreateHandler {
+
         @Override
         public String getName() {
             return "document_create_action_v7";
@@ -100,13 +101,14 @@ public class RestIndexActionV7 {
     }
 
     public static final class CompatibleAutoIdHandler extends RestIndexAction.AutoIdHandler {
-        @Override
-        public String getName() {
-            return "document_create_action_auto_id_v7";
-        }
 
         public CompatibleAutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
             super(nodesInCluster);
+        }
+
+        @Override
+        public String getName() {
+            return "document_create_action_auto_id_v7";
         }
 
         @Override

@@ -219,5 +219,18 @@ public class FakeRestRequest extends RestRequest {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers);
             return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
+
+        @Override
+        public String toString() {
+            return "Builder{" +
+                "xContentRegistry=" + xContentRegistry +
+                ", headers=" + headers +
+                ", params=" + params +
+                ", content=" + content +
+                ", path='" + path + '\'' +
+                ", method=" + method +
+                ", address=" + address +
+                '}';
+        }
     }
 }

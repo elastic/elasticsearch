@@ -342,6 +342,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return compatible;
     }
 
+    public static Version minimumRestCompatibilityVersion(){
+        return Version.V_7_0_0;
+    }
+
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
         final String versionOutput = String.format(

@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -608,12 +609,13 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchCompatibleHandler() {
         final byte version = (byte) (Version.CURRENT.major - 1);
 
-        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with="+version);
+        final String mimeType = randomCompatibleMimeType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> contentTypeHeader = Collections.singletonList(mimeType);
+        final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
             .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
@@ -625,11 +627,6 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsContentStream() {
-                return true;
-            }
-
-            @Override
             public boolean compatibilityRequired() {
                 return true;
             }
@@ -638,6 +635,13 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    private String randomCompatibleMimeType(byte version) {
+        String subtype = randomFrom(Stream.of(XContentType.values())
+            .map(XContentType::shortName)
+            .toArray(String[]::new));
+        return randomFrom("application/vnd.elasticsearch+" + subtype + ";compatible-with=" + version);
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

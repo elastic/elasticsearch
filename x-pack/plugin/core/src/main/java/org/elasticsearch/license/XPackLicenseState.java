@@ -41,7 +41,7 @@ public class XPackLicenseState {
         SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
         SECURITY_ALL_REALMS(OperationMode.PLATINUM, false),
         SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
-        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.GOLD, true),
+        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
         SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),

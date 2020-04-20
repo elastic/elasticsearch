@@ -92,7 +92,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
     final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers =
-        Collections.synchronizedMap(new LinkedHashMap<Long, TimeoutInfoHolder>(100, .75F, true) {
+        Collections.synchronizedMap(new LinkedHashMap<>(100, .75F, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry eldest) {
                 return size() > 100;
@@ -520,8 +520,8 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
-                                                                final TransportRequest request,
-                                                                final TransportResponseHandler<T> handler) {
+                                                          final TransportRequest request,
+                                                          final TransportResponseHandler<T> handler) {
         final Transport.Connection connection;
         try {
             connection = getConnection(node);
@@ -614,6 +614,10 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         } else {
             return connectionManager.getConnection(node);
         }
+    }
+
+    public Transport.Connection getLocalConnection() {
+        return localNodeConnection;
     }
 
     public final <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
@@ -1149,7 +1153,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             service.onResponseSent(requestId, action, response);
             final TransportResponseHandler handler = service.responseHandlers.onResponseReceived(requestId, service);
             // ignore if its null, the service logs it

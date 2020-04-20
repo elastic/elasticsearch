@@ -200,7 +200,7 @@ public class ClusterStateChanges {
         Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(TransportVerifyShardBeforeCloseAction.TYPE, new TransportVerifyShardBeforeCloseAction(SETTINGS,
             transportService, clusterService, indicesService, threadPool, null, actionFilters));
-        client.initialize(actions, transportService.getTaskManager(), null, null);
+        client.initialize(actions, transportService, null);
 
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(clusterService, allocationService,
             metadataIndexUpgradeService, indicesService, threadPool, client);

@@ -1469,8 +1469,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService, clusterService, threadPool,
                         snapshotsService, actionFilters, indexNameExpressionResolver
                     ));
-                client.initialize(actions, transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+                client.initialize(actions, transportService, () -> clusterService.localNode().getId());
             }
 
             private Repository.Factory getRepoFactory(Environment environment) {

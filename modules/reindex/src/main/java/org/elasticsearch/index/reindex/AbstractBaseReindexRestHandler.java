@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -28,7 +32,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -39,6 +42,8 @@ public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
                 A extends ActionType<BulkByScrollResponse>
             > extends BaseRestHandler {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     private final A action;
 
@@ -71,7 +76,17 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        return sendTask(client.getLocalNodeId(), client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        return sendTask(client.getLocalNodeId(), client.executeLocally(action, internal, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse response) {
+                logger.info("{} finished with response {}", action, response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> new ParameterizedMessage("{} failed with exception", action), e);
+            }
+        }));
     }
 
     /**

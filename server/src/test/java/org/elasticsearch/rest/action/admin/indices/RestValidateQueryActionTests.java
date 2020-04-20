@@ -33,11 +33,12 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.FakeTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -68,10 +69,11 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
      */
     @BeforeClass
     public static void stubValidateQueryAction() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TransportService transportService = new TransportService(Settings.EMPTY, new FakeTransport(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
 
         final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()), taskManager) {
+            new ActionFilters(Collections.emptySet()), transportService.getTaskManager()) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
             }
@@ -79,8 +81,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
-
-        client.initialize(actions, taskManager, () -> "local", null);
+        client.initialize(actions, transportService, () -> "local");
         controller.registerHandler(action);
     }
 

@@ -29,6 +29,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.transport.FakeTransport;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,10 +42,11 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     @Override
     protected Client buildClient(Settings headersSettings, ActionType[] testedActions) {
         Settings settings = HEADER_SETTINGS;
-        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
-        Actions actions = new Actions(testedActions, taskManager);
+        TransportService transportService = new TransportService(settings, new FakeTransport(), threadPool, TransportService
+            .NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        Actions actions = new Actions(testedActions, transportService.getTaskManager());
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, taskManager, () -> "test", null);
+        client.initialize(actions, transportService, () -> "test");
         return client;
     }
 

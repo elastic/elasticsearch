@@ -27,13 +27,19 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -45,11 +51,11 @@ public class NodeClient extends AbstractClient {
     @SuppressWarnings("rawtypes")
     private Map<ActionType, TransportAction> actions;
 
+    private TransportService transportService;
     private TaskManager taskManager;
 
     /**
-     * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+     * The id of the local {@link DiscoveryNode}.
      */
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
@@ -59,12 +65,12 @@ public class NodeClient extends AbstractClient {
     }
 
     @SuppressWarnings("rawtypes")
-    public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService) {
+    public void initialize(Map<ActionType, TransportAction> actions, TransportService transportService, Supplier<String> localNodeId) {
         this.actions = actions;
-        this.taskManager = taskManager;
+        this.taskManager = transportService.getTaskManager();
         this.localNodeId = localNodeId;
-        this.remoteClusterService = remoteClusterService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
+        this.transportService = transportService;
     }
 
     @Override
@@ -75,14 +81,33 @@ public class NodeClient extends AbstractClient {
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse>
     void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        // Discard the task because the Client interface doesn't use it.
-        executeLocally(action, request, listener);
+        final Transport.Connection localConnection = transportService.getLocalConnection();
+        final TransportRequestOptions options = action.transportOptions(settings);
+        transportService.sendRequest(localConnection, action.name(), request, options, new TransportResponseHandler<Response>() {
+            @Override
+            public Response read(StreamInput in) throws IOException {
+                return action.getResponseReader().read(in);
+            }
+
+            @Override
+            public void handleResponse(Response response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                listener.onFailure(exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
     }
 
     /**
      * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
-     * Prefer this method if you don't need access to the task when listening for the response. This is the method used to
-     * implement the {@link Client} interface.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
@@ -92,19 +117,7 @@ public class NodeClient extends AbstractClient {
     }
 
     /**
-     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
-     * Prefer this method if you need access to the task when listening for the response.
-     */
-    public <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request,
-            listener::onResponse, listener::onFailure);
-    }
-
-    /**
-     * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
+     * The id of the local {@link DiscoveryNode}.
      */
     public String getLocalNodeId() {
         return localNodeId.get();

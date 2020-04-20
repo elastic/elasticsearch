@@ -156,7 +156,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, Boolean preferV2Templates,
+                         TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -589,6 +590,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
+        indexRequest.preferV2Templates(true);
         indexRequest.source(Collections.emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);

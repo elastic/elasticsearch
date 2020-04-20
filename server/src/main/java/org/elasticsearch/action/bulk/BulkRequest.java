@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -75,6 +76,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private String globalType;
+    private Boolean preferV2Templates;
 
     private long sizeInBytes = 0;
 
@@ -89,11 +91,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            this.preferV2Templates = in.readOptionalBoolean();
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
         this.globalIndex = globalIndex;
-    }    
+    }
 
     /**
      * @deprecated Types are in the process of being removed. Use {@link #BulkRequest(String)} instead
@@ -207,6 +212,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this.requests;
     }
 
+    public BulkRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
+        this.preferV2Templates = preferV2Templates;
+        return this;
+    }
+
+    @Nullable
+    public Boolean preferV2Templates() {
+        return this.preferV2Templates;
+    }
+
     /**
      * The number of actions in the bulk request.
      */
@@ -242,11 +257,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, 
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
         return add(new BytesArray(data, from, length), defaultIndex, MapperService.SINGLE_MAPPING_NAME, xContentType);
     }
-    
+
     /**
      * Adds a framed data in binary format
      * @deprecated use {@link #add(BytesReference, String, XContentType)} instead
@@ -256,14 +271,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, true, xContentType);
     }
-    
+
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, 
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, true, xContentType);
-    }    
+    }
 
     /**
      * Adds a framed data in binary format
@@ -274,19 +289,19 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, allowExplicitIndex, xContentType);
     }
-    
+
     /**
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, allowExplicitIndex, xContentType);
-    }    
-    
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, 
+    }
+
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
             @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
             @Nullable String defaultPipeline, boolean allowExplicitIndex,
-            XContentType xContentType) throws IOException {    
+            XContentType xContentType) throws IOException {
         return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, defaultRouting, defaultFetchSourceContext,
                 defaultPipeline, allowExplicitIndex, xContentType);
     }
@@ -409,6 +424,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalBoolean(preferV2Templates);
+        }
     }
 
     @Override

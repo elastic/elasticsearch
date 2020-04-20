@@ -60,7 +60,7 @@ You can use the <<docs-reindex,reindex API>> to reindex multiple small indices c
 
 [source,console]
 --------------------------------------------------
-POST _reindex
+POST /_reindex
 {
   "source": {
     "index": "foo-2019.10.*"

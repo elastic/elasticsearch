@@ -39,7 +39,7 @@ public class RoundingBenchmark {
     @Param({"java time", "es"})
     public String rounder;
 
-    @Param({"America/New_York"})
+    @Param({"UTC", "UTC-5", "America/New_York"})
     public String zone;
 
     @Param({"MONTH_OF_YEAR", "HOUR_OF_DAY"})

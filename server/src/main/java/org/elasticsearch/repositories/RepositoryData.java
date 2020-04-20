@@ -36,10 +36,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -111,7 +111,7 @@ public final class RepositoryData {
         this.snapshotVersions = snapshotVersions;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
             + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
-        assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
+        assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> new HashSet<>(snapshotIdList).size() != snapshotIdList.size()) :
                 "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
 
@@ -218,7 +218,7 @@ public final class RepositoryData {
         for (final IndexId indexId : shardGenerations.indices()) {
             final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
             if (snapshotIds == null) {
-                allIndexSnapshots.put(indexId, List.of(snapshotId));
+                allIndexSnapshots.put(indexId, Collections.singletonList(snapshotId));
             } else {
                 final List<SnapshotId> copy = new ArrayList<>(snapshotIds.size() + 1);
                 copy.addAll(snapshotIds);

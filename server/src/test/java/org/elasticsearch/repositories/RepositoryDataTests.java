@@ -305,7 +305,7 @@ public class RepositoryDataTests extends ESTestCase {
             for (int j = 0; j < numIndicesForSnapshot; j++) {
                 indexSnapshots.add(snapshotIds.get(randomIntBetween(0, totalSnapshots - 1)));
             }
-            indices.put(indexId, List.copyOf(indexSnapshots));
+            indices.put(indexId, Collections.unmodifiableList(new ArrayList<>(indexSnapshots)));
         }
         return indices;
     }

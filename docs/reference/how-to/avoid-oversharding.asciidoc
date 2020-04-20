@@ -37,7 +37,7 @@ Take special note of any empty indices. These may be managed by an {ilm-init} po
 
 Creating indices covering longer time periods reduces index and shard counts while increasing index sizes. For example, instead of daily indices, you can create monthly, or even yearly indices.
 
-If creating indices using Logstash, the {logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-index[index] property of the Elasticsearch output can be modified to a <<date-math-index-names,date math expression>> covering a longer time period. For example, use `logstash-%{+YYYY.MM}`` instead of `logstash-%{+YYYY.MM.dd}`` to create monthly, rather than daily, indices. Beats also allow changing the date math expression defined in the `index` property of the Elasticsearch output, such as for {filebeat-ref}/elasticsearch-output.html#index-option-es[Filebeat].
+If creating indices using {ls}, the {logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-index[index] property of the {es} output can be modified to a <<date-math-index-names,date math expression>> covering a longer time period. For example, use `logstash-%{+YYYY.MM}`` instead of `logstash-%{+YYYY.MM.dd}`` to create monthly, rather than daily, indices. {beats} also lets you change the date math expression defined in the `index` property of the {es} output, such as for {filebeat-ref}/elasticsearch-output.html#index-option-es[Filebeat].
 
 
 [[shrink-existing-index-to-fewer-shards]]

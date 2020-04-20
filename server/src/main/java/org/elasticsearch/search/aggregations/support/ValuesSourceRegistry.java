@@ -123,8 +123,19 @@ public class ValuesSourceRegistry {
     // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
     private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry;
     public ValuesSourceRegistry(Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry) {
-        // TODO: Add copy to immutable data structure
-        this.aggregatorRegistry = aggregatorRegistry;
+        /*
+         Make an immutatble copy of our input map.  Since this is write once, read many, we'll spend a bit of extra time to shape this
+         into a Map.of(), which is more read optimized than just using a hash map.
+         */
+        Map.Entry[] copiedEntries = new Map.Entry[aggregatorRegistry.size()];
+        int i = 0;
+        for (Map.Entry<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> entry : aggregatorRegistry.entrySet()) {
+            String aggName = entry.getKey();
+            List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>> values = entry.getValue();
+            Map.Entry newEntry = Map.entry(aggName, List.of(values.toArray()));
+            copiedEntries[i++] = newEntry;
+        }
+        this.aggregatorRegistry = Map.ofEntries(copiedEntries);
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,

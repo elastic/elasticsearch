@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,41 +28,32 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Response indicating if the Machine Learning Job is now opened or not
+ * Response indicating if the Machine Learning Datafeed is now started or not
  */
-public class OpenJobResponse implements ToXContentObject {
+public class StartDataFrameAnalyticsResponse extends AcknowledgedResponse {
 
-    private static final ParseField OPENED = new ParseField("opened");
     private static final ParseField NODE = new ParseField("node");
 
-    public static final ConstructingObjectParser<OpenJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("open_job_response", true,
-            (a) -> new OpenJobResponse((Boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<StartDataFrameAnalyticsResponse, Void> PARSER =
+        new ConstructingObjectParser<>(
+            "start_data_frame_analytics_response",
+            true,
+            (a) -> new StartDataFrameAnalyticsResponse((Boolean) a[0], (String) a[1]));
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), OPENED);
+        declareAcknowledgedField(PARSER);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NODE);
     }
 
-    private boolean opened;
-    private String node;
+    private final String node;
 
-    OpenJobResponse(boolean opened, String node) {
-        this.opened = opened;
+    public StartDataFrameAnalyticsResponse(boolean acknowledged, String node) {
+        super(acknowledged);
         this.node = node;
     }
 
-    public static OpenJobResponse fromXContent(XContentParser parser) throws IOException {
+    public static StartDataFrameAnalyticsResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    /**
-     * Has the job opened or not
-     *
-     * @return boolean value indicating the job opened status
-     */
-    public boolean isOpened() {
-        return opened;
     }
 
     /**
@@ -87,24 +78,20 @@ public class OpenJobResponse implements ToXContentObject {
             return false;
         }
 
-        OpenJobResponse that = (OpenJobResponse) other;
-        return isOpened() == that.isOpened()
+        StartDataFrameAnalyticsResponse that = (StartDataFrameAnalyticsResponse) other;
+        return isAcknowledged() == that.isAcknowledged()
             && Objects.equals(node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isOpened(), node);
+        return Objects.hash(isAcknowledged(), node);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(OPENED.getPreferredName(), opened);
+    public void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         if (node != null) {
             builder.field(NODE.getPreferredName(), node);
         }
-        builder.endObject();
-        return builder;
     }
 }

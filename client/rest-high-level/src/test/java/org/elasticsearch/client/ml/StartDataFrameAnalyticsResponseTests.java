@@ -23,17 +23,17 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class OpenJobResponseTests extends AbstractXContentTestCase<OpenJobResponse> {
+public class StartDataFrameAnalyticsResponseTests extends AbstractXContentTestCase<StartDataFrameAnalyticsResponse> {
 
     @Override
-    protected OpenJobResponse createTestInstance() {
+    protected StartDataFrameAnalyticsResponse createTestInstance() {
         String node = randomFrom("", randomAlphaOfLength(10), null);
-        return new OpenJobResponse(randomBoolean(), node);
+        return new StartDataFrameAnalyticsResponse(randomBoolean(), node);
     }
 
     @Override
-    protected OpenJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return OpenJobResponse.fromXContent(parser);
+    protected StartDataFrameAnalyticsResponse doParseInstance(XContentParser parser) throws IOException {
+        return StartDataFrameAnalyticsResponse.fromXContent(parser);
     }
 
     @Override

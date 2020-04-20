@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -113,7 +114,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(false);
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
             client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), listener);
             listener.actionGet();
         });
@@ -133,9 +134,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         });
 
         // test that license restricted apis do now work
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), listener);
-        AcknowledgedResponse response2 = listener.actionGet();
+        NodeAcknowledgedResponse response2 = listener.actionGet();
         assertNotNull(response2);
     }
 
@@ -196,12 +197,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
         assertNotNull(putDatafeedResponse);
         // open job
-        PlainActionFuture<AcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
-        AcknowledgedResponse openJobResponse = openJobListener.actionGet();
+        NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
         // start datafeed
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener);
         listener.actionGet();
 
@@ -232,12 +233,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
 
         // open job
-        PlainActionFuture<AcknowledgedResponse> openJobListener2 = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener2 = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener2);
-        AcknowledgedResponse openJobResponse3 = openJobListener2.actionGet();
+        NodeAcknowledgedResponse openJobResponse3 = openJobListener2.actionGet();
         assertNotNull(openJobResponse3);
         // start datafeed
-        PlainActionFuture<AcknowledgedResponse> listener2 = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener2 = PlainActionFuture.newFuture();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener2);
         listener2.actionGet();
 
@@ -291,9 +292,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                         Collections.singletonList(datafeedIndex))), putDatafeedListener);
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
         assertNotNull(putDatafeedResponse);
-        PlainActionFuture<AcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
-        AcknowledgedResponse openJobResponse = openJobListener.actionGet();
+        NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
 
         // Pick a license that does not allow machine learning
@@ -312,7 +313,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
             client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener);
             listener.actionGet();
         });
@@ -326,14 +327,14 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         // test that license restricted apis do now work
         // re-open job now that the license is valid again
-        PlainActionFuture<AcknowledgedResponse> openJobListener2 = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener2 = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener2);
-        AcknowledgedResponse openJobResponse3 = openJobListener2.actionGet();
+        NodeAcknowledgedResponse openJobResponse3 = openJobListener2.actionGet();
         assertNotNull(openJobResponse3);
 
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener);
-        AcknowledgedResponse response = listener.actionGet();
+        NodeAcknowledgedResponse response = listener.actionGet();
         assertNotNull(response);
     }
 
@@ -354,14 +355,14 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                         Collections.singletonList(datafeedIndex))), putDatafeedListener);
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
         assertNotNull(putDatafeedResponse);
-        PlainActionFuture<AcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
-        AcknowledgedResponse openJobResponse = openJobListener.actionGet();
+        NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
-        PlainActionFuture<AcknowledgedResponse> startDatafeedListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> startDatafeedListener = PlainActionFuture.newFuture();
         client().execute(StartDatafeedAction.INSTANCE,
             new StartDatafeedAction.Request(datafeedId, 0L), startDatafeedListener);
-        AcknowledgedResponse startDatafeedResponse = startDatafeedListener.actionGet();
+        NodeAcknowledgedResponse startDatafeedResponse = startDatafeedListener.actionGet();
         assertNotNull(startDatafeedResponse);
 
         boolean invalidLicense = randomBoolean();
@@ -402,9 +403,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
-        PlainActionFuture<AcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
-        AcknowledgedResponse openJobResponse = openJobListener.actionGet();
+        NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
 
         boolean invalidLicense = randomBoolean();

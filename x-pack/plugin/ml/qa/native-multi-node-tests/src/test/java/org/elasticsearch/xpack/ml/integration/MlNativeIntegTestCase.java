@@ -23,6 +23,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.MockDeterministicScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -283,7 +284,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         @Override
         public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
             if (context.instanceClazz.equals(ScoreScript.class)) {
-                return context.factoryClazz.cast(new MockScoreScript(p -> 0.0));
+                return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
                 IngestScript.Factory factory = vars -> new IngestScript(vars) {

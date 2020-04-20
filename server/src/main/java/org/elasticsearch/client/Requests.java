@@ -502,14 +502,14 @@ public class Requests {
     }
 
     /**
-     * Deletes a snapshot
+     * Deletes snapshots
      *
-     * @param snapshot   snapshot name
+     * @param snapshots  snapshot names
      * @param repository repository name
      * @return delete snapshot request
      */
-    public static DeleteSnapshotsRequest deleteSnapshotRequest(String repository, String snapshot) {
-        return new DeleteSnapshotsRequest(repository, new String[]{snapshot});
+    public static DeleteSnapshotsRequest deleteSnapshotRequest(String repository, String[] snapshots) {
+        return new DeleteSnapshotsRequest(repository, snapshots);
     }
 
     /**

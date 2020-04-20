@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -48,7 +49,8 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DeleteSnapshotsRequest deleteSnapshotsRequest = deleteSnapshotRequest(request.param("repository"), request.param("snapshot"));
+        DeleteSnapshotsRequest deleteSnapshotsRequest = deleteSnapshotRequest(request.param("repository"),
+                request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY));
         deleteSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteSnapshotsRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().deleteSnapshots(deleteSnapshotsRequest, new RestToXContentListener<>(channel));
     }

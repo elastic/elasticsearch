@@ -490,7 +490,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testFindV2Templates() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean() ? null : randomBoolean()));
+        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean()));
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
@@ -499,7 +499,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndexTemplateV2 it2 = new IndexTemplateV2(Collections.singletonList("in*"), null, Collections.singletonList("ct"), 10L, 2L, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
-        String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean() ? null : randomBoolean());
+        String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean());
 
         assertThat(result, equalTo("my-template2"));
     }
@@ -531,7 +531,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 new IndexTemplateV2Metadata(org.elasticsearch.common.collect.Map.of("invalid_global_template", invalidGlobalTemplate)))
                 .build();
 
-            MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", null);
+            MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", false);
             fail("expecting an exception as the matching global template is invalid");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), is("global index template [invalid_global_template], composed of component templates [ct] " +

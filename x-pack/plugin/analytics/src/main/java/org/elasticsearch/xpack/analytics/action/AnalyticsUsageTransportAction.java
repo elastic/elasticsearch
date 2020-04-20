@@ -21,12 +21,9 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.xpack.core.analytics.EnumCounters;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final XPackLicenseState licenseState;
@@ -50,20 +47,12 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
             AnalyticsStatsAction.Request statsRequest = new AnalyticsStatsAction.Request();
             statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
             client.execute(AnalyticsStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                    listener.onResponse(new XPackUsageFeatureResponse(usageFeatureResponse(true, true, r))),
+                    listener.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))),
                 listener::onFailure));
         } else {
-            AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(false, true, Collections.emptyMap());
+            AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(false, true,
+                new AnalyticsStatsAction.Response(state.getClusterName(), Collections.emptyList(), Collections.emptyList()));
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
-    }
-
-    static AnalyticsFeatureSetUsage usageFeatureResponse(boolean available, boolean enabled, AnalyticsStatsAction.Response r) {
-        List<EnumCounters<AnalyticsStatsAction.Item>> countersPerNode = r.getNodes()
-            .stream()
-            .map(AnalyticsStatsAction.NodeResponse::getStats)
-            .collect(Collectors.toList());
-        EnumCounters<AnalyticsStatsAction.Item> mergedCounters = EnumCounters.merge(AnalyticsStatsAction.Item.class, countersPerNode);
-        return new AnalyticsFeatureSetUsage(available, enabled, mergedCounters.toMap());
     }
 }

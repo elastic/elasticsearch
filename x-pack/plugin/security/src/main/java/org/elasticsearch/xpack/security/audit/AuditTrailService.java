@@ -31,7 +31,8 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false && licenseState.isAuditingAllowed()) {
+        if (compositeAuditTrail.isEmpty() == false &&
+            licenseState.isSecurityEnabled() && licenseState.isAuditingAllowed()) {
             return compositeAuditTrail;
         } else {
             return NOOP_AUDIT_TRAIL;

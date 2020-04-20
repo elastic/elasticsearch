@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
@@ -37,11 +36,6 @@ public class InternalMissingTests extends InternalSingleBucketAggregationTestCas
     @Override
     protected void extraAssertReduced(InternalMissing reduced, List<InternalMissing> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Reader<InternalMissing> instanceReader() {
-        return InternalMissing::new;
     }
 
     @Override

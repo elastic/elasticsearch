@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -37,11 +36,6 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         DocValueFormat formatter = randomNumericDocValueFormat();
         long count = frequently() ? randomNonNegativeLong() % 100000 : 0;
         return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, metadata);
-    }
-
-    @Override
-    protected Reader<InternalAvg> instanceReader() {
-        return InternalAvg::new;
     }
 
     @Override

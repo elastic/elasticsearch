@@ -120,6 +120,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
+    private Boolean preferV2Templates;
 
     @Nullable
     private IndexRequest doc;
@@ -152,6 +153,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            preferV2Templates = in.readOptionalBoolean();
+        }
     }
 
     public UpdateRequest(String index, String id) {
@@ -800,6 +804,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
+    @Nullable
+    public Boolean preferV2Templates() {
+        return this.preferV2Templates;
+    }
+
+    public UpdateRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
+        this.preferV2Templates = preferV2Templates;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -841,6 +855,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalBoolean(preferV2Templates);
+        }
     }
 
     @Override

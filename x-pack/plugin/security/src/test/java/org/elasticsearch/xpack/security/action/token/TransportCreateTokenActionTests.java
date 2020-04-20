@@ -167,6 +167,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         this.license = mock(XPackLicenseState.class);
+        when(license.isSecurityEnabled()).thenReturn(true);
         when(license.isTokenServiceAllowed()).thenReturn(true);
     }
 

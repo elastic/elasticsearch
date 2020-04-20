@@ -439,10 +439,18 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
             JobTaskState jobTaskState = (JobTaskState) state;
+            JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
+            // If the job is closing, simply stop and return
+            if (JobState.CLOSING.equals(jobState)) {
+                // Mark as completed instead of using `stop` as stop assumes native processes have started
+                logger.info("[{}] job got reassigned while stopping. Marking as completed", params.getJobId());
+                jobTask.markAsCompleted();
+                return;
+            }
             // If the job is failed then the Persistent Task Service will
             // try to restart it on a node restart. Exiting here leaves the
             // job in the failed state and it must be force closed.
-            if (jobTaskState != null && jobTaskState.getState().isAnyOf(JobState.FAILED, JobState.CLOSING)) {
+            if (JobState.FAILED.equals(jobState)) {
                 return;
             }
 

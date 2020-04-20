@@ -187,7 +187,8 @@ public class UserAgentProcessor extends AbstractProcessor {
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             Object ecsValue = config.remove("ecs");
             if (ecsValue != null) {
-                deprecationLogger.deprecated("setting [ecs] is deprecated as ECS format is the default and only option");
+                deprecationLogger.deprecatedAndMaybeLog("ingest_useragent_ecs_settings",
+                    "setting [ecs] is deprecated as ECS format is the default and only option");
             }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);

@@ -39,8 +39,6 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -74,7 +72,7 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 /**
  * Plugin for Searchable Snapshots feature
  */
-public class SearchableSnapshots extends Plugin implements IndexStorePlugin, RepositoryPlugin, EnginePlugin, ActionPlugin, ClusterPlugin {
+public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin {
 
     private static final boolean SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
 
@@ -135,13 +133,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
-    private final SetOnce<RepositoriesService> repositoriesService;
-    private final SetOnce<CacheService> cacheService;
+    private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final Settings settings;
 
     public SearchableSnapshots(final Settings settings) {
-        this.repositoriesService = new SetOnce<>();
-        this.cacheService = new SetOnce<>();
         this.settings = settings;
     }
 
@@ -181,21 +177,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         final Environment environment,
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
-        final IndexNameExpressionResolver resolver
+        final IndexNameExpressionResolver resolver,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             final CacheService cacheService = new CacheService(settings);
             this.cacheService.set(cacheService);
+            this.repositoriesServiceSupplier = repositoriesServiceSupplier;
             return List.of(cacheService);
         } else {
+            this.repositoriesServiceSupplier = () -> {
+                assert false : "searchable snapshots are disabled";
+                return null;
+            };
             return List.of();
         }
-    }
-
-    @Override
-    public void onRepositoriesModule(RepositoriesModule repositoriesModule) {
-        // TODO NORELEASE should we use some SPI mechanism? The only reason we are a RepositoriesPlugin is because of this :/
-        repositoriesService.set(repositoriesModule.getRepositoryService());
     }
 
     @Override
@@ -209,7 +205,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
-                final RepositoriesService repositories = repositoriesService.get();
+                final RepositoriesService repositories = repositoriesServiceSupplier.get();
                 assert repositories != null;
                 final CacheService cache = cacheService.get();
                 assert cache != null;

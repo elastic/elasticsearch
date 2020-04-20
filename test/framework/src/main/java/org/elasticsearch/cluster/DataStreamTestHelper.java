@@ -20,10 +20,9 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Locale;
 
 public final class DataStreamTestHelper {
 
@@ -32,7 +31,7 @@ public final class DataStreamTestHelper {
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
-        return IndexMetadata.builder(String.format(Locale.ROOT, "%s-%06d", dataStreamName, generation))
+        return IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, generation))
             .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
             .numberOfShards(1)
             .numberOfReplicas(1);

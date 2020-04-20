@@ -23,10 +23,12 @@
         name: "*"
   - match: { 0.name: simple-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: 'simple-data-stream1-000001' }
   - match: { 1.name: simple-data-stream2 }
   - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 0.generation: 1 }
   - length: { 1.indices: 1 }
   - match: { 1.indices.0.index_name: 'simple-data-stream2-000001' }
 
@@ -97,22 +99,27 @@
       indices.get_data_streams: {}
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
   - match: { 1.name: get-data-stream2 }
   - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.generation: 1 }
 
   - do:
       indices.get_data_streams:
         name: get-data-stream1
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
 
   - do:
       indices.get_data_streams:
         name: get-data-*
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
   - match: { 1.name: get-data-stream2 }
   - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.generation: 1 }
 
   - do:
       indices.get_data_streams:
@@ -169,6 +176,7 @@
       indices.get_data_streams: {}
   - match: { 0.name: delete-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: 'delete-data-stream1-000001' }
 

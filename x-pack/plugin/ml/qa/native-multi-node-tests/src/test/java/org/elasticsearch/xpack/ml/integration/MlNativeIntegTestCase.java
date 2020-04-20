@@ -191,10 +191,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
-    protected GetFiltersAction.Response getMlFilters() {
-        return client().execute(GetFiltersAction.INSTANCE, new GetFiltersAction.Request()).actionGet();
-    }
-
     @Override
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {

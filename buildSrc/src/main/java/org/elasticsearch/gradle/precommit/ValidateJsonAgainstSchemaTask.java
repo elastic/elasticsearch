@@ -57,8 +57,6 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
     private Set<String> ignore = new HashSet<>();
     private File jsonSchema;
     private FileTree inputFiles;
-    // no need to rebuild the JsonSchema multiple times per build
-    private static ConcurrentHashMap<File, JsonSchema> cache = new ConcurrentHashMap<>(1);
 
     @Incremental
     @InputFiles
@@ -103,15 +101,9 @@ public class ValidateJsonAgainstSchemaTask extends PrecommitTask {
     public void validate(InputChanges inputChanges) throws IOException {
         File jsonSchemaOnDisk = getJsonSchema();
         getLogger().debug("JSON schema : [{}]", jsonSchemaOnDisk.getAbsolutePath());
-        JsonSchema jsonSchema = cache.computeIfAbsent(getJsonSchema(), k -> {
-            SchemaValidatorsConfig config = new SchemaValidatorsConfig();
-            JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
-            try {
-                return factory.getSchema(mapper.readTree(jsonSchemaOnDisk), config);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+        SchemaValidatorsConfig config = new SchemaValidatorsConfig();
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(jsonSchemaOnDisk), config);
         ConcurrentHashMap<File, Set<String>> errors = new ConcurrentHashMap<>();
         // incrementally evaluate input files
         inputChanges.getFileChanges(getInputFiles()).forEach(fileChange -> {

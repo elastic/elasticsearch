@@ -600,7 +600,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (concreteIndex == null) {
                 try {
                     concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException ex) {
+                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
                     addFailure(request, idx, ex);
                     return true;
                 }

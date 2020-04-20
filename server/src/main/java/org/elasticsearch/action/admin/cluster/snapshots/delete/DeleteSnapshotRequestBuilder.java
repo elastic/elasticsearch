@@ -26,21 +26,21 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Delete snapshot request builder
  */
-public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotsRequest,
+public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest,
         AcknowledgedResponse, DeleteSnapshotRequestBuilder> {
 
     /**
      * Constructs delete snapshot request builder
      */
     public DeleteSnapshotRequestBuilder(ElasticsearchClient client, DeleteSnapshotAction action) {
-        super(client, action, new DeleteSnapshotsRequest());
+        super(client, action, new DeleteSnapshotRequest());
     }
 
     /**
      * Constructs delete snapshot request builder with specified repository and snapshot names
      */
     public DeleteSnapshotRequestBuilder(ElasticsearchClient client, DeleteSnapshotAction action, String repository, String[] snapshots) {
-        super(client, action, new DeleteSnapshotsRequest(repository, snapshots));
+        super(client, action, new DeleteSnapshotRequest(repository, snapshots));
     }
 
     /**

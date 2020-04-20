@@ -102,7 +102,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -942,12 +942,12 @@ public abstract class AbstractClient implements Client {
 
 
         @Override
-        public ActionFuture<AcknowledgedResponse> deleteSnapshots(DeleteSnapshotsRequest request) {
+        public ActionFuture<AcknowledgedResponse> deleteSnapshots(DeleteSnapshotRequest request) {
             return execute(DeleteSnapshotAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteSnapshots(DeleteSnapshotsRequest request, ActionListener<AcknowledgedResponse> listener) {
+        public void deleteSnapshots(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteSnapshotAction.INSTANCE, request, listener);
         }
 

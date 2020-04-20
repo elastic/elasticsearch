@@ -35,7 +35,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
@@ -508,8 +508,8 @@ public class Requests {
      * @param repository repository name
      * @return delete snapshot request
      */
-    public static DeleteSnapshotsRequest deleteSnapshotRequest(String repository, String[] snapshots) {
-        return new DeleteSnapshotsRequest(repository, snapshots);
+    public static DeleteSnapshotRequest deleteSnapshotRequest(String repository, String[] snapshots) {
+        return new DeleteSnapshotRequest(repository, snapshots);
     }
 
     /**

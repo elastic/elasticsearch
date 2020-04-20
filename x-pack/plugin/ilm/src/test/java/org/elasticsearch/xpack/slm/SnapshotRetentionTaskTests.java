@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -448,7 +448,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                  @SuppressWarnings("unchecked")
                  protected <Request extends ActionRequest, Response extends ActionResponse>
                  void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                     if (request instanceof DeleteSnapshotsRequest) {
+                     if (request instanceof DeleteSnapshotRequest) {
                          logger.info("--> called");
                          listener.onResponse((Response) new AcknowledgedResponse(true));
                      } else {

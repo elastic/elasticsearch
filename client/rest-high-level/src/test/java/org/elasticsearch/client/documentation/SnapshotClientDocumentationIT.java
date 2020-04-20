@@ -29,7 +29,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -752,7 +752,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         createTestSnapshots();
 
         // tag::delete-snapshot-request
-        DeleteSnapshotsRequest request = new DeleteSnapshotsRequest(repositoryName, snapshotName);
+        DeleteSnapshotRequest request = new DeleteSnapshotRequest(repositoryName, snapshotName);
         // end::delete-snapshot-request
 
         // tag::delete-snapshot-request-masterTimeout
@@ -773,7 +773,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     public void testSnapshotDeleteSnapshotAsync() throws InterruptedException {
         RestHighLevelClient client = highLevelClient();
         {
-            DeleteSnapshotsRequest request = new DeleteSnapshotsRequest();
+            DeleteSnapshotRequest request = new DeleteSnapshotRequest();
 
             // tag::delete-snapshot-execute-listener
             ActionListener<AcknowledgedResponse> listener =

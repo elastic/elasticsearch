@@ -111,7 +111,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+        client.admin().cluster().prepareDeleteSnapshots(repoName, new String[] {snapshot}).get();
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
@@ -185,7 +185,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(getRepositoryData(repositoryAfterRestart).getGenId(), is(beforeMoveGen + 1));
 
         logger.info("--> delete snapshot");
-        client().admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
+        client().admin().cluster().prepareDeleteSnapshots(repoName, new String[]{snapshot}).get();
 
         logger.info("--> verify index-N blob is found at the expected location");
         assertThat(getRepositoryData(repositoryAfterRestart).getGenId(), is(beforeMoveGen + 2));
@@ -247,7 +247,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshots(repoName, new String[] {snapshotToCorrupt.getName()}).get());
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
@@ -305,7 +305,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {
         logger.info("--> try to delete snapshot");
         final RepositoryException repositoryException3 = expectThrows(RepositoryException.class,
-            () -> client.admin().cluster().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet());
+                () -> client.admin().cluster().prepareDeleteSnapshots(repo, new String[]{existingSnapshot}).execute().actionGet());
         assertThat(repositoryException3.getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state."));
 

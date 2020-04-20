@@ -22,7 +22,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
@@ -252,7 +252,8 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private void deleteSnapshot(RestHighLevelClient client, String repoName, String name) throws IOException {
-        assertThat(client.snapshot().delete(new DeleteSnapshotRequest(repoName, name), RequestOptions.DEFAULT).isAcknowledged(), is(true));
+        assertThat(client.snapshot().delete(
+                new DeleteSnapshotsRequest(repoName, name), RequestOptions.DEFAULT).isAcknowledged(), is(true));
     }
 
     @SuppressWarnings("unchecked")

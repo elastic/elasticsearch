@@ -85,7 +85,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -1151,7 +1150,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Deletes a snapshot that is assumed to be in the repository and not tracked as in-progress in the cluster state.
      *
      * @param snapshotIds       Snapshots to delete
-     * @param repoName
+     * @param repoName          Repository name
      * @param repositoryStateId Repository generation to base the delete on
      * @param listener          Listener to complete when done
      */

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
 public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapshotStep> {
@@ -148,8 +148,8 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                                                                                                       Request request,
                                                                                                       ActionListener<Response> listener) {
                 assertThat(action.name(), is(DeleteSnapshotAction.NAME));
-                assertTrue(request instanceof DeleteSnapshotRequest);
-                assertThat(((DeleteSnapshotRequest) request).snapshot(), equalTo(expectedSnapshotName));
+                assertTrue(request instanceof DeleteSnapshotsRequest);
+                assertThat(((DeleteSnapshotsRequest) request).snapshots(), arrayContaining(expectedSnapshotName));
             }
         };
     }

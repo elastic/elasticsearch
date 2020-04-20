@@ -439,7 +439,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         // Cancel/delete the snapshot
         try {
-            client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotName).get();
+            client().admin().cluster().prepareDeleteSnapshots(REPO, new String[]{snapshotName}).get();
         } catch (SnapshotMissingException e) {
             // ignore
         }

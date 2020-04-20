@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -354,7 +354,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
 
         SnapshotDeletionsInProgress delInProgress = new SnapshotDeletionsInProgress(
-            Collections.singletonList(new SnapshotDeletionsInProgress.Entry(snapshot, 0, 0)));
+                Collections.singletonList(new SnapshotDeletionsInProgress.Entry(
+                        Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), 0, 0)));
         state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotDeletionsInProgress.TYPE, delInProgress)
             .build();
@@ -447,7 +448,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                  @SuppressWarnings("unchecked")
                  protected <Request extends ActionRequest, Response extends ActionResponse>
                  void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                     if (request instanceof DeleteSnapshotRequest) {
+                     if (request instanceof DeleteSnapshotsRequest) {
                          logger.info("--> called");
                          listener.onResponse((Response) new AcknowledgedResponse(true));
                      } else {

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -354,7 +355,7 @@ public class ReactiveStorageDeciderDecisionTests extends ESTestCase {
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
-            Settings.EMPTY,
+            Settings.builder().put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Collections.emptyList()
         );

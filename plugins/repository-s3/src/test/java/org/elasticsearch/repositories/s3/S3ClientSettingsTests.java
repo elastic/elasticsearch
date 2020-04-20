@@ -130,13 +130,8 @@ public class S3ClientSettingsTests extends ESTestCase {
             Settings.builder().setSecureSettings(secureSettings).build()).get("default");
 
         {
-<<<<<<< HEAD
             final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetaData("name", "type", Settings.EMPTY));
-            assertTrue(refinedSettings == baseSettings);
-=======
-            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type", Settings.EMPTY));
             assertSame(refinedSettings, baseSettings);
->>>>>>> 5603efe7739... Fix Path Style Access Setting Priority (#55439)
         }
 
         {
@@ -151,7 +146,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         }
 
         {
-            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetadata("name", "type",
+            final S3ClientSettings refinedSettings = baseSettings.refine(new RepositoryMetaData("name", "type",
                     Settings.builder().put("path_style_access", true).build()));
             assertThat(refinedSettings.pathStyleAccess, is(true));
             S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;

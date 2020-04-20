@@ -151,7 +151,8 @@ public class MetadataRolloverService {
             (builder, indexMetadata) -> {
                 List<Index> indices = new ArrayList<>(dataStream.getIndices());
                 indices.add(indexMetadata.getIndex());
-                DataStream newDs = new DataStream(dataStream.getName(), dataStream.getTimeStampField(), indices, dataStream.getGeneration() + 1);
+                DataStream newDs = new DataStream(dataStream.getName(), dataStream.getTimeStampField(), indices,
+                    dataStream.getGeneration() + 1);
                 builder.put(newDs);
             });
 

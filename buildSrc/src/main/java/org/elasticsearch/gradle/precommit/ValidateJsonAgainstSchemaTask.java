@@ -28,6 +28,7 @@ import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
@@ -35,33 +36,38 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.ChangeType;
 import org.gradle.work.Incremental;
 import org.gradle.work.InputChanges;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Incremental task to validate a set of JSON files against against a schema.
  */
 public class ValidateJsonAgainstSchemaTask extends DefaultTask {
 
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper();
     private Set<String> ignore = new HashSet<>();
     private File jsonSchema;
     private FileTree inputFiles;
 
     @Incremental
     @InputFiles
-    public FileTree getInputFiles() {
+    public FileCollection getInputFiles() {
         return inputFiles;
     }
 
@@ -100,39 +106,33 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
         JsonSchema jsonSchema = factory.getSchema(mapper.readTree(jsonSchemaOnDisk), config);
-        ConcurrentHashMap<File, Set<String>> errors = new ConcurrentHashMap<>();
+        Map<File, Set<String>> errors = new LinkedHashMap<>();
         // incrementally evaluate input files
-        inputChanges.getFileChanges(getInputFiles()).forEach(fileChange -> {
-            File file = fileChange.getFile();
-            if (ignore.contains(file.getName())) {
-                getLogger().debug("Ignoring file [{}] due to configuration", file.getName());
-            } else if (file.isDirectory() == false) {
-                // validate all files and hold on to errors for a complete report if there are failures
-                getLogger().debug("Validating JSON [{}]", file.getName());
-                try {
-                    Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
-                    maybeLogAndCollectError(validationMessages, errors, file);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        StreamSupport.stream(inputChanges.getFileChanges(getInputFiles()).spliterator(), false)
+            .filter(f -> ChangeType.REMOVED.equals(f.getChangeType()) == false)
+            .forEach(fileChange -> {
+                File file = fileChange.getFile();
+                if (ignore.contains(file.getName())) {
+                    getLogger().debug("Ignoring file [{}] due to configuration", file.getName());
+                } else if (file.isDirectory() == false) {
+                    // validate all files and hold on to errors for a complete report if there are failures
+                    getLogger().debug("Validating JSON [{}]", file.getName());
+                    try {
+                        Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
+                        maybeLogAndCollectError(validationMessages, errors, file);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
-            }
-        });
-
+            });
         if (errors.isEmpty()) {
             Files.writeString(getReport().toPath(), "Success! No validation errors found.", StandardOpenOption.CREATE);
         } else {
-            // build output and throw exception
-            Files.writeString(getReport().toPath(), String.format("Schema: %s", jsonSchemaOnDisk), StandardOpenOption.CREATE);
-            Files.writeString(
-                getReport().toPath(),
-                System.lineSeparator() + "----------Validation Errors-----------" + System.lineSeparator(),
-                StandardOpenOption.APPEND
-            );
-            Files.write(
-                getReport().toPath(),
-                errors.values().stream().flatMap(Collection::stream).collect(Collectors.toList()),
-                StandardOpenOption.APPEND
-            );
+            try (FileWriter fileWriter = new FileWriter(getReport()); PrintWriter printWriter = new PrintWriter(fileWriter)) {
+                printWriter.printf("Schema: %s%n", jsonSchemaOnDisk);
+                printWriter.println("----------Validation Errors-----------");
+                errors.values().stream().flatMap(Collection::stream).forEach(printWriter::println);
+            }
             StringBuilder sb = new StringBuilder();
             sb.append("Error validating JSON. See the report at: ");
             sb.append(getReport().toURI().toASCIIString());
@@ -144,16 +144,11 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         }
     }
 
-    private void maybeLogAndCollectError(Set<ValidationMessage> messages, ConcurrentHashMap<File, Set<String>> errors, File file) {
+    private void maybeLogAndCollectError(Set<ValidationMessage> messages, Map<File, Set<String>> errors, File file) {
         for (ValidationMessage message : messages) {
-            String error = String.format("[validate JSON][ERROR][%s][%s]", file.getName(), message.toString());
-            getLogger().error(error);
-            try {
-                errors.computeIfAbsent(file, k -> new HashSet<>())
-                    .add(String.format("%s: %s", file.getCanonicalFile(), message.toString()));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            getLogger().error("[validate JSON][ERROR][{}][{}]", file.getName(), message.toString());
+            errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
+                .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));
         }
     }
 }

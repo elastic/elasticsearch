@@ -204,7 +204,7 @@ final class S3ClientSettings {
         if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
-            && pathStyleAccess == newPathStyleAccess
+            && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion) && Objects.equals(signerOverride, newSignerOverride)) {
             return this;

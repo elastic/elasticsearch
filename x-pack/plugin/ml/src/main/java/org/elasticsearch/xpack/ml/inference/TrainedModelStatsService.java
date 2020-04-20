@@ -121,6 +121,7 @@ public class TrainedModelStatsService {
     }
 
     void stop() {
+        logger.debug("About to stop TrainedModelStatsService");
         stopped = true;
         statsQueue.clear();
 
@@ -131,6 +132,7 @@ public class TrainedModelStatsService {
     }
 
     void start() {
+        logger.debug("About to start TrainedModelStatsService");
         stopped = false;
         scheduledFuture = threadPool.scheduleWithFixedDelay(this::updateStats,
             PERSISTENCE_INTERVAL,
@@ -143,6 +145,7 @@ public class TrainedModelStatsService {
         }
         if (verifyIndicesPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
+                logger.debug("About to create the stats index as it does not exist yet");
                 createStatsIndexIfNecessary();
             } catch(Exception e){
                 // This exception occurs if, for some reason, the `createStatsIndexAndAliasIfNecessary` fails due to
@@ -211,6 +214,7 @@ public class TrainedModelStatsService {
             clusterState,
             listener);
         listener.actionGet();
+        logger.debug("Created stats index");
     }
 
     static UpdateRequest buildUpdateRequest(InferenceStats stats) {

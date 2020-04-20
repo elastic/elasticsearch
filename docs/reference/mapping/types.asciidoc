@@ -12,7 +12,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 <<date>>::      `date`
 <<boolean>>::   `boolean`
 <<binary>>::    `binary`
-<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
+<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`, `ip_range`
 
 [float]
 === Complex datatypes

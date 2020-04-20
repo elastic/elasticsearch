@@ -71,5 +71,4 @@ POST _reindex
 }
 --------------------------------------------------
 
-link:https://www.elastic.co/guide/en/elasticsearch/client/curator/current/index.html[Curator] can also link:https://www.elastic.co/guide/en/elasticsearch/client/curator/current/ex_reindex.html#_filter_selected_indices_2[help with reindexing time-based indices].
  

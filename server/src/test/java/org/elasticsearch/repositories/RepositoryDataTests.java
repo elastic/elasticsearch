@@ -153,7 +153,7 @@ public class RepositoryDataTests extends ESTestCase {
         List<SnapshotId> snapshotIds = new ArrayList<>(repositoryData.getSnapshotIds());
         assertThat(snapshotIds.size(), greaterThan(0));
         SnapshotId removedSnapshotId = snapshotIds.remove(randomIntBetween(0, snapshotIds.size() - 1));
-        RepositoryData newRepositoryData = repositoryData.removeSnapshot(Collections.singleton(removedSnapshotId), ShardGenerations.EMPTY);
+        RepositoryData newRepositoryData = repositoryData.removeSnapshots(Collections.singleton(removedSnapshotId), ShardGenerations.EMPTY);
         // make sure the repository data's indices no longer contain the removed snapshot
         for (final IndexId indexId : newRepositoryData.getIndices().values()) {
             assertFalse(newRepositoryData.getSnapshots(indexId).contains(removedSnapshotId));

@@ -1093,8 +1093,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     e -> {
                         if (abortedDuringInit) {
                             logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
-                            final Collection<String> remainingPatterns = snapshotNames.stream()
-                                    .filter(name -> runningSnapshot.getSnapshotId().getName().equals(name)).collect(Collectors.toList());
+                            final Collection<String> remainingPatterns = new ArrayList<>(snapshotNames);
+                            remainingPatterns.remove(runningSnapshot.getSnapshotId().getName());
                             if (remainingPatterns.isEmpty()) {
                                 listener.onResponse(null);
                                 return;
@@ -1177,6 +1177,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void deleteCompletedSnapshots(List<SnapshotId> snapshotIds, String repoName, long repositoryStateId, Priority priority,
                                           ActionListener<Void> listener) {
+        if (snapshotIds.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
         logger.debug("deleting snapshots {} assuming repository generation [{}] and with priority [{}]", snapshotIds, repositoryStateId,
             priority);
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
@@ -1184,12 +1188,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) {
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                 if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(repoName, snapshotIds.toString(),
+                    throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
                         "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
                 }
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
                 if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(repoName, snapshotIds.toString(),
+                    throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
                         "cannot delete snapshots while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
                 }
                 RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
@@ -1200,7 +1204,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                     for (RestoreInProgress.Entry entry : restoreInProgress) {
                         if (repoName.equals(entry.snapshot().getRepository()) && snapshotIds.contains(entry.snapshot().getSnapshotId())) {
-                            throw new ConcurrentSnapshotExecutionException(repoName, snapshotIds.toString(),
+                            throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
                                 "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
                         }
                     }

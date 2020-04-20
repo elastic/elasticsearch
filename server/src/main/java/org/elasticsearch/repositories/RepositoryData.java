@@ -188,12 +188,8 @@ public final class RepositoryData {
         return indexSnapshots.entrySet().stream()
             .filter(entry -> {
                 final Collection<SnapshotId> existingIds = entry.getValue();
-                final boolean containsAll = existingIds.containsAll(snapshotIds);
-                if (containsAll && existingIds.size() > snapshotIds.size()) {
-                    return true;
-                }
                 if (snapshotIds.containsAll(existingIds)) {
-                    return false;
+                    return existingIds.size() > snapshotIds.size();
                 }
                 for (SnapshotId snapshotId : snapshotIds) {
                     if (entry.getValue().contains(snapshotId)) {
@@ -201,8 +197,7 @@ public final class RepositoryData {
                     }
                 }
                 return false;
-            }).map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+            }).map(Map.Entry::getKey).collect(Collectors.toList());
     }
 
     /**
@@ -260,14 +255,14 @@ public final class RepositoryData {
     }
 
     /**
-     * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
+     * Remove snapshots and remove any indices that no longer exist in the repository due to the deletion of the snapshots.
      *
      * @param snapshots               Snapshot ids to remove
      * @param updatedShardGenerations Shard generations that changed as a result of removing the snapshot.
      *                                The {@code String[]} passed for each {@link IndexId} contains the new shard generation id for each
      *                                changed shard indexed by its shardId
      */
-    public RepositoryData removeSnapshot(final Collection<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
+    public RepositoryData removeSnapshots(final Collection<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream().filter(Predicate.not(snapshots::contains))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
         if (newSnapshotIds.size() != snapshotIds.size() - snapshots.size()) {
@@ -291,7 +286,9 @@ public final class RepositoryData {
             } else {
                 remaining = snapshotIds;
             }
-            indexSnapshots.put(indexId, remaining);
+            if (remaining.isEmpty() == false) {
+                indexSnapshots.put(indexId, remaining);
+            }
         }
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, newSnapshotVersions, indexSnapshots,

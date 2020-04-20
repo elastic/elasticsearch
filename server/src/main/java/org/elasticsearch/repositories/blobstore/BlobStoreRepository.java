@@ -565,8 +565,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep = new StepListener<>();
             writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, writeShardMetaDataAndComputeDeletesStep);
             // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
-            // 1. Remove the snapshot from the list of existing snapshots
-            // 2. Update the inShardSnapshotMetaDeleteResultdex shard generations of all updated shard folders
+            // 1. Remove the snapshots from the list of existing snapshots
+            // 2. Update the index shard generations of all updated shard folders
             //
             // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
             //       index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
@@ -577,7 +577,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
-                final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotIds, builder.build());
+                final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, builder.build());
                 writeIndexGen(updatedRepoData, repositoryStateId, true,
                     ActionListener.wrap(v -> writeUpdatedRepoDataStep.onResponse(updatedRepoData), listener::onFailure));
             }, listener::onFailure);
@@ -591,7 +591,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, listener::onFailure);
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
-            final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotIds, ShardGenerations.EMPTY);
+            final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
             writeIndexGen(updatedRepoData, repositoryStateId, false, ActionListener.wrap(v -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 final ActionListener<Void> afterCleanupsListener =

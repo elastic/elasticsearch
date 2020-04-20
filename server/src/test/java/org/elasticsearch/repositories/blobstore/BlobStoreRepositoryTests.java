@@ -182,7 +182,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshot(
+        repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).removeSnapshots(
             Collections.singleton(repositoryData.getSnapshotIds().iterator().next()), ShardGenerations.EMPTY);
         writeIndexGen(repository, repositoryData, repositoryData.getGenId());
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);

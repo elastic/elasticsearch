@@ -139,6 +139,7 @@ public final class MlIndexAndAlias {
                                                  boolean addAlias,
                                                  boolean isHiddenAttributeAvailable,
                                                  ActionListener<Boolean> listener) {
+        logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
         CreateIndexRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareCreate(index);
@@ -175,6 +176,7 @@ public final class MlIndexAndAlias {
                                          String newIndex,
                                          boolean isHiddenAttributeAvailable,
                                          ActionListener<Boolean> listener) {
+        logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
         IndicesAliasesRequest.AliasActions addNewAliasAction = IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias);
         if (isHiddenAttributeAvailable) {
             addNewAliasAction.isHidden(true);

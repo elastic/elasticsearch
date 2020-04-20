@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -92,7 +91,7 @@ public final class RepositoryData {
     /**
      * The snapshots that each index belongs to.
      */
-    private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
+    private final Map<IndexId, List<SnapshotId>> indexSnapshots;
 
     private final Map<String, Version> snapshotVersions;
 
@@ -102,7 +101,7 @@ public final class RepositoryData {
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<String, Version> snapshotVersions, Map<IndexId, Set<SnapshotId>> indexSnapshots,
+                          Map<String, Version> snapshotVersions, Map<IndexId, List<SnapshotId>> indexSnapshots,
                           ShardGenerations shardGenerations) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
@@ -114,6 +113,8 @@ public final class RepositoryData {
         this.snapshotVersions = snapshotVersions;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
             + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
+        assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
+                "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
 
     protected RepositoryData copy() {
@@ -229,9 +230,17 @@ public final class RepositoryData {
         newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<String, Version> newSnapshotVersions = new HashMap<>(snapshotVersions);
         newSnapshotVersions.put(snapshotId.getUUID(), version);
-        Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
+        Map<IndexId, List<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
         for (final IndexId indexId : shardGenerations.indices()) {
-            allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
+            final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
+            if (snapshotIds == null) {
+                allIndexSnapshots.put(indexId, List.of(snapshotId));
+            } else {
+                final List<SnapshotId> copy = new ArrayList<>(snapshotIds.size() + 1);
+                copy.addAll(snapshotIds);
+                copy.add(snapshotId);
+                allIndexSnapshots.put(indexId, Collections.unmodifiableList(copy));
+            }
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, newSnapshotVersions, allIndexSnapshots,
             ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build());
@@ -272,16 +281,17 @@ public final class RepositoryData {
             newSnapshotStates.remove(snapshotId.getUUID());
             newSnapshotVersions.remove(snapshotId.getUUID());
         }
-        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         for (final IndexId indexId : indices.values()) {
-            Set<SnapshotId> set;
-            Set<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
+            List<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
             assert snapshotIds != null;
-            set = new LinkedHashSet<>(snapshotIds);
-            set.removeAll(snapshots);
-            if (set.isEmpty() == false) {
-                indexSnapshots.put(indexId, set);
+            List<SnapshotId> remaining = new ArrayList<>(snapshotIds);
+            if (remaining.removeAll(snapshots)) {
+                remaining = Collections.unmodifiableList(remaining);
+            } else {
+                remaining = snapshotIds;
             }
+            indexSnapshots.put(indexId, remaining);
         }
 
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, newSnapshotVersions, indexSnapshots,
@@ -293,8 +303,8 @@ public final class RepositoryData {
     /**
      * Returns an immutable collection of the snapshot ids for the snapshots that contain the given index.
      */
-    public Set<SnapshotId> getSnapshots(final IndexId indexId) {
-        Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
+    public List<SnapshotId> getSnapshots(final IndexId indexId) {
+        List<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
         if (snapshotIds == null) {
             throw new IllegalArgumentException("unknown snapshot index " + indexId);
         }
@@ -396,7 +406,7 @@ public final class RepositoryData {
             builder.startObject(indexId.getName());
             builder.field(INDEX_ID, indexId.getId());
             builder.startArray(SNAPSHOTS);
-            Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
+            List<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
             assert snapshotIds != null;
             for (final SnapshotId snapshotId : snapshotIds) {
                 builder.value(snapshotId.getUUID());
@@ -427,7 +437,7 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<String, Version> snapshotVersions = new HashMap<>();
-        final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        final Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
 
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
@@ -471,7 +481,7 @@ public final class RepositoryData {
                     }
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         final String indexName = parser.currentName();
-                        final Set<SnapshotId> snapshotIds = new LinkedHashSet<>();
+                        final List<SnapshotId> snapshotIds = new ArrayList<>();
                         final List<String> gens = new ArrayList<>();
 
                         IndexId indexId = null;
@@ -525,7 +535,7 @@ public final class RepositoryData {
                             }
                         }
                         assert indexId != null;
-                        indexSnapshots.put(indexId, snapshotIds);
+                        indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
                         for (int i = 0; i < gens.size(); i++) {
                             shardGenerations.put(indexId, i, gens.get(i));
                         }

@@ -51,7 +51,7 @@ The {ref}/indices-shrink-index.html[Shrink index API] can shrink an existing ind
 [[reindex-an-existing-index-to-fewer-shards]]
 ==== Reindex an existing index to fewer shards
 
-The <<docs-reindex,Reindex API>> can be used to reindex from an existing index to a new index with fewer shards. After the data has been reindexed, the initial oversharded index can be deleted.
+You can use the <<docs-reindex,reindex API>> to reindex from an existing index to a new index with fewer shards. After the data has been reindexed, the oversharded index can be deleted.
 
 [[reindex-indices-from-shorter-periods-into-longer-periods]]
 ==== Reindex indices from shorter periods into longer periods

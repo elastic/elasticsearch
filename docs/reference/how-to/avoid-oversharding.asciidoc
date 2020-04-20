@@ -15,7 +15,7 @@ However, even though shards start to be more memory efficient at around 1GB, a c
 [[reduce-shard-counts-increase-shard-size]]
 === How to reduce shard counts and increase shard size
 
-Try these six methods to reduce oversharding.
+Try these methods to reduce oversharding.
 
 [[reduce-shards-for-new-indices]]
 ==== Reduce the number of shards for new indices

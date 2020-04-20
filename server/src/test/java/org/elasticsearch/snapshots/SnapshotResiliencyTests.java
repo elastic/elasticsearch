@@ -429,8 +429,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
             scheduleNow(this::disconnectOrRestartMasterNode);
             testClusterNodes.randomDataNodeSafe().client.admin().cluster()
-                    .prepareDeleteSnapshot(repoName, new String[]{snapshotName})
-                    .execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
+                .prepareDeleteSnapshot(repoName, snapshotName).execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
@@ -477,8 +476,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             public void clusterChanged(ClusterChangedEvent event) {
                 final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
                 if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
-                    client().admin().cluster().prepareDeleteSnapshot(repoName, new String[] {snapshotName})
-                            .execute(deleteSnapshotStepListener);
+                    client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
                     masterNode.clusterService.removeListener(this);
                 }
             }
@@ -610,8 +608,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createOtherSnapshotResponseStepListener,
             createSnapshotResponse -> {
                 scheduleNow(
-                    () -> client().admin().cluster().prepareDeleteSnapshot(repoName, new String[] {snapshotName})
-                            .execute(deleteSnapshotStepListener));
+                    () -> client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener));
                 scheduleNow(() -> client().admin().cluster().restoreSnapshot(
                     new RestoreSnapshotRequest(repoName, secondSnapshotName).waitForCompletion(true)
                         .renamePattern("(.+)").renameReplacement("restored_$1"),

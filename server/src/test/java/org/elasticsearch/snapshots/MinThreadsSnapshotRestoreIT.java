@@ -129,8 +129,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of snapshot");
-        ActionFuture<AcknowledgedResponse> future =
-            client().admin().cluster().prepareDeleteSnapshot(repo, new String[]{snapshot1}).execute();
+        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 

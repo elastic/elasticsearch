@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -55,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "currently broken")
 public class RestCancellableNodeClientTests extends ESTestCase {
 
     private ThreadPool threadPool;

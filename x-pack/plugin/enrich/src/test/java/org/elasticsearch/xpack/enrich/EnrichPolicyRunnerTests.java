@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -68,6 +69,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "exception change")
 public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override

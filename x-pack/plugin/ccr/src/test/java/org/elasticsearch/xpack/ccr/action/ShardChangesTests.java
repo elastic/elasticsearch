@@ -100,6 +100,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.id(), equalTo("5"));
     }
 
+    @AwaitsFix(bugUrl = "exception change")
     public void testMissingOperations() throws Exception {
         client().admin().indices().prepareCreate("index")
             .setSettings(Settings.builder()

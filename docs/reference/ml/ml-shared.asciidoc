@@ -1117,8 +1117,8 @@ end::inference-config-classification-num-top-classes[]
 
 tag::inference-config-classification-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. 
-By default, it is zero and no {feat-imp} calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. By 
+default, it is zero and no {feat-imp} calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
 tag::inference-config-classification-top-classes-results-field[]
@@ -1134,7 +1134,7 @@ end::inference-config-classification-prediction-field-type[]
 
 tag::inference-config-regression-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. 
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. 
 By default, it is zero and no {feat-imp} calculation occurs.
 end::inference-config-regression-num-top-feature-importance-values[]
 

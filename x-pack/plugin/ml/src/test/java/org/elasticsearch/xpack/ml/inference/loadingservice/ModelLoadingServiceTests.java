@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

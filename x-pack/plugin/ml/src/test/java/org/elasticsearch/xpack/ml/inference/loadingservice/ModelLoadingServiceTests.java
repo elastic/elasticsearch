@@ -146,8 +146,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(4)).getTrainedModel(eq(model3), eq(true), any());
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService:trace",
-        reason = "for loading events")
     public void testMaxCachedLimitReached() throws Exception {
         String model1 = "test-cached-limit-load-model-1";
         String model2 = "test-cached-limit-load-model-2";

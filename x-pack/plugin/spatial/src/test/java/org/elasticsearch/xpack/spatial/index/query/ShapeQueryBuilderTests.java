@@ -35,8 +35,8 @@ import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -62,7 +62,7 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(SpatialPlugin.class);
+        return Arrays.asList(SpatialPlugin.class);
     }
 
     protected String fieldName() {

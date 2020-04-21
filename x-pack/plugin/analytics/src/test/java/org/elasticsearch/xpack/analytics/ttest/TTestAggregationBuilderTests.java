@@ -7,10 +7,14 @@
 package org.elasticsearch.xpack.analytics.ttest;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -18,8 +22,10 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;
 
 public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TTestAggregationBuilder> {
@@ -28,14 +34,6 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
     @Before
     public void setupName() {
         aggregationName = randomAlphaOfLength(10);
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(
-            BaseAggregationBuilder.class,
-            new ParseField(TTestAggregationBuilder.NAME),
-            (p, n) -> TTestAggregationBuilder.PARSER.apply(p, (String) n))));
     }
 
     @Override
@@ -52,26 +50,33 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
 
     @Override
     protected TTestAggregationBuilder createTestInstance() {
-        MultiValuesSourceFieldConfig aConfig;
+        MultiValuesSourceFieldConfig.Builder aConfig;
+        TTestType tTestType = randomFrom(TTestType.values());
         if (randomBoolean()) {
-            aConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("a_field").build();
+            aConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("a_field");
         } else {
-            aConfig = new MultiValuesSourceFieldConfig.Builder().setScript(new Script(randomAlphaOfLength(10))).build();
+            aConfig = new MultiValuesSourceFieldConfig.Builder().setScript(new Script(randomAlphaOfLength(10)));
         }
-        MultiValuesSourceFieldConfig bConfig;
+        MultiValuesSourceFieldConfig.Builder bConfig;
         if (randomBoolean()) {
-            bConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("b_field").build();
+            bConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("b_field");
         } else {
-            bConfig = new MultiValuesSourceFieldConfig.Builder().setScript(new Script(randomAlphaOfLength(10))).build();
+            bConfig = new MultiValuesSourceFieldConfig.Builder().setScript(new Script(randomAlphaOfLength(10)));
+        }
+        if (tTestType != TTestType.PAIRED && randomBoolean()) {
+            aConfig.setFilter(QueryBuilders.queryStringQuery(randomAlphaOfLength(10)));
+        }
+        if (tTestType != TTestType.PAIRED && randomBoolean()) {
+            bConfig.setFilter(QueryBuilders.queryStringQuery(randomAlphaOfLength(10)));
         }
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder(aggregationName)
-            .a(aConfig)
-            .b(bConfig);
+            .a(aConfig.build())
+            .b(bConfig.build());
         if (randomBoolean()) {
             aggregationBuilder.tails(randomIntBetween(1, 2));
         }
-        if (randomBoolean()) {
-            aggregationBuilder.testType(randomFrom(TTestType.values()));
+        if (tTestType != TTestType.HETEROSCEDASTIC || randomBoolean()) {
+            aggregationBuilder.testType(randomFrom(tTestType));
         }
         return aggregationBuilder;
     }
@@ -79,6 +84,22 @@ public class TTestAggregationBuilderTests extends AbstractSerializingTestCase<TT
     @Override
     protected Writeable.Reader<TTestAggregationBuilder> instanceReader() {
         return TTestAggregationBuilder::new;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.add(new NamedXContentRegistry.Entry(
+            BaseAggregationBuilder.class,
+            new ParseField(TTestAggregationBuilder.NAME),
+            (p, n) -> TTestAggregationBuilder.PARSER.apply(p, (String) n)));
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(namedXContent);
     }
 }
 

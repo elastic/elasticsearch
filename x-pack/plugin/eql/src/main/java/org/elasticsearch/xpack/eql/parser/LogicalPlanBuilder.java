@@ -112,8 +112,13 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public Sequence visitSequence(SequenceContext ctx) {
-        List<Expression> parentJoinKeys = visitJoinKeys(ctx.by);
+        Source source = source(ctx);
 
+        if (ctx.disallowed != null && ctx.sequenceParams() != null) {
+            throw new ParsingException(source, "Please specify sequence [by] before [with] not after");
+        }
+
+        List<Expression> parentJoinKeys = visitJoinKeys(ctx.by);
         TimeValue maxSpan = visitSequenceParams(ctx.sequenceParams());
 
         LogicalPlan until;
@@ -122,7 +127,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = visitSequenceTerm(ctx.until, parentJoinKeys);
         } else {
             // no until declared means the condition never gets executed and thus folds to false
-            until = new Filter(source(ctx), RELATION, new Literal(source(ctx), Boolean.FALSE, DataTypes.BOOLEAN));
+            until = new Filter(source, RELATION, new Literal(source(ctx), Boolean.FALSE, DataTypes.BOOLEAN));
         }
 
         int numberOfKeys = -1;
@@ -145,7 +150,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        return new Sequence(source(ctx), queries, until, maxSpan);
+        return new Sequence(source, queries, until, maxSpan);
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Expression> joinKeys) {
@@ -173,45 +178,40 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             }
             
             String timeString = text(ctx.timeUnit().IDENTIFIER());
-            TimeUnit timeUnit = TimeUnit.SECONDS;
-            if (timeString != null) {
-                switch (timeString) {
-                    case "":
-                    case "s":
-                    case "sec":
-                    case "secs":
-                    case "second":
-                    case "seconds":
-                        timeUnit = TimeUnit.SECONDS;
-                        break;
-                    case "m":
-                    case "min":
-                    case "mins":
-                    case "minute":
-                    case "minutes":
-                        timeUnit = TimeUnit.MINUTES;
-                        break;
-                    case "h":
-                    case "hs":
-                    case "hour":
-                    case "hours":
-                        timeUnit = TimeUnit.HOURS;
-                        break;
-                    case "d":
-                    case "ds":
-                    case "day":
-                    case "days":
-                        timeUnit = TimeUnit.DAYS;
-                        break;
-                    default:
-                        throw new ParsingException(source(ctx.timeUnit().IDENTIFIER()), "Unrecognized time unit [{}]", timeString);
-                }
+            
+            if (timeString == null) {
+                throw new ParsingException(source(ctx.timeUnit()), "No time unit specified, did you mean [s] as in [{}s]?", text(ctx
+                        .timeUnit()));
+            }
+            
+            TimeUnit timeUnit = null;
+            switch (timeString) {
+                case "ms":
+                    timeUnit = TimeUnit.MILLISECONDS;
+                    break;
+                case "s":
+                    timeUnit = TimeUnit.SECONDS;
+                    break;
+                case "m":
+                    timeUnit = TimeUnit.MINUTES;
+                    break;
+                case "h":
+                    timeUnit = TimeUnit.HOURS;
+                    break;
+                case "d":
+                    timeUnit = TimeUnit.DAYS;
+                    break;
+                default:
+                    throw new ParsingException(source(ctx.timeUnit().IDENTIFIER()),
+                            "Unrecognized time unit [{}] in [{}], please specify one of [ms, s, m, h, d]", 
+                            timeString, text(ctx.timeUnit()));
             }
 
             return new TimeValue(value, timeUnit);
 
         } else {
-            throw new ParsingException(source(numberCtx), "Decimal time interval [{}] not supported yet", text(numberCtx));
+            throw new ParsingException(source(numberCtx), "Decimal time interval [{}] not supported; please use an positive integer",
+                    text(numberCtx));
         }
     }
 }

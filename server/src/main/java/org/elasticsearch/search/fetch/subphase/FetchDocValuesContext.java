@@ -43,7 +43,7 @@ public class FetchDocValuesContext {
      */
     public static final class FieldAndFormat implements Writeable {
 
-        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("script",
+        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("docvalues_field",
                 a -> new FieldAndFormat((String) a[0], (String) a[1]));
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));

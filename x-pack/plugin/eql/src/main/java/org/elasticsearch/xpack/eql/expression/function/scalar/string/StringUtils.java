@@ -61,6 +61,23 @@ final class StringUtils {
     }
 
     /**
+     * Checks if {@code string} contains {@code substring} string.
+     *
+     * @param string    string to search through.
+     * @param substring string to search for.
+     * @return {@code true} if {@code string} string contains {@code substring} string.
+     */
+    static boolean stringContains(String string, String substring) {
+        if (hasLength(string) == false || hasLength(substring) == false) {
+            return false;
+        }
+
+        string = string.toLowerCase(Locale.ROOT);
+        substring = substring.toLowerCase(Locale.ROOT);
+        return string.contains(substring);
+    }
+
+    /**
      * Returns a substring using the Python slice semantics, meaning
      * start and end can be negative
      */
@@ -70,7 +87,7 @@ final class StringUtils {
         }
 
         int length = string.length();
-        
+
         // handle first negative values
         if (start < 0) {
             start += length;

@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
@@ -208,7 +208,7 @@ public class XContentParserTests extends ESTestCase {
             assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.currentName(), equalTo("foo"));
             token = parser.nextToken();
-            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER)));
+            assertThat(token, in(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER)));
             assertFalse(parser.isBooleanValue());
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
@@ -220,7 +220,7 @@ public class XContentParserTests extends ESTestCase {
             assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.currentName(), equalTo("bar"));
             token = parser.nextToken();
-            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER)));
+            assertThat(token, in(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER)));
             assertFalse(parser.isBooleanValue());
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
@@ -241,7 +241,7 @@ public class XContentParserTests extends ESTestCase {
             assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.currentName(), equalTo("foo"));
             token = parser.nextToken();
-            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
+            assertThat(token, in(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
             assertTrue(parser.isBooleanValue());
             assertFalse(parser.booleanValue());
 
@@ -249,7 +249,7 @@ public class XContentParserTests extends ESTestCase {
             assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
             assertThat(parser.currentName(), equalTo("bar"));
             token = parser.nextToken();
-            assertThat(token, isIn(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
+            assertThat(token, in(Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_BOOLEAN)));
             assertTrue(parser.isBooleanValue());
             assertTrue(parser.booleanValue());
         }

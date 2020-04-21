@@ -1167,10 +1167,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final String[] snapshotsOrPatterns = snapshotNames.toArray(Strings.EMPTY_ARRAY);
         for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-            if (entry.repository().equals(repositoryName)) {
-                if (Regex.simpleMatch(snapshotsOrPatterns, entry.snapshot().getSnapshotId().getName())) {
-                    return entry;
-                }
+            if (entry.repository().equals(repositoryName)
+                    && Regex.simpleMatch(snapshotsOrPatterns, entry.snapshot().getSnapshotId().getName())) {
+                return entry;
             }
         }
         return null;

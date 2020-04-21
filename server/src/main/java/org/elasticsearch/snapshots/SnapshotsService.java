@@ -1009,6 +1009,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                if (snapshotNames.size() > 1 && currentState.nodes().getMinNodeVersion().before(MULTI_DELETE_VERSION)) {
+                    throw new IllegalArgumentException("Deleting multiple snapshots in a single request is only supported in version [ "
+                            + MULTI_DELETE_VERSION + "] but cluster contained node of version [" + currentState.nodes().getMinNodeVersion()
+                            + "]");
+                }
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 final SnapshotsInProgress.Entry snapshotEntry = findInProgressSnapshot(snapshots, snapshotNames, repositoryName);
                 if (snapshotEntry == null) {
@@ -1085,10 +1090,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 addListener(runningSnapshot, ActionListener.wrap(
                     result -> {
                         logger.debug("deleted snapshot completed - deleting files");
-                        final List<SnapshotId> foundSnapshots = matchingSnapshotIds(result.v1(), snapshotNames, repositoryName);
+                        final RepositoryData newRepoData = result.v1();
+                        final List<SnapshotId> foundSnapshots = matchingSnapshotIds(newRepoData, snapshotNames, repositoryName);
                         assert foundSnapshots.contains(runningSnapshot.getSnapshotId()) : "Expected new RepositoryData to contain ["
-                                + runningSnapshot + "] but it only contained snapshots " + result.v1().getSnapshotIds();
-                        deleteCompletedSnapshots(foundSnapshots, repositoryName, result.v1().getGenId(), Priority.IMMEDIATE, listener);
+                                + runningSnapshot + "] but it only contained snapshots " + newRepoData.getSnapshotIds();
+                        deleteCompletedSnapshots(foundSnapshots, repositoryName, newRepoData.getGenId(), Priority.IMMEDIATE, listener);
                     },
                     e -> {
                         if (abortedDuringInit) {
@@ -1115,15 +1121,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 ));
             }
-        });
-    }
 
-    private void resolveAndDeleteSnapshots(Collection<String> snapshotsOrPatterns, ActionListener<Void> listener, String repositoryName) {
-        assert snapshotsOrPatterns.isEmpty() == false;
-        threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
-                        deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotsOrPatterns, repositoryName), repositoryName,
-                                repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
+            // load latest repository data and run delete for all matching snapshots
+            private void resolveAndDeleteSnapshots(Collection<String> snapshotsOrPatterns, ActionListener<Void> listener,
+                                                   String repositoryName) {
+                assert snapshotsOrPatterns.isEmpty() == false;
+                threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+                        repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
+                                deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotsOrPatterns, repositoryName),
+                                        repositoryName, repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
+            }
+        });
     }
 
     private static List<SnapshotId> matchingSnapshotIds(RepositoryData repositoryData, Collection<String> snapshotsOrPatterns,

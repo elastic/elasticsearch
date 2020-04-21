@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -85,11 +86,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
     public void testStateTemplateWithIlm() {
         MlIndexTemplateRegistry registry =
-            new MlIndexTemplateRegistry(
-                Settings.builder()
-                    .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true)
-                    .build(),
-                clusterService, threadPool, client, xContentRegistry);
+            new MlIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
@@ -121,15 +118,13 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), is(nullValue()));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), is(nullValue()));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     public void testStatsTemplateWithIlm() {
         MlIndexTemplateRegistry registry =
-            new MlIndexTemplateRegistry(
-                Settings.builder()
-                    .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true)
-                    .build(),
-                clusterService, threadPool, client, xContentRegistry);
+            new MlIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
@@ -161,6 +156,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
         assertThat(req.settings().get("index.lifecycle.name"), is(nullValue()));
         assertThat(req.settings().get("index.lifecycle.rollover_alias"), is(nullValue()));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
     }
 
     @SuppressWarnings("unchecked")

@@ -76,51 +76,94 @@ public class InstantiatingObjectParserTests extends ESTestCase {
     }
 
     public void testNoAnnotation() throws IOException {
-        InstantiatingObjectParser<NoAnnotations, Void> parser = new InstantiatingObjectParser<>("foo", NoAnnotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        parser.declareString(constructorArg(), new ParseField("b"));
-        parser.declareLong(constructorArg(), new ParseField("c"));
-        parser.finalizeFields();
+        InstantiatingObjectParser.Builder<NoAnnotations, Void> builder = InstantiatingObjectParser.builder("foo", NoAnnotations.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        builder.declareLong(constructorArg(), new ParseField("c"));
+        InstantiatingObjectParser<NoAnnotations, Void> parser = builder.build();
         try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\":\"6\", \"c\": 7 }")) {
             assertThat(parser.parse(contentParser, null), equalTo(new NoAnnotations(5, "6", 7)));
         }
     }
 
     public void testNoAnnotationWrongArgumentNumber() {
-        InstantiatingObjectParser<NoAnnotations, Void> parser = new InstantiatingObjectParser<>("foo", NoAnnotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        parser.declareString(constructorArg(), new ParseField("b"));
-        parser.declareLong(constructorArg(), new ParseField("c"));
-        parser.declareLong(constructorArg(), new ParseField("d"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, parser::finalizeFields);
+        InstantiatingObjectParser.Builder<NoAnnotations, Void> builder = InstantiatingObjectParser.builder("foo", NoAnnotations.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        builder.declareLong(constructorArg(), new ParseField("c"));
+        builder.declareLong(constructorArg(), new ParseField("d"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString("No public constructors with 4 parameters exist in the class"));
     }
 
     public void testAmbiguousConstructor() {
-        InstantiatingObjectParser<NoAnnotations, Void> parser = new InstantiatingObjectParser<>("foo", NoAnnotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        parser.declareString(constructorArg(), new ParseField("b"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, parser::finalizeFields);
+        InstantiatingObjectParser.Builder<NoAnnotations, Void> builder = InstantiatingObjectParser.builder("foo", NoAnnotations.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString(
             "More then one public constructor with 2 arguments found. The use of @ParserConstructor annotation is required"
         ));
     }
 
     public void testPrivateConstructor() {
-        InstantiatingObjectParser<NoAnnotations, Void> parser = new InstantiatingObjectParser<>("foo", NoAnnotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, parser::finalizeFields);
+        InstantiatingObjectParser.Builder<NoAnnotations, Void> builder = InstantiatingObjectParser.builder("foo", NoAnnotations.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString("No public constructors with 1 parameters exist in the class "));
     }
 
-    public void testNonFinalizedParsing() throws IOException {
-        InstantiatingObjectParser<NoAnnotations, Void> parser = new InstantiatingObjectParser<>("foo", NoAnnotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        parser.declareString(constructorArg(), new ParseField("b"));
-        parser.declareLong(constructorArg(), new ParseField("c"));
-        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\":\"6\", \"c\": 7}")) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(contentParser, null));
-            assertThat(e.getMessage(), containsString("wasn't finalized"));
+    public static class LonelyArgument {
+        public final int a;
+
+        private String b;
+
+        public LonelyArgument(int a) {
+            this.a = a;
+            this.b = "Not set";
+        }
+
+        public void setB(String b) {
+            this.b = b;
+        }
+
+        public String getB() {
+            return b;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            LonelyArgument that = (LonelyArgument) o;
+            return a == that.a &&
+                Objects.equals(b, that.b);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(a, b);
+        }
+    }
+
+    public void testOneArgConstructor() throws IOException {
+        InstantiatingObjectParser.Builder<LonelyArgument, Void> builder = InstantiatingObjectParser.builder("foo", LonelyArgument.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        InstantiatingObjectParser<LonelyArgument, Void> parser = builder.build();
+        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5 }")) {
+            assertThat(parser.parse(contentParser, null), equalTo(new LonelyArgument(5)));
+        }
+    }
+
+    public void testSetNonConstructor() throws IOException {
+        InstantiatingObjectParser.Builder<LonelyArgument, Void> builder = InstantiatingObjectParser.builder("foo", LonelyArgument.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(LonelyArgument::setB, new ParseField("b"));
+        InstantiatingObjectParser<LonelyArgument, Void> parser = builder.build();
+        try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\": \"set\" }")) {
+            LonelyArgument expected = parser.parse(contentParser, null);
+            assertThat(expected.a, equalTo(5));
+            assertThat(expected.b, equalTo("set"));
         }
     }
 
@@ -167,21 +210,21 @@ public class InstantiatingObjectParserTests extends ESTestCase {
     }
 
     public void testAnnotation() throws IOException {
-        InstantiatingObjectParser<Annotations, Void> parser = new InstantiatingObjectParser<>("foo", Annotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        parser.declareString(constructorArg(), new ParseField("b"));
-        parser.declareString(constructorArg(), new ParseField("c"));
-        parser.finalizeFields();
+        InstantiatingObjectParser.Builder<Annotations, Void> builder = InstantiatingObjectParser.builder("foo", Annotations.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        builder.declareString(constructorArg(), new ParseField("c"));
+        InstantiatingObjectParser<Annotations, Void> parser = builder.build();
         try (XContentParser contentParser = createParser(JsonXContent.jsonXContent, "{\"a\": 5, \"b\":\"6\", \"c\": \"7\"}")) {
             assertThat(parser.parse(contentParser, null), equalTo(new Annotations(5, "6", 7)));
         }
     }
 
     public void testAnnotationWrongArgumentNumber() {
-        InstantiatingObjectParser<Annotations, Void> parser = new InstantiatingObjectParser<>("foo", Annotations.class);
-        parser.declareInt(constructorArg(), new ParseField("a"));
-        parser.declareString(constructorArg(), new ParseField("b"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, parser::finalizeFields);
+        InstantiatingObjectParser.Builder<Annotations, Void> builder = InstantiatingObjectParser.builder("foo", Annotations.class);
+        builder.declareInt(constructorArg(), new ParseField("a"));
+        builder.declareString(constructorArg(), new ParseField("b"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 arguments in the class"));
     }
 

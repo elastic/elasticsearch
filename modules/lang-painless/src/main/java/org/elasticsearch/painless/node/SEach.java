@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -111,8 +112,12 @@ public class SEach extends AStatement {
         }
 
         if (iterableValueType.isArray()) {
-            semanticScope.putDecoration(this, new ExpressionPainlessCast(
-                    AnalyzerCaster.getLegalCast(getLocation(), iterableValueType.getComponentType(), variable.getType(), true, true)));
+            PainlessCast painlessCast =
+                    AnalyzerCaster.getLegalCast(getLocation(), iterableValueType.getComponentType(), variable.getType(), true, true);
+
+            if (painlessCast != null) {
+                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+            }
         } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
             if (iterableValueType != def.class) {
                 PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().
@@ -126,8 +131,11 @@ public class SEach extends AStatement {
                 semanticScope.putDecoration(this, new IterablePainlessMethod(method));
             }
 
-            semanticScope.putDecoration(this, new ExpressionPainlessCast(
-                    AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true)));
+            PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true);
+
+            if (painlessCast != null) {
+                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+            }
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));

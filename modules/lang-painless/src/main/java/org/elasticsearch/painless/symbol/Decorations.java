@@ -173,6 +173,18 @@ public class Decorations {
 
     }
 
+    public interface Shortcut extends Condition {
+
+    }
+
+    public interface MapShortcut extends Condition {
+
+    }
+
+    public interface ListShortcut extends Condition {
+
+    }
+
     public static class ExpressionPainlessCast implements Decoration {
 
         private final PainlessCast expressionPainlessCast;

@@ -178,6 +178,10 @@ public class SFunction extends ANode {
                     "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
         }
 
+        if (methodEscape) {
+            functionScope.setCondition(this, MethodEscape.class);
+        }
+
         // TODO: do not specialize for execute
         // TODO: https://github.com/elastic/elasticsearch/issues/51841
         if ("execute".equals(functionName)) {

@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -90,6 +91,7 @@ public class ERegex extends AExpression {
         }
 
         semanticScope.putDecoration(this, new ValueType(Pattern.class));
+        semanticScope.putDecoration(this, new StandardConstant(flags));
     }
 
     private int flagForChar(char c) {

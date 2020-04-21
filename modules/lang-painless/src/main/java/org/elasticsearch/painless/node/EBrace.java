@@ -27,6 +27,8 @@ import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.GetterPainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.ListShortcut;
+import org.elasticsearch.painless.symbol.Decorations.MapShortcut;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.SetterPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -136,6 +138,8 @@ public class EBrace extends AExpression {
             } else {
                 throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "]."));
             }
+
+            semanticScope.setCondition(this, MapShortcut.class);
         } else if (List.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
@@ -176,6 +180,8 @@ public class EBrace extends AExpression {
             } else {
                 throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));
             }
+
+            semanticScope.setCondition(this, ListShortcut.class);
         } else {
             throw createError(new IllegalArgumentException("Illegal array access on type " +
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."));

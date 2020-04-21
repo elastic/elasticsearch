@@ -85,11 +85,11 @@ public class EBinary extends AExpression {
         }
 
         semanticScope.setCondition(leftNode, Read.class);
-        leftNode.analyze(semanticScope);
+        analyze(leftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
 
         semanticScope.setCondition(rightNode, Read.class);
-        rightNode.analyze(semanticScope);
+        analyze(rightNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
         
         Class<?> valueType;

@@ -28,9 +28,12 @@ import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.GetterPainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.ListShortcut;
+import org.elasticsearch.painless.symbol.Decorations.MapShortcut;
 import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.SetterPainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.Shortcut;
 import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.StandardPainlessField;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
@@ -211,6 +214,8 @@ public class EDot extends AExpression {
                         if (setter != null) {
                             semanticScope.putDecoration(this, new SetterPainlessMethod(setter));
                         }
+
+                        semanticScope.setCondition(this, Shortcut.class);
                     } else if (isStatic == false) {
                         if (Map.class.isAssignableFrom(prefixValueType.getValueType())) {
                             getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
@@ -245,6 +250,8 @@ public class EDot extends AExpression {
                             if (setter != null) {
                                 semanticScope.putDecoration(this, new SetterPainlessMethod(setter));
                             }
+
+                            semanticScope.setCondition(this, MapShortcut.class);
                         }
 
                         if (List.class.isAssignableFrom(prefixType)) {
@@ -287,6 +294,8 @@ public class EDot extends AExpression {
                             if (setter != null) {
                                 semanticScope.putDecoration(this, new SetterPainlessMethod(setter));
                             }
+
+                            semanticScope.setCondition(this, ListShortcut.class);
                         }
                     }
 

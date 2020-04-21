@@ -151,7 +151,7 @@ public class RolloverRequestTests extends ESTestCase {
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
                 RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
-                assertThat(cloneRequest.getAliasOrDataStream(), equalTo(originalRequest.getAliasOrDataStream()));
+                assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     //here we compare the string representation as there is some information loss when serializing

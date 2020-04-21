@@ -182,6 +182,9 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
                 throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
             }
+            if (request.name.startsWith(".")) {
+                throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+            }
 
             String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
             CreateIndexClusterStateUpdateRequest createIndexRequest =

@@ -99,12 +99,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    final ActionListener<RolloverResponse> listener) throws Exception {
         MetadataRolloverService.RolloverResult preResult =
             rolloverService.rolloverClusterState(state,
-                rolloverRequest.getAliasOrDataStream(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
+                rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
                 Collections.emptyList(), true);
         Metadata metadata = state.metadata();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
-        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAliasOrDataStream())
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true, false, true, false, false, false, true))
             .docs(true);
@@ -136,11 +136,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                         .preferV2Templates(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(originalIndexSettings));
                                 }
                                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
-                                    rolloverRequest.getAliasOrDataStream(), rolloverRequest.getNewIndexName(),
+                                    rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
                                     rolloverRequest.getCreateIndexRequest(), metConditions, false);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
                                     throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
-                                        rolloverRequest.getAliasOrDataStream());
+                                        rolloverRequest.getRolloverTarget());
                                 }
                                 return rolloverResult.clusterState;
                             }

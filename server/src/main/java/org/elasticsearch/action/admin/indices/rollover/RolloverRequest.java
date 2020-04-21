@@ -81,7 +81,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
     }
 
-    private String aliasOrDataStream;
+    private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
     private Map<String, Condition<?>> conditions = new HashMap<>(2);
@@ -90,7 +90,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
-        aliasOrDataStream = in.readString();
+        rolloverTarget = in.readString();
         newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
         int size = in.readVInt();
@@ -103,15 +103,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     RolloverRequest() {}
 
-    public RolloverRequest(String aliasOrDataStream, String newIndexName) {
-        this.aliasOrDataStream = aliasOrDataStream;
+    public RolloverRequest(String rolloverTarget, String newIndexName) {
+        this.rolloverTarget = rolloverTarget;
         this.newIndexName = newIndexName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest.validate();
-        if (aliasOrDataStream == null) {
+        if (rolloverTarget == null) {
             validationException = addValidationError("index alias or data stream is missing", validationException);
         }
         return validationException;
@@ -120,7 +120,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(aliasOrDataStream);
+        out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
@@ -132,7 +132,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return new String[] {aliasOrDataStream};
+        return new String[] {rolloverTarget};
     }
 
     @Override
@@ -143,8 +143,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     /**
      * Sets the alias to rollover to another index
      */
-    public void setAliasOrDataStream(String aliasOrDataStream) {
-        this.aliasOrDataStream = aliasOrDataStream;
+    public void setRolloverTarget(String rolloverTarget) {
+        this.rolloverTarget = rolloverTarget;
     }
 
     /**
@@ -209,8 +209,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    public String getAliasOrDataStream() {
-        return aliasOrDataStream;
+    public String getRolloverTarget() {
+        return rolloverTarget;
     }
 
     public String getNewIndexName() {

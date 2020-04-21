@@ -133,6 +133,10 @@ public interface Transport extends LifecycleComponent {
             return this;
         }
 
+        default boolean isLocalConnection() {
+            return false;
+        }
+
         @Override
         void close();
     }

@@ -91,7 +91,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 // TODO: Hack
-                if (clusterService.localNode().equals(connection.getNode())) {
+                if (connection.isLocalConnection()) {
                     sender.sendRequest(connection, action, request, options, handler);
                 } else {
                     final boolean requireAuth = shouldRequireExistingAuthentication();

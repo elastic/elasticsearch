@@ -134,6 +134,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         }
 
         @Override
+        public boolean isLocalConnection() {
+            return true;
+        }
+
+        @Override
         public void close() {
         }
     };

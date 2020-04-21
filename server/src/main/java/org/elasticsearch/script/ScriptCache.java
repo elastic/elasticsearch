@@ -234,11 +234,11 @@ public class ScriptCache {
         public final double availableTokens;
         public final boolean tokenSuccessfullyTaken;
 
-        public TokenBucketState(double availableTokens) {
+        private TokenBucketState(double availableTokens) {
             this(System.nanoTime(), availableTokens, false);
         }
 
-        public TokenBucketState(long lastInlineCompileTime, double availableTokens, boolean tokenSuccessfullyTaken) {
+        private TokenBucketState(long lastInlineCompileTime, double availableTokens, boolean tokenSuccessfullyTaken) {
             this.lastInlineCompileTime = lastInlineCompileTime;
             this.availableTokens = availableTokens;
             this.tokenSuccessfullyTaken = tokenSuccessfullyTaken;

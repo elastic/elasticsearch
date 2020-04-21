@@ -107,7 +107,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(false));
-        assertThat(licenseState.isApiKeyServiceAllowed(), is(false));
+        assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
 
         assertThat(licenseState.isSecurityAvailable(), is(true));
         assertThat(licenseState.isSecurityEnabled(), is(false));
@@ -142,7 +142,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
         assertThat(licenseState.isTokenServiceAllowed(), is(false));
-        assertThat(licenseState.isApiKeyServiceAllowed(), is(false));
+        assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
     }
 
     public void testSecurityEnabledBasicExpired() {
@@ -260,11 +260,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     private void assertSecurityNotAllowed(XPackLicenseState licenseState) {
         assertThat(licenseState.isSecurityEnabled(), is(false));
-        assertThat(licenseState.isIpFilteringAllowed(), is(false));
-        assertThat(licenseState.isAuditingAllowed(), is(false));
-        assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
-        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
-        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
     public void testSecurityAckBasicToNotGoldOrStandard() {

@@ -178,7 +178,7 @@ public class MetadataIndexTemplateService {
 
     // Package visible for testing
     ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
-                                             final String name, final ComponentTemplate template) throws Exception {
+                                      final String name, final ComponentTemplate template) throws Exception {
         if (create && currentState.metadata().componentTemplates().containsKey(name)) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
@@ -195,6 +195,29 @@ public class MetadataIndexTemplateService {
         }
 
         validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
+
+        // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
+        if (create == false && finalSettings != null) {
+            // if the CT is specifying the `index.hidden` setting it cannot be part of any global template
+            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(finalSettings)) {
+                Map<String, IndexTemplateV2> existingTemplates = currentState.metadata().templatesV2();
+                List<String> globalTemplatesThatUseThisComponent = new ArrayList<>();
+                for (Map.Entry<String, IndexTemplateV2> entry : existingTemplates.entrySet()) {
+                    IndexTemplateV2 templateV2 = entry.getValue();
+                    if (templateV2.composedOf().contains(name) && templateV2.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+                        // global templates don't support configuring the `index.hidden` setting so we don't need to resolve the settings as
+                        // no other component template can remove this setting from the resolved settings, so just invalidate this update
+                        globalTemplatesThatUseThisComponent.add(entry.getKey());
+                    }
+                }
+                if (globalTemplatesThatUseThisComponent.isEmpty() == false) {
+                    throw new IllegalArgumentException("cannot update component template ["
+                        + name + "] because the following global templates would resolve to specifying the ["
+                        + IndexMetadata.SETTING_INDEX_HIDDEN + "] setting: [" + String.join(",", globalTemplatesThatUseThisComponent)
+                        + "]");
+                }
+            }
+        }
 
         // Mappings in component templates don't include _doc, so update the mappings to include this single type
         if (stringMappings != null) {
@@ -268,11 +291,12 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Add the given component template to the cluster state. If {@code create} is true, an
+     * Add the given index template to the cluster state. If {@code create} is true, an
      * exception will be thrown if the component template already exists
      */
     public void putIndexTemplateV2(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
                                    final IndexTemplateV2 template, final ActionListener<AcknowledgedResponse> listener) {
+        validateV2TemplateRequest(clusterService.state().metadata(), name, template);
         clusterService.submitStateUpdateTask("create-index-template-v2 [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -296,6 +320,16 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(new AcknowledgedResponse(true));
                 }
             });
+    }
+
+    static void validateV2TemplateRequest(Metadata metadata, String name, IndexTemplateV2 template) {
+        if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+            Settings mergedSettings = resolveSettings(metadata, template);
+            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
+                throw new InvalidIndexTemplateException(name, "global V2 templates may not specify the setting "
+                    + IndexMetadata.INDEX_HIDDEN_SETTING.getKey());
+            }
+        }
     }
 
     // Package visible for testing
@@ -664,19 +698,18 @@ public class MetadataIndexTemplateService {
      * the event that no templates are matched, {@code null} is returned.
      */
     @Nullable
-    public static String findV2Template(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
+    public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final Map<IndexTemplateV2, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final IndexTemplateV2 template = entry.getValue();
-            if (isHidden == null || isHidden == Boolean.FALSE) {
+            if (isHidden == false) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     matchedTemplates.put(template, name);
                 }
             } else {
-                assert isHidden == Boolean.TRUE;
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
                     if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
@@ -696,7 +729,19 @@ public class MetadataIndexTemplateService {
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);
-        return matchedTemplates.get(winner);
+        String winnerName = matchedTemplates.get(winner);
+
+        // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
+        // a restored index cluster state that modified a component template used by this global template such that it has this setting)
+        // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
+        // template that contributes to the index template resolved settings
+        if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
+            IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+            throw new IllegalStateException("global index template [" + winnerName + "], composed of component templates [" +
+                String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
+        }
+
+        return winnerName;
     }
 
     /**
@@ -750,6 +795,10 @@ public class MetadataIndexTemplateService {
         if (template == null) {
             return Settings.EMPTY;
         }
+        return resolveSettings(metadata, template);
+    }
+
+    private static Settings resolveSettings(Metadata metadata, IndexTemplateV2 template) {
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         List<Settings> componentSettings = template.composedOf().stream()
             .map(componentTemplates::get)

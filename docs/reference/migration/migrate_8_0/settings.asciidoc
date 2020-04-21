@@ -51,3 +51,41 @@ setting `cluster.remote.connect` is removed.
 In Elasticsearch 7.8.0, the setting `node.local_storage` was deprecated and
 beginning in Elasticsearch 8.0.0 all nodes will require local storage. Therefore,
 the `node.local_storage` setting has been removed.
+
+[float]
+==== `auth.password` for HTTP monitoring is removed
+
+In Elasticsearch 7.7.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password`
+was deprecated in favor of setting `xpack.monitoring.exporters.<exporterName>.auth.secure_password`.
+In Elasticsearch 8.0.0, the setting `xpack.monitoring.exporters.<exporterName>.auth.password` is
+removed.
+
+[float]
+==== Option to disable basic license features is deprecated
+
+In Elasticsearch 7.8.0, the following settings have been deprecated:
+
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
+* `xpack.slm.enabled`
+* `xpack.sql.enabled`
+* `xpack.transform.enabled`
+* `xpack.vectors.enabled`
+
+In future releases, it will not be possible to disable the APIs for Enrichment,
+Flattened mappings, ILM, Monitoring, Rollup, SLM, SQL, Transforms, and Vectors.
+
+[float]
+==== The `prefer_v2_templates` parameter now defaults to `true`
+
+In Elasticsearch 7.8.0 the `?prefer_v2_templates=true|false` parameter was introduced to allow
+specifying whether to favor V1 or V2 templates when a new index is created. In 8.0 this now defaults
+to `true`, meaning that V2 index templates will always take precedence if they match. V1 templates
+will continue to be applied if no V2 index template matches the newly created index pattern.
+
+The `?prefer_v2_templates` parameter is supported on the <<indices-create-index,Create Index>>,
+<<docs-index_,Index>>, <<docs-bulk,Bulk>>, <<docs-update,Update>>, and
+<<indices-rollover-index,Rollover>> APIs.

@@ -386,10 +386,4 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         };
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55505")
-    public void testReadRangeBlobWithRetries() throws Exception {
-
-    }
 }

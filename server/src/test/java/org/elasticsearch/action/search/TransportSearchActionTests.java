@@ -844,6 +844,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55514")
     public void testShouldPreFilterSearchShards() {
         int numIndices = randomIntBetween(2, 10);
         Index[] indices = new Index[numIndices];

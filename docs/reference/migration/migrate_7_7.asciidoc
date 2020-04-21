@@ -25,7 +25,7 @@ loggers in the `org.elasticsearch.action.*` hierarchy emitted log messages at
 `DEBUG` level by default. This sometimes resulted in a good deal of unnecessary
 log noise. From 7.7 onwards the default log level for logger in this hierarchy
 is now `INFO`, in line with most other loggers. If needed, you can recover the
-pre-7.7 default behaviour by adjusting your <<logging>>.
+pre-7.7 default behaviour by adjusting your {ref}/logging.html[logging].
 
 [discrete]
 [[breaking_77_mapping_changes]]

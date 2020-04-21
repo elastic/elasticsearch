@@ -365,7 +365,7 @@ public class AuthorizationService {
     }
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
-        if (rbacEngine != authorizationEngine && licenseState.isAuthorizationEngineAllowed()) {
+        if (rbacEngine != authorizationEngine && licenseState.isSecurityEnabled() && licenseState.isAuthorizationEngineAllowed()) {
             if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternalUser(user)) {
                 return rbacEngine;
             } else {

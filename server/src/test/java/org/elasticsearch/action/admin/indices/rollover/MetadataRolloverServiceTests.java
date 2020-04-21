@@ -324,7 +324,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, false));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
@@ -344,7 +344,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, false));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
@@ -367,7 +367,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
+            MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, false));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 

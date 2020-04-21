@@ -196,7 +196,7 @@ final class S3ClientSettings {
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
-        final boolean usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
+        final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING, normalizedSettings, disableChunkedEncoding);
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
@@ -204,6 +204,7 @@ final class S3ClientSettings {
         if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
+            && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion) && Objects.equals(signerOverride, newSignerOverride)) {
             return this;
@@ -219,7 +220,7 @@ final class S3ClientSettings {
             newReadTimeoutMillis,
             newMaxRetries,
             newThrottleRetries,
-            usePathStyleAccess,
+            newPathStyleAccess,
             newDisableChunkedEncoding,
             newRegion,
             newSignerOverride

@@ -56,6 +56,7 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -131,6 +132,9 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
+        if (bulkRequest.preferV2Templates() != null) {
+            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(bulkRequest.preferV2Templates()));
+        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -331,6 +335,9 @@ final class RequestConverters {
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
+        if (indexRequest.preferV2Templates() != null) {
+            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(indexRequest.preferV2Templates()));
+        }
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
@@ -357,6 +364,9 @@ final class RequestConverters {
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
+        if (updateRequest.preferV2Templates() != null) {
+            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(updateRequest.preferV2Templates()));
+        }
 
         // The Java API allows update requests with different content types
         // set for the partial document and the upsert document. This client

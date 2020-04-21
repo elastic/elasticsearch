@@ -415,5 +415,134 @@ POST _bulk
 { "update" : {"_id" : "4", "_index" : "index1"} }
 { "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
+
+[discrete]
+[[bulk-failures-ex]]
+===== Example with failed actions
+
+The following bulk API request includes operations that update non-existent
+documents.
+
+[source,console]
+----
+POST /_bulk
+{ "update": {"_id": "5", "_index": "index1"} }
+{ "doc": {"my_field": "foo"} }
+{ "update": {"_id": "6", "_index": "index1"} }
+{ "doc": {"my_field": "foo"} }
+{ "create": {"_id": "7", "_index": "index1"} }
+{ "my_field": "foo" }
+----
+
+Because these operations cannot complete successfully, the API returns a
+response with an `errors` flag of `true`.
+
+The response also includes an `error` object for any failed operations. The
+`error` object contains additional information about the failure, such as the
+error type and reason.
+
+[source,console-result]
+----
+{
+  "took": 486,
+  "errors": true,
+  "items": [
+    {
+      "update": {
+        "_index": "index1",
+        "_id": "5",
+        "status": 404,
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[5]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "update": {
+        "_index": "index1",
+        "_id": "6",
+        "status": 404,
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[6]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "create": {
+        "_index": "index1",
+        "_id": "7",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 1,
+          "failed": 0
+        },
+        "_seq_no": 0,
+        "_primary_term": 1,
+        "status": 201
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"took": 486/"took": $body.took/]
+// TESTRESPONSE[s/"_seq_no": 0/"_seq_no": $body.items.2.create._seq_no/]
+// TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]
+
+To return only information about failed operations, use the
+<<common-options-response-filtering,`filter_path`>> query parameter with an
+argument of `items.*.error`.
+
+[source,console]
+----
+POST /_bulk?filter_path=items.*.error
+{ "update": {"_id": "5", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+{ "update": {"_id": "6", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+{ "update": {"_id": "7", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+----
 // TEST[continued]
 
+The API returns the following result.
+
+[source,console-result]
+----
+{
+  "items": [
+    {
+      "update": {
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[5]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "update": {
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[6]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]

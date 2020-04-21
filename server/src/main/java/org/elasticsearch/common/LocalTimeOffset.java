@@ -47,8 +47,9 @@ import java.util.Locale;
  * A similarly terrifying thing happens again in the spring when my clocks skip
  * straight from 1:59am to 3am.
  * <p>
- * So there are two methods to convert from local time back to utc,
- * {@link #localToUtc(long, Strategy)} and {@link #localToSensibleUtc(long)}.
+ * So there are three methods to convert from local time back to utc,
+ * {@link #localToUtc(long, Strategy)}, {@link #localToSensibleUtc(long)} and
+ * {@link #localToUtcInThisOffset(long)}. They are all unique and frightening.
  */
 public abstract class LocalTimeOffset {
     /**
@@ -127,6 +128,10 @@ public abstract class LocalTimeOffset {
      * You can use this if you've converted from utc to local, rounded down,
      * and then want to convert back to utc and you need fine control over
      * how to handle the "funny" edges.
+     * <p>
+     * This will not help you if you must convert a local time that you've
+     * rounded <strong>up</strong>. For that you are on your own. May God
+     * have mercy on your soul.
      */
     public abstract long localToUtc(long localMillis, Strategy strat);
     public interface Strategy {

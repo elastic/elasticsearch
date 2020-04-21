@@ -213,7 +213,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     private synchronized void stopThrottledSearch() {
         if (scheduledNextSearch != null && scheduledNextSearch.cancel()) {
-            threadPool.executor(executorName).execute(() -> saveStateAndStop());
+            threadPool.executor(executorName).execute(() -> checkState(getState()));
         }
     }
 
@@ -543,7 +543,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return true;
 
         case STOPPING:
-            saveStateAndStop();
+            logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
+            doSaveState(finishAndSetState(), getPosition(), () -> {});
             return false;
 
         case STOPPED:
@@ -559,11 +560,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
             throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
         }
-    }
-
-    private void saveStateAndStop() {
-        logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-        doSaveState(finishAndSetState(), getPosition(), () -> {});
     }
 
     private synchronized void reQueueThrottledSearch() {

@@ -308,7 +308,10 @@ Phases allowed: hot, warm.
 NOTE: Index will be be made read-only when this action is run
 (see: <<dynamic-index-settings,index.blocks.write>>)
 
-NOTE: If the `forcemerge` action is used in the `hot` phase, the `rollover` action *must* be preset.
+NOTE: The `forcemerge` action is best effort. It might happen that some of the
+shards are relocating, in which case they will not be merged.
+
+NOTE: If the `forcemerge` action is used in the `hot` phase, the `rollover` action *must* be present.
 ILM validates this predicate and will refuse a policy with a forcemerge in the hot phase without a
 rollover action.
 

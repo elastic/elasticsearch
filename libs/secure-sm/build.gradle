@@ -30,7 +30,7 @@ dependencies {
   }
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 

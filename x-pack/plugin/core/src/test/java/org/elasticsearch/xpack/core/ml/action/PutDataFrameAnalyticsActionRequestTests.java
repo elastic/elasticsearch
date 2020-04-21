@@ -109,4 +109,8 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
 
         assertThat(e, is(nullValue()));
     }
+
+    public void testDefaultTimeout() {
+        assertThat(createTestInstance().timeout(), is(notNullValue()));
+    }
 }

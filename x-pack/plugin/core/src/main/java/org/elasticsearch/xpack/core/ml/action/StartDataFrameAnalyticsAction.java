@@ -36,11 +36,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedResponse> {
 
     public static final StartDataFrameAnalyticsAction INSTANCE = new StartDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/start";
+
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     private StartDataFrameAnalyticsAction() {
         super(NAME, AcknowledgedResponse::new);
@@ -69,7 +72,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
 
         private String id;
-        private TimeValue timeout = TimeValue.timeValueSeconds(20);
+        private TimeValue timeout = DEFAULT_TIMEOUT;
 
         public Request(String id) {
             setId(id);

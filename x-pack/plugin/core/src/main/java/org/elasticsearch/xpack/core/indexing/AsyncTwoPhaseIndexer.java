@@ -131,7 +131,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
         });
 
-        // a throttled search might be waiting to be executed, trigger it now for clean stop
+        // a throttled search might be waiting to be executed, stop it
         stopThrottledSearch();
 
         return indexerState;

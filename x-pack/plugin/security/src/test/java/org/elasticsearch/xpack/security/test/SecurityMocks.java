@@ -86,6 +86,7 @@ public final class SecurityMocks {
         when(securityIndexManager.indexExists()).thenReturn(exists);
         when(securityIndexManager.isAvailable()).thenReturn(available);
         when(securityIndexManager.aliasName()).thenReturn(alias);
+        when(securityIndexManager.freeze()).thenReturn(securityIndexManager);
         return securityIndexManager;
     }
 
@@ -149,6 +150,7 @@ public final class SecurityMocks {
         final Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         final ClusterService clusterService = mock(ClusterService.class);
 

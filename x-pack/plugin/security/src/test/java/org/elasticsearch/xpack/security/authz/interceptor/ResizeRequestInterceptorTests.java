@@ -49,7 +49,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
     public void testResizeRequestInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -101,7 +101,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
     public void testResizeRequestInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);

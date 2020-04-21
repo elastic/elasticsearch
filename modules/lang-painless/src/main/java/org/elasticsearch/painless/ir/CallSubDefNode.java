@@ -46,15 +46,24 @@ public class CallSubDefNode extends ArgumentsNode {
 
     /* ---- end node data ---- */
 
+    /**
+     * Writes an invokedynamic instruction for a call with an unknown receiver type.
+     */
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
+        // its possible to have unknown functional interfaces
+        // as arguments that require captures; the set of
+        // captures with call arguments is ambiguous so
+        // additional information is encoded to indicate
+        // which are values are arguments and which are captures
         StringBuilder defCallRecipe = new StringBuilder();
         List<Object> boostrapArguments = new ArrayList<>();
         List<Class<?>> typeParameters = new ArrayList<>();
         int capturedCount = 0;
 
+        // add an Object class as a placeholder type for the receiver
         typeParameters.add(Object.class);
 
         for (int i = 0; i < getArgumentNodes().size(); ++i) {
@@ -63,10 +72,17 @@ public class CallSubDefNode extends ArgumentsNode {
 
             typeParameters.add(argumentNode.getExpressionType());
 
+            // handle the case for unknown functional interface
+            // to hint at which values are the call's arguments
+            // versus which values are captures
             if (argumentNode instanceof DefInterfaceReferenceNode) {
                 DefInterfaceReferenceNode defInterfaceReferenceNode = (DefInterfaceReferenceNode)argumentNode;
                 boostrapArguments.add(defInterfaceReferenceNode.getDefReferenceEncoding());
 
+                // the encoding uses a char to indicate the number of captures
+                // where the value is the number of current arguments plus the
+                // total number of captures for easier capture count tracking
+                // when resolved at runtime
                 char encoding = (char)(i + capturedCount);
                 defCallRecipe.append(encoding);
                 capturedCount += defInterfaceReferenceNode.getCaptures().size();

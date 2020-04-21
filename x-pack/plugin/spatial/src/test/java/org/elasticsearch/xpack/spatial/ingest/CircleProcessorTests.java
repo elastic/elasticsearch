@@ -27,7 +27,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -213,7 +213,7 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        MappedFieldType shapeType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
         shapeType.setHasDocValues(false);
         shapeType.setName(fieldName);
 

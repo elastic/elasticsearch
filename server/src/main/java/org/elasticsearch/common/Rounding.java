@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@linkplain Writeable} strategy for rounding milliseconds since epoch.
+ * A strategy for rounding milliseconds since epoch.
  * <p>
  * There are two implementations for rounding.
  * The first one requires a date time unit and rounds to the supplied date time unit (i.e. quarter of year, day of month).
@@ -749,7 +749,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            return prepareJavaTime();
+            return prepareForUnknown();
         }
 
         @Override

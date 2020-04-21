@@ -77,6 +77,12 @@ public abstract class ValuesSource {
         return false;
     }
 
+    /**
+     * Build a function prepares rounding values to be called many times.
+     * <p>
+     * This returns a {@linkplain Function} because auto date histogram will
+     * need to call it many times over the course of running the aggregation.
+     */
     public Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
         return Rounding::prepareForUnknown;
     }

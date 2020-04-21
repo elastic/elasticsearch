@@ -42,6 +42,15 @@ expected_event_ids  = [5]
 query = 'process where concat(serial_event_id) = "1"'
 expected_event_ids  = [1]
 
+[[queries]]
+query = 'process where serial_event_id < 5 and concat(null) == ""'
+expected_event_ids  = [1, 2, 3, 4]
+
+
+[[queries]]
+query = 'process where serial_event_id < 5 and concat(null, null, null) == ""'
+expected_event_ids  = [1, 2, 3, 4]
+
 
 [[queries]]
 query = 'process where string(serial_event_id) = "1"'

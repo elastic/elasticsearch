@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalConsumer;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.support.RoundingPreparer;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -256,7 +255,8 @@ public class DateHistogramValuesSourceBuilder
         }
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
-            Rounding.Prepared preparedRounding = RoundingPreparer.preparer(queryShardContext, config).apply(rounding);
+            // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it here
+            Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
             RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();

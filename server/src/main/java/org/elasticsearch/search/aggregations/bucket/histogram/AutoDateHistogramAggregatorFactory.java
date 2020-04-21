@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.support.RoundingPreparer;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -75,7 +75,8 @@ public final class AutoDateHistogramAggregatorFactory
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos,
-            RoundingPreparer.preparer(queryShardContext, config),
+            // TODO once auto date histo is plugged into the ValuesSource refactoring use the date values source
+            Rounding::prepareForUnknown,
             valuesSource, config.format(), searchContext, parent, metadata);
     }
 

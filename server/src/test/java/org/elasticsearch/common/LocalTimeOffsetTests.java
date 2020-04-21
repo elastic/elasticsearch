@@ -19,10 +19,8 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.LocalTimeOffset.FixedLookup;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
-import org.elasticsearch.common.LocalTimeOffset.PreBuiltOffsetLookup;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,121 +30,129 @@ import java.time.ZoneOffset;
 import java.time.zone.ZoneOffsetTransition;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LocalTimeOffsetTests extends ESTestCase {
-    // NOCOMMIT test for checking for lookupFixedOffset
+    public void testRangeTooLarge() {
+        ZoneId zone = ZoneId.of("America/New_York");
+        assertThat(LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE), nullValue());
+    }
+
+    public void testNotFixed() {
+        ZoneId zone = ZoneId.of("America/New_York");
+        assertThat(LocalTimeOffset.lookupFixedOffset(zone), nullValue());
+    }
+
     public void testUtc() {
-        LongFunction<LocalTimeOffset> lookup = unbound(ZoneId.of("UTC"));
-        assertThat(lookup, instanceOf(FixedLookup.class));
-        assertThat(lookup.apply(randomLong()).millis(), equalTo(0L));
+        assertFixOffset(ZoneId.of("UTC"), 0);
     }
 
     public void testFixedOffset() {
-        ZoneOffset offset = ZoneOffset.ofHours(between(-18, 18));
-        LongFunction<LocalTimeOffset> lookup = unbound(ZoneId.ofOffset("UTC", offset));
-        assertThat(lookup, instanceOf(FixedLookup.class));
-        long t = randomValueOtherThan(Long.MIN_VALUE, ESTestCase::randomLong);
-        LocalTimeOffset transition = lookup.apply(t);
-        assertThat(transition.millis(), equalTo(offset.getTotalSeconds() * 1000L));
+        ZoneOffset zone = ZoneOffset.ofTotalSeconds(between((int) -TimeUnit.HOURS.toSeconds(18), (int) TimeUnit.HOURS.toSeconds(18)));
+        assertFixOffset(zone, zone.getTotalSeconds() * 1000);
     }
 
-    public void testPreBuiltTransitionsBeforeRules() {
+    private void assertFixOffset(ZoneId zone, long offsetMillis) {
+        LocalTimeOffset fixed = LocalTimeOffset.lookupFixedOffset(zone);
+        assertThat(fixed, notNullValue());
+
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE);
+        assertThat(lookup.size(), equalTo(1));
+        long min = randomLong();
+        long max = randomValueOtherThan(min, ESTestCase::randomLong);
+        if (min > max) {
+            long s = min;
+            min = max;
+            max = s;
+        }
+        LocalTimeOffset fixedInRange = lookup.fixedInRange(min, max);
+        assertThat(fixedInRange, notNullValue());
+
+        assertRoundingAtOffset(randomBoolean() ? fixed : fixedInRange, randomLong(), offsetMillis);
+    }
+    
+    private void assertRoundingAtOffset(LocalTimeOffset offset, long time, long offsetMillis) {
+        assertThat(offset.utcToLocalTime(time), equalTo(time + offsetMillis));
+        assertThat(offset.localToUtcInThisOffset(time + offsetMillis), equalTo(time));
+        assertThat(offset.localToSensibleUtc(time + offsetMillis), equalTo(time));
+        assertThat(offset.localToUtc(time + offsetMillis, unusedStrategy()), equalTo(time));
+    }
+
+    public void testJustTransitions() {
         ZoneId zone = ZoneId.of("America/New_York");
         long min = time("1980-01-01", zone);
         long max = time("1981-01-01", zone) - 1;
-        assertThat(Instant.ofEpochMilli(min), lessThan(lastTransitionIn(zone).getInstant()));
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, min, max);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(3));
-        assertThat(lookup.apply(min).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
-        assertThat(lookup.apply(time("1980-06-01", zone)).millis(), equalTo(TimeUnit.HOURS.toMillis(-4L)));
-        assertThat(lookup.apply(max).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
+        assertThat(Instant.ofEpochMilli(max), lessThan(lastTransitionIn(zone).getInstant()));
+        assertTransitions(zone, min, max, time("1980-06-01", zone), min + hours(1), 3, hours(-5), hours(-4));
     }
 
-    public void testPreBuiltTransitionsWithTransitionsAndRules() {
+    public void testTransitionsWithTransitionsAndRules() {
         ZoneId zone = ZoneId.of("America/New_York");
         long min = time("1980-01-01", zone);
         long max = time("2021-01-01", zone) - 1;
         assertThat(Instant.ofEpochMilli(min), lessThan(lastTransitionIn(zone).getInstant()));
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, min, max);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(83));
-
-        assertThat(lookup.apply(min).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
-        assertThat(lookup.apply(time("2000-06-10", zone)).millis(), equalTo(TimeUnit.HOURS.toMillis(-4L)));
-        assertThat(lookup.apply(max).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
+        assertThat(Instant.ofEpochMilli(max), greaterThan(lastTransitionIn(zone).getInstant()));
+        assertTransitions(zone, min, max, time("1980-06-01", zone), min + hours(1), 83, hours(-5), hours(-4));
     }
 
-    public void testPreBuiltTransitionsAfterRules() {
+    public void testAfterRules() {
         ZoneId zone = ZoneId.of("America/New_York");
         long min = time("2020-01-01", zone);
         long max = time("2021-01-01", zone) - 1;
         assertThat(Instant.ofEpochMilli(min), greaterThan(lastTransitionIn(zone).getInstant()));
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, min, max);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(3));
-
-        assertThat(lookup.apply(min).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
-        assertThat(lookup.apply(time("2020-06-10", zone)).millis(), equalTo(TimeUnit.HOURS.toMillis(-4L)));
-        assertThat(lookup.apply(max).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
+        assertTransitions(zone, min, max, time("2020-06-01", zone), min + hours(1), 3, hours(-5), hours(-4));
     }
 
-    public void testPreBuiltTransitionsSingleTimeBeforeRules() {
+    private void assertTransitions(ZoneId zone, long min, long max, long between, long sameOffsetAsMin,
+            int size, long minMaxOffset, long betweenOffset) {
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, min, max);
+        assertThat(lookup.size(), equalTo(size));
+        assertRoundingAtOffset(lookup.lookup(min), min, minMaxOffset);
+        assertRoundingAtOffset(lookup.lookup(between), between, betweenOffset);
+        assertRoundingAtOffset(lookup.lookup(max), max, minMaxOffset);
+        assertThat(lookup.fixedInRange(min, max), nullValue());
+        assertThat(lookup.fixedInRange(min, sameOffsetAsMin), sameInstance(lookup.lookup(min)));
+    }
+
+    // Some sanity checks for when you pas a single time. We don't expect to do this much but it shouldn't be totally borked.
+    public void testSingleTimeBeforeRules() {
         ZoneId zone = ZoneId.of("America/New_York");
         long time = time("1980-01-01", zone);
         assertThat(Instant.ofEpochMilli(time), lessThan(lastTransitionIn(zone).getInstant()));
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, time, time);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        // 2 because we include the transition before this time. Maybe we shouldn't?
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(2));
-
-        assertThat(lookup.apply(time).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
+        assertRoundingAtOffset(LocalTimeOffset.lookup(zone, time, time).lookup(time), time, hours(-5));
     }
 
-    public void testPreBuiltTransitionsSingleTimeAfterRules() {
+    public void testSingleTimeAfterRules() {
         ZoneId zone = ZoneId.of("America/New_York");
         long time = time("2020-01-01", zone);
         assertThat(Instant.ofEpochMilli(time), greaterThan(lastTransitionIn(zone).getInstant()));
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, time, time);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        // 3 because we build all the transitions for the whole year
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(3));
-
-        assertThat(lookup.apply(time).millis(), equalTo(TimeUnit.HOURS.toMillis(-5L)));
+        assertRoundingAtOffset(LocalTimeOffset.lookup(zone, time, time).lookup(time), time, hours(-5));
     }
 
-    public void testPreBuiltJustOneRuleApplies() {
+    public void testJustOneRuleApplies() {
         ZoneId zone = ZoneId.of("Atlantic/Azores");
         long time = time("2000-10-30T00:00:00", zone);
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, time, time);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(2));
-
-        assertThat(lookup.apply(time).millis(), equalTo(TimeUnit.HOURS.toMillis(-1L)));
+        assertRoundingAtOffset(LocalTimeOffset.lookup(zone, time, time).lookup(time), time, hours(-1));
     }
 
     public void testLastTransitionWithoutRules() {
         /*
          * Asia/Kathmandu turned their clocks 15 minutes forward at
          * 1986-01-01T00:00:00 local time and hasn't changed time since.
+         * This has broken the transition collection code in the past.
          */
         ZoneId zone = ZoneId.of("Asia/Kathmandu");
         long time = time("1986-01-01T00:00:00", zone);
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(zone, time - 1, time);
-        assertThat(lookup, instanceOf(PreBuiltOffsetLookup.class));
-        assertThat(((PreBuiltOffsetLookup) lookup).transitions(), hasSize(2));
-
-        assertThat(lookup.apply(time - 1).millis(), equalTo(TimeUnit.MINUTES.toMillis(330)));
-        assertThat(lookup.apply(time).millis(), equalTo(TimeUnit.MINUTES.toMillis(345)));
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, time - 1, time);
+        assertThat(lookup.size(), equalTo(2));
+        assertRoundingAtOffset(lookup.lookup(time - 1), time - 1, TimeUnit.MINUTES.toMillis(330));
+        assertRoundingAtOffset(lookup.lookup(time), time, TimeUnit.MINUTES.toMillis(345));
     }
 
     public void testOverlap() {
@@ -159,13 +165,13 @@ public class LocalTimeOffsetTests extends ESTestCase {
         long firstMidnight = utcTime("1978-09-30T22:00:00");
         long secondMidnight = utcTime("1978-09-30T23:00:00");
         long overlapEnds = utcTime("1978-10-01T0:00:00");
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(tz, firstMidnight, overlapEnds);
-        LocalTimeOffset secondMidnightOffset = lookup.apply(secondMidnight);
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(tz, firstMidnight, overlapEnds);
+        LocalTimeOffset secondMidnightOffset = lookup.lookup(secondMidnight);
         long localSecondMidnight = secondMidnightOffset.utcToLocalTime(secondMidnight);
-        LocalTimeOffset firstMidnightOffset = lookup.apply(firstMidnight);
+        LocalTimeOffset firstMidnightOffset = lookup.lookup(firstMidnight);
         long localFirstMidnight = firstMidnightOffset.utcToLocalTime(firstMidnight);
         assertThat(localSecondMidnight - localFirstMidnight, equalTo(0L));
-        assertThat(lookup.apply(overlapEnds), sameInstance(secondMidnightOffset));
+        assertThat(lookup.lookup(overlapEnds), sameInstance(secondMidnightOffset));
         long localOverlapEnds = secondMidnightOffset.utcToLocalTime(overlapEnds);
         assertThat(localOverlapEnds - localSecondMidnight, equalTo(overlapMillis));
 
@@ -179,13 +185,13 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
                 equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis));
     
-        assertThat(randomFrom(firstMidnightOffset, secondMidnightOffset).localToFirstUtc(localFirstMidnight - 1),
+        assertThat(randomFrom(firstMidnightOffset, secondMidnightOffset).localToSensibleUtc(localFirstMidnight - 1),
                 equalTo(firstMidnight - 1));
-        assertThat(randomFrom(firstMidnightOffset, secondMidnightOffset).localToFirstUtc(localFirstMidnight),
+        assertThat(randomFrom(firstMidnightOffset, secondMidnightOffset).localToSensibleUtc(localFirstMidnight),
                 equalTo(firstMidnight));
-        assertThat(secondMidnightOffset.localToFirstUtc(localOverlapEnds), equalTo(overlapEnds));
-        assertThat(secondMidnightOffset.localToFirstUtc(localOverlappingTime),
-                equalTo(firstMidnightOffset.localToFirstUtc(localOverlappingTime)));
+        assertThat(secondMidnightOffset.localToSensibleUtc(localOverlapEnds), equalTo(overlapEnds));
+        assertThat(secondMidnightOffset.localToSensibleUtc(localOverlappingTime),
+                equalTo(firstMidnightOffset.localToSensibleUtc(localOverlappingTime)));
 
         long beforeOverlapValue = randomLong();
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
@@ -204,10 +210,10 @@ public class LocalTimeOffsetTests extends ESTestCase {
         ZoneId tz = ZoneId.of("Asia/Kathmandu");
         long gapLength = TimeUnit.MINUTES.toMillis(15);
         long transition = time("1986-01-01T00:00:00", tz);
-        LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(tz, transition - 1, transition);
-        LocalTimeOffset gapOffset = lookup.apply(transition);
+        LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(tz, transition - 1, transition);
+        LocalTimeOffset gapOffset = lookup.lookup(transition);
         long localAtTransition = gapOffset.utcToLocalTime(transition);
-        LocalTimeOffset beforeGapOffset = lookup.apply(transition - 1);
+        LocalTimeOffset beforeGapOffset = lookup.lookup(transition - 1);
         long localBeforeTransition = beforeGapOffset.utcToLocalTime(transition - 1);
         assertThat(localAtTransition - localBeforeTransition, equalTo(gapLength + 1));
 
@@ -217,24 +223,15 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(gapOffset.localToUtcInThisOffset(localBeforeTransition), equalTo(transition - 1 - gapLength));
         assertThat(gapOffset.localToUtcInThisOffset(localAtTransition), equalTo(transition));
 
-        assertThat(randomFrom(gapOffset, beforeGapOffset).localToFirstUtc(localBeforeTransition), equalTo(transition - 1));
-        assertThat(gapOffset.localToFirstUtc(localAtTransition), equalTo(transition));
-        assertThat(gapOffset.localToFirstUtc(localSkippedTime), equalTo(transition));
+        assertThat(randomFrom(gapOffset, beforeGapOffset).localToSensibleUtc(localBeforeTransition), equalTo(transition - 1));
+        assertThat(gapOffset.localToSensibleUtc(localAtTransition), equalTo(transition));
+        assertThat(gapOffset.localToSensibleUtc(localSkippedTime), equalTo(transition));
 
         long beforeGapValue = randomLong();
         assertThat(gapOffset.localToUtc(localBeforeTransition, useValueForBeforeGap(beforeGapValue)), equalTo(beforeGapValue));
         assertThat(gapOffset.localToUtc(localAtTransition, unusedStrategy()), equalTo(transition));
         long gapValue = randomLong();
         assertThat(gapOffset.localToUtc(localSkippedTime, useValueForGap(gapValue)), equalTo(gapValue));
-    }
-
-    public void testNoLookup() {
-        ZoneId zone = ZoneId.of("America/New_York");
-        assertThat(unbound(zone), nullValue());
-    }
-
-    private LongFunction<LocalTimeOffset> unbound(ZoneId zone) {
-        return LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE);
     }
 
     private static long utcTime(String time) {
@@ -388,5 +385,9 @@ public class LocalTimeOffsetTests extends ESTestCase {
                 return beforeOverlapValue;
             }
         };
+    }
+
+    private static long hours(long hours) {
+        return TimeUnit.HOURS.toMillis(hours);
     }
 }

@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
     private static final String DATE_FIELD = "date";
-    private static final String INSTANT_FIELD = "instant";
 
     private static final List<String> dataset = Arrays.asList(
             "2010-03-12T01:07:45",
@@ -215,7 +214,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalYearDeprecated() throws IOException {
-        testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
+        testBothCases(LongPoint.newRangeQuery(DATE_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -238,7 +237,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalYear() throws IOException {
-        testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
+        testBothCases(LongPoint.newRangeQuery(DATE_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -776,7 +775,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMinDocCountDeprecated() throws IOException {
-        Query query = LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
+        Query query = LongPoint.newRangeQuery(DATE_FIELD, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
         List<String> timestamps = Arrays.asList(
                 "2017-02-01T00:00:05.015Z",
                 "2017-02-01T00:00:11.299Z",
@@ -826,7 +825,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMinDocCount() throws IOException {
-        Query query = LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
+        Query query = LongPoint.newRangeQuery(DATE_FIELD, asLong("2017-02-01T00:00:00.000Z"), asLong("2017-02-01T00:00:30.000Z"));
         List<String> timestamps = Arrays.asList(
             "2017-02-01T00:00:05.015Z",
             "2017-02-01T00:00:11.299Z",
@@ -1228,7 +1227,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
                     long instant = asLong(date, fieldType);
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
-                    document.add(new LongPoint(INSTANT_FIELD, instant));
+                    document.add(new LongPoint(DATE_FIELD, instant));
                     indexWriter.addDocument(document);
                     document.clear();
                 }

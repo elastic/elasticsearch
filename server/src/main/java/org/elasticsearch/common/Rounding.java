@@ -46,7 +46,6 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongFunction;
 
 /**
  * A {@linkplain Writeable} strategy for rounding milliseconds since epoch.
@@ -408,20 +407,19 @@ public abstract class Rounding implements Writeable {
                 unitMillis = unit.field.getBaseUnit().getDuration().toMillis();
                 maxLookup += 2 * unitMillis;
             }
-            LongFunction<LocalTimeOffset> lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
+            LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
             if (lookup == null) {
                 // Range too long, just use java.time
                 return prepareJavaTime();
             }
 
-            LocalTimeOffset firstOffset = lookup.apply(minLookup);
-            LocalTimeOffset lastOffset = lookup.apply(maxLookup);
-            if (firstOffset == lastOffset) {
+            LocalTimeOffset fixedOffset = lookup.fixedInRange(minLookup, maxLookup);
+            if (fixedOffset != null) {
                 // The time zone is effectively fixed
                 if (unitRoundsToMidnight) {
-                    return new FixedToMidnightRounding(firstOffset);
+                    return new FixedToMidnightRounding(fixedOffset);
                 }
-                return new FixedNotToMidnightRounding(firstOffset, unitMillis);
+                return new FixedNotToMidnightRounding(fixedOffset, unitMillis);
             }
 
             if (unitRoundsToMidnight) {
@@ -522,16 +520,21 @@ public abstract class Rounding implements Writeable {
         }
 
         private class ToMidnightRounding implements Prepared {
-            private final LongFunction<LocalTimeOffset> lookup;
+            private final LocalTimeOffset.Lookup lookup;
 
-            ToMidnightRounding(LongFunction<LocalTimeOffset> lookup) {
+            ToMidnightRounding(LocalTimeOffset.Lookup lookup) {
                 this.lookup = lookup;
             }
 
             @Override
             public long round(long utcMillis) {
-                LocalTimeOffset offset = lookup.apply(utcMillis);
-                return offset.localToFirstUtc(unit.roundFloor(offset.utcToLocalTime(utcMillis)));
+                LocalTimeOffset offset = lookup.lookup(utcMillis);
+                /*
+                 * We want exactly the sort of edge case rounding that offset
+                 * calls "sensible". Lucky us! It is like we write it
+                 * that way....
+                 */
+                return offset.localToSensibleUtc(unit.roundFloor(offset.utcToLocalTime(utcMillis)));
             }
 
             @Override
@@ -542,16 +545,16 @@ public abstract class Rounding implements Writeable {
         }
 
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
-            private final LongFunction<LocalTimeOffset> lookup;
+            private final LocalTimeOffset.Lookup lookup;
 
-            NotToMidnightRounding(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
+            NotToMidnightRounding(LocalTimeOffset.Lookup lookup, long unitMillis) {
                 super(unitMillis);
                 this.lookup = lookup;
             }
 
             @Override
             public long round(long utcMillis) {
-                LocalTimeOffset offset = lookup.apply(utcMillis);
+                LocalTimeOffset offset = lookup.lookup(utcMillis);
                 long roundedLocalMillis = unit.roundFloor(offset.utcToLocalTime(utcMillis));
                 return offset.localToUtc(roundedLocalMillis, this);
             }

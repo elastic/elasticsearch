@@ -403,3 +403,83 @@ See:
 * <<recovery>>
 * <<search-settings>>
 * <<shard-request-cache>>
+
+[role="exclude",id="testing"]
+=== Testing
+
+This page was deleted.
+
+[role="exclude",id="testing-framework"]
+=== Java testing framework
+
+This page was deleted.
+
+[role="exclude",id="why-randomized-testing"]
+=== Why randomized testing?
+
+This page was deleted.
+
+[role="exclude",id="using-elasticsearch-test-classes"]
+=== Using the {es} test classes
+
+This page was deleted.
+
+[role="exclude",id="unit-tests"]
+=== Unit tests
+
+This page was deleted.
+
+[role="exclude",id="integration-tests"]
+=== Integration tests
+
+This page was deleted.
+
+[role="exclude",id="number-of-shards"]
+==== Number of shards
+
+This section was deleted.
+
+[role="exclude",id="helper-methods"]
+==== Generic helper methods
+
+This section was deleted.
+
+[role="exclude",id="test-cluster-methods"]
+==== Test cluster methods
+
+This section was deleted.
+
+[role="exclude",id="changing-node-settings"]
+==== Changing node settings
+
+This section was deleted.
+
+[role="exclude",id="accessing-clients"]
+==== Accessing clients
+
+This section was deleted.
+
+[role="exclude",id="scoping"]
+==== Scoping
+
+This section was deleted.
+
+[role="exclude",id="changing-node-configuration"]
+==== Changing plugins via configuration
+
+This section was deleted.
+
+[role="exclude",id="randomized-testing"]
+=== Randomized testing
+
+This page was deleted.
+
+[role="exclude",id="generating-random-data"]
+==== Generating random data
+
+This section was deleted.
+
+[role="exclude",id="assertions"]
+=== Assertions
+
+This page was deleted.

@@ -93,8 +93,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         countDownLatch.await();
 
         logger.info("waiting for cluster to reform");
-        masterTransportService.clearRule(localTransportService);
-        nonMasterTransportService.clearRule(localTransportService);
+        masterTransportService.clearOutboundRules(localTransportService);
+        nonMasterTransportService.clearOutboundRules(localTransportService);
 
         ensureStableCluster(2);
 

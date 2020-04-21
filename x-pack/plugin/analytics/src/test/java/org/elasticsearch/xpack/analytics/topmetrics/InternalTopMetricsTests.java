@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -53,6 +54,11 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.MetricValue(DocValueFormat.RAW, SortValue.from(1.0));
     private final InternalTopMetrics.MetricValue metricOneLong =
             new InternalTopMetrics.MetricValue(DocValueFormat.RAW, SortValue.from(1));
+
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
 
     public void testEmptyIsNotMapped() {
         InternalTopMetrics empty = InternalTopMetrics.buildEmptyAggregation(
@@ -259,11 +265,6 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             throw new IllegalArgumentException("bad mutation");
         }
         return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, instance.getMetadata());
-    }
-
-    @Override
-    protected Reader<InternalTopMetrics> instanceReader() {
-        return InternalTopMetrics::new;
     }
 
     /**

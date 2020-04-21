@@ -1518,11 +1518,11 @@ public final class TokenService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isTokenServiceAllowed();
+        return enabled && licenseState.isSecurityEnabled() && licenseState.isTokenServiceAllowed();
     }
 
     private void ensureEnabled() {
-        if (licenseState.isTokenServiceAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isTokenServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("security tokens");
         }
         if (enabled == false) {

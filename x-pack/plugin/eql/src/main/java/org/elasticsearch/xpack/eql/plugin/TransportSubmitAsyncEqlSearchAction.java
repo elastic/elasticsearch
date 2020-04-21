@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.plugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -187,7 +189,9 @@ public class TransportSubmitAsyncEqlSearchAction extends HandledTransportAction<
             store.storeFinalResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(), response,
                 ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                     exc -> {
-                        if (exc.getCause() instanceof DocumentMissingException == false) {
+                            Throwable cause = ExceptionsHelper.unwrapCause(exc);
+                            if (cause instanceof DocumentMissingException == false &&
+                                    cause instanceof VersionConflictEngineException == false) {
                             logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
                                 searchTask.getExecutionId().getEncoded()), exc);
                         }

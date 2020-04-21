@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -13,10 +15,19 @@ import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 
 public class AsyncSearchMaintenanceService extends AsyncTaskMaintenanceService {
 
+    /**
+     * Controls the interval at which the cleanup is scheduled.
+     * Defaults to 1h. It is an undocumented/expert setting that
+     * is mainly used by integration tests to make the garbage
+     * collection of search responses more reactive.
+     */
+    public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING =
+        Setting.timeSetting("async_search.index_cleanup_interval", TimeValue.timeValueHours(1), Setting.Property.NodeScope);
+
     AsyncSearchMaintenanceService(String localNodeId,
+                                  Settings nodeSettings,
                                   ThreadPool threadPool,
-                                  AsyncTaskIndexService<?> indexService,
-                                  TimeValue delay) {
-        super(AsyncSearch.INDEX, localNodeId, threadPool, indexService, delay);
+                                  AsyncTaskIndexService<?> indexService) {
+        super(AsyncSearch.INDEX, localNodeId, threadPool, indexService, ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings));
     }
 }

@@ -24,13 +24,20 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
     public static class TestAsyncResponse implements AsyncResponse {
         private final String test;
+        private long expirationTimeMillis;
 
         public TestAsyncResponse(String test) {
             this.test = test;
         }
 
         public TestAsyncResponse(StreamInput input) throws IOException {
+            this(input, null);
+        }
+
+        public TestAsyncResponse(StreamInput input, Long expirationTime) throws IOException {
             test = input.readOptionalString();
+            long origExpiration = input.readLong();
+            this.expirationTimeMillis = expirationTime == null ? origExpiration : expirationTime;
         }
 
         @Override
@@ -41,6 +48,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(test);
+            out.writeLong(expirationTimeMillis);
         }
 
         @Override
@@ -48,15 +56,15 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TestAsyncResponse that = (TestAsyncResponse) o;
-            return Objects.equals(test, that.test);
+            return expirationTimeMillis == that.expirationTimeMillis &&
+                Objects.equals(test, that.test);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(test);
+            return Objects.hash(test, expirationTimeMillis);
         }
     }
-
 
     @Before
     public void setup() {
@@ -70,7 +78,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < 10; i++) {
             TestAsyncResponse response = new TestAsyncResponse(randomAlphaOfLength(10));
             String encoded = indexService.encodeResponse(response);
-            TestAsyncResponse same = indexService.decodeResponse(encoded);
+            TestAsyncResponse same = indexService.decodeResponse(encoded, response.getExpirationTime());
             assertThat(same, equalTo(response));
         }
     }

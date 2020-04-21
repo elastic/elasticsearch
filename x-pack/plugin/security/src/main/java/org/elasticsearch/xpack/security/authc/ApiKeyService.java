@@ -573,11 +573,11 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isApiKeyServiceAllowed();
+        return enabled && licenseState.isSecurityEnabled() && licenseState.isApiKeyServiceAllowed();
     }
 
     public void ensureEnabled() {
-        if (licenseState.isApiKeyServiceAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isApiKeyServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {

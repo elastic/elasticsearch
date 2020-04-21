@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -53,10 +52,12 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_EQL_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.eql.plugin.AsyncEqlSearchMaintenanceService.EQL_ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
     public static final String INDEX = ".async-eql-search";
     private final boolean enabled;
+    private final Settings settings;
 
     private static final boolean EQL_FEATURE_FLAG_REGISTERED;
 
@@ -84,6 +85,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
 
     public EqlPlugin(final Settings settings) {
         this.enabled = EQL_ENABLED_SETTING.get(settings);
+        this.settings = settings;
     }
 
     @Override
@@ -101,7 +103,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                 new AsyncTaskIndexService<>(INDEX, clusterService, threadPool.getThreadContext(), client,
                     ASYNC_EQL_SEARCH_ORIGIN, AsyncEqlSearchResponse::new, namedWriteableRegistry);
             AsyncEqlSearchMaintenanceService maintenanceService =
-                new AsyncEqlSearchMaintenanceService(nodeEnvironment.nodeId(), threadPool, indexService, TimeValue.timeValueHours(1));
+                new AsyncEqlSearchMaintenanceService(nodeEnvironment.nodeId(), settings, threadPool, indexService);
             clusterService.addListener(maintenanceService);
             components.add(maintenanceService);
         }
@@ -116,7 +118,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         if (isSnapshot() || EQL_FEATURE_FLAG_REGISTERED) {
-            return List.of(EQL_ENABLED_SETTING);
+            return List.of(EQL_ENABLED_SETTING, EQL_ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING);
         }
         return List.of();
     }

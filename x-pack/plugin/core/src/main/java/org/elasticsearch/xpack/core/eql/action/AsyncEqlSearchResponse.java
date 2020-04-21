@@ -35,7 +35,7 @@ public class AsyncEqlSearchResponse extends ActionResponse implements StatusToXC
     private final boolean isPartial;
 
     private final long startTimeMillis;
-    private final long expirationTimeMillis;
+    private long expirationTimeMillis;
 
     /**
      * Creates an {@link AsyncEqlSearchResponse} with meta-information only (not-modified).
@@ -74,15 +74,19 @@ public class AsyncEqlSearchResponse extends ActionResponse implements StatusToXC
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
     }
-
     public AsyncEqlSearchResponse(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    public AsyncEqlSearchResponse(StreamInput in, Long expirationTime) throws IOException {
         this.id = in.readOptionalString();
         this.error = in.readOptionalWriteable(ElasticsearchException::new);
         this.eqlSearchResponse = in.readOptionalWriteable(EqlSearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
         this.startTimeMillis = in.readLong();
-        this.expirationTimeMillis = in.readLong();
+        long origExpiration = in.readLong();
+        this.expirationTimeMillis = expirationTime == null ? origExpiration : expirationTime;
     }
 
     @Override
@@ -157,6 +161,10 @@ public class AsyncEqlSearchResponse extends ActionResponse implements StatusToXC
      */
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    public void setExpirationTime(long expirationTimeMillis) {
+        this.expirationTimeMillis = expirationTimeMillis;
     }
 
     @Override

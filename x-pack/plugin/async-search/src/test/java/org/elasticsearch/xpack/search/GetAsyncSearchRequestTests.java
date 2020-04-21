@@ -35,8 +35,4 @@ public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<
         return AsyncExecutionId.encode(UUIDs.randomBase64UUID(),
             new TaskId(randomAlphaOfLengthBetween(10, 20), randomLongBetween(0, Long.MAX_VALUE)));
     }
-
-    public void testValidateWaitForCompletion() {
-
-    }
 }

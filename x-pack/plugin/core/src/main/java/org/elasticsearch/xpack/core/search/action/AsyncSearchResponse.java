@@ -34,7 +34,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     private final boolean isPartial;
 
     private final long startTimeMillis;
-    private final long expirationTimeMillis;
+    private long expirationTimeMillis;
 
     /**
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
@@ -75,13 +75,18 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
+        this(in, null);
+    }
+    
+    public AsyncSearchResponse(StreamInput in, Long expirationTime) throws IOException {
         this.id = in.readOptionalString();
         this.error = in.readOptionalWriteable(ElasticsearchException::new);
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
         this.isRunning = in.readBoolean();
         this.startTimeMillis = in.readLong();
-        this.expirationTimeMillis = in.readLong();
+        long origExpiration = in.readLong();
+        this.expirationTimeMillis = expirationTime == null ? origExpiration : expirationTime;
     }
 
     @Override
@@ -157,6 +162,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    public void setExpirationTime(long expirationTimeMillis) {
+        this.expirationTimeMillis = expirationTimeMillis;
     }
 
     @Override

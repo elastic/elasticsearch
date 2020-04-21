@@ -245,7 +245,7 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0) && options.contains(Option.INCLUDE_DATA_STREAMS)) {
+        if (out.getVersion().before(Version.V_7_8_0) && options.contains(Option.INCLUDE_DATA_STREAMS)) {
             EnumSet<Option> copy = EnumSet.copyOf(options);
             copy.remove(Option.INCLUDE_DATA_STREAMS);
             out.writeEnumSet(copy);

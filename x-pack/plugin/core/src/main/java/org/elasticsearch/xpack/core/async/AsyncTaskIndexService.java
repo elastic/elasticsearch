@@ -23,13 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -106,7 +106,7 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
     private final Client client;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
-    private final Writeable.Reader<R> reader;
+    private final CheckedBiFunction<StreamInput, Long, R, IOException> reader;
 
 
     public AsyncTaskIndexService(String index,
@@ -114,7 +114,7 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
                                  ThreadContext threadContext,
                                  Client client,
                                  String origin,
-                                 Writeable.Reader<R> reader,
+                                 CheckedBiFunction<StreamInput, Long, R, IOException> reader,
                                  NamedWriteableRegistry registry) {
         this.index = index;
         this.clusterService = clusterService;
@@ -271,14 +271,16 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
                     return;
                 }
 
-                if (restoreResponseHeaders) {
+                if (restoreResponseHeaders && get.getSource().containsKey(RESPONSE_HEADERS_FIELD)) {
                     @SuppressWarnings("unchecked")
                     Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
                     restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                 }
 
+                long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                listener.onResponse(encoded != null ? decodeResponse(encoded) : null);
+                R response = decodeResponse(encoded, expirationTime);
+                listener.onResponse(encoded != null ? response : null);
             },
             listener::onFailure
         ));
@@ -337,11 +339,11 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    R decodeResponse(String value) throws IOException {
+    R decodeResponse(String value, long expirationTime) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
-                return reader.read(in);
+                return reader.apply(in, expirationTime);
             }
         }
     }

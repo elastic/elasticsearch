@@ -653,6 +653,12 @@ public class SqlDataTypes {
         if (t == DATETIME) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
+        } else if (t == DATE) {
+            // ODBC SQL_CODE_DATE
+            return Integer.valueOf(1);
+        } else if (t == TIME) {
+            // ODBC SQL_CODE_TIME
+            return Integer.valueOf(2);
         }
         // ODBC null
         return 0;
@@ -675,7 +681,7 @@ public class SqlDataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (isDateBased(t) || t.isRational()) {
+        if (t == DATETIME || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;

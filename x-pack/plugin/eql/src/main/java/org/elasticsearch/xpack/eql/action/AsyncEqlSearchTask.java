@@ -286,6 +286,7 @@ public final class AsyncEqlSearchTask extends EqlSearchTask implements AsyncTask
      */
     private AsyncEqlSearchResponse getResponse() {
         assert searchResponse.get() != null;
+        checkCancellation();
         return searchResponse.get().toAsyncEqlSearchResponse(this, expirationTimeMillis);
     }
 
@@ -295,11 +296,12 @@ public final class AsyncEqlSearchTask extends EqlSearchTask implements AsyncTask
      */
     private AsyncEqlSearchResponse getResponseWithHeaders() {
         assert searchResponse.get() != null;
+        checkCancellation();
         return searchResponse.get().toAsyncEqlSearchResponseWithHeaders(this, expirationTimeMillis);
     }
 
     // checks if the search task should be cancelled
-    private void checkCancellation() {
+    private synchronized void checkCancellation() {
         long now = System.currentTimeMillis();
         if (expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
             // we cancel the search task if the initial submit task was cancelled,

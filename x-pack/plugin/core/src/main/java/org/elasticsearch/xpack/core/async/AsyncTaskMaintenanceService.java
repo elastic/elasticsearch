@@ -39,7 +39,7 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
     private final AsyncTaskIndexService<?> indexService;
     private final TimeValue delay;
 
-    private final AtomicBoolean isCleanupRunning = new AtomicBoolean(false);
+    private boolean isCleanupRunning;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private volatile Scheduler.Cancellable cancellable;
 
@@ -65,31 +65,29 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
         tryStartCleanup(state);
     }
 
-    void tryStartCleanup(ClusterState state) {
+    synchronized void tryStartCleanup(ClusterState state) {
         if (isClosed.get()) {
             return;
         }
         IndexRoutingTable indexRouting = state.routingTable().index(index);
         if (indexRouting == null) {
-            if (isCleanupRunning.compareAndSet(true, false)) {
-                close();
-            }
             return;
         }
         String primaryNodeId = indexRouting.shard(0).primaryShard().currentNodeId();
         if (localNodeId.equals(primaryNodeId)) {
-            if (isCleanupRunning.compareAndSet(false, true)) {
+            if (isCleanupRunning == false) {
+                isCleanupRunning = true;
                 executeNextCleanup();
             }
-        } else if (isCleanupRunning.compareAndSet(true, false)) {
+        } else {
             close();
         }
     }
 
     synchronized void executeNextCleanup() {
-        if (isClosed.get() == false && isCleanupRunning.get()) {
+        if (isClosed.get() == false && isCleanupRunning) {
             long nowInMillis = System.currentTimeMillis();
-            DeleteByQueryRequest toDelete = new DeleteByQueryRequest()
+            DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index)
                 .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
             indexService.getClient()
                 .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
@@ -97,7 +95,7 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
     }
 
     synchronized void scheduleNextCleanup() {
-        if (isClosed.get() == false && isCleanupRunning.get()) {
+        if (isClosed.get() == false && isCleanupRunning) {
             try {
                 cancellable = threadPool.schedule(this::executeNextCleanup, delay, ThreadPool.Names.GENERIC);
             } catch (EsRejectedExecutionException e) {
@@ -107,6 +105,15 @@ public abstract class AsyncTaskMaintenanceService implements Releasable, Cluster
                     throw e;
                 }
             }
+        }
+    }
+
+    synchronized void stop() {
+        if (isCleanupRunning) {
+            if (cancellable != null && cancellable.isCancelled() == false) {
+                cancellable.cancel();
+            }
+            isCleanupRunning = false;
         }
     }
 

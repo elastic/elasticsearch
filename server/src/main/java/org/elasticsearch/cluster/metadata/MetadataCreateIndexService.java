@@ -345,6 +345,12 @@ public class MetadataCreateIndexService {
                 final List<IndexTemplateMetadata> v1Templates = MetadataIndexTemplateService.findV1Templates(currentState.metadata(),
                     request.index(), isHiddenFromRequest);
 
+                if (v1Templates.size() > 1) {
+                    deprecationLogger.deprecatedAndMaybeLog("index_template_multiple_match", "index [{}] matches multiple templates " +
+                        "[{}], it won't be supported with index templates v2", request.index(),
+                        v1Templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.joining(", ")));
+                }
+
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
             }
         }

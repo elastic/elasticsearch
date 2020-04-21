@@ -42,9 +42,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 
@@ -96,7 +97,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     }
 
                     CollectorResult result = searchProfiles.getCollectorResult();
-                    assertThat(result.getName(), not(isEmptyOrNullString()));
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
                 }
             }
@@ -234,7 +235,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -299,7 +300,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -349,7 +350,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -401,7 +402,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -448,7 +449,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -495,7 +496,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -541,7 +542,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
@@ -595,7 +596,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getName(), is(not(emptyOrNullString())));
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }

@@ -105,21 +105,29 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             /*
              * Define the appropriate repository for the given JDK vendor and version
              *
-             * For AdoptOpenJDK we use a single internally hosted Artifactory repository.
-             * For Oracle/OpenJDK we define a repository per-version.
+             * For Oracle/OpenJDK/AdoptOpenJDK we define a repository per-version.
              */
             String repoName = REPO_NAME_PREFIX + jdk.getVendor() + "_" + jdk.getVersion();
             String repoUrl;
             String artifactPattern;
 
             if (jdk.getVendor().equals("adoptopenjdk")) {
-                repoUrl = "https://artifactory.elstc.co/artifactory/oss-jdk-local/";
-                artifactPattern = String.format(
-                    Locale.ROOT,
-                    "adoptopenjdk/OpenJDK%sU-jdk_[classifier]_[module]_hotspot_[revision]_%s.[ext]",
-                    jdk.getMajor(),
-                    jdk.getBuild()
-                );
+                repoUrl = "https://api.adoptopenjdk.net/v3/binary/version/";
+                if (jdk.getMajor().equals("8")) {
+                    // legacy pattern for JDK 8
+                    artifactPattern = "jdk"
+                        + jdk.getBaseVersion()
+                        + "-"
+                        + jdk.getBuild()
+                        + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                } else {
+                    // current pattern since JDK 9
+                    artifactPattern = "jdk-"
+                        + jdk.getBaseVersion()
+                        + "+"
+                        + jdk.getBuild()
+                        + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                }
             } else if (jdk.getVendor().equals("openjdk")) {
                 repoUrl = "https://download.oracle.com";
                 if (jdk.getHash() != null) {

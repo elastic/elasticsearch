@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsa
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
+import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
+import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
@@ -485,6 +487,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
             new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(), TimeSyncConfig::new),
+            // Flattened for backward compatibility with 7.x
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FLATTENED, FlattenedFeatureSetUsage::new),
             // Vectors
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new),
             // Voting Only Node
@@ -496,8 +500,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // Analytics
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
             // Aggregate metric field type
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class,
-                XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new),
+            // Enrich
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new)
         );
     }
 

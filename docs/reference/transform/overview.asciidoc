@@ -64,15 +64,12 @@ creates a new index that is dedicated to the transformed data.
 [[transform-performance]]
 ==== Performance considerations
 
-{transforms-cap} perform search aggregations on the source 
-indices then index the results into the destination index. Therefore, a 
-{transform} never takes less time than the cumulated duration of the 
-aggregation that it performs and the indexing process.
+{transforms-cap} perform search aggregations on the source indices then index
+the results into the destination index. Therefore, a {transform} never takes
+less time or uses less resources than the aggregation and indexing processes. 
+
+If your {transform} must process a lot of historic data, it has high resource
+usage initially--particularly during the first checkpoint.
 
 For better performance, make sure that your search aggregations and queries are 
 optimized and that your {transform} is processing only necessary data.
-
-NOTE: When you use <<search-aggregations-bucket-datehistogram-aggregation>>, the 
-queries are not considered optimal as they run through a significant amount of 
-data. For this reason, {transforms} performing date histogram aggregations take 
-longer to run.

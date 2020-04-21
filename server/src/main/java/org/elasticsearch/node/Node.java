@@ -332,6 +332,8 @@ public class Node implements Closeable {
 
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+            resourcesToClose.add(resourceWatcherService);
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
             DeprecationLogger.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
@@ -342,7 +344,7 @@ public class Node implements Closeable {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             client = new NodeClient(settings, threadPool);
-            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             final ScriptService scriptService = newScriptService(settings, scriptModule.engines, scriptModule.contexts);
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
@@ -358,7 +360,6 @@ public class Node implements Closeable {
             final SettingsModule settingsModule =
                     new SettingsModule(settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);
             scriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
-            resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
 
@@ -464,10 +465,12 @@ public class Node implements Closeable {
                     systemIndexDescriptors,
                     forbidPrivateIndexSettings);
 
+            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptService, xContentRegistry, environment, nodeEnvironment,
-                                                 namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver()).stream())
+                                                 namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
+                                                 repositoriesServiceReference::get).stream())
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
@@ -504,6 +507,7 @@ public class Node implements Closeable {
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
+            repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
                 clusterModule.getIndexNameExpressionResolver(), repositoryService, threadPool);
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
@@ -700,7 +704,6 @@ public class Node implements Closeable {
         nodeConnectionsService.start();
         clusterService.setNodeConnectionsService(nodeConnectionsService);
 
-        injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
         clusterService.getMasterService().setClusterStatePublisher(discovery::publish);
@@ -811,7 +814,7 @@ public class Node implements Closeable {
         }
         logger.info("stopping ...");
 
-        injector.getInstance(ResourceWatcherService.class).stop();
+        injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();

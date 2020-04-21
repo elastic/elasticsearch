@@ -42,7 +42,7 @@ xpack.monitoring.exporters:
     host: [ "10.1.2.3:9200", ... ] <3>
     auth: <4>
       username: my_username
-      password: changeme
+      # "xpack.monitoring.exporters.my_remote.auth.secure_password" must be set in the keystore
     connection:
       timeout: 6s
       read_timeout: 60s

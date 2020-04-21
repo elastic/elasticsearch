@@ -242,7 +242,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final BlobPath basePath;
 
-    private final ClusterService clusterService;
+    protected final ClusterService clusterService;
 
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
@@ -495,7 +495,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
+                               Function<ClusterState, ClusterState> stateTransformer, ActionListener<Void> listener) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
@@ -513,7 +513,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // delete an index that was created by another master node after writing this index-N blob.
                 final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
                 doDeleteShardSnapshots(snapshotId, repositoryStateId, foundIndices, rootBlobs, repositoryData,
-                    SnapshotsService.useShardGenerations(repositoryMetaVersion), listener);
+                    SnapshotsService.useShardGenerations(repositoryMetaVersion), stateTransformer, listener);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
             }
@@ -566,11 +566,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param rootBlobs         All blobs found at the root of the repository before executing any writes to the repository during this
      *                          delete operation
      * @param repositoryData    RepositoryData found the in the repository before executing this delete
+     * @param stateTransformer  cluster state transformation to apply after the delete as document at {@link Repository#deleteSnapshot}
      * @param listener          Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(SnapshotId snapshotId, long repositoryStateId, Map<String, BlobContainer> foundIndices,
                                         Map<String, BlobMetadata> rootBlobs, RepositoryData repositoryData, boolean writeShardGens,
-                                        ActionListener<Void> listener) {
+                                        Function<ClusterState, ClusterState> stateTransformer, ActionListener<Void> listener) {
 
         if (writeShardGens) {
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
@@ -590,7 +591,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
                 final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotId, builder.build());
-                writeIndexGen(updatedRepoData, repositoryStateId, true, Function.identity(),
+                writeIndexGen(updatedRepoData, repositoryStateId, true, stateTransformer,
                     ActionListener.wrap(v -> writeUpdatedRepoDataStep.onResponse(updatedRepoData), listener::onFailure));
             }, listener::onFailure);
             // Once we have updated the repository, run the clean-ups
@@ -605,9 +606,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Write the new repository data first (with the removed snapshot), using no shard generations
             final RepositoryData updatedRepoData = repositoryData.removeSnapshot(snapshotId, ShardGenerations.EMPTY);
             writeIndexGen(updatedRepoData, repositoryStateId, false, Function.identity(), ActionListener.wrap(v -> {
-                // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener =
-                    new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+                // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion and then apply the state transformer to the
+                // cluster state. When not using shard-generations, we must do this after doing all the shard folder updates because
+                // the repository is not safe for concurrent writes until all shard folders have been updated
+                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(ActionListener.wrap(() ->
+                        clusterService.submitStateUpdateTask("remove snapshot deletion metadata", new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) {
+                                return stateTransformer.apply(currentState);
+                            }
+
+                            @Override
+                            public void onFailure(String source, Exception e) {
+                                listener.onFailure(e);
+                            }
+
+                            @Override
+                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                listener.onResponse(null);
+                            }
+                        })), 2);
                 asyncCleanupUnlinkedRootAndIndicesBlobs(foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetadataAndComputeDeletes(snapshotId, repositoryData, false, writeMetaAndComputeDeletesStep);

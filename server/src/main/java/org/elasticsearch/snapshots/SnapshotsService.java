@@ -1263,9 +1263,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshot(snapshot.getSnapshotId(),
                 repositoryStateId,
                 minCompatibleVersion(minNodeVersion, snapshot.getRepository(), repositoryData, snapshot.getSnapshotId()),
+                SnapshotsService::stateWithoutDelete,
                 ActionListener.wrap(v -> {
-                        logger.info("snapshot [{}] deleted", snapshot);
-                        removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                        logger.info("Successfully deleted snapshot [{}]", snapshot);
+                        if (l != null) {
+                            l.onResponse(null);
+                        }
                     }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
                 )), ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)));
         }));
@@ -1274,25 +1277,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Removes the snapshot deletion from {@link SnapshotDeletionsInProgress} in the cluster state.
      */
-    private void removeSnapshotDeletionFromClusterState(final Snapshot snapshot, @Nullable final Exception failure,
+    private void removeSnapshotDeletionFromClusterState(final Snapshot snapshot, final Exception failure,
                                                         @Nullable final ActionListener<Void> listener) {
+        assert failure != null;
         clusterService.submitStateUpdateTask("remove snapshot deletion metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                SnapshotDeletionsInProgress deletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                if (deletions != null) {
-                    boolean changed = false;
-                    if (deletions.hasDeletionsInProgress()) {
-                        assert deletions.getEntries().size() == 1 : "should have exactly one deletion in progress";
-                        SnapshotDeletionsInProgress.Entry entry = deletions.getEntries().get(0);
-                        deletions = deletions.withRemovedEntry(entry);
-                        changed = true;
-                    }
-                    if (changed) {
-                        return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE, deletions).build();
-                    }
-                }
-                return currentState;
+                return stateWithoutDelete(currentState);
             }
 
             @Override
@@ -1306,15 +1297,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (listener != null) {
-                    if (failure != null) {
-                        listener.onFailure(failure);
-                    } else {
-                        logger.info("Successfully deleted snapshot [{}]", snapshot);
-                        listener.onResponse(null);
-                    }
+                    listener.onFailure(failure);
                 }
             }
         });
+    }
+
+    private static ClusterState stateWithoutDelete(ClusterState currentState) {
+        SnapshotDeletionsInProgress deletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletions != null) {
+            boolean changed = false;
+            if (deletions.hasDeletionsInProgress()) {
+                assert deletions.getEntries().size() == 1 : "should have exactly one deletion in progress";
+                SnapshotDeletionsInProgress.Entry entry = deletions.getEntries().get(0);
+                deletions = deletions.withRemovedEntry(entry);
+                changed = true;
+            }
+            if (changed) {
+                return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE, deletions).build();
+            }
+        }
+        return currentState;
     }
 
     /**

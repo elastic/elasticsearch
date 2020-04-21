@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -243,7 +244,9 @@ class S3Repository extends BlobStoreRepository {
                                  Function<ClusterState, ClusterState> stateTransformer,
                                  ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
+            listener = delayedListener(listener, stateTransformer);
+            // We're delaying the state update on purpose so we added it to the listener and will just pass a dummy to the repository
+            stateTransformer = Function.identity();
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
             includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, stateTransformer, listener);
@@ -251,18 +254,20 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
+                               Function<ClusterState, ClusterState> stateTransformer, ActionListener<Void> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
+            listener = delayedListener(listener, stateTransformer);
+            // We're delaying the state update on purpose so we added it to the listener and will just pass a dummy to the repository
+            stateTransformer = Function.identity();
         }
-        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshot(snapshotId, repositoryStateId, repositoryMetaVersion, stateTransformer, listener);
     }
 
     /**
      * Wraps given listener such that it is executed with a delay of {@link #coolDown} on the snapshot thread-pool after being invoked.
      * See {@link #COOLDOWN_PERIOD} for details.
      */
-    private <T> ActionListener<T> delayedListener(ActionListener<T> listener) {
+    private <T> ActionListener<T> delayedListener(ActionListener<T> listener, Function<ClusterState, ClusterState> stateTransformer) {
         final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
             final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
             assert cancellable != null;
@@ -272,8 +277,23 @@ class S3Repository extends BlobStoreRepository {
             public void onResponse(T response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
-                        coolDown, ThreadPool.Names.SNAPSHOT));
+                        threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> clusterService.submitStateUpdateTask(
+                                "Delayed s3 repository finalization", new ClusterStateUpdateTask() {
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        return stateTransformer.apply(currentState);
+                                    }
+
+                                    @Override
+                                    public void onFailure(String source, Exception e) {
+                                        l.onFailure(e);
+                                    }
+
+                                    @Override
+                                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                        l.onResponse(response);
+                                    }
+                                })), coolDown, ThreadPool.Names.SNAPSHOT));
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
 

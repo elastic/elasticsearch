@@ -145,9 +145,12 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId            snapshot id
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
      * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot delete will execute and
+     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
      * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
+                        Function<ClusterState, ClusterState> stateTransformer, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds

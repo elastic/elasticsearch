@@ -41,6 +41,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class FilterRepository implements Repository {
 
@@ -79,9 +80,10 @@ public class FilterRepository implements Repository {
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metadata, userMetadata, repositoryMetaVersion, listener);
+            includeGlobalState, metadata, userMetadata, repositoryMetaVersion, stateTransformer, listener);
     }
 
     @Override

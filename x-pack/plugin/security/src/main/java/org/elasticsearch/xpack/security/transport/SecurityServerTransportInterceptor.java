@@ -117,11 +117,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
                             requireAuth), minVersion);
                     } else {
-                        try {
-                            sendWithUser(connection, action, request, options, handler, sender, requireAuth);
-                        } catch (AssertionError e) {
-                            int i = 0;
-                        }
+                        sendWithUser(connection, action, request, options, handler, sender, requireAuth);
                     }
                 }
 

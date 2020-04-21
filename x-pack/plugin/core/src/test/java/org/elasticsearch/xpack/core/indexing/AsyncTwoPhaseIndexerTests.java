@@ -119,8 +119,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            int expectedStep = stoppedBeforeFinished ? 1 : 5;
-            assertThat(step, equalTo(expectedStep));
+            // for stop before finished we do not know if its stopped before are after the search
+            if (stoppedBeforeFinished == false) {
+                assertThat(step, equalTo(5));
+            }
             ++step;
             next.run();
         }

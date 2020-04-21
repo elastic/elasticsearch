@@ -297,7 +297,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         
         // Modify the middle...
         String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint+substitutionLength);
-        int mutation = randomIntBetween(0, 8);
+        int mutation = randomIntBetween(0, 10);
         switch (mutation) {
         case 0:
             // OR with random alpha of same length
@@ -338,7 +338,14 @@ public class WildcardFieldMapperTests extends ESTestCase {
             // NOT a character - replace all b's with "not a"
             result.append(replacementPart.replaceAll("b", "[^a]"));
             break;
-
+        case 9:
+            // Make whole part repeatable 1 or more times
+            result.append("(" + replacementPart +")+");
+            break;
+        case 10:
+            // Make whole part repeatable 0 or more times
+            result.append("(" + replacementPart +")?");
+            break;
         default:
             break;
         }

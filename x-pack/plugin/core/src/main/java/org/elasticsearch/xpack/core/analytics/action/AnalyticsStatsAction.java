@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.core.analytics.EnumCounters;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Response> {
     public static final AnalyticsStatsAction INSTANCE = new AnalyticsStatsAction();
@@ -89,7 +91,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         }
     }
 
-    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable {
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
         public Response(StreamInput in) throws IOException {
             super(in);
         }
@@ -106,6 +108,25 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
             out.writeList(nodes);
+        }
+
+        public EnumCounters<Item> getStats() {
+            List<EnumCounters<Item>> countersPerNode = getNodes()
+                .stream()
+                .map(AnalyticsStatsAction.NodeResponse::getStats)
+                .collect(Collectors.toList());
+            return EnumCounters.merge(Item.class, countersPerNode);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            EnumCounters<Item> stats = getStats();
+            builder.startObject("stats");
+            for (Item item : Item.values()) {
+                builder.field(item.name().toLowerCase(Locale.ROOT) + "_usage", stats.get(item));
+            }
+            builder.endObject();
+            return builder;
         }
     }
 

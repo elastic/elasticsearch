@@ -200,7 +200,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecated("[include_in_all] is deprecated, the _all field have been removed in this version");
+                deprecationLogger.deprecatedAndMaybeLog("include_in_all",
+                    "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
             return false;
@@ -465,9 +466,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
-        if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
-        }
+        checkObjectMapperParameters(mergeWith);
 
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
@@ -481,6 +480,22 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeIntoMapper.merge(mergeWithMapper);
             }
             putMapper(merged);
+        }
+    }
+
+    private void checkObjectMapperParameters(final ObjectMapper mergeWith) {
+        if (isEnabled() != mergeWith.isEnabled()) {
+            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
+        }
+
+        if (nested().isIncludeInParent() != mergeWith.nested().isIncludeInParent()) {
+            throw new MapperException("The [include_in_parent] parameter can't be updated for the nested object mapping [" +
+                name() + "].");
+        }
+
+        if (nested().isIncludeInRoot() != mergeWith.nested().isIncludeInRoot()) {
+            throw new MapperException("The [include_in_root] parameter can't be updated for the nested object mapping [" +
+                name() + "].");
         }
     }
 

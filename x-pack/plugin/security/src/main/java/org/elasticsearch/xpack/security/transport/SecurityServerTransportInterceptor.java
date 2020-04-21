@@ -55,6 +55,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final AuthorizationService authzService;
     private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
+    private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final Settings settings;
@@ -79,6 +80,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.clusterService = clusterService;
         clusterService.addListener(e -> isStateNotRecovered = e.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
     }
 
@@ -88,31 +90,41 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                final boolean requireAuth = shouldRequireExistingAuthentication();
-                // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
-                // ourselves otherwise we wind up using a version newer than what we can actually send
-                final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
-
-                // Sometimes a system action gets executed like a internal create index request or update mappings request
-                // which means that the user is copied over to system actions so we need to change the user
-                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                    , handler), sender, requireAuth), minVersion);
-                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
-                            (original) -> sendWithUser(connection, action, request, options,
-                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                            , handler), sender, requireAuth));
-                } else if (securityContext.getAuthentication() != null &&
-                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
-                    // re-write the authentication since we want the authentication version to match the version of the connection
-                    securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
-                        requireAuth), minVersion);
+                // TODO: Hack
+                if (clusterService.localNode().equals(connection.getNode())) {
+                    sender.sendRequest(connection, action, request, options, handler);
                 } else {
-                    sendWithUser(connection, action, request, options, handler, sender, requireAuth);
+                    final boolean requireAuth = shouldRequireExistingAuthentication();
+                    // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
+                    // ourselves otherwise we wind up using a version newer than what we can actually send
+                    final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+
+                    // Sometimes a system action gets executed like a internal create index request or update mappings request
+                    // which means that the user is copied over to system actions so we need to change the user
+                    if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
+                        securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                , handler), sender, requireAuth), minVersion);
+                    } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
+                        AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
+                            (original) -> sendWithUser(connection, action, request, options,
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                    , handler), sender, requireAuth));
+                    } else if (securityContext.getAuthentication() != null &&
+                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                        // re-write the authentication since we want the authentication version to match the version of the connection
+                        securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
+                            requireAuth), minVersion);
+                    } else {
+                        try {
+                            sendWithUser(connection, action, request, options, handler, sender, requireAuth);
+                        } catch (AssertionError e) {
+                            int i = 0;
+                        }
+                    }
                 }
+
             }
         };
     }
@@ -243,7 +255,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isSecurityEnabled()) {
+                // TODO: Hack
+                if (licenseState.isSecurityEnabled() && "direct".equals(channel.getChannelType()) == false) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

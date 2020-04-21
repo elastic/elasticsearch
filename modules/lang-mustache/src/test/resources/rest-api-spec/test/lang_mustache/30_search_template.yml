@@ -41,6 +41,19 @@
   - match: { hits.total: 2 }
 
 ---
+"Test with invalid track_total_hits":
+
+  - do:
+      catch:              bad_request
+      search_template:
+        rest_total_hits_as_int: true
+        body: { "source" : { "query": { "match_{{template}}": {} }, "track_total_hits": "{{trackTotalHits}}" }, "params" : { "template" : "all", "trackTotalHits" : 1 } }
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got 1" }
+
+---
 "Missing template search request":
 
   - do:

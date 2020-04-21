@@ -62,7 +62,9 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -77,13 +79,23 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private Runnable checkCancelled;
+    private MutableQueryTimeout cancellable;
 
-    public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
-        super(reader);
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                boolean wrapWithExitableDirectoryReader) throws IOException {
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader);
+    }
+
+    private ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                 MutableQueryTimeout cancellable,
+                                 boolean wrapWithExitableDirectoryReader) throws IOException {
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
+        this.cancellable = cancellable;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -91,11 +103,19 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Set a {@link Runnable} that will be run on a regular basis while
-     * collecting documents.
+     * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
+     * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */
-    public void setCheckCancelled(Runnable checkCancelled) {
-        this.checkCancelled = checkCancelled;
+    public Runnable addQueryCancellation(Runnable action) {
+        return this.cancellable.add(action);
+    }
+
+    /**
+     * Remove a {@link Runnable} that checks for query cancellation or timeout
+     * which is called while accessing documents in the DirectoryReader but also while collecting them.
+     */
+    public void removeQueryCancellation(Runnable action) {
+        this.cancellable.remove(action);
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -139,12 +159,6 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
-    private void checkCancelled() {
-        if (checkCancelled != null) {
-            checkCancelled.run();
-        }
-    }
-
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
             QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
@@ -180,7 +194,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        checkCancelled();
+        cancellable.checkCancelled();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
@@ -208,7 +222,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (scorer != null) {
                 try {
                     intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                        checkCancelled == null ? () -> { } : checkCancelled);
+                            this.cancellable.isEnabled() ? cancellable::checkCancelled: () -> {});
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -218,7 +232,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     private Weight wrapWeight(Weight weight) {
-        if (checkCancelled != null) {
+        if (cancellable.isEnabled()) {
             return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
@@ -244,7 +258,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, checkCancelled);
+                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
                     } else {
                         return null;
                     }
@@ -319,5 +333,34 @@ public class ContextIndexSearcher extends IndexSearcher {
         final IndexReader reader = getIndexReader();
         assert reader instanceof DirectoryReader : "expected an instance of DirectoryReader, got " + reader.getClass();
         return (DirectoryReader) reader;
+    }
+
+    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
+
+        private final Set<Runnable> runnables = new HashSet<>();
+
+        private Runnable add(Runnable action) {
+            Objects.requireNonNull(action, "cancellation runnable should not be null");
+            if (runnables.add(action) == false) {
+                throw new IllegalArgumentException("Cancellation runnable already added");
+            }
+            return action;
+        }
+
+        private void remove(Runnable action) {
+            runnables.remove(action);
+        }
+
+        @Override
+        public void checkCancelled() {
+            for (Runnable timeout : runnables) {
+                timeout.run();
+            }
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return runnables.isEmpty() == false;
+        }
     }
 }

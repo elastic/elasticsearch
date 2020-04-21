@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.core.template;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -18,6 +21,7 @@ public class IndexTemplateConfig {
     private final String fileName;
     private final int version;
     private final String versionProperty;
+    private final Map<String, String> variables;
 
     /**
      * Describes a template to be loaded from a resource file. Includes handling for substituting a version property into the template.
@@ -38,10 +42,33 @@ public class IndexTemplateConfig {
      * @param versionProperty The property that will be replaced with the {@code version} string as described above.
      */
     public IndexTemplateConfig(String templateName, String fileName, int version, String versionProperty) {
+        this(templateName, fileName, version, versionProperty, Collections.emptyMap());
+    }
+
+    /**
+     * Describes a template to be loaded from a resource file. Includes handling for substituting a version property into the template.
+     *
+     * The {@code versionProperty} parameter will be used to substitute the value of {@code version} into the template. For example,
+     * this template:
+     * {@code {"myTemplateVersion": "${my.version.property}"}}
+     * With {@code version = "42"; versionProperty = "my.version.property"} will result in {@code {"myTemplateVersion": "42"}}.
+     *
+     * @param templateName The name that will be used for the index template. Literal, include the version in this string if
+     *                     it should be used.
+     * @param fileName The filename the template should be loaded from. Literal, should include leading {@literal /} and
+     *                 extension if necessary.
+     * @param version The version of the template. Substituted for {@code versionProperty} as described above.
+     * @param versionProperty The property that will be replaced with the {@code version} string as described above.
+     * @param variables A map of additional variable substitutions. The map's keys are the variable names.
+     *                 The corresponding values will replace the variable names.
+     */
+    public IndexTemplateConfig(String templateName, String fileName, int version, String versionProperty, Map<String, String> variables)
+    {
         this.templateName = templateName;
         this.fileName = fileName;
         this.version = version;
         this.versionProperty = versionProperty;
+        this.variables = Objects.requireNonNull(variables);
     }
 
     public String getFileName() {
@@ -61,8 +88,7 @@ public class IndexTemplateConfig {
      * @return The template as a UTF-8 byte array.
      */
     public byte[] loadBytes() {
-        final String versionPattern = Pattern.quote("${" + versionProperty + "}");
-        String template = TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionPattern);
+        String template = TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionProperty, variables);
         assert template != null && template.length() > 0;
         assert Pattern.compile("\"version\"\\s*:\\s*" + version).matcher(template).find()
             : "index template must have a version property set to the given version property";

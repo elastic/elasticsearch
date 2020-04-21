@@ -43,6 +43,11 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 
+    @Override
+    protected boolean requiresMasterNode() {
+        return true;
+    }
+
     public static final IndexTemplateConfig TEMPLATE_SLM_HISTORY = new IndexTemplateConfig(
         SLM_TEMPLATE_NAME,
         "/slm-history.json",
@@ -87,10 +92,10 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public boolean validate(ClusterState state) {
         boolean allTemplatesPresent = getTemplateConfigs().stream()
             .map(IndexTemplateConfig::getTemplateName)
-            .allMatch(name -> state.metaData().getTemplates().containsKey(name));
+            .allMatch(name -> state.metadata().getTemplates().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional
-            .<IndexLifecycleMetadata>ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE))
+            .<IndexLifecycleMetadata>ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE))
             .map(IndexLifecycleMetadata::getPolicies);
         Set<String> policyNames = getPolicyConfigs().stream()
             .map(LifecyclePolicyConfig::getPolicyName)

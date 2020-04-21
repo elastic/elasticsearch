@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -117,6 +118,13 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 + "        \"search\": {"
                 + "          \"query_total\": 12,"
                 + "          \"query_time_in_millis\": 14"
+                + "        },"
+                + "        \"bulk\": {"
+                + "          \"total_operations\": 0,"
+                + "          \"total_time_in_millis\": 0,"
+                + "          \"total_size_in_bytes\": 0,"
+                + "          \"avg_time_in_millis\": 0,"
+                + "          \"avg_size_in_bytes\": 0"
                 + "        }"
                 + "      },"
                 + "      \"total\": {"
@@ -135,6 +143,13 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 + "        \"search\": {"
                 + "          \"query_total\": 18,"
                 + "          \"query_time_in_millis\": 21"
+                + "        },"
+                + "        \"bulk\": {"
+                + "          \"total_operations\": 0,"
+                + "          \"total_time_in_millis\": 0,"
+                + "          \"total_size_in_bytes\": 0,"
+                + "          \"avg_time_in_millis\": 0,"
+                + "          \"avg_size_in_bytes\": 0"
                 + "        }"
                 + "      }"
                 + "    }"
@@ -146,14 +161,17 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
 
     private CommonStats mockCommonStats() {
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getDocs().add(new DocsStats(1L, -1L, randomNonNegativeLong()));
+        commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong()));
         commonStats.getStore().add(new StoreStats(2L));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, -1L, -1L, -1L, -1L, -1L, -1L, true, 5L);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L);
-        commonStats.getSearch().add(new SearchStats(searchStats, -1L, null));
+        final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        commonStats.getSearch().add(new SearchStats(searchStats, 0L, null));
+
+        final BulkStats bulkStats = new BulkStats(0L, 0L, 0L, 0L, 0L);
+        commonStats.getBulk().add(bulkStats);
 
         return commonStats;
     }

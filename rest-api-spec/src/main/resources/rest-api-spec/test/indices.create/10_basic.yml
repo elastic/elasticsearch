@@ -123,7 +123,7 @@
 ---
 "Create index without soft deletes":
   - skip:
-      version:  " - 7.9.99"
+      version:  " - 7.99.99"
       reason:   "indices without soft-deletes is no longer supported "
   - do:
       catch: /illegal_argument_exception/

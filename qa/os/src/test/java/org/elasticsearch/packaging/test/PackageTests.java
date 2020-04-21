@@ -26,15 +26,15 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static java.nio.file.StandardOpenOption.APPEND;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -98,8 +98,7 @@ public class PackageTests extends PackagingTestCase {
     private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.APPEND);
+            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
             runElasticsearchTests();
             stopElasticsearch();
@@ -107,8 +106,7 @@ public class PackageTests extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"),
-            containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "elasticsearch*.log.gz"), containsString(systemJavaHome));
     }
 
     public void test32JavaHomeOverride() throws Exception {
@@ -170,8 +168,9 @@ public class PackageTests extends PackagingTestCase {
         String start = sh.runIgnoreExitCode("date ").stdout.trim();
         startElasticsearch();
 
-        String journalEntries = sh.runIgnoreExitCode("journalctl _SYSTEMD_UNIT=elasticsearch.service " +
-            "--since \"" + start + "\" --output cat | wc -l").stdout.trim();
+        String journalEntries = sh.runIgnoreExitCode(
+            "journalctl _SYSTEMD_UNIT=elasticsearch.service " + "--since \"" + start + "\" --output cat | wc -l"
+        ).stdout.trim();
         assertThat(journalEntries, equalTo("0"));
 
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
@@ -211,9 +210,7 @@ public class PackageTests extends PackagingTestCase {
                 matcher.find();
                 final int version = Integer.parseInt(matcher.group(1));
 
-                statusExitCode = version < 231
-                    ? 3
-                    : 4;
+                statusExitCode = version < 231 ? 3 : 4;
             }
 
             assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode, is(statusExitCode));
@@ -256,7 +253,6 @@ public class PackageTests extends PackagingTestCase {
         }
     }
 
-
     public void test72TestRuntimeDirectory() throws Exception {
         try {
             install();
@@ -278,7 +274,6 @@ public class PackageTests extends PackagingTestCase {
     }
 
     // TEST CASES FOR SYSTEMD ONLY
-
 
     /**
      * # Simulates the behavior of a system restart:

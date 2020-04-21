@@ -24,8 +24,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -99,7 +99,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 // check that closed indices are effectively closed
                 final List<String> notClosedIndices =
                     indicesToClose.stream()
-                        .filter(index -> clusterState.metaData().index(index).getState() != State.CLOSE)
+                        .filter(index -> clusterState.metadata().index(index).getState() != State.CLOSE)
                         .collect(Collectors.toList());
                 assertThat("Some indices not closed", notClosedIndices, empty());
 
@@ -142,8 +142,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build());
 
         if (randomBoolean()) {
@@ -189,8 +189,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         String B_0 = nodes.get(1);
 
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build());
 
         if (randomBoolean()) {

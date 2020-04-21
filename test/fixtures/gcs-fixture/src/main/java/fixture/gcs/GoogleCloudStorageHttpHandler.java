@@ -142,9 +142,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     if (matcher.find() == false) {
                         throw new AssertionError("Range bytes header does not match expected format: " + range);
                     }
-
-                    BytesReference response = Integer.parseInt(matcher.group(1)) == 0 ? blob : BytesArray.EMPTY;
+                    final int offset = Integer.parseInt(matcher.group(1));
+                    final int end = Integer.parseInt(matcher.group(2));
+                    BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    final int bufferedLength = response.length();
+                    if (offset > 0 || bufferedLength > end) {
+                        response = response.slice(offset, Math.min(end + 1 - offset, bufferedLength - offset));
+                    }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());
                 } else {
@@ -293,9 +298,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 skippedEmptyLine = markAndContinue && endPos == startPos;
                 startPos = endPos;
             } else {
-                // removes the trailing end "\r\n--__END_OF_PART__--\r\n" which is 23 bytes long
-                int len = fullRequestBody.length() - startPos - 23;
-                content = Tuple.tuple(name, fullRequestBody.slice(startPos, len));
+                while (isEndOfPart(fullRequestBody, endPos) == false) {
+                    endPos = fullRequestBody.indexOf((byte) '\r', endPos + 1);
+                }
+                content = Tuple.tuple(name, fullRequestBody.slice(startPos, endPos - startPos));
                 break;
             }
         }
@@ -305,6 +311,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))));
         }
         return Optional.ofNullable(content);
+    }
+
+    private static final byte[] END_OF_PARTS_MARKER = "\r\n--__END_OF_PART__".getBytes(UTF_8);
+
+    private static boolean isEndOfPart(BytesReference fullRequestBody, int endPos) {
+        for (int i = 0; i < END_OF_PARTS_MARKER.length; i++) {
+            final byte b = END_OF_PARTS_MARKER[i];
+            if (fullRequestBody.get(endPos + i) != b) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static final Pattern PATTERN_CONTENT_RANGE = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)");

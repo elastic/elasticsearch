@@ -12,7 +12,7 @@
 ---
 "Force merge with incompatible only_expunge_deletes and max_num_segments values":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: only_expunge_deletes and max_num_segments are mutually exclusive since 8.0
 
   - do:

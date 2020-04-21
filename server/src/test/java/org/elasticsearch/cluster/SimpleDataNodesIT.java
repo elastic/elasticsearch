@@ -25,7 +25,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -80,7 +80,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
     public void testShardsAllocatedAfterDataNodesStart() {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         client().admin().indices().create(createIndexRequest("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).waitForActiveShards(ActiveShardCount.NONE))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).waitForActiveShards(ActiveShardCount.NONE))
             .actionGet();
         final ClusterHealthResponse healthResponse1 = client().admin().cluster().prepareHealth()
             .setWaitForEvents(Priority.LANGUID).execute().actionGet();
@@ -98,7 +98,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
     public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         client().admin().indices().create(createIndexRequest("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
             .waitForActiveShards(ActiveShardCount.NONE))
             .actionGet();
         final ClusterHealthResponse healthResponse1 = client().admin().cluster().prepareHealth()

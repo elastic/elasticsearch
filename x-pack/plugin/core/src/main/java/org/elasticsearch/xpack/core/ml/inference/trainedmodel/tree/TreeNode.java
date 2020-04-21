@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -60,7 +62,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         parser.declareInt(TreeNode.Builder::setSplitFeature, SPLIT_FEATURE);
         parser.declareInt(TreeNode.Builder::setNodeIndex, NODE_INDEX);
         parser.declareDouble(TreeNode.Builder::setSplitGain, SPLIT_GAIN);
-        parser.declareDouble(TreeNode.Builder::setLeafValue, LEAF_VALUE);
+        parser.declareDoubleArray(TreeNode.Builder::setLeafValue, LEAF_VALUE);
         parser.declareLong(TreeNode.Builder::setNumberSamples, NUMBER_SAMPLES);
         return parser;
     }
@@ -74,7 +76,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
     private final int splitFeature;
     private final int nodeIndex;
     private final double splitGain;
-    private final double leafValue;
+    private final double[] leafValue;
     private final boolean defaultLeft;
     private final int leftChild;
     private final int rightChild;
@@ -86,7 +88,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
                      Integer splitFeature,
                      int nodeIndex,
                      Double splitGain,
-                     Double leafValue,
+                     List<Double> leafValue,
                      Boolean defaultLeft,
                      Integer leftChild,
                      Integer rightChild,
@@ -96,7 +98,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         this.splitFeature = splitFeature == null ? -1 : splitFeature;
         this.nodeIndex = nodeIndex;
         this.splitGain  = splitGain == null ? Double.NaN : splitGain;
-        this.leafValue = leafValue == null ? Double.NaN : leafValue;
+        this.leafValue = leafValue == null ? new double[0] : leafValue.stream().mapToDouble(Double::doubleValue).toArray();
         this.defaultLeft = defaultLeft == null ? false : defaultLeft;
         this.leftChild  = leftChild == null ? -1 : leftChild;
         this.rightChild = rightChild == null ? -1 : rightChild;
@@ -112,7 +114,11 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         splitFeature = in.readInt();
         splitGain = in.readDouble();
         nodeIndex = in.readVInt();
-        leafValue = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            leafValue = in.readDoubleArray();
+        } else {
+            leafValue = new double[]{in.readDouble()};
+        }
         defaultLeft = in.readBoolean();
         leftChild = in.readInt();
         rightChild = in.readInt();
@@ -144,7 +150,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         return splitGain;
     }
 
-    public double getLeafValue() {
+    public double[] getLeafValue() {
         return leafValue;
     }
 
@@ -190,7 +196,18 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         out.writeInt(splitFeature);
         out.writeDouble(splitGain);
         out.writeVInt(nodeIndex);
-        out.writeDouble(leafValue);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeDoubleArray(leafValue);
+        } else {
+            if (leafValue.length > 1) {
+                throw new IOException("Multi-class classification models require that all nodes are at least version 7.7.0.");
+            }
+            if (leafValue.length == 0) {
+                out.writeDouble(Double.NaN);
+            } else {
+                out.writeDouble(leafValue[0]);
+            }
+        }
         out.writeBoolean(defaultLeft);
         out.writeInt(leftChild);
         out.writeInt(rightChild);
@@ -209,7 +226,9 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         }
         addOptionalDouble(builder, SPLIT_GAIN, splitGain);
         builder.field(NODE_INDEX.getPreferredName(), nodeIndex);
-        addOptionalDouble(builder, LEAF_VALUE, leafValue);
+        if (leafValue.length > 0) {
+            builder.field(LEAF_VALUE.getPreferredName(), leafValue);
+        }
         builder.field(DEFAULT_LEFT.getPreferredName(), defaultLeft);
         if (leftChild >= 0) {
             builder.field(LEFT_CHILD.getPreferredName(), leftChild);
@@ -238,7 +257,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             && Objects.equals(splitFeature, that.splitFeature)
             && Objects.equals(nodeIndex, that.nodeIndex)
             && Objects.equals(splitGain, that.splitGain)
-            && Objects.equals(leafValue, that.leafValue)
+            && Arrays.equals(leafValue, that.leafValue)
             && Objects.equals(defaultLeft, that.defaultLeft)
             && Objects.equals(leftChild, that.leftChild)
             && Objects.equals(rightChild, that.rightChild)
@@ -252,7 +271,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             splitFeature,
             splitGain,
             nodeIndex,
-            leafValue,
+            Arrays.hashCode(leafValue),
             defaultLeft,
             leftChild,
             rightChild,
@@ -270,7 +289,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE;
+        return SHALLOW_SIZE + this.leafValue.length * Double.BYTES;
     }
 
     public static class Builder {
@@ -279,7 +298,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         private Integer splitFeature;
         private int nodeIndex;
         private Double splitGain;
-        private Double leafValue;
+        private List<Double> leafValue;
         private Boolean defaultLeft;
         private Integer leftChild;
         private Integer rightChild;
@@ -317,9 +336,17 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             return this;
         }
 
-        public Builder setLeafValue(Double leafValue) {
+        public Builder setLeafValue(double leafValue) {
+            return this.setLeafValue(Collections.singletonList(leafValue));
+        }
+
+        public Builder setLeafValue(List<Double> leafValue) {
             this.leafValue = leafValue;
             return this;
+        }
+
+        List<Double> getLeafValue() {
+            return this.leafValue;
         }
 
         public Builder setDefaultLeft(Boolean defaultLeft) {
@@ -357,6 +384,9 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             if (leftChild == null) { // leaf validations
                 if (leafValue == null) {
                     throw new IllegalArgumentException("[leaf_value] is required for a leaf node.");
+                }
+                if (leafValue.stream().anyMatch(Objects::isNull)) {
+                    throw new IllegalArgumentException("[leaf_value] cannot have null values.");
                 }
             } else {
                 if (leftChild < 0) {

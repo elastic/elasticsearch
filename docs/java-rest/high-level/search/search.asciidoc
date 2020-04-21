@@ -21,10 +21,10 @@ In its most basic form, we can add a query to the request:
 include-tagged::{doc-tests-file}[{api}-request-basic]
 --------------------------------------------------
 
-<1> Creates the `SeachRequest`. Without arguments this runs against all indices.
+<1> Creates the `SearchRequest`. Without arguments this runs against all indices.
 <2> Most search parameters are added to the `SearchSourceBuilder`. It offers setters for everything that goes into the search request body.
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
-<4> Add the `SearchSourceBuilder` to the `SeachRequest`.
+<4> Add the `SearchSourceBuilder` to the `SearchRequest`.
 
 [id="{upid}-{api}-request-optional"]
 ===== Optional arguments

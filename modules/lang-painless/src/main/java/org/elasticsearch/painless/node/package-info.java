@@ -33,14 +33,12 @@
  * {@link org.elasticsearch.painless.node.AExpression} - The superclass for all E* (expression) and P* (postfix) nodes.
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
- * {@link org.elasticsearch.painless.node.AStoreable} - The super class for an expression that can store a value in local memory.
  * {@link org.elasticsearch.painless.node.EAssignment} - Represents an assignment with the lhs and rhs as child nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
  * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
  * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECallLocal} - Represents a user-defined call.
  * {@link org.elasticsearch.painless.node.ECapturingFunctionRef} - Represents a function reference (capturing).
- * {@link org.elasticsearch.painless.node.ECast} - Represents a cast inserted into the tree replacing others. (Internal only.)
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
  * {@link org.elasticsearch.painless.node.EConditional} - Represents a conditional expression.
  * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant inserted into the tree replacing others. (Internal only.)

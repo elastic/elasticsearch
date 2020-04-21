@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DotSubNode;
 import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
@@ -33,9 +32,9 @@ import java.util.Objects;
 /**
  * Represents a field load/store.
  */
-final class PSubField extends AStoreable {
+public class PSubField extends AExpression {
 
-    private final PainlessField field;
+    protected final PainlessField field;
 
     PSubField(Location location, PainlessField field) {
         super(location);
@@ -44,38 +43,24 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-         if (write && Modifier.isFinal(field.javaField.getModifiers())) {
-             throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
-                     "for type [" + PainlessLookupUtility.typeToCanonicalTypeName(field.javaField.getDeclaringClass()) + "]."));
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+         if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
+             throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
          }
 
-        actual = field.typeParameter;
-    }
+         output.actual = field.typeParameter;
 
-    @Override
-    DotSubNode write(ClassNode classNode) {
         DotSubNode dotSubNode = new DotSubNode();
 
         dotSubNode.setLocation(location);
-        dotSubNode.setExpressionType(actual);
+        dotSubNode.setExpressionType(output.actual);
         dotSubNode.setField(field);
 
-        return dotSubNode;
-    }
+        output.expressionNode = dotSubNode;
 
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, field.javaField.getName());
+        return output;
     }
 }

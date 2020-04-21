@@ -330,3 +330,238 @@ something where `@timestamp` == "2020-01-01 00:00:00";
 something where `some escaped identifier` == "blah";
 something where `some escaped identifier` == "blah";
 something where `some.escaped.identifier` == "blah";
+
+
+//
+// Joins and Sequences
+//
+
+
+//
+// Joins
+//
+
+// docs
+
+join by source_ip, destination_ip
+  [network where destination_port == 3389]  // RDP
+  [network where destination_port == 135]   // RPC
+  [network where destination_port == 445]   // SMB
+;
+
+join by pid
+  [process where true]
+  [network where true]
+  [registry where true]
+  [file where true]
+
+until [process where event_subtype_full == "termination_event"]
+;
+
+///
+
+join
+  [process where process_name == "*"]
+  [file where file_path == "*"]
+;
+
+join by pid 
+    [process where name == "*"]
+    [file where path == "*"] 
+until [process where opcode == 2]
+;
+
+join 
+    [process where process_name == "*"] by process_path 
+    [file where file_path == "*"] by image_path
+;
+
+join by user_name
+  [process where opcode in (1,3) and process_name="smss.exe"]
+  [process where opcode in (1,3) and process_name == "python.exe"]
+;
+
+join by unique_pid
+  [process where opcode=1]
+  [file where opcode=0 and file_name="svchost.exe"]
+  [file where opcode == 0 and file_name == "lsass.exe"]
+;
+
+join by unique_pid
+  [process where opcode=1]
+  [file where opcode=0 and file_name="svchost.exe"]
+  [file where opcode == 0 and file_name == "lsass.exe"]
+until [file where opcode == 2];
+
+join
+  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
+  [process where opcode == 1] by unique_ppid
+;
+
+join by unique_pid
+  [process where opcode in (1,3) and process_name="python.exe"]
+  [file where file_name == "*.exe"];
+
+join by user_name
+  [process where opcode in (1,3) and process_name="python.exe"]
+  [process where opcode in (1,3) and process_name == "smss.exe"]
+;
+
+join
+  [process where opcode in (1,3) and process_name="python.exe"]
+  [process where opcode in (1,3) and process_name == "smss.exe"]
+;
+
+
+//
+// Sequences
+//
+
+// docs
+sequence by user_name
+  [process where process_name == "whoami"]
+  [process where process_name == "hostname"]
+  [process where process_name == "ifconfig"]
+;
+
+sequence with maxspan=30s
+  [network where destination_port==3389 and event_subtype_full="*_accept_event*"]
+  [security where event_id in (4624, 4625) and logon_type == 10]
+;
+
+sequence with maxspan=30s
+  [network where destination_port==3389 and event_subtype_full="*_accept_event"] by source_address
+  [security where event_id in (4624, 4625) and logon_type == 10] by ip_address
+;
+
+sequence with maxspan=5m
+  [file where file_name == "*.exe"] by user_name, file_path
+  [process where true] by user_name, process_path
+;
+
+sequence by user_name with maxspan=5m
+  [file where file_name == "*.exe"] by file_path
+  [process where true] by process_path
+;
+
+//
+
+sequence 
+    [process where name == "*"] 
+    [file where path == "*"] 
+until [process where opcode == 2]
+;
+
+sequence by pid 
+    [process where name == "*"] 
+    [file where path == "*"] 
+until [process where opcode == 2]
+;
+
+
+sequence 
+    [process where process_name == "*"] by process_path 
+    [file where file_path == "*"] by image_path
+;
+
+sequence by pid 
+    [process where process_name == "*"] 
+    [file where file_path == "*"]
+;
+
+sequence by field1
+    [file where true] by f1 
+    [process where true] by f1
+;
+
+sequence by a,b,c,d 
+    [file where true] by f1,f2 
+    [process where true] by f1,f2
+;
+
+sequence 
+    [file where 1] by f1,f2 
+    [process where 1] by f1,f2 
+until [process where 1] by f1,f2
+;
+
+sequence by f 
+    [file where true] by a,b 
+    [process where true] by c,d 
+until [process where 1] by e,f
+;
+
+sequence
+  [process where serial_event_id = 1]
+  [process where serial_event_id = 2]
+;
+
+sequence
+  [process where serial_event_id < 5]
+  [process where serial_event_id = 5]
+;
+
+sequence
+  [process where serial_event_id=1] by unique_pid
+  [process where true] by unique_ppid;
+
+sequence
+  [process where serial_event_id<3] by unique_pid
+  [process where true] by unique_ppid
+;
+
+sequence
+  [process where serial_event_id < 5]
+  [process where serial_event_id < 5]
+;
+
+sequence
+  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
+  [process where opcode == 1] by unique_ppid
+;
+
+sequence
+  [file where file_name="lsass.exe"] by file_path,process_path
+  [process where true] by process_path,parent_process_path
+;
+
+sequence by user_name
+  [file where file_name="lsass.exe"] by file_path, process_path
+  [process where true] by process_path, parent_process_path
+;
+
+sequence by pid
+  [file where file_name="lsass.exe"] by file_path,process_path
+  [process where true] by process_path,parent_process_path
+;
+
+sequence by user_name
+  [file where opcode=0] by pid,file_path
+  [file where opcode=2] by pid,file_path
+until [process where opcode=2] by ppid,process_path
+;
+
+sequence by unique_pid 
+    [process where opcode=1 and process_name == 'msbuild.exe'] 
+    [network where true]
+;
+
+sequence by pid with maxspan=200s
+    [process where process_name == "*" ] 
+    [file where file_path == "*"]
+;
+
+sequence by pid with maxspan=2s 
+    [process where process_name == "*" ] 
+    [file where file_path == "*"]
+;
+
+sequence by pid with maxspan=500ms 
+    [process where process_name == "*" ] 
+    [file where file_path == "*"]
+;
+
+sequence by pid with maxspan=2h
+    [process where process_name == "*" ] 
+    [file where file_path == "*"]
+;

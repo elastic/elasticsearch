@@ -22,9 +22,10 @@ package org.elasticsearch.painless.symbol;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.node.SClass;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -36,20 +37,28 @@ public class ScriptRoot {
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;
     protected final ScriptClassInfo scriptClassInfo;
-
-    protected final SClass classNode;
+    protected final String scriptName;
+    protected final String scriptSource;
 
     protected final FunctionTable functionTable = new FunctionTable();
     protected int syntheticCounter = 0;
 
     protected boolean deterministic = true;
     protected Set<String> usedVariables = Collections.emptySet();
+    protected Map<String, Object> staticConstants = new HashMap<>();
 
-    public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings, ScriptClassInfo scriptClassInfo, SClass classRoot) {
+    public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
+                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource) {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
-        this.classNode = Objects.requireNonNull(classRoot);
+        this.scriptName = Objects.requireNonNull(scriptName);
+        this.scriptSource = Objects.requireNonNull(scriptName);
+
+        staticConstants.put("$NAME", scriptName);
+        staticConstants.put("$SOURCE", scriptSource);
+        staticConstants.put("$DEFINITION", painlessLookup);
+        staticConstants.put("$FUNCTIONS", functionTable);
     }
 
     public PainlessLookup getPainlessLookup() {
@@ -64,8 +73,12 @@ public class ScriptRoot {
         return scriptClassInfo;
     }
 
-    public SClass getClassNode() {
-        return classNode;
+    public String getScriptName() {
+        return scriptName;
+    }
+
+    public String getScriptSource() {
+        return scriptSource;
     }
 
     public FunctionTable getFunctionTable() {
@@ -92,6 +105,14 @@ public class ScriptRoot {
     }
 
     public Set<String> getUsedVariables() {
-        return usedVariables;
+        return Collections.unmodifiableSet(usedVariables);
+    }
+
+    public void addStaticConstant(String name, Object constant) {
+        staticConstants.put(name, constant);
+    }
+
+    public Map<String, Object> getStaticConstants() {
+        return Collections.unmodifiableMap(staticConstants);
     }
 }

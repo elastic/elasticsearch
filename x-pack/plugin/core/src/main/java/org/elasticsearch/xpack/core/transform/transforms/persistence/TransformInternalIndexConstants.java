@@ -24,7 +24,7 @@ public final class TransformInternalIndexConstants {
     // internal index
 
     // version is not a rollover pattern, however padded because sort is string based
-    public static final String INDEX_VERSION = "004";
+    public static final String INDEX_VERSION = "005";
     public static final String INDEX_PATTERN = ".transform-internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
     public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;

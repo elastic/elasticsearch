@@ -30,15 +30,15 @@ sequenceParams
     ;
 
 sequence
-    : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
+    : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
       sequenceTerm sequenceTerm+
-      (UNTIL sequenceTerm)?
+      (UNTIL until=sequenceTerm)?
     ;
 
 join
     : JOIN (by=joinKeys)?
       joinTerm joinTerm+
-      (UNTIL joinTerm)?
+      (UNTIL until=joinTerm)?
     ;
 
 pipe
@@ -63,7 +63,7 @@ subquery
     ;
 
 eventQuery
-    : event=identifier WHERE expression
+    : (ANY | event=identifier) WHERE expression
     ;
 
 expression
@@ -143,6 +143,7 @@ string
     ;
 
 AND: 'and';
+ANY: 'any';
 BY: 'by';
 FALSE: 'false';
 FORK: 'fork';

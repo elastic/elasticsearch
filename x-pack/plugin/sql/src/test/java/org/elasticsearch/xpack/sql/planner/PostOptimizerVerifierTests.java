@@ -61,7 +61,7 @@ public class PostOptimizerVerifierTests extends ESTestCase {
     private String error(IndexResolution getIndexResult, String sql) {
         PlanningException e = expectThrows(PlanningException.class, () -> plan(sql));
         assertTrue(e.getMessage().startsWith("Found "));
-        String header = "Found 1 problem(s)\nline ";
+        String header = "Found 1 problem\nline ";
         return e.getMessage().substring(header.length());
     }
 

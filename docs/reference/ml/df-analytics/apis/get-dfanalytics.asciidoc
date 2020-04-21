@@ -71,13 +71,98 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
-
+[role="child_attributes"]
 [[ml-get-dfanalytics-results]]
 ==== {api-response-body-title}
 
 `data_frame_analytics`::
-(array) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=data-frame-analytics]
+(array)
+An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
+ascending order.
++
+.Properties of {dfanalytics-job} resources
+[%collapsible%open]
+====
+`analysis`:::
+(object) The type of analysis that is performed on the `source`.
+
+//Begin analyzed_fields
+`analyzed_fields`:::
+(object) Contains `includes` and/or `excludes` patterns that select which fields 
+are included in the analysis.
++
+.Properties of `analyzed_fields`
+[%collapsible%open]
+=====
+`excludes`:::
+(Optional, array) An array of strings that defines the fields that are excluded 
+from the analysis.
+    
+`includes`:::
+(Optional, array) An array of strings that defines the fields that are included 
+in the analysis.
+=====
+//End analyzed_fields
+//Begin dest
+`dest`:::
+(string) The destination configuration of the analysis.
++
+.Properties of `dest`
+[%collapsible%open]
+=====
+`index`:::
+(string) The _destination index_ that stores the results of the 
+{dfanalytics-job}.
+
+`results_field`:::
+(string) The name of the field that stores the results of the analysis. Defaults 
+to `ml`.
+=====
+//End dest
+
+`id`:::
+(string) The unique identifier of the {dfanalytics-job}.
+
+`model_memory_limit`:::
+(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+
+`source`:::
+(object) The configuration of how the analysis data is sourced. It has an 
+`index` parameter and optionally a `query` and a `_source`.
++
+.Properties of `source`
+[%collapsible%open]
+=====
+`index`:::
+(array) Index or indices on which to perform the analysis. It can be a single 
+index or index pattern as well as an array of indices or patterns.
+    
+`query`:::
+(object) The query that has been specified for the {dfanalytics-job}. The {es} 
+query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
+the query object in an {es} search POST body. By default, this property has the 
+following value: `{"match_all": {}}`.
+
+`_source`:::
+(object) Contains the specified `includes` and/or `excludes` patterns that 
+select which fields are present in the destination. Fields that are excluded 
+cannot be included in the analysis.
++
+.Properties of `_source`
+[%collapsible%open]
+======
+`excludes`:::
+(array) An array of strings that defines the fields that are excluded from the 
+destination.
+        
+`includes`:::
+(array) An array of strings that defines the fields that are included in the 
+destination.
+======
+//End of _source
+=====
+//End source
+====
 
 
 [[ml-get-dfanalytics-response-codes]]

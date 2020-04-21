@@ -2,6 +2,9 @@
 [testenv="basic"]
 [[eql-syntax]]
 == EQL syntax reference
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
 
 experimental::[]
 
@@ -14,19 +17,43 @@ experimental::[]
 [[eql-basic-syntax]]
 === Basic syntax
 
-EQL queries require an event type and a matching condition. The `where` keyword connects them.
+EQL queries require an event category and a matching condition. The `where`
+keyword connects them.
 
 [source,eql]
 ----
-event_type where condition
+event_category where condition
 ----
 
-For example, the following EQL query matches `process` events with a `process.name`
-field value of `svchost.exe`:
+For example, the following EQL query matches `process` events with a
+`process.name` field value of `svchost.exe`:
 
 [source,eql]
 ----
 process where process.name == "svchost.exe"
+----
+
+[discrete]
+[[eql-syntax-event-categories]]
+==== Event categories
+
+In {es}, an event category is a valid, indexed value of the
+<<eql-required-fields,event category field>>. You can set the event category
+field using the `event_category_field` parameter of the EQL search API.
+
+[discrete]
+[[eql-syntax-match-any-event-category]]
+===== Match any event category
+
+To match events of any category, use the `any` keyword. You can also use the
+`any` keyword to search for documents without a event category field.
+
+For example, the following EQL query matches any documents with a
+`network.protocol` field value of `http`:
+
+[source,eql]
+----
+any where network.protocol == "http"
 ----
 
 [discrete]
@@ -159,7 +186,7 @@ Strings are enclosed with double quotes (`"`) or single quotes (`'`).
 
 [discrete]
 [[eql-syntax-wildcards]]
-===== Wildcards 
+===== Wildcards
 
 You can use the wildcard operator (`*`) within a string to match specific
 patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
@@ -172,8 +199,29 @@ field != "example*wildcard"
 ----
 
 [discrete]
+[[eql-syntax-match-any-condition]]
+===== Match any condition
+
+To match events solely on event category, use the `where true` condition.
+
+For example, the following EQL query matches any `file` events:
+
+[source,eql]
+----
+file where true
+----
+
+To match any event, you can combine the `any` keyword with the `where true`
+condition:
+
+[source,eql]
+----
+any where true
+----
+
+[discrete]
 [[eql-syntax-escaped-characters]]
-===== Escaped characters 
+===== Escaped characters
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
@@ -238,3 +286,58 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 `my-field`
 `my field`
 ----
+
+[discrete]
+[[eql-functions]]
+=== Functions
+
+{es} supports several of EQL's built-in functions. You can use these functions
+to convert data types, perform math, manipulate strings, and more.
+
+For a list of supported functions, see <<eql-function-ref>>.
+
+[TIP]
+====
+Using functions in EQL queries can result in slower search speeds. If you
+often use functions to transform indexed data, you can speed up search by making
+these changes during indexing instead. However, that often means slower index
+speeds.
+
+.*Example*
+[%collapsible]
+=====
+An index contains the `file.path` field. `file.path` contains the full path to a
+file, including the file extension.
+
+When running EQL searches, users often use the `endsWith` function with the
+`file.path` field to match file extensions:
+
+[source,eql]
+----
+file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
+----
+
+While this works, it can be repetitive to write and can slow search speeds. To
+speed up search, you can do the following instead:
+
+. <<indices-put-mapping,Add a new field>>, `file.extension`, to the index. The
+  `file.extension` field will contain only the file extension from the
+  `file.path` field.
+. Use an <<ingest,ingest pipeline>> containing the <<grok-processor,`grok`>>
+  processor or another preprocessor tool to extract the file extension from the
+  `file.path` field before indexing.
+. Index the extracted file extension to the `file.extension` field.
+
+These changes may slow indexing but allow for faster searches. Users
+can use the `file.extension` field instead of multiple `endsWith` function
+calls:
+
+[source,eql]
+----
+file where file.extension in ("exe", "dll")
+----
+=====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
+====

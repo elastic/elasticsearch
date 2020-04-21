@@ -36,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -46,10 +47,12 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -73,6 +76,27 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         fieldType.setHasDocValues(true);
         fieldType.setIndexOptions(IndexOptions.DOCS);
         fieldType.setName("field");
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new SignificantTermsAggregationBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES);
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of(
+            NumberFieldMapper.NumberType.DOUBLE.typeName(), // floating points are not supported at all
+            NumberFieldMapper.NumberType.FLOAT.typeName(),
+            NumberFieldMapper.NumberType.HALF_FLOAT.typeName(),
+            BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they cannot be searched
+        );
     }
 
     /**
@@ -101,14 +125,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addMixedTextDocs(textFieldType, w);
 
-            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text", null).field("text");
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("text");
             sigAgg.executionHint(randomExecutionHint());
             if (randomBoolean()) {
                 // Use a background filter which just happens to be same scope as whole-index.
                 sigAgg.backgroundFilter(QueryBuilders.termsQuery("text",  "common"));
             }
 
-            SignificantTermsAggregationBuilder sigNumAgg = new SignificantTermsAggregationBuilder("sig_number", null).field("long_field");
+            SignificantTermsAggregationBuilder sigNumAgg = new SignificantTermsAggregationBuilder("sig_number").field("long_field");
             sigNumAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
@@ -200,7 +224,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            SignificantTermsAggregationBuilder sigNumAgg = new SignificantTermsAggregationBuilder("sig_number", null).field("long_field");
+            SignificantTermsAggregationBuilder sigNumAgg = new SignificantTermsAggregationBuilder("sig_number").field("long_field");
             sigNumAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
@@ -242,7 +266,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             addMixedTextDocs(textFieldType, w);
 
             // Attempt aggregation on unmapped field
-            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text", null).field("unmapped_field");
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("unmapped_field");
             sigAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
@@ -289,12 +313,12 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             }
 
             // Attempt aggregation on range field
-            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text", null).field(fieldName);
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field(fieldName);
             sigAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher indexSearcher = newIndexSearcher(reader);
-                expectThrows(AggregationExecutionException.class, () -> createAggregator(sigAgg, indexSearcher, fieldType));
+                expectThrows(IllegalArgumentException.class, () -> createAggregator(sigAgg, indexSearcher, fieldType));
             }
         }
     }

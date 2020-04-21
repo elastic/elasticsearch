@@ -30,10 +30,10 @@ import java.util.Objects;
 /**
  * Represents an array load/store.
  */
-final class PSubBrace extends AStoreable {
+public class PSubBrace extends AExpression {
 
-    private final Class<?> clazz;
-    private AExpression index;
+    protected final Class<?> clazz;
+    protected final AExpression index;
 
     PSubBrace(Location location, Class<?> clazz, AExpression index) {
         super(location);
@@ -43,37 +43,25 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        index.expected = int.class;
-        index.analyze(scriptRoot, scope);
-        index = index.cast(scriptRoot, scope);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        actual = clazz.getComponentType();
-    }
+        Input indexInput = new Input();
+        indexInput.expected = int.class;
+        Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+        index.cast(indexInput, indexOutput);
 
-    BraceSubNode write(ClassNode classNode) {
+        output.actual = clazz.getComponentType();
+
         BraceSubNode braceSubNode = new BraceSubNode();
 
-        braceSubNode.setChildNode(index.write(classNode));
+        braceSubNode.setChildNode(index.cast(indexOutput));
 
         braceSubNode.setLocation(location);
-        braceSubNode.setExpressionType(actual);
+        braceSubNode.setExpressionType(output.actual);
 
-        return braceSubNode;
-    }
+        output.expressionNode = braceSubNode;
 
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
+        return output;
     }
 }

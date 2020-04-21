@@ -8,7 +8,13 @@
 ++++
 
 Creates an {infer} trained model.
-
++
+--
+WARNING: Models created in version 7.8.0 are not backwards compatible
+         with older node versions. If in a mixed cluster environment,
+         all nodes must be at least 7.8.0 to use a model stored by
+         a 7.8.0 node.
+--
 experimental[]
 
 
@@ -43,7 +49,7 @@ is not created by {dfanalytics}.
 (Required, string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
-
+[role="child_attributes"]
 [[ml-put-inference-request-body]]
 ==== {api-request-body-title}
 
@@ -52,203 +58,201 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 The compressed (GZipped and Base64 encoded) {infer} definition of the model. 
 If `compressed_definition` is specified, then `definition` cannot be specified.
 
+//Begin definition
 `definition`::
 (Required, object) 
 The {infer} definition for the model. If `definition` is specified, then 
 `compressed_definition` cannot be specified.
-
-`definition`.`preprocessors`:::
++
+.Properties of `definition`
+[%collapsible%open]
+====
+//Begin preprocessors
+`preprocessors`::
 (Optional, object)
-Collection of preprocessors. See <<ml-put-inference-preprocessors>> for the full 
-list of available preprocessors.
-
-`definition`.`trained_model`:::
-(Required, object) 
-The definition of the trained model. See <<ml-put-inference-trained-model>> for 
-details.
-
-`description`::
-(Optional, string) 
-A human-readable description of the {infer} trained model.
-
-`input`::
-(Required, object) 
-The input field names for the model definition.
-
-`input`.`field_names`:::
-(Required, string) 
-An array of input field names for the model.
-
-`metadata`::
-(Optional, object) 
-An object map that contains metadata about the model.
-
-`tags`::
-(Optional, string) 
-An array of tags to organize the model.
-
-
-[[ml-put-inference-preprocessors]]
-===== {infer-cap} preprocessor definitions
-
+Collection of preprocessors. See <<ml-put-inference-preprocessor-example>>.
++
+.Properties of `preprocessors`
+[%collapsible%open]
+=====
+//Begin frequency encoding
 `frequency_encoding`::
 (Required, object) 
 Defines a frequency encoding for a field.
-
-`frequency_encoding`.`field`:::
-(Required, string) 
-The field name to encode.
-
-`frequency_encoding`.`feature_name`:::
++
+.Properties of `frequency_encoding`
+[%collapsible%open]
+======
+`feature_name`::
 (Required, string) 
 The name of the resulting feature.
 
-`frequency_encoding`.`frequency_map`:::
+`field`::
+(Required, string) 
+The field name to encode.
+
+`frequency_map`::
 (Required, object map of string:double) 
 Object that maps the field value to the frequency encoded value.
+======
+//End frequency encoding
 
+//Begin one hot encoding
 `one_hot_encoding`::
 (Required, object) 
 Defines a one hot encoding map for a field.
-
-`one_hot_encoding`.`field`:::
++
+.Properties of `one_hot_encoding`
+[%collapsible%open]
+======
+`field`::
 (Required, string) 
 The field name to encode.
 
-`one_hot_encoding`.`hot_map`:::
+`hot_map`::
 (Required, object map of strings) 
 String map of "field_value: one_hot_column_name".
+======
+//End one hot encoding
 
+//Begin target mean encoding
 `target_mean_encoding`::
 (Required, object) 
 Defines a target mean encoding for a field.
-
-`target_mean_encoding`.`field`:::
-(Required, string)
-The field name to encode.
-
-`target_mean_encoding`.`feature_name`:::
-(Required, string) 
-The name of the resulting feature.
-
-`target_mean_encoding`.`target_map`:::
-(Required, object map of string:double) 
-Object that maps the field value to the target mean value.
-
-`target_mean_encoding`.`default_value`:::
++
+.Properties of `target_mean_encoding`
+[%collapsible%open]
+======
+`default_value`:::
 (Required, double) 
 The feature value if the field value is not in the `target_map`.
 
-See <<ml-put-inference-preprocessor-example>> for more details.
+`feature_name`:::
+(Required, string) 
+The name of the resulting feature.
 
+`field`:::
+(Required, string)
+The field name to encode.
 
-[[ml-put-inference-trained-model]]
-===== {infer-cap} trained model definitions
+`target_map`:::
+(Required, object map of string:double) 
+Object that maps the field value to the target mean value.
+======
+//End target mean encoding
+=====
+//End preprocessors
 
+//Begin trained model
+`trained_model`::
+(Required, object) 
+The definition of the trained model.
++
+.Properties of `trained_model`
+[%collapsible%open]
+=====
+//Begin tree
 `tree`::
 (Required, object) 
 The definition for a binary decision tree.
-
-`tree`.`feature_names`:::
-(Required, string)
-Features expected by the tree, in their expected order.
-
-`tree`.`tree_structure`:::
-(Required, object) 
-An array of `tree_node` objects. The nodes must be in ordinal order by their 
-`tree_node.node_index` value.
-
-`tree`.`classification_labels`:::
++
+.Properties of `tree`
+[%collapsible%open]
+======
+`classification_labels`:::
 (Optional, string) An array of classification labels (used for 
 `classification`).
 
-`tree`.`target_type`:::
+`feature_names`:::
+(Required, string)
+Features expected by the tree, in their expected order.
+
+`target_type`:::
 (Required, string) 
 String indicating the model target type; `regression` or `classification`.
 
+`tree_structure`:::
+(Required, object) 
+An array of `tree_node` objects. The nodes must be in ordinal order by their 
+`tree_node.node_index` value.
+======
+//End tree
+
+//Begin tree node
+`tree_node`::
+(Required, object) 
+The definition of a node in a tree.
++
+--
 There are two major types of nodes: leaf nodes and not-leaf nodes.
 
 * Leaf nodes only need `node_index` and `leaf_value` defined.
 * All other nodes need `split_feature`, `left_child`, `right_child`, 
   `threshold`, `decision_type`, and `default_left` defined.
-
-
-
-`tree_node`::
-(Required, object) 
-The definition of a node in a tree.
-
-`tree_node`.`decision_type`:::
+--
++
+.Properties of `tree_node`
+[%collapsible%open]
+======
+`decision_type`::
 (Optional, string) 
 Indicates the positive value (in other words, when to choose the left node) 
 decision type. Supported `lt`, `lte`, `gt`, `gte`. Defaults to `lte`.
 
-`tree_node`.`threshold`:::
-(Optional, double) 
-The decision threshold with which to compare the feature value.
-
-`tree_node`.`left_child`:::
-(Optional, integer) 
-The index of the left child.
-
-`tree_node`.`right_child`:::
-(Optional, integer) 
-The index of the right child.
-
-`tree_node`.`default_left`:::
+`default_left`::
 (Optional, boolean) 
 Indicates whether to default to the left when the feature is missing. Defaults 
 to `true`.
 
-`tree_node`.`split_feature`:::
-(Optional, integer) 
-The index of the feature value in the feature array.
-
-`tree_node`.`node_index`:::
-(Integer) 
-The index of the current node.
-
-`tree_node`.`split_gain`:::
-(Optional, double) The information gain from the split.
-
-`tree_node`.`leaf_value`:::
+`leaf_value`::
 (Optional, double) 
 The leaf value of the of the node, if the value is a leaf (in other words, no 
 children).
 
+`left_child`::
+(Optional, integer) 
+The index of the left child.
+
+`node_index`::
+(Integer) 
+The index of the current node.
+
+`right_child`::
+(Optional, integer) 
+The index of the right child.
+
+`split_feature`::
+(Optional, integer) 
+The index of the feature value in the feature array.
+
+`split_gain`::
+(Optional, double) The information gain from the split.
+
+`threshold`::
+(Optional, double) 
+The decision threshold with which to compare the feature value.
+======
+//End tree node
+
+//Begin ensemble
 `ensemble`::
 (Optional, object)
-The definition for an ensemble model.
-
-`ensemble`.`feature_names`:::
-(Optional, string)
-Features expected by the ensemble, in their expected order.
-
-`ensemble`.`trained_models`:::
-(Required, object)
-An array of `trained_model` objects. Supported trained models are `tree` and 
-`ensemble`.
-
-`ensemble`.`classification_labels`:::
-(Optional, string) 
-An array of classification labels.
-
-`ensemble`.`target_type`:::
-(Required, string) 
-String indicating the model target type; `regression` or `classification.`
-
-`ensemble`.`aggregate_output`:::
+The definition for an ensemble model. See <<ml-put-inference-model-example>>.
++
+.Properties of `ensemble`
+[%collapsible%open]
+======
+//Begin aggregate output
+`aggregate_output`::
 (Required, object) 
 An aggregated output object that defines how to aggregate the outputs of the 
 `trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and 
-`logistic_regression`.
-
-See <<ml-put-inference-model-example>> for more details.
-
-
-[[ml-put-inference-aggregated-output]]
-===== Aggregated output types
-
+`logistic_regression`. See <<ml-put-inference-aggregated-output-example>>.
++
+.Properties of `aggregate_output`
+[%collapsible%open]
+=======
+//Begin logistic regression
 `logistic_regression`::
 (Optional, object) 
 This `aggregated_output` type works with binary classification (classification 
@@ -261,34 +265,158 @@ consequently, the probability of class 0 is `1 - P_1`. The class with the
 highest probability (either 0 or 1) is then returned. For more information about 
 logistic regression, see 
 https://en.wikipedia.org/wiki/Logistic_regression[this wiki article].
-
-`logistic_regression`.`weights`:::
++
+.Properties of `logistic_regression`
+[%collapsible%open]
+========
+`weights`:::
 (Required, double) 
 The weights to multiply by the input values (the inference values of the trained 
 models).
+========
+//End logistic regression
 
+//Begin weighted sum
 `weighted_sum`::
 (Optional, object) 
 This `aggregated_output` type works with regression. The weighted sum of the 
 input values.
-
-`weighted_sum`.`weights`:::
++
+.Properties of `weighted_sum`
+[%collapsible%open]
+========
+`weights`:::
 (Required, double) 
 The weights to multiply by the input values (the inference values of the trained 
 models).
+========
+//End weighted sum
 
+//Begin weighted mode
 `weighted_mode`::
 (Optional, object) 
 This `aggregated_output` type works with regression or classification. It takes 
 a weighted vote of the input values. The most common input value (taking the 
 weights into account) is returned.
-
-`weighted_mode`.`weights`:::
++
+.Properties of `weighted_mode`
+[%collapsible%open]
+========
+`weights`:::
 (Required, double) 
 The weights to multiply by the input values (the inference values of the trained 
 models).
+========
+//End weighted mode
+=======
+//End aggregate output
 
-See <<ml-put-inference-aggregated-output-example>> for more details.
+`classification_labels`::
+(Optional, string) 
+An array of classification labels.
+
+`feature_names`::
+(Optional, string)
+Features expected by the ensemble, in their expected order.
+
+`target_type`::
+(Required, string) 
+String indicating the model target type; `regression` or `classification.`
+
+`trained_models`::
+(Required, object)
+An array of `trained_model` objects. Supported trained models are `tree` and 
+`ensemble`.
+======
+//End ensemble
+
+=====
+//End trained model
+
+====
+//End definition
+
+`description`::
+(Optional, string) 
+A human-readable description of the {infer} trained model.
+
+//Begin inference_config
+`inference_config`::
+(Required, object)
+The default configuration for inference. This can be either a `regression`
+or `classification` configuration. It must match the underlying
+`definition.trained_model`'s `target_type`.
++
+.Properties of `inference_config`
+[%collapsible%open]
+====
+`regression`:::
+(Optional, object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+=====
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+=====
+
+`classification`:::
+(Optional, object)
+Classification configuration for inference.
++
+.Properties of classification inference
+[%collapsible%open]
+=====
+`num_top_classes`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`prediction_field_type`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+
+`results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
+`top_classes_results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+=====
+====
+//End of inference_config
+
+//Begin input
+`input`::
+(Required, object) 
+The input field names for the model definition.
++
+.Properties of `input`
+[%collapsible%open]
+====
+`field_names`:::
+(Required, string) 
+An array of input field names for the model.
+====
+//End input
+
+`metadata`::
+(Optional, object) 
+An object map that contains metadata about the model.
+
+`tags`::
+(Optional, string) 
+An array of tags to organize the model.
 
 
 [[ml-put-inference-example]]

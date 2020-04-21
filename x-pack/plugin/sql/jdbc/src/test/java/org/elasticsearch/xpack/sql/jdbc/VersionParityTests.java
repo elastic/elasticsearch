@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -31,9 +32,9 @@ public class VersionParityTests extends WebServerTestCase {
         
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
         SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
-        assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version "
-                + org.elasticsearch.xpack.sql.client.Version.CURRENT.toString()
-                + ", attempting to connect to a server version " + version.toString(), ex.getMessage());
+        assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version " +
+            ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server " +
+            "version " + version.toString(), ex.getMessage());
     }
     
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {

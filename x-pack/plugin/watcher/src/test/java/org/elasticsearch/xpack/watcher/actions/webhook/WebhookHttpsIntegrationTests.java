@@ -72,7 +72,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @After
     public void stopWebservice() throws Exception {
-        webServer.close();
+        if (webServer != null) {
+            webServer.close();
+        }
     }
 
     public void testHttps() throws Exception {

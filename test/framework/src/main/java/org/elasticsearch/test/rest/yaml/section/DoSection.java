@@ -50,10 +50,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -77,6 +78,9 @@ import static org.junit.Assert.fail;
  *          - Stuff is deprecated, yo
  *          - Don't use deprecated stuff
  *          - Please, stop. It hurts.
+ *      allowed_warnings:
+ *          - Maybe this warning shows up
+ *          - But it isn't actually required for the test to pass.
  *      update:
  *          index:  test_1
  *          type:   test
@@ -94,6 +98,7 @@ public class DoSection implements ExecutableSection {
         NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
+        List<String> allowedWarnings = new ArrayList<>();
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("expected [" + XContentParser.Token.START_OBJECT + "], " +
@@ -116,6 +121,14 @@ public class DoSection implements ExecutableSection {
                     }
                     if (token != XContentParser.Token.END_ARRAY) {
                         throw new ParsingException(parser.getTokenLocation(), "[warnings] must be a string array but saw [" + token + "]");
+                    }
+                } else if ("allowed_warnings".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
+                        allowedWarnings.add(parser.text());
+                    }
+                    if (token != XContentParser.Token.END_ARRAY) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[allowed_warnings] must be a string array but saw [" + token + "]");
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unknown array [" + currentFieldName + "]");
@@ -172,10 +185,16 @@ public class DoSection implements ExecutableSection {
             if (apiCallSection == null) {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
+            for (String w : expectedWarnings) {
+                if (allowedWarnings.contains(w)) {
+                    throw new IllegalArgumentException("the warning [" + w + "] was both allowed and expected");
+                }
+            }
             apiCallSection.addHeaders(headers);
             apiCallSection.setNodeSelector(nodeSelector);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
+            doSection.setAllowedWarningHeaders(unmodifiableList(allowedWarnings));
         } finally {
             parser.nextToken();
         }
@@ -188,6 +207,7 @@ public class DoSection implements ExecutableSection {
     private String catchParam;
     private ApiCallSection apiCallSection;
     private List<String> expectedWarningHeaders = emptyList();
+    private List<String> allowedWarningHeaders = emptyList();
 
     public DoSection(XContentLocation location) {
         this.location = location;
@@ -223,6 +243,22 @@ public class DoSection implements ExecutableSection {
      */
     void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
+    }
+
+    /**
+     * Warning headers that we allow from this response. These warning
+     * headers don't cause the test to fail. Defaults to emptyList.
+     */
+    List<String> getAllowedWarningHeaders() {
+        return allowedWarningHeaders;
+    }
+
+    /**
+     * Set the warning headers that we expect from this response. These
+     * warning headers don't cause the test to fail. Defaults to emptyList.
+     */
+    void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
+        this.allowedWarningHeaders = allowedWarningHeaders;
     }
 
     @Override
@@ -284,19 +320,25 @@ public class DoSection implements ExecutableSection {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
+        Set<String> allowed = allowedWarningHeaders.stream()
+                .map(DeprecationLogger::escapeAndEncode)
+                .collect(toSet());
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
-        final Set<String> expected =
-                new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escapeAndEncode).collect(Collectors.toList()));
+        final Set<String> expected = expectedWarningHeaders.stream()
+                .map(DeprecationLogger::escapeAndEncode)
+                .collect(toCollection(LinkedHashSet::new));
         for (final String header : warningHeaders) {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
             if (matches) {
-                final String message = matcher.group(1);
-                if (message.startsWith("[_data_frame/transforms/] is deprecated")) {
-                    // We skip warnings related to the transform rename so that we can continue to run the many mixed-version tests.
-                } else if (expected.remove(message) == false) {
-                    unexpected.add(header);
+                final String message = DeprecationLogger.extractWarningValueFromWarningHeader(header, true);
+                if (allowed.contains(message)) {
+                    continue;
                 }
+                if (expected.remove(message)) {
+                    continue;
+                }
+                unexpected.add(header);
             } else {
                 unmatched.add(header);
             }

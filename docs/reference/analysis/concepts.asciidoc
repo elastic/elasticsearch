@@ -8,6 +8,8 @@ This section explains the fundamental concepts of text analysis in {es}.
 
 * <<analyzer-anatomy>>
 * <<analysis-index-search-time>>
+* <<token-graphs>>
 
 include::anatomy.asciidoc[]
 include::index-search-time.asciidoc[]
+include::token-graphs.asciidoc[]

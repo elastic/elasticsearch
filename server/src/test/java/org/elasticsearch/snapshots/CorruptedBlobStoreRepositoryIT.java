@@ -25,8 +25,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -66,6 +66,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
@@ -116,55 +118,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .addSnapshots(snapshot).get().getSnapshots(repoName));
     }
 
-    public void testConcurrentlyChangeRepositoryContentsInBwCMode() throws Exception {
-        Client client = client();
-
-        Path repo = randomRepoPath();
-        final String repoName = "test-repo";
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client.admin().cluster().preparePutRepository(repoName)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                .put(BlobStoreRepository.ALLOW_CONCURRENT_MODIFICATION.getKey(), true)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        createIndex("test-idx-1", "test-idx-2");
-        logger.info("--> indexing some data");
-        indexRandom(true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar"));
-
-        final String snapshot = "test-snap";
-
-        logger.info("--> creating snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshot)
-            .setWaitForCompletion(true).setIndices("test-idx-*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        final Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repoName);
-
-        logger.info("--> move index-N blob to next generation");
-        final RepositoryData repositoryData = getRepositoryData(repository);
-        final long beforeMoveGen = repositoryData.getGenId();
-        Files.move(repo.resolve("index-" + beforeMoveGen), repo.resolve("index-" + (beforeMoveGen + 1)));
-
-        logger.info("--> verify index-N blob is found at the new location");
-        assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 1));
-
-        logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
-
-        logger.info("--> verify index-N blob is found at the expected location");
-        assertThat(getRepositoryData(repository).getGenId(), is(beforeMoveGen + 2));
-
-        logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots(repoName)
-            .addSnapshots(snapshot).get().getSnapshots(repoName));
-    }
-
     public void testFindDanglingLatestGeneration() throws Exception {
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
@@ -203,9 +156,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.getMetaData())
-                        .putCustom(RepositoriesMetaData.TYPE,
-                            currentState.metaData().<RepositoriesMetaData>custom(RepositoriesMetaData.TYPE).withUpdatedGeneration(
+                    return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
+                        .putCustom(RepositoriesMetadata.TYPE,
+                            currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
                                 repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)).build()).build();
                 }
 
@@ -250,6 +203,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         final String snapshotPrefix = "test-snap-";
@@ -287,16 +242,18 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
-            is(true));
+            ActionRunnable.supply(f, () ->
+                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repository), null)))),
+            is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToCorrupt.getName()).get());
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
-            ActionRunnable.supply(f, () -> snapshotsService.hasOldVersionSnapshots(repoName, getRepositoryData(repository), null)))),
-            is(false));
+            ActionRunnable.supply(f, () ->
+                snapshotsService.minCompatibleVersion(Version.CURRENT, repoName, getRepositoryData(repository), null)))),
+            is(Version.CURRENT));
         final RepositoryData finalRepositoryData = getRepositoryData(repository);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
             assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
@@ -313,6 +270,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
             .setType("fs").setSettings(Settings.builder()
                 .put("location", repo)
+                // Don't cache repository data because the test manually modifies the repository data
+                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("compress", false)));
 
         final String snapshot = "test-snap";

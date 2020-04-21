@@ -28,8 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
@@ -165,13 +165,24 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     }
 
     private static TimeValue getValidThreshold(Settings settings, String key, String level) {
-        TimeValue threshold = settings.getAsTime(level, null);
+        final TimeValue threshold;
+
+        try {
+            threshold = settings.getAsTime(level, null);
+        } catch (RuntimeException ex) {
+            final String settingValue = settings.get(level);
+            throw new IllegalArgumentException("failed to parse setting [" + getThresholdName(key, level) + "] with value [" +
+                settingValue + "] as a time value", ex);
+        }
+
         if (threshold == null) {
             throw new IllegalArgumentException("missing gc_threshold for [" + getThresholdName(key, level) + "]");
+        } else if (threshold.nanos() < 0) {
+            final String settingValue = settings.get(level);
+            throw new IllegalArgumentException("invalid gc_threshold [" + getThresholdName(key, level) + "] value [" +
+                settingValue + "]: value cannot be negative");
         }
-        if (threshold.nanos() <= 0) {
-            throw new IllegalArgumentException("invalid gc_threshold [" + threshold + "] for [" + getThresholdName(key, level) + "]");
-        }
+
         return threshold;
     }
 

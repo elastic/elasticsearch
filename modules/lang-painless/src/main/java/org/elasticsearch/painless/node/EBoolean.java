@@ -22,13 +22,15 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
+import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a boolean constant.
  */
-public final class EBoolean extends AExpression {
+public class EBoolean extends AExpression {
+
+    protected boolean constant;
 
     public EBoolean(Location location, boolean constant) {
         super(location);
@@ -37,21 +39,27 @@ public final class EBoolean extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to boolean constant [" + constant + "]"));
         }
 
-        actual = boolean.class;
-    }
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: boolean constant [" + constant + "] not used"));
+        }
 
-    @Override
-    ExpressionNode write(ClassNode classNode) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+        Output output = new Output();
 
-    @Override
-    public String toString() {
-        return singleLineToString(constant);
+        output.actual = boolean.class;
+
+        ConstantNode constantNode = new ConstantNode();
+        constantNode.setLocation(location);
+        constantNode.setExpressionType(output.actual);
+        constantNode.setConstant(constant);
+
+        output.expressionNode = constantNode;
+
+        return output;
     }
 }

@@ -1,0 +1,17 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "blob" : {
+            "type" : "binary"
+        }
+    }
+}

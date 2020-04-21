@@ -2,7 +2,7 @@ ccruser:
   cluster:
     - read_ccr
   indices:
-    - names: [ 'allowed-index', 'forget-leader', 'logs-eu-*' ]
+    - names: [ 'allowed-index', 'clean-leader', 'forget-leader', 'logs-eu-*' ]
       privileges:
         - monitor
         - read

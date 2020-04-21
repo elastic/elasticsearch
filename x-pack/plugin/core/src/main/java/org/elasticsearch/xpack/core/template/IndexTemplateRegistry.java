@@ -16,7 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -118,6 +118,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
+        // This registry requires to run on a master node.
+        // If not a master node, exit.
+        if (requiresMasterNode() && state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
         // if this node is newer than the master node, we probably need to add the template, which might be newer than the
         // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
@@ -129,13 +135,22 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
+    /**
+     * Whether the registry should only apply changes when running on the master node.
+     * This is useful for plugins where certain actions are performed on master nodes
+     * and the templates should match the respective version.
+     */
+    protected boolean requiresMasterNode() {
+        return false;
+    }
+
     private void addTemplatesIfMissing(ClusterState state) {
         final List<IndexTemplateConfig> indexTemplates = getTemplateConfigs();
         for (IndexTemplateConfig newTemplate : indexTemplates) {
             final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                IndexTemplateMetaData currentTemplate = state.metaData().getTemplates().get(templateName);
+                IndexTemplateMetadata currentTemplate = state.metadata().getTemplates().get(templateName);
                 if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putTemplate(newTemplate, creationCheck);
@@ -188,7 +203,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
 
         if (ilmSupported) {
-            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
+            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
             List<LifecyclePolicy> policies = getPolicyConfigs().stream()
                 .map(policyConfig -> policyConfig.load(xContentRegistry))
                 .collect(Collectors.toList());

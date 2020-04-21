@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -40,11 +43,11 @@ import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -61,12 +64,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -87,52 +89,6 @@ public final class Verifier {
 
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
-    }
-
-    static class Failure {
-        private final Node<?> node;
-        private final String message;
-
-        Failure(Node<?> node, String message) {
-            this.node = node;
-            this.message = message;
-        }
-
-        Node<?> node() {
-            return node;
-        }
-
-        String message() {
-            return message;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(node);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-
-            Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(node, other.node);
-        }
-
-        @Override
-        public String toString() {
-            return message;
-        }
-    }
-
-    private static Failure fail(Node<?> source, String message, Object... args) {
-        return new Failure(source, format(message, args));
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -263,6 +219,7 @@ public final class Verifier {
                 checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(p, localFailures, attributeRefs);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
+                checkMatrixStats(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -892,5 +849,20 @@ public final class Verifier {
             });
 
         }, Pivot.class);
+    }
+
+    private static void checkMatrixStats(LogicalPlan p, Set<Failure> localFailures) {
+        // MatrixStats aggregate functions cannot operates on scalars
+        // https://github.com/elastic/elasticsearch/issues/55344
+        p.forEachExpressions(e -> e.forEachUp((Kurtosis s) -> {
+            if (s.field() instanceof Function) {
+                localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
+            }
+        }, Kurtosis.class));
+        p.forEachExpressions(e -> e.forEachUp((Skewness s) -> {
+            if (s.field() instanceof Function) {
+                localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
+            }
+        }, Skewness.class));
     }
 }

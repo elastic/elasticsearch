@@ -1,12 +1,3 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.VersionProperties
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
-
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.util.stream.Stream
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -26,33 +17,15 @@ import java.util.stream.Stream
  * under the License.
  */
 
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.VersionProperties
+
 apply plugin: 'war'
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.distribution-download'
 
-final String wildflyVersion = '11.0.0.Final'
-final String wildflyDir = "${buildDir}/wildfly"
-final String wildflyInstall = "${buildDir}/wildfly/wildfly-${wildflyVersion}"
-int managementPort
-
-repositories {
-  // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
-  ivy {
-    name "wildfly"
-    url "https://download.jboss.org"
-    metadataSources {
-      artifact()
-    }
-    patternLayout {
-      artifact 'wildfly/[revision]/[module]-[revision].[ext]'
-    }
-  }
-}
-
-configurations {
-  wildfly
-}
+testFixtures.useFixture()
 
 dependencies {
   providedCompile 'javax.enterprise:cdi-api:1.2'
@@ -73,162 +46,42 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   compile project(path: ':client:rest-high-level', configuration: 'shadow')
-  wildfly "org.jboss:wildfly:${wildflyVersion}@zip"
   testCompile project(':test:framework')
 }
 
-task unzipWildfly(type: Sync) {
-  into wildflyDir
-  from { zipTree(configurations.wildfly.singleFile) }
+war {
+  archiveName 'example-app.war'
 }
 
-task deploy(type: Copy) {
-  dependsOn unzipWildfly, war
-  from war
-  into "${wildflyInstall}/standalone/deployments"
-}
-
-task writeElasticsearchProperties(type: DefaultTestClustersTask) {
-  onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
-  useCluster testClusters.integTest
-  dependsOn deploy
-  doLast {
-    final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
-    elasticsearchProperties.write(
-      [
-        "http.uri=${-> testClusters.integTest.getAllHttpSocketURI().get(0)}"
-      ].join("\n"))
+elasticsearch_distributions {
+  docker {
+    type = 'docker'
+    architecture = Architecture.current()
+    flavor = System.getProperty('tests.distribution', 'default')
+    version = VersionProperties.getElasticsearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
 
-// the default configuration ships with IPv6 disabled but our cluster could be bound to IPv6 if the host supports it
-task enableIPv6 {
-  dependsOn unzipWildfly
-  doLast {
-    final File standaloneConf = file("${wildflyInstall}/bin/standalone.conf")
-    final List<String> lines =
-      Files.readAllLines(standaloneConf.toPath())
-        .collect { line -> line.replace("-Djava.net.preferIPv4Stack=true", "-Djava.net.preferIPv4Stack=false") }
-    standaloneConf.write(lines.join("\n"))
+preProcessFixture {
+  dependsOn war, elasticsearch_distributions.docker
+}
+
+dockerCompose {
+  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+    useComposeFiles = ['docker-compose.yml']
+  } else {
+    useComposeFiles = ['docker-compose-oss.yml']
   }
 }
 
-task startWildfly {
-  dependsOn enableIPv6, writeElasticsearchProperties
-  doLast {
-    // we skip these tests on Windows so we do no need to worry about compatibility here
-    final ProcessBuilder wildfly = new ProcessBuilder(
-      "${wildflyInstall}/bin/standalone.sh",
-      "-Djboss.http.port=0",
-      "-Djboss.https.port=0",
-      "-Djboss.management.http.port=0")
-    final Process process = wildfly.start()
-    new BufferedReader(new InputStreamReader(process.getInputStream())).withReader { br ->
-      String line
-      int httpPort = 0
-      while ((line = br.readLine()) != null) {
-        logger.info(line)
-        if (line.matches('.*Undertow HTTP listener default listening on .*:\\d+$')) {
-          assert httpPort == 0
-          final int index = line.lastIndexOf(":")
-          assert index >= 0
-          httpPort = Integer.parseInt(line.substring(index + 1))
-          // set this system property so the test runner knows the port Wildfly is listening for HTTP requests on
-          integTestRunner.systemProperty("tests.jboss.root", "http://localhost:$httpPort/wildfly-$version/transport")
-        } else if (line.matches('.*Http management interface listening on http://.*:\\d+/management$')) {
-          assert managementPort == 0
-          final int colonIndex = line.lastIndexOf(":")
-          assert colonIndex >= 0
-          final int slashIndex = line.lastIndexOf("/")
-          assert slashIndex >= 0
-          managementPort = Integer.parseInt(line.substring(colonIndex + 1, slashIndex))
-
-          /*
-           * As soon as we know the management port, we fork a process that will ensure the Wildfly process is killed if we
-           * teardown abnormally. We skip these tests on Windows so we do not need to worry about CLI compatibility here.
-           */
-          final File script = new File(project.buildDir, "wildfly/wildfly.killer.sh")
-          script.setText(
-            ["function shutdown {",
-             "  ${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${-> managementPort} --connect command=shutdown",
-             "}",
-             "trap shutdown EXIT",
-             // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
-             "read line\n"].join('\n'), 'UTF-8')
-          final ProcessBuilder killer = new ProcessBuilder("bash", script.absolutePath)
-          killer.start()
-
-        } else if (line.matches(".*WildFly Full \\d+\\.\\d+\\.\\d+\\.Final \\(WildFly Core \\d+\\.\\d+\\.\\d+\\.Final\\) started.*")) {
-          break
-        }
-      }
-
-      if (httpPort == 0 || managementPort == 0) {
-        String portType = httpPort == 0 ? "http" : "management"
-        throw new GradleException("Failed to find ${portType} port in wildfly log")
-      }
-    }
-  }
+task integTest(type: Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = '1'
+  include '**/*IT.class'
 }
 
-task configureClient(type: LoggedExec) {
-  dependsOn startWildfly
-  // we skip these tests on Windows so we do not need to worry about compatibility here
-  commandLine "${wildflyInstall}/bin/jboss-cli.sh",
-    "--controller=localhost:${-> managementPort}",
-    "--connect",
-    "--command=/system-property=elasticsearch.properties:add(value=\${jboss.server.config.dir}/elasticsearch.properties)"
-}
-
-task stopWildfly(type: LoggedExec) {
-  // we skip these tests on Windows so we do not need to worry about CLI compatibility here
-  commandLine "${wildflyInstall}/bin/jboss-cli.sh", "--controller=localhost:${-> managementPort}", "--connect", "command=shutdown"
-}
-
-if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
-  integTestRunner.dependsOn(configureClient)
-  final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
-    @Override
-    void afterExecute(final Task task, final TaskState state) {
-      if (task != startWildfly && task != integTestRunner) {
-        // we might have been called from a parallel, unrelated task
-        return
-      }
-      if (state.failure != null) {
-        final File logFile = new File(wildflyInstall, "standalone/log/server.log")
-        println("\nWildfly server log (from ${logFile}):")
-        println('-----------------------------------------')
-        final Stream<String> stream = Files.lines(logFile.toPath(), StandardCharsets.UTF_8)
-        try {
-          for (String line : stream) {
-            println(line)
-          }
-        } finally {
-          stream.close()
-        }
-        println('=========================================')
-      }
-    }
-  }
-  startWildfly.doFirst {
-    project.gradle.addListener(logDumpListener)
-  }
-  integTestRunner.doFirst {
-    project.gradle.addListener(logDumpListener)
-  }
-  integTestRunner.doLast {
-    project.gradle.removeListener(logDumpListener)
-  }
-  startWildfly.doLast {
-    project.gradle.removeListener(logDumpListener)
-  }
-  integTestRunner.finalizedBy(stopWildfly)
-} else {
-  integTest.enabled = false
-  testingConventions.enabled = false
-}
-
-check.dependsOn(integTest)
+check.dependsOn integTest
 
 test.enabled = false
 

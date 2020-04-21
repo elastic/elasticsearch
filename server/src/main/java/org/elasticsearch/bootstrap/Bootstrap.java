@@ -19,20 +19,18 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
@@ -42,8 +40,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -345,6 +345,11 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
+        // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
+        // the stream objects before calling LogConfigurator to be able to close them when appropriate
+        final Runnable sysOutCloser = getSysOutCloser();
+        final Runnable sysErrorCloser = getSysErrorCloser();
+
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
@@ -359,15 +364,16 @@ final class Bootstrap {
             }
         }
 
-        final boolean closeStandardStreams = (foreground == false) || quiet;
+
         try {
+            final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
                 final Logger rootLogger = LogManager.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
                     Loggers.removeAppender(rootLogger, maybeConsoleAppender);
                 }
-                closeSystOut();
+                sysOutCloser.run();
             }
 
             // fail if somebody replaced the lucene jars
@@ -395,8 +401,9 @@ final class Bootstrap {
             // `--quiet`, not `-d`, so we want users to be able to see
             // startup errors via journalctl.
             if (foreground == false) {
-                closeSysError();
+                sysErrorCloser.run();
             }
+
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             final Logger rootLogger = LogManager.getRootLogger();
@@ -440,13 +447,13 @@ final class Bootstrap {
     }
 
     @SuppressForbidden(reason = "System#out")
-    private static void closeSystOut() {
-        System.out.close();
+    private static Runnable getSysOutCloser() {
+       return System.out::close;
     }
 
     @SuppressForbidden(reason = "System#err")
-    private static void closeSysError() {
-        System.err.close();
+    private static Runnable getSysErrorCloser() {
+        return System.err::close;
     }
 
     private static void checkLucene() {

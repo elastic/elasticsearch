@@ -92,17 +92,25 @@ public class StubbableTransport implements Transport {
     }
 
     void clearBehaviors() {
-        this.defaultSendRequest = null;
-        sendBehaviors.clear();
-        this.defaultConnectBehavior = null;
-        connectBehaviors.clear();
+        clearOutboundBehaviors();
+        clearInboundBehaviors();
+    }
+
+    void clearInboundBehaviors() {
         for (Map.Entry<String, RequestHandlerRegistry<?>> entry : replacedRequestRegistries.entrySet()) {
             getRequestHandlers().forceRegister(entry.getValue());
         }
         replacedRequestRegistries.clear();
     }
 
-    void clearBehavior(TransportAddress transportAddress) {
+    void clearOutboundBehaviors() {
+        this.defaultSendRequest = null;
+        sendBehaviors.clear();
+        this.defaultConnectBehavior = null;
+        connectBehaviors.clear();
+    }
+
+    void clearOutboundBehaviors(TransportAddress transportAddress) {
         SendRequestBehavior behavior = sendBehaviors.remove(transportAddress);
         if (behavior != null) {
             behavior.clearCallback();

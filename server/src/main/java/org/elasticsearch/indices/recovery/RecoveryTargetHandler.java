@@ -106,4 +106,5 @@ public interface RecoveryTargetHandler {
     void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
 
+    default void cancel() {}
 }

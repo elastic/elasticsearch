@@ -83,7 +83,7 @@ policy that is rolling over the indices because the `max_age` threshold is met.
 In this case, you may need to adjust the policy to make use of the `max_docs`
 or `max_size` properties to prevent the creation of these empty indices. One
 example where this may happen is if one or more {beats} stop sending data. If
-the {ilm-init}-managed indices for those {beats{ are configured to rollover
+the {ilm-init}-managed indices for those {beats} are configured to roll over
   daily, then new, empty indices will be generated each day. Empty indices can
   be identified using the <<cat-count,cat count API>>.
 

@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: headers
-      version: " - 7.6.99"
-      reason: "wildcard fields were added from 7.7"
+      version: " - 7.7.99"
+      reason: "wildcard fields were added from 7.8"
 
   - do:
       indices.create:
@@ -10,20 +10,10 @@ setup:
         body:
           settings:
             number_of_replicas: 0
-            analysis:
-              normalizer:
-                lowercase:
-                  type: custom
-                  char_filter: []
-                  filter: ["lowercase"]
           mappings:
             properties:
               my_wildcard:
                  type: wildcard
-                 normalizer: lowercase
-                 fields:
-                   case_sensitive:
-                     type: wildcard
   - do:
       index:
         index: test-index
@@ -97,18 +87,6 @@ setup:
 
 
   - match: {hits.total.value: 1}
----
-"Case insensitive query":
-  - do:
-      search:
-        body:
-          track_total_hits: true
-          query:
-            wildcard:
-              my_wildcard: {value: "*Worl*" }
-
-
-  - match: {hits.total.value: 3}
 
 ---
 "Case sensitive query":
@@ -118,7 +96,7 @@ setup:
           track_total_hits: true
           query:
             wildcard:
-              my_wildcard.case_sensitive: {value: "*Worl*" }
+              my_wildcard: {value: "*Worl*" }
 
 
   - match: {hits.total.value: 1}
@@ -229,8 +207,8 @@ setup:
               terms: {field: "my_wildcard" }
 
 
-  - match: {hits.total.value: 3}
-  - length: { aggregations.top_vals.buckets: 3 }
+  - match: {hits.total.value: 2}
+  - length: { aggregations.top_vals.buckets: 2 }
 
 ---
 "Sort works":

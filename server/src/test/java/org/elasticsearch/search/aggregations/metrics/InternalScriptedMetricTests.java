@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -130,11 +129,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         } else {
             assertEquals(inputs.size(), ((List<?>) reduced.aggregation()).size());
         }
-    }
-
-    @Override
-    protected Reader<InternalScriptedMetric> instanceReader() {
-        return InternalScriptedMetric::new;
     }
 
     @Override

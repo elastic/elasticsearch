@@ -98,27 +98,28 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             clusterAlias,
             transportService,
             connectionManager,
+            settings,
             REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress) {
-        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
+                            Settings settings, int maxNumConnections, String configuredAddress) {
+        this(clusterAlias, transportService, connectionManager, settings, maxNumConnections, configuredAddress,
             () -> resolveAddress(configuredAddress), null);
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress, String configuredServerName) {
-        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
+                            Settings settings, int maxNumConnections, String configuredAddress, String configuredServerName) {
+        this(clusterAlias, transportService, connectionManager, settings, maxNumConnections, configuredAddress,
             () -> resolveAddress(configuredAddress), configuredServerName);
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
+                            Settings settings, int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
                             String configuredServerName) {
-        super(clusterAlias, transportService, connectionManager);
+        super(clusterAlias, transportService, connectionManager, settings);
         this.maxNumConnections = maxNumConnections;
         this.configuredAddress = configuredAddress;
         this.configuredServerName = configuredServerName;

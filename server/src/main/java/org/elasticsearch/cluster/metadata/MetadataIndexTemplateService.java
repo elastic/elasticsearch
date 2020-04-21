@@ -268,7 +268,7 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Add the given component template to the cluster state. If {@code create} is true, an
+     * Add the given index template to the cluster state. If {@code create} is true, an
      * exception will be thrown if the component template already exists
      */
     public void putIndexTemplateV2(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
@@ -333,7 +333,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecated(warning);
+            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
         }
 
         IndexTemplateV2 finalIndexTemplate = template;
@@ -558,7 +558,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                deprecationLogger.deprecated(warning);
+                deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
@@ -664,19 +664,18 @@ public class MetadataIndexTemplateService {
      * the event that no templates are matched, {@code null} is returned.
      */
     @Nullable
-    public static String findV2Template(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
+    public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
         final Map<IndexTemplateV2, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateV2> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final IndexTemplateV2 template = entry.getValue();
-            if (isHidden == null || isHidden == Boolean.FALSE) {
+            if (isHidden == false) {
                 final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
                     matchedTemplates.put(template, name);
                 }
             } else {
-                assert isHidden == Boolean.TRUE;
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
                     if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
@@ -696,7 +695,19 @@ public class MetadataIndexTemplateService {
 
         assert candidates.size() > 0 : "we should have returned early with no candidates";
         IndexTemplateV2 winner = candidates.get(0);
-        return matchedTemplates.get(winner);
+        String winnerName = matchedTemplates.get(winner);
+
+        // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
+        // a restored index cluster state that modified a component template used by this global template such that it has this setting)
+        // we will fail and the user will have to update the index template and remove this setting or update the corresponding component
+        // template that contributes to the index template resolved settings
+        if (winner.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern) &&
+            IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(metadata, winnerName))) {
+            throw new IllegalStateException("global index template [" + winnerName + "], composed of component templates [" +
+                String.join(",", winner.composedOf()) + "] defined the index.hidden setting, which is not allowed");
+        }
+
+        return winnerName;
     }
 
     /**

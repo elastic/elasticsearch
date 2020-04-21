@@ -19,7 +19,6 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,8 +28,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -96,13 +95,8 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
         nodeDescriptions = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            nodeIds = in.readStringArray();
-            nodeNames = in.readStringArray();
-        } else {
-            nodeIds = Strings.EMPTY_ARRAY;
-            nodeNames = Strings.EMPTY_ARRAY;
-        }
+        nodeIds = in.readStringArray();
+        nodeNames = in.readStringArray();
         timeout = in.readTimeValue();
 
         if (nodeDescriptions.length > 0) {
@@ -218,10 +212,8 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(nodeDescriptions);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeStringArray(nodeIds);
-            out.writeStringArray(nodeNames);
-        }
+        out.writeStringArray(nodeIds);
+        out.writeStringArray(nodeNames);
         out.writeTimeValue(timeout);
     }
 

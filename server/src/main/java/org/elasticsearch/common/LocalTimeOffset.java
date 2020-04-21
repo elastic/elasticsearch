@@ -22,7 +22,6 @@ package org.elasticsearch.common;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
@@ -44,7 +43,7 @@ import java.util.Locale;
  * example, the time in my house. Most days I don't touch my clocks and I'm a
  * constant offset from UTC. But once in the fall at 2am I roll my clock back.
  * So at 5am utc my clocks say 1am. Then at 6am utc my clocks say 1am AGAIN.
- * A similarly terrifying thing happens again in the spring when my clocks skip
+ * I do similarly terrifying things again in the spring when I skip my clocks
  * straight from 1:59am to 3am.
  * <p>
  * So there are three methods to convert from local time back to utc,

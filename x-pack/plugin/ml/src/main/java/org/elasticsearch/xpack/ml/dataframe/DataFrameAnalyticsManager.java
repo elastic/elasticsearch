@@ -99,12 +99,12 @@ public class DataFrameAnalyticsManager {
                         executeJobInMiddleOfReindexing(task, config);
                         break;
                     default:
-                        task.setFailed("Cannot execute analytics task [" + config.getId() +
-                            "] as it is in unknown state [" + currentState + "]. Must be one of [STARTED, REINDEXING, ANALYZING]");
+                        task.setFailed(ExceptionsHelper.serverError("Cannot execute analytics task [" + config.getId() +
+                            "] as it is in unknown state [" + currentState + "]. Must be one of [STARTED, REINDEXING, ANALYZING]"));
                 }
 
             },
-            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
+            task::setFailed
         );
 
         // Retrieve configuration
@@ -154,13 +154,13 @@ public class DataFrameAnalyticsManager {
             case FIRST_TIME:
                 task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                     updatedTask -> reindexDataframeAndStartAnalysis(task, config),
-                    error -> task.setFailed(error.getMessage())
+                    task::setFailed
                 ));
                 break;
             case RESUMING_REINDEXING:
                 task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                     updatedTask -> executeJobInMiddleOfReindexing(task, config),
-                    error -> task.setFailed(error.getMessage())
+                    task::setFailed
                 ));
                 break;
             case RESUMING_ANALYZING:
@@ -168,7 +168,7 @@ public class DataFrameAnalyticsManager {
                 break;
             case FINISHED:
             default:
-                task.setFailed("Unexpected starting state [" + startingState + "]");
+                task.setFailed(ExceptionsHelper.serverError("Unexpected starting state [" + startingState + "]"));
         }
     }
 
@@ -189,7 +189,7 @@ public class DataFrameAnalyticsManager {
                     if (cause instanceof IndexNotFoundException) {
                         reindexDataframeAndStartAnalysis(task, config);
                     } else {
-                        task.setFailed(cause.getMessage());
+                        task.setFailed(e);
                     }
                 }
             ));
@@ -230,7 +230,7 @@ public class DataFrameAnalyticsManager {
                         config.getId()), error);
                     task.markAsCompleted();
                 } else {
-                    task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage());
+                    task.setFailed(error);
                 }
             }
         );
@@ -317,12 +317,12 @@ public class DataFrameAnalyticsManager {
                         if (cause instanceof ResourceNotFoundException) {
                             // Task has stopped
                         } else {
-                            task.setFailed(cause.getMessage());
+                            task.setFailed(error);
                         }
                     }
                 ));
             },
-            error -> task.setFailed(ExceptionsHelper.unwrapCause(error).getMessage())
+            task::setFailed
         );
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(

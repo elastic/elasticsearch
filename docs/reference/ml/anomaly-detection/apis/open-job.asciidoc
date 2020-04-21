@@ -51,12 +51,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 ==== {api-response-body-title}
 
 `node`::
-  (string) The ID of the node that the job was opened on, or an empty string
-  if the job is allowed to open lazily and has not yet been assigned to a node.
+  (string) The ID of the node that the job was opened on. If the job is allowed to 
+open lazily and has not yet been assigned to a node, this value is an empty string.
 
 `opened`::
-  (boolean) For a success response this is always `true`. On failure an
-  exception will be returned instead.
+  (boolean) For a successful response, this value is always `true`. On failure, an
+  exception is returned instead.
 
 [[ml-open-job-example]]
 ==== {api-examples-title}

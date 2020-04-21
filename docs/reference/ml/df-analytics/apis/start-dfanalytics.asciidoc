@@ -68,12 +68,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-start]
 ==== {api-response-body-title}
 
 `acknowledged`::
-  (boolean) For a success response this is always `true`. On failure an
-  exception will be returned instead.
+  (boolean) For a successful response, this value is always `true`. On failure, an
+  exception is returned instead.
 
 `node`::
-  (string) The ID of the node that the job was started on, or an empty string
-  if the job is allowed to open lazily and has not yet been assigned to a node.
+  (string) The ID of the node that the job was started on.
+  If the job is allowed to open lazily and has not yet been assigned to a node, this value is an empty string.
 
 [[ml-start-dfanalytics-example]]
 ==== {api-examples-title}

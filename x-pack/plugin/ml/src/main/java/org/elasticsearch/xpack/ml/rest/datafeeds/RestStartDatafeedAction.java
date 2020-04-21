@@ -75,7 +75,7 @@ public class RestStartDatafeedAction extends BaseRestHandler {
 
                         @Override
                         public RestResponse buildResponse(NodeAcknowledgedResponse r, XContentBuilder builder) throws Exception {
-                            // This doesn't use the toXContent of the response object because we rename "acknowledged" to "opened"
+                            // This doesn't use the toXContent of the response object because we rename "acknowledged" to "started"
                             builder.startObject();
                             builder.field("started", r.isAcknowledged());
                             builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());

@@ -89,9 +89,9 @@ public abstract class RetryableAction<Response> {
 
             @Override
             public void onRejection(Exception e) {
-                // Immediately fail because we were not able to schedule the action
-                retryingListener.addException(e);
-                finalListener.onFailure(retryingListener.buildFinalException());
+                // TODO: The only implementations of this class use SAME which means the execution will not be
+                //  rejected. Future implementations can adjust this functionality as needed.
+                onFailure(e);
             }
         };
     }

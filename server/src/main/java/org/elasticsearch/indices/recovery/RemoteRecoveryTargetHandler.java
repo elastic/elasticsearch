@@ -22,8 +22,6 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -146,14 +144,14 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             final ActionListener<Long> listener) {
         final String action = PeerRecoveryTargetService.Actions.TRANSLOG_OPS;
         final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
-            recoveryId,
-            shardId,
-            operations,
-            totalTranslogOps,
-            maxSeenAutoIdTimestampOnPrimary,
-            maxSeqNoOfDeletesOrUpdatesOnPrimary,
-            retentionLeases,
-            mappingVersionOnPrimary);
+                recoveryId,
+                shardId,
+                operations,
+                totalTranslogOps,
+                maxSeenAutoIdTimestampOnPrimary,
+                maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                retentionLeases,
+                mappingVersionOnPrimary);
         final Writeable.Reader<RecoveryTranslogOperationsResponse> reader = RecoveryTranslogOperationsResponse::new;
         final ActionListener<RecoveryTranslogOperationsResponse> responseListener = ActionListener.map(listener, r -> r.localCheckpoint);
         executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
@@ -211,14 +209,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         }
 
         final String action = PeerRecoveryTargetService.Actions.FILE_CHUNK;
-        BytesRefIterator iterator = content.iterator();
-        BytesRef scratch;
         final ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(content.length(), bigArrays);
         boolean actionStarted = false;
         try {
-            while((scratch = iterator.next()) != null) {
-                output.writeBytes(scratch.bytes, scratch.offset, scratch.length);
-            }
+            content.writeTo(output);
             /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
              * see how many translog ops we accumulate while copying files across the network. A future optimization
              * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.

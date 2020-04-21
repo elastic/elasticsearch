@@ -86,11 +86,12 @@ public class ReadOnlyEngine extends Engine {
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
      * read-write engine. It allows to optionally obtain the writer locks for the shard which would time-out if another
      * engine is still open.
-     *  @param config the engine configuration
+     *
+     * @param config the engine configuration
      * @param seqNoStats sequence number statistics for this engine or null if not provided
      * @param translogStats translog stats for this engine or null if not provided
      * @param obtainLock if <code>true</code> this engine will try to obtain the {@link IndexWriter#WRITE_LOCK_NAME} lock. Otherwise
-*                   the lock won't be obtained
+     *                   the lock won't be obtained
      * @param readerWrapperFunction allows to wrap the index-reader for this engine.
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
      */

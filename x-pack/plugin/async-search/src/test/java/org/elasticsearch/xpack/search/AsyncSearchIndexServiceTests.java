@@ -44,7 +44,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < 10; i++) {
             AsyncSearchResponse response = randomAsyncSearchResponse(randomSearchId(), randomSearchResponse());
             String encoded = indexService.encodeResponse(response);
-            AsyncSearchResponse same = indexService.decodeResponse(encoded);
+            AsyncSearchResponse same = indexService.decodeResponse(encoded, response.getExpirationTime());
             assertEqualResponses(response, same);
         }
     }

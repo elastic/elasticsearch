@@ -265,14 +265,16 @@ class AsyncSearchIndexService {
                     return;
                 }
 
-                if (restoreResponseHeaders) {
+                if (restoreResponseHeaders && get.getSource().containsKey(RESPONSE_HEADERS_FIELD)) {
                     @SuppressWarnings("unchecked")
                     Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
                     restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                 }
 
+                long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
-                listener.onResponse(encoded != null ? decodeResponse(encoded) : null);
+                AsyncSearchResponse response = decodeResponse(encoded, expirationTime);
+                listener.onResponse(encoded != null ? response : null);
             },
             listener::onFailure
         ));
@@ -331,11 +333,11 @@ class AsyncSearchIndexService {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    AsyncSearchResponse decodeResponse(String value) throws IOException {
+    AsyncSearchResponse decodeResponse(String value, long expirationTime) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
-                return new AsyncSearchResponse(in);
+                return new AsyncSearchResponse(in, expirationTime);
             }
         }
     }

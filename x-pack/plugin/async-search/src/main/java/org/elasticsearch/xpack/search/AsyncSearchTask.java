@@ -297,6 +297,7 @@ final class AsyncSearchTask extends SearchTask {
      */
     private AsyncSearchResponse getResponse() {
         assert searchResponse.get() != null;
+        checkCancellation();
         return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
     }
 
@@ -306,15 +307,17 @@ final class AsyncSearchTask extends SearchTask {
      */
     private AsyncSearchResponse getResponseWithHeaders() {
         assert searchResponse.get() != null;
+        checkCancellation();
         return searchResponse.get().toAsyncSearchResponseWithHeaders(this, expirationTimeMillis);
     }
 
 
 
     // checks if the search task should be cancelled
-    private void checkCancellation() {
+    private synchronized void checkCancellation() {
         long now = System.currentTimeMillis();
-        if (expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
+        if (hasCompleted == false &&
+                expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
             // we cancel the search task if the initial submit task was cancelled,
             // this is needed because the task cancellation mechanism doesn't
             // handle the cancellation of grand-children.

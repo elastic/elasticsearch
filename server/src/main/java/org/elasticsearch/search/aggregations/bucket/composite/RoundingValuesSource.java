@@ -37,7 +37,7 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     private final Rounding.Prepared rounding;
 
     /**
-     * 
+     *
      * @param vs The original values source
      * @param rounding How to round the values
      */

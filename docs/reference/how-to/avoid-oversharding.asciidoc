@@ -109,7 +109,7 @@ as for {filebeat-ref}/elasticsearch-output.html#index-option-es[Filebeat].
 ==== Shrink an existing index to fewer shards
 
 You can use the <<indices-shrink-index,shrink index API>> to shrink an
-existing index down to a fewer shards.
+existing index down to fewer shards.
 
 <<index-lifecycle-management,{ilm}>> also has a
 <<ilm-shrink-action,shrink action>> available for indices in the warm phase.

@@ -164,6 +164,50 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
+        {
+            // Reader context with scroll
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder()
+                    .reader(new SearchSourceBuilder.ReaderBuilder("id", TimeValue.timeValueMillis(randomIntBetween(1, 10)))))
+                .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [reader] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Reader context with indices
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder()
+                    .reader(new SearchSourceBuilder.ReaderBuilder("id", TimeValue.timeValueMillis(randomIntBetween(1, 10)))))
+                .indices("test");
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[index] cannot be used with reader contexts", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Reader context with preference
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder()
+                    .reader(new SearchSourceBuilder.ReaderBuilder("id", TimeValue.timeValueMillis(randomIntBetween(1, 10)))))
+                .preference("test");
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[preference] cannot be used with reader contexts", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Reader context with routing
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder()
+                    .reader(new SearchSourceBuilder.ReaderBuilder("id", TimeValue.timeValueMillis(randomIntBetween(1, 10)))))
+                .routing("test");
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[routing] cannot be used with reader contexts", validationErrors.validationErrors().get(0));
+        }
     }
 
     public void testCopyConstructor() throws IOException {

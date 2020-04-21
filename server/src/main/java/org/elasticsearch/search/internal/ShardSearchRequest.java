@@ -176,6 +176,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
+        assert (readerId != null) == (keepAlive != null);
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -216,6 +217,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             this.keepAlive = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
+        assert (readerId != null) == (keepAlive != null);
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {

@@ -1,8 +1,8 @@
 {
   "clear_reader":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api",
-      "description":"Explicitly clears the point in time readers"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/reader-context.html",
+      "description":"Explicitly close the point in time readers"
     },
     "stability":"beta",
     "url":{
@@ -17,7 +17,7 @@
     },
     "params":{},
     "body":{
-      "description": "A point in time reader to clear"
+      "description": "point in time readers to clear"
     }
   }
 }

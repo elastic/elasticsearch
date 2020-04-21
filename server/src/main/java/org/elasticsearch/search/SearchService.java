@@ -63,6 +63,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -482,8 +483,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try (SearchContext context = createContext(reader, reader.getShardSearchRequest(null), task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 if (request.scroll() != null && request.scroll().keepAlive() != null) {
-                    checkKeepAliveLimit(request.scroll().keepAlive().millis());
-                    reader.keepAlive(request.scroll().keepAlive().millis());
+                    final long keepAlive = request.scroll().keepAlive().millis();
+                    checkKeepAliveLimit(keepAlive);
+                    reader.keepAlive(keepAlive);
                 }
                 reader.indexShard().getSearchOperationListener().validateSearchContext(context, request);
                 context.searcher().setAggregatedDfs(reader.getAggregatedDfs(null));
@@ -612,8 +614,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
-            ReaderContext readerContext = findReaderContext(request.readerId());
-            final long keepAlive = getKeepAlive(request);
+            assert keepStatesInContext == false;
+            // NORELEASE: either wrap the searcher with the right security context or make sure the user owns it.
+            final ReaderContext readerContext = findReaderContext(request.readerId());
+            final long keepAlive = request.keepAlive().millis();
             checkKeepAliveLimit(keepAlive);
             readerContext.keepAlive(keepAlive);
             return readerContext;
@@ -626,6 +630,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final ReaderContext createAndPutReaderContext(ShardSearchRequest request, IndexShard shard,
                                                   Engine.Searcher engineSearcher, boolean keepStatesInContext) {
+        assert request.readerId() == null;
+        assert request.keepAlive() == null;
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -638,17 +644,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
                 }
             }
-            final long keepAlive = getKeepAlive(request);
-            checkKeepAliveLimit(keepAlive);
             if (keepStatesInContext || request.scroll() != null) {
+                long keepAlive = defaultKeepAlive;
+                if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                    keepAlive = request.scroll().keepAlive().millis();
+                    checkKeepAliveLimit(keepAlive);
+                }
                 readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, request, keepAlive);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);
                     decreaseScrollContexts = null;
                 }
             } else {
-                readerContext = new ReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, keepAlive,
-                    request.keepAlive() == null);
+                readerContext = new ReaderContext(idGenerator.incrementAndGet(), shard, engineSearcher, defaultKeepAlive, true);
             }
             engineSearcher = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -672,6 +680,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             Releasables.close(engineSearcher, readerContext, decreaseScrollContexts);
         }
+    }
+
+    /**
+     * Opens the reader context for given shardId. The newly opened reader context will be keep
+     * until the {@code keepAlive} elapsed unless it is manually released.
+     */
+    public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<SearchContextId> listener) {
+        checkKeepAliveLimit(keepAlive.millis());
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final IndexShard shard = indexService.getShard(shardId.id());
+        final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+        shard.awaitShardSearchActive(ignored ->
+            runAsync(shard, () -> {
+                Releasable releasable = null;
+                try {
+                    final Engine.Searcher engineSearcher = shard.acquireSearcher("search");
+                    releasable = engineSearcher;
+                    final ReaderContext readerContext = new ReaderContext(
+                        idGenerator.incrementAndGet(), shard, engineSearcher, keepAlive.millis(), false);
+                    releasable = readerContext;
+                    searchOperationListener.onNewReaderContext(readerContext);
+                    readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(readerContext));
+                    putReaderContext(readerContext);
+                    releasable = null;
+                    return readerContext.id();
+                } finally {
+                    Releasables.close(releasable);
+                }
+            }, listener)
+        );
     }
 
     final SearchContext createContext(ReaderContext reader,
@@ -784,8 +822,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private long getKeepAlive(ShardSearchRequest request) {
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
             return request.scroll().keepAlive().millis();
-        } else if (request.keepAlive() != null) {
-            return request.keepAlive().millis();
         } else {
             return defaultKeepAlive;
         }
@@ -1085,6 +1121,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        // TODO: support can_match with reader contexts after https://github.com/elastic/elasticsearch/pull/54966
+        assert request.readerId() == null : "request with reader_id bypass can_match phase";
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         // we don't want to use the reader wrapper since it could run costly operations

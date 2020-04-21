@@ -1020,6 +1020,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         latch.await();
     }
 
+    public void testOpenReaderContext() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        PlainActionFuture<SearchContextId> future = new PlainActionFuture<>();
+        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        future.actionGet();
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
     private ReaderContext createReaderContext(IndexShard shard) {
         Engine.Searcher searcher = shard.acquireSearcher("test");
         return new ReaderContext(randomNonNegativeLong(), shard, searcher, randomNonNegativeLong(), false);

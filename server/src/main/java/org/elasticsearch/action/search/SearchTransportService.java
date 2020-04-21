@@ -78,6 +78,7 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String SHARD_OPEN_READER_NAME = "indices:data/read/shard_open_reader";
 
     private final TransportService transportService;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
@@ -166,6 +167,13 @@ public class SearchTransportService {
     public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
                                        final SearchActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
+    }
+
+    void sendShardOpenReader(Transport.Connection connection, SearchTask task,
+                             TransportOpenReaderAction.ShardOpenReaderRequest request,
+                             ActionListener<TransportOpenReaderAction.ShardOpenReaderResponse> listener) {
+        transportService.sendChildRequest(connection, SHARD_OPEN_READER_NAME, request, task,
+            new ActionListenerResponseHandler<>(listener, TransportOpenReaderAction.ShardOpenReaderResponse::new));
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
@@ -362,6 +370,16 @@ public class SearchTransportService {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
+
+        transportService.registerRequestHandler(SHARD_OPEN_READER_NAME, ThreadPool.Names.SAME,
+            TransportOpenReaderAction.ShardOpenReaderRequest::new,
+            (request, channel, task) -> {
+                searchService.openReaderContext(request.searchShardTarget.getShardId(), request.keepAlive,
+                    ActionListener.map(new ChannelActionListener<>(channel, SHARD_OPEN_READER_NAME, request),
+                        contextId -> new TransportOpenReaderAction.ShardOpenReaderResponse(contextId, request.searchShardTarget)));
+            });
+        TransportActionProxy.registerProxyAction(
+            transportService, SHARD_OPEN_READER_NAME, TransportOpenReaderAction.ShardOpenReaderResponse::new);
     }
 
 

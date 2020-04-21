@@ -36,10 +36,10 @@ pre-7.7 default behaviour by adjusting your {ref}/logging.html[logging].
 ==== Validation for dynamic templates
 
 So far misconfiguration of dynamic templates have been discovered when indexing
-a document with an unmapped field only. In 8.0 and later the dynamic mappings
-have stricter validation done at mapping update time and invalid updates - e.g.
-incorrect analyzer settings or unknown field types used - are failed. For
-indices created in 7.7 and later the update succeeds, but a warning is emitted.
+a document with an unmapped field only. In {es} 8.0 and later versions, dynamic mappings
+have stricter validation, done at mapping update time. Invalid updates, such as using
+incorrect analyzer settings or unknown field types, fail. For
+indices created in {es} 7.7 and later version, the update succeeds but emits a warning.
 
 
 [discrete]

@@ -119,7 +119,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            int expectedStep = stoppedBeforeFinished ? 3 : 5;
+            int expectedStep = stoppedBeforeFinished ? 1 : 5;
             assertThat(step, equalTo(expectedStep));
             ++step;
             next.run();

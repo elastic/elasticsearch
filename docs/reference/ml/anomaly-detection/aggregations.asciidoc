@@ -34,7 +34,7 @@ interval measured in months because the length of the month is not fixed.
 {dfeeds-cap} tolerate weeks or smaller units.
 
 IMPORTANT: The name of the aggregation and the name of the field that the agg 
-operates on need to mach, otherwise the aggregation doesn't work. For example, 
+operates on need to match, otherwise the aggregation doesn't work. For example, 
 if you use a `max` aggregation on a time field called `responsetime`, the name 
 of the aggregation must be also `responsetime`.
 
@@ -139,7 +139,7 @@ that match values in the job configuration are fed to the job.
 [[aggs-dfeeds]]
 ==== Nested aggregations in {dfeeds}
 
-{dfeeds-cap} support complex nested aggregations, this example uses the 
+{dfeeds-cap} support complex nested aggregations. This example uses the 
 `derivative` pipeline aggregation to find the first order derivative of the 
 counter `system.network.out.bytes` for each value of the field `beat.name`.
 

@@ -80,7 +80,11 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         enabled = Boolean.TRUE.toString().equals(esSDNotify);
     }
 
-    final SetOnce<Scheduler.Cancellable> extender = new SetOnce<>();
+    private final SetOnce<Scheduler.Cancellable> extender = new SetOnce<>();
+
+    Scheduler.Cancellable extender() {
+        return extender.get();
+    }
 
     @Override
     public Collection<Object> createComponents(

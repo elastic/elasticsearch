@@ -90,13 +90,13 @@ public class StartDatafeedResponse implements ToXContentObject {
         }
 
         StartDatafeedResponse that = (StartDatafeedResponse) other;
-        return isStarted() == that.isStarted()
+        return started == started
             && Objects.equals(node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isStarted(), node);
+        return Objects.hash(started, node);
     }
 
     @Override

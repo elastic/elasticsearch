@@ -44,8 +44,8 @@ public class OpenJobResponse implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NODE);
     }
 
-    private boolean opened;
-    private String node;
+    private final boolean opened;
+    private final String node;
 
     OpenJobResponse(boolean opened, String node) {
         this.opened = opened;
@@ -88,13 +88,13 @@ public class OpenJobResponse implements ToXContentObject {
         }
 
         OpenJobResponse that = (OpenJobResponse) other;
-        return isOpened() == that.isOpened()
+        return opened == that.opened
             && Objects.equals(node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isOpened(), node);
+        return Objects.hash(opened, node);
     }
 
     @Override

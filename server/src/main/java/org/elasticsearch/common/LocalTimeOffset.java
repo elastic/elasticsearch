@@ -74,6 +74,13 @@ public abstract class LocalTimeOffset {
             return null;
         }
         if (transitions.size() < 3) {
+            /*
+             * Its actually quite common that there are *very* few transitions.
+             * This case where there are only two transitions covers an entire
+             * year of data! In any case, it is slightly faster to do the
+             * "simpler" thing and compare the start times instead of perform
+             * a binary search when there are so few offsets to look at.
+             */
             return new LinkedListLookup(zone, minUtcMillis, maxUtcMillis, transitions);
         }
         return new TransitionArrayLookup(zone, minUtcMillis, maxUtcMillis, transitions);

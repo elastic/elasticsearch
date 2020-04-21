@@ -30,13 +30,13 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATIO
 /**
  * A service that runs a periodic cleanup over the async execution index.
  */
-public abstract class AsyncTaskMaintenanceService<R extends AsyncResponse> implements Releasable, ClusterStateListener {
+public abstract class AsyncTaskMaintenanceService implements Releasable, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(AsyncTaskMaintenanceService.class);
 
     private final String index;
     private final String localNodeId;
     private final ThreadPool threadPool;
-    private final AsyncTaskIndexService<R> indexService;
+    private final AsyncTaskIndexService<?> indexService;
     private final TimeValue delay;
 
     private final AtomicBoolean isCleanupRunning = new AtomicBoolean(false);
@@ -46,7 +46,7 @@ public abstract class AsyncTaskMaintenanceService<R extends AsyncResponse> imple
     public AsyncTaskMaintenanceService(String index,
                                        String localNodeId,
                                        ThreadPool threadPool,
-                                       AsyncTaskIndexService<R> indexService,
+                                       AsyncTaskIndexService<?> indexService,
                                        TimeValue delay) {
         this.index = index;
         this.localNodeId = localNodeId;

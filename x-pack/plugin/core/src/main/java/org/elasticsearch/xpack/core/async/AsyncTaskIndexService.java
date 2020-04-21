@@ -146,12 +146,12 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
                             if (ExceptionsHelper.unwrapCause(exc) instanceof ResourceAlreadyExistsException) {
                                 listener.onResponse(null);
                             } else {
-                                logger.error("failed to create async task index", exc);
+                                logger.error("failed to create " + index + " index", exc);
                                 listener.onFailure(exc);
                             }
                         }));
             } catch (Exception exc) {
-                logger.error("failed to create async task index", exc);
+                logger.error("failed to create " + index + " index", exc);
                 listener.onFailure(exc);
             }
         } else {
@@ -326,7 +326,7 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
     /**
      * Encode the provided response in a binary form using base64 encoding.
      */
-    public String encodeResponse(R response) throws IOException {
+    String encodeResponse(R response) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Version.writeVersion(Version.CURRENT, out);
             response.writeTo(out);
@@ -337,7 +337,7 @@ public class AsyncTaskIndexService<R extends AsyncResponse> {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    public R decodeResponse(String value) throws IOException {
+    R decodeResponse(String value) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));

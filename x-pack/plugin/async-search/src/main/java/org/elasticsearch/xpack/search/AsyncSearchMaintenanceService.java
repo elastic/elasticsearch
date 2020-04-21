@@ -10,13 +10,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
-public class AsyncSearchMaintenanceService extends AsyncTaskMaintenanceService<AsyncSearchResponse> {
+public class AsyncSearchMaintenanceService extends AsyncTaskMaintenanceService {
 
     AsyncSearchMaintenanceService(String localNodeId,
                                   ThreadPool threadPool,
-                                  AsyncTaskIndexService<AsyncSearchResponse> indexService,
+                                  AsyncTaskIndexService<?> indexService,
                                   TimeValue delay) {
         super(AsyncSearch.INDEX, localNodeId, threadPool, indexService, delay);
     }

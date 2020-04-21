@@ -33,10 +33,13 @@ import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
@@ -49,29 +52,12 @@ public class NodeInfo extends BaseNodeResponse {
     @Nullable
     private Settings settings;
 
-    @Nullable
-    private OsInfo os;
-
-    @Nullable
-    private ProcessInfo process;
-
-    @Nullable
-    private JvmInfo jvm;
-
-    @Nullable
-    private ThreadPoolInfo threadPool;
-
-    @Nullable
-    private TransportInfo transport;
-
-    @Nullable
-    private HttpInfo http;
-
-    @Nullable
-    private PluginsAndModules plugins;
-
-    @Nullable
-    private IngestInfo ingest;
+    /**
+     * Do not expose this map to other classes. For type safety, use {@link #getInfo(Class)}
+     * to retrieve items from this map and {@link #addInfoIfNonNull(Class, ReportingService.Info)}
+     * to retrieve items from it.
+     */
+    private Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
 
     @Nullable
     private ByteSizeValue totalIndexingBuffer;
@@ -88,14 +74,14 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
-        os = in.readOptionalWriteable(OsInfo::new);
-        process = in.readOptionalWriteable(ProcessInfo::new);
-        jvm = in.readOptionalWriteable(JvmInfo::new);
-        threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
-        transport = in.readOptionalWriteable(TransportInfo::new);
-        http = in.readOptionalWriteable(HttpInfo::new);
-        plugins = in.readOptionalWriteable(PluginsAndModules::new);
-        ingest = in.readOptionalWriteable(IngestInfo::new);
+        addInfoIfNonNull(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
+        addInfoIfNonNull(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
+        addInfoIfNonNull(JvmInfo.class, in.readOptionalWriteable(JvmInfo::new));
+        addInfoIfNonNull(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
+        addInfoIfNonNull(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
+        addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
+        addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
+        addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
@@ -106,14 +92,14 @@ public class NodeInfo extends BaseNodeResponse {
         this.version = version;
         this.build = build;
         this.settings = settings;
-        this.os = os;
-        this.process = process;
-        this.jvm = jvm;
-        this.threadPool = threadPool;
-        this.transport = transport;
-        this.http = http;
-        this.plugins = plugins;
-        this.ingest = ingest;
+        addInfoIfNonNull(OsInfo.class, os);
+        addInfoIfNonNull(ProcessInfo.class, process);
+        addInfoIfNonNull(JvmInfo.class, jvm);
+        addInfoIfNonNull(ThreadPoolInfo.class, threadPool);
+        addInfoIfNonNull(TransportInfo.class, transport);
+        addInfoIfNonNull(HttpInfo.class, http);
+        addInfoIfNonNull(PluginsAndModules.class, plugins);
+        addInfoIfNonNull(IngestInfo.class, ingest);
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
@@ -148,57 +134,32 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     /**
-     * Operating System level information.
+     * Get a particular info object, e.g. {@link JvmInfo} or {@link OsInfo}. This
+     * generic method handles all casting in order to spare client classes the
+     * work of explicit casts. This {@link NodeInfo} class guarantees type
+     * safety for these stored info blocks.
+     *
+     * @param clazz Class for retrieval.
+     * @param <T>   Specific subtype of ReportingService.Info to retrieve.
+     * @return      An object of type T.
      */
-    @Nullable
-    public OsInfo getOs() {
-        return this.os;
-    }
-
-    /**
-     * Process level information.
-     */
-    @Nullable
-    public ProcessInfo getProcess() {
-        return process;
-    }
-
-    /**
-     * JVM level information.
-     */
-    @Nullable
-    public JvmInfo getJvm() {
-        return jvm;
-    }
-
-    @Nullable
-    public ThreadPoolInfo getThreadPool() {
-        return this.threadPool;
-    }
-
-    @Nullable
-    public TransportInfo getTransport() {
-        return transport;
-    }
-
-    @Nullable
-    public HttpInfo getHttp() {
-        return http;
-    }
-
-    @Nullable
-    public PluginsAndModules getPlugins() {
-        return this.plugins;
-    }
-
-    @Nullable
-    public IngestInfo getIngest() {
-        return ingest;
+    public <T extends ReportingService.Info> T getInfo(Class<T> clazz) {
+        return clazz.cast(infoMap.get(clazz));
     }
 
     @Nullable
     public ByteSizeValue getTotalIndexingBuffer() {
         return totalIndexingBuffer;
+    }
+
+    /**
+     * Add a value to the map of information blocks. This method guarantees the
+     * type safety of the storage of heterogeneous types of reporting service information.
+     */
+    private <T extends ReportingService.Info> void addInfoIfNonNull(Class<T> clazz, T info) {
+        if (info != null) {
+            infoMap.put(clazz, info);
+        }
     }
 
     @Override
@@ -218,13 +179,13 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             Settings.writeSettingsToStream(settings, out);
         }
-        out.writeOptionalWriteable(os);
-        out.writeOptionalWriteable(process);
-        out.writeOptionalWriteable(jvm);
-        out.writeOptionalWriteable(threadPool);
-        out.writeOptionalWriteable(transport);
-        out.writeOptionalWriteable(http);
-        out.writeOptionalWriteable(plugins);
-        out.writeOptionalWriteable(ingest);
+        out.writeOptionalWriteable(getInfo(OsInfo.class));
+        out.writeOptionalWriteable(getInfo(ProcessInfo.class));
+        out.writeOptionalWriteable(getInfo(JvmInfo.class));
+        out.writeOptionalWriteable(getInfo(ThreadPoolInfo.class));
+        out.writeOptionalWriteable(getInfo(TransportInfo.class));
+        out.writeOptionalWriteable(getInfo(HttpInfo.class));
+        out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
+        out.writeOptionalWriteable(getInfo(IngestInfo.class));
     }
 }

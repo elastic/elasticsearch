@@ -182,13 +182,18 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                 backingIndicesToRemove.addAll(dataStream.getIndices());
                 dataStreamsToRemove.add(dataStreamName);
             }
-            currentState = deleteIndexService.deleteIndices(currentState, backingIndicesToRemove);
+
+            // first delete the data streams and then the indices:
+            // (this to avoid data stream validation from failing when deleting an index that is part of a data stream
+            // without updating the data stream)
+            // TODO: change order when delete index api also updates the data stream the index to be removed is member of
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             for (String ds : dataStreamsToRemove) {
                 logger.info("removing data stream [{}]", ds);
                 metadata.removeDataStream(ds);
             }
-            return ClusterState.builder(currentState).metadata(metadata).build();
+            currentState = ClusterState.builder(currentState).metadata(metadata).build();
+            return deleteIndexService.deleteIndices(currentState, backingIndicesToRemove);
         }
 
         @Override

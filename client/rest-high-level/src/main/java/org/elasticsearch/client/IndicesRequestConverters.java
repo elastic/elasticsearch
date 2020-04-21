@@ -113,6 +113,9 @@ final class IndicesRequestConverters {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+        if (createIndexRequest.preferV2Templates() != null) {
+            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(createIndexRequest.preferV2Templates()));
+        }
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(createIndexRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -170,7 +173,6 @@ final class IndicesRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
         parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
-        parameters.withLocal(getFieldMappingsRequest.local());
         request.addParameters(parameters.asMap());
         return request;
     }

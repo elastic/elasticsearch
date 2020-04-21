@@ -13,6 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -21,6 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -66,16 +68,22 @@ public class SqlInfoTransportActionTests extends ESTestCase {
     public void testEnabled() {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
+        boolean isExplicitlySet = false;
         if (enabled) {
             if (randomBoolean()) {
                 settings.put("xpack.sql.enabled", enabled);
+                isExplicitlySet = true;
             }
         } else {
             settings.put("xpack.sql.enabled", enabled);
+            isExplicitlySet = true;
         }
         SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
+        if (isExplicitlySet) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.SQL_ENABLED } );
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -114,11 +122,11 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();
-        
+
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());
         long fooFoo = ObjectPath.eval("foo.foo", sqlUsage.stats());
         long spam = ObjectPath.eval("spam", sqlUsage.stats());
-        
+
         assertThat(sqlUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         assertThat(fooBarBaz, is(5L));
         assertThat(fooFoo, is(1L));

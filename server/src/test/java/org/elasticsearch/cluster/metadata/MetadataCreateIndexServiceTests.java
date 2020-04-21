@@ -79,6 +79,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -777,7 +778,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertThat(
             expectThrows(IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state)).getMessage(),
+                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state, null)).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
     }
@@ -801,10 +802,41 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         };
 
         ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata,
-            rerouteRoutingTable);
+            rerouteRoutingTable, null);
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         assertThat(allocationRerouted.get(), is(true));
+    }
+
+    public void testClusterStateCreateIndexWithMetadataTransaction() {
+        ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder()
+                .put(IndexMetadata.builder("my-index")
+                    .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)))
+            .build();
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
+            .build();
+
+        // adds alias from new index to existing index
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
+            AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
+            IndexMetadata myIndex = builder.get("my-index");
+            builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
+        };
+
+        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata,
+            (clusterState, y) -> clusterState, metadataTransformer);
+        assertTrue(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).containsKey("my-index"));
+        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index"));
+        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index").get(0).alias(),
+            equalTo("alias1"));
     }
 
     public void testParseMappingsWithTypedTemplateAndTypelessIndexMapping() throws Exception {

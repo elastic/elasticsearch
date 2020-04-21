@@ -31,7 +31,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -119,6 +121,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        final String dataStreamName = "logs-foobar";
+        final String otherDataStreamName = "logs-foo";
+        IndexMetadata dataStreamIndex1 = DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build();
+        IndexMetadata dataStreamIndex2 = DataStreamTestHelper.createBackingIndex(dataStreamName, 2).build();
+        IndexMetadata dataStreamIndex3 = DataStreamTestHelper.createBackingIndex(otherDataStreamName, 1).build();
         Metadata metadata = Metadata.builder()
                 .put(indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar"))
                         .putAlias(AliasMetadata.builder("foounauthorized")).settings(settings))
@@ -155,6 +162,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("visible-w-aliases").settings(Settings.builder().put(settings).build())
                     .putAlias(AliasMetadata.builder("alias-visible").build())
                     .putAlias(AliasMetadata.builder("alias-visible-mixed").isHidden(false).build()))
+                .put(dataStreamIndex1, true)
+                .put(dataStreamIndex2, true)
+                .put(dataStreamIndex3, true)
+                .put(new DataStream(dataStreamName, "ts", List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
+                .put(new DataStream(otherDataStreamName, "ts", List.of(dataStreamIndex3.getIndex())))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
 
         if (withAlias) {
@@ -186,6 +198,20 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     .build()
             }, null));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        roleMap.put("data_stream_test1", new RoleDescriptor("data_stream_test1", null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                    .indices(dataStreamName + "*")
+                    .privileges("all")
+                    .build()
+            }, null));
+        roleMap.put("data_stream_test2", new RoleDescriptor("data_stream_test2", null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                    .indices(otherDataStreamName + "*")
+                    .privileges("all")
+                    .build()
+            }, null));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
             ActionListener callback =
@@ -1428,7 +1454,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // closed + hidden, ignore aliases
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false, true));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
@@ -1444,7 +1470,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // allow no indices, do not expand to open or closed, expand hidden, ignore aliases
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, false, false, false, true, false, true, false));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, false, false, false, true, false, true, false, true));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
@@ -1486,17 +1512,53 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // Make sure ignoring aliases works (visible only)
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, false, true, false));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (including hidden)
         searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, false, true, false));
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, false, true, false, true));
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
+    }
+
+    public void testDataStreamResolution() {
+        {
+            final User user = new User("data-steam-tester1", "data_stream_test1");
+            final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+
+            // Resolve data streams:
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.indices("logs-*");
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true, true));
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+            assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+            // Ignore data streams:
+            searchRequest = new SearchRequest();
+            searchRequest.indices("logs-*");
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true, false));
+            resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+            // if data streams are to be ignored then this happens in IndexNameExpressionResolver:
+            assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+        }
+        {
+            final User user = new User("data-steam-tester2", "data_stream_test2");
+            final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+
+            // Resolve *all* data streams:
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.indices("logs-*");
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true, true));
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+            assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
+            assertThat(resolvedIndices.getRemote(), emptyIterable());
+        }
     }
 
     private List<String> buildAuthorizedIndices(User user, String action) {

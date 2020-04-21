@@ -158,7 +158,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
     private int maxSizeInBytes;
 
-    private final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
+    // package private for tests
+    final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         this.engines = Objects.requireNonNull(engines);
@@ -241,7 +242,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);
-        this.setCacheHolder(settings, cacheHolder);
+        this.setCacheHolder(settings);
     }
 
     /**
@@ -269,7 +270,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
         // Handle all settings for context and general caches, this flips between general and context caches.
         clusterSettings.addSettingsUpdateConsumer(
-            (settings) -> setCacheHolder(settings, cacheHolder),
+            (settings) -> setCacheHolder(settings),
             List.of(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
                     SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                     SCRIPT_GENERAL_CACHE_SIZE_SETTING,
@@ -583,7 +584,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         clusterState = event.state();
     }
 
-    void setCacheHolder(Settings settings, AtomicReference<CacheHolder> cacheHolder) {
+    void setCacheHolder(Settings settings) {
         CacheHolder current = cacheHolder.get();
         boolean useContext = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
 
@@ -700,15 +701,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         /**
          * Update a single context cache if we're in the context cache mode otherwise no-op.
          */
-        void set(String name, ScriptCache context) {
+        void set(String name, ScriptCache cache) {
             if (general != null) {
                 return;
             }
             AtomicReference<ScriptCache> ref = contextCache.get(name);
             assert ref != null : "expected script cache to exist for context [" + name + "]";
-            ScriptCache cache = ref.get();
-            assert cache != null : "expected script cache to be non-null for context [" + name + "]";
-            ref.set(context);
+            ScriptCache oldCache = ref.get();
+            assert oldCache != null : "expected script cache to be non-null for context [" + name + "]";
+            ref.set(cache);
             logger.debug("Replaced context [" + name + "] with new settings");
         }
     }

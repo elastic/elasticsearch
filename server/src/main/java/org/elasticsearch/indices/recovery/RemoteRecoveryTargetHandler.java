@@ -249,8 +249,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("recovery was cancelled");
         // Dispatch to generic as cancellation calls can come on the cluster state applier thread
         threadPool.generic().execute(() -> {
-            for (Map.Entry<Object, RetryableAction<?>> action : onGoingRetryableActions.entrySet()) {
-                action.getValue().cancel(exception);
+            for (RetryableAction<?> action : onGoingRetryableActions.values()) {
+                action.cancel(exception);
             }
             onGoingRetryableActions.clear();
         });

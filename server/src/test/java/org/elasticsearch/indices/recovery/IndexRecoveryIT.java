@@ -755,7 +755,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             ).get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        int numDocs = scaledRandomIntBetween(6000, 8000);
+        int numDocs = scaledRandomIntBetween(100, 8000);
         // Index 3/4 of the documents and flush. And then index the rest. This attempts to ensure that there
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);

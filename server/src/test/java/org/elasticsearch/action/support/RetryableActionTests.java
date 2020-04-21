@@ -31,7 +31,6 @@ import org.junit.Before;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RetryableActionTests extends ESTestCase {
@@ -103,9 +102,7 @@ public class RetryableActionTests extends ESTestCase {
             assertTrue(taskQueue.hasDeferredTasks());
             final long deferredExecutionTime = taskQueue.getLatestDeferredExecutionTime();
             final long millisBound = 10 << i;
-            final long previousMillisBound = 10 << i - 1;
             assertThat(deferredExecutionTime, lessThanOrEqualTo(millisBound + previousDeferredTime));
-            assertThat(deferredExecutionTime, greaterThanOrEqualTo(previousMillisBound + previousDeferredTime));
             previousDeferredTime = deferredExecutionTime;
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();

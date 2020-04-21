@@ -89,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -1015,7 +1016,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             + "]");
                 }
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                final SnapshotsInProgress.Entry snapshotEntry = findInProgressSnapshot(snapshots, snapshotNames, repositoryName);
+                final SnapshotsInProgress.Entry snapshotEntry;
+                if (snapshotNames.size() == 1) {
+                    final String snapshotName = snapshotNames.iterator().next();
+                    if (Regex.isSimpleMatchPattern(snapshotName)) {
+                        snapshotEntry = null;
+                    } else {
+                        snapshotEntry = findInProgressSnapshot(snapshots, snapshotName, repositoryName);
+                    }
+                } else {
+                    snapshotEntry = null;
+                }
                 if (snapshotEntry == null) {
                     return currentState;
                 }
@@ -1083,29 +1094,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (runningSnapshot == null) {
-                    resolveAndDeleteSnapshots(snapshotNames, listener, repositoryName);
+                    threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+                            repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
+                                    deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotNames, repositoryName),
+                                            repositoryName, repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
                     return;
                 }
                 logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
                 addListener(runningSnapshot, ActionListener.wrap(
                     result -> {
                         logger.debug("deleted snapshot completed - deleting files");
-                        final RepositoryData newRepoData = result.v1();
-                        final List<SnapshotId> foundSnapshots = matchingSnapshotIds(newRepoData, snapshotNames, repositoryName);
-                        assert foundSnapshots.contains(runningSnapshot.getSnapshotId()) : "Expected new RepositoryData to contain ["
-                                + runningSnapshot + "] but it only contained snapshots " + newRepoData.getSnapshotIds();
-                        deleteCompletedSnapshots(foundSnapshots, repositoryName, newRepoData.getGenId(), Priority.IMMEDIATE, listener);
+                        deleteCompletedSnapshots(Collections.singletonList(result.v2().snapshotId()), repositoryName,
+                                result.v1().getGenId(), Priority.IMMEDIATE, listener);
                     },
                     e -> {
                         if (abortedDuringInit) {
                             logger.info("Successfully aborted snapshot [{}]", runningSnapshot);
-                            final Collection<String> remainingPatterns = new ArrayList<>(snapshotNames);
-                            remainingPatterns.remove(runningSnapshot.getSnapshotId().getName());
-                            if (remainingPatterns.isEmpty()) {
-                                listener.onResponse(null);
-                                return;
-                            }
-                            resolveAndDeleteSnapshots(remainingPatterns, listener, repositoryName);
+                            listener.onResponse(null);
                         } else {
                             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
                                 != null) {
@@ -1120,16 +1125,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                 ));
-            }
-
-            // load latest repository data and run delete for all matching snapshots
-            private void resolveAndDeleteSnapshots(Collection<String> snapshotsOrPatterns, ActionListener<Void> listener,
-                                                   String repositoryName) {
-                assert snapshotsOrPatterns.isEmpty() == false;
-                threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
-                        repositoriesService.repository(repositoryName).getRepositoryData(ActionListener.wrap(repositoryData ->
-                                deleteCompletedSnapshots(matchingSnapshotIds(repositoryData, snapshotsOrPatterns, repositoryName),
-                                        repositoryName, repositoryData.getGenId(), Priority.NORMAL, l), l::onFailure))));
             }
         });
     }
@@ -1160,19 +1155,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     // Return in-progress snapshot entry by name and repository in the given cluster state or null if none is found
     @Nullable
-    private static SnapshotsInProgress.Entry findInProgressSnapshot(@Nullable SnapshotsInProgress snapshots,
-                                                                    Collection<String> snapshotNames, String repositoryName) {
+    private static SnapshotsInProgress.Entry findInProgressSnapshot(@Nullable SnapshotsInProgress snapshots, String snapshotName,
+                                                                    String repositoryName) {
         if (snapshots == null) {
             return null;
         }
-        final String[] snapshotsOrPatterns = snapshotNames.toArray(Strings.EMPTY_ARRAY);
+        SnapshotsInProgress.Entry snapshotEntry = null;
         for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
             if (entry.repository().equals(repositoryName)
-                    && Regex.simpleMatch(snapshotsOrPatterns, entry.snapshot().getSnapshotId().getName())) {
-                return entry;
+                && entry.snapshot().getSnapshotId().getName().equals(snapshotName)) {
+                snapshotEntry = entry;
+                break;
             }
         }
-        return null;
+        return snapshotEntry;
     }
 
     /**
@@ -1267,7 +1263,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Version minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final Repository repository = repositoriesService.repository(repositoryName);
-        for (SnapshotId snapshotId : snapshotIds.stream().filter(snapshotId -> excluded == null || excluded.contains(snapshotId) == false)
+        for (SnapshotId snapshotId : snapshotIds.stream().filter(excluded == null ? sn -> true : Predicate.not(excluded::contains))
                 .collect(Collectors.toList())) {
             final Version known = repositoryData.getVersion(snapshotId);
             // If we don't have the version cached in the repository data yet we load it from the snapshot info blobs

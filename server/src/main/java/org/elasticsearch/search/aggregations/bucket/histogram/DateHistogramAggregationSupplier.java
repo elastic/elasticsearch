@@ -37,7 +37,7 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
                      Rounding rounding,
-                     Rounding shardRounding,
+                     Rounding.Prepared preparedRounding,
                      BucketOrder order,
                      boolean keyed,
                      long minDocCount,

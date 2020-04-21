@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -33,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.RoundingPreparer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
@@ -49,7 +53,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             (DateHistogramAggregationSupplier) (String name,
                                                 AggregatorFactories factories,
                                                 Rounding rounding,
-                                                Rounding shardRounding,
+                                                Rounding.Prepared preparedRounding,
                                                 BucketOrder order,
                                                 boolean keyed,
                                                 long minDocCount,
@@ -59,7 +63,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                                 SearchContext aggregationContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) -> new DateHistogramAggregator(name,
-                factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds, (ValuesSource.Numeric) valuesSource,
+                factories, rounding, preparedRounding, order, keyed, minDocCount, extendedBounds, (ValuesSource.Numeric) valuesSource,
                 formatter, aggregationContext, parent, metadata));
 
         valuesSourceRegistry.register(DateHistogramAggregationBuilder.NAME,
@@ -67,7 +71,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             (DateHistogramAggregationSupplier) (String name,
                                                 AggregatorFactories factories,
                                                 Rounding rounding,
-                                                Rounding shardRounding,
+                                                Rounding.Prepared preparedRounding,
                                                 BucketOrder order,
                                                 boolean keyed,
                                                 long minDocCount,
@@ -84,7 +88,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                         + "]");
                 }
                 return new DateRangeHistogramAggregator(name,
-                    factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds, rangeValueSource, formatter,
+                    factories, rounding, preparedRounding, order, keyed, minDocCount, extendedBounds, rangeValueSource, formatter,
                     aggregationContext, parent, metadata); });
     }
 
@@ -128,15 +132,27 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, shardRounding, order, keyed,
+        Rounding.Prepared preparedRounding = prepareRounding();
+        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, preparedRounding, order, keyed,
             minDocCount, extendedBounds, valuesSource, config.format(), searchContext, parent, metadata);
+    }
+
+    private Rounding.Prepared prepareRounding() throws IOException {
+        if (config.script() != null) return shardRounding.prepareForUnknown();
+        if (config.missing() != null) return shardRounding.prepareForUnknown();
+        RoundingPreparer preparer = (RoundingPreparer)
+            queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(), RoundingPreparer.NAME);
+        if (preparer == null) {
+            return shardRounding.prepareForUnknown();
+        }
+        return preparer.prepare(config.fieldContext().fieldType(), queryShardContext.getIndexReader(), shardRounding);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
+        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
             null, config.format(), searchContext, parent, metadata);
     }
 }

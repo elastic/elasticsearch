@@ -35,15 +35,34 @@ import static java.util.Collections.unmodifiableList;
  * {@link #localToUtc(long, Strategy)} and {@link #localToFirstUtc(long)}.
  */
 public abstract class LocalTimeOffset {
+    /**
+     * Lookup offsets for a provided zone. This <strong>can</strong> fail if
+     * there are many transitions and the provided lookup would be very large.
+     *
+     * @return a lookup function of {@code null} if none could be built 
+     */
     public static LongFunction<LocalTimeOffset> lookup(ZoneId zone, long minUtcMillis, long maxUtcMillis) {
         if (minUtcMillis > maxUtcMillis) {
             throw new IllegalArgumentException("[" + minUtcMillis + "] must be <= [" + maxUtcMillis + "]");
         }
         ZoneRules rules = zone.getRules();
+        LocalTimeOffset fixed = checkForFixedZone(zone, rules);
+        if (fixed != null) {
+            return new FixedLookup(zone, fixed);
+        }
+        // NOCOMMIT it is really tempting to check if it is faster not to have the binary search when there are 2. That is common.
         // NOCOMMIT rework this
-        return FixedLookup.tryForZone(zone, rules)
-            .or(() -> PreBuiltOffsetLookup.tryForZone(zone, rules, minUtcMillis, maxUtcMillis))
-            .orElseGet(() -> null);
+        return PreBuiltOffsetLookup.tryForZone(zone, rules, minUtcMillis, maxUtcMillis).orElseGet(() -> null);
+    }
+
+    /**
+     * Lookup offsets without any known min or max time. This will generally
+     * fail if the provided zone isn't fixed.
+     *
+     * @return a lookup function of {@code null} if none could be built 
+     */
+    public static LocalTimeOffset lookupFixedOffset(ZoneId zone) {
+        return checkForFixedZone(zone, zone.getRules());
     }
 
     private final long millis;
@@ -274,14 +293,6 @@ public abstract class LocalTimeOffset {
     }
 
     static class FixedLookup implements LongFunction<LocalTimeOffset> {
-        static Optional<LongFunction<LocalTimeOffset>> tryForZone(ZoneId zone, ZoneRules rules) {
-            if (false == rules.isFixedOffset()) {
-                return Optional.empty();
-            }
-            LocalTimeOffset fixedTransition = new NoPrevious(rules.getOffset(Instant.EPOCH).getTotalSeconds() * 1000);
-            return Optional.of(new FixedLookup(zone, fixedTransition));
-        }
-
         private final ZoneId zone;
         private final LocalTimeOffset fixed;
 
@@ -299,6 +310,14 @@ public abstract class LocalTimeOffset {
         public String toString() {
             return String.format(Locale.ROOT, "FixedOffsetLookup[for %s at %s]", zone, fixed);
         }
+    }
+
+    private static LocalTimeOffset checkForFixedZone(ZoneId zone, ZoneRules rules) {
+        if (false == rules.isFixedOffset()) {
+            return null;
+        }
+        LocalTimeOffset fixedTransition = new NoPrevious(rules.getOffset(Instant.EPOCH).getTotalSeconds() * 1000);
+        return fixedTransition;
     }
 
     /**

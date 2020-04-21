@@ -34,14 +34,14 @@ import java.io.IOException;
  */
 class RoundingValuesSource extends ValuesSource.Numeric {
     private final ValuesSource.Numeric vs;
-    private final Rounding rounding;
+    private final Rounding.Prepared rounding;
 
     /**
      *
      * @param vs The original values source
      * @param rounding How to round the values
      */
-    RoundingValuesSource(Numeric vs, Rounding rounding) {
+    RoundingValuesSource(Numeric vs, Rounding.Prepared rounding) {
         this.vs = vs;
         this.rounding = rounding;
     }

@@ -57,7 +57,10 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final ValuesSource.Range valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
-    private final Rounding shardRounding;
+    /**
+     * The rounding prepared for rewriting the data in the shard.
+     */
+    private final Rounding.Prepared preparedRounding;
     private final BucketOrder order;
     private final boolean keyed;
 
@@ -66,7 +69,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding,
+    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
                                  BucketOrder order, boolean keyed,
                                  long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Range valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
@@ -74,7 +77,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
-        this.shardRounding = shardRounding;
+        this.preparedRounding = preparedRounding;
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
@@ -122,10 +125,10 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long startKey = shardRounding.round(from);
-                            final long endKey = shardRounding.round(to);
+                            final long startKey = preparedRounding.round(from);
+                            final long endKey = preparedRounding.round(to);
                             for (long  key = startKey > previousKey ? startKey : previousKey; key <= endKey;
-                                 key = shardRounding.nextRoundingValue(key)) {
+                                 key = preparedRounding.nextRoundingValue(key)) {
                                 if (key == previousKey) {
                                     continue;
                                 }

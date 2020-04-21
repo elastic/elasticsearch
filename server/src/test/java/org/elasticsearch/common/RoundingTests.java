@@ -39,7 +39,6 @@ import java.time.zone.ZoneOffsetTransition;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongUnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -233,7 +232,7 @@ public class RoundingTests extends ESTestCase {
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
             long[] bounds = randomDateBounds();
-            PreparedRounding prepared = rounding.prepare(bounds[0], bounds[1]);
+            Rounding.Prepared prepared = rounding.prepare(bounds[0], bounds[1]);
 
             // Check that rounding is internally consistent and consistent with nextRoundingValue
             long date = dateBetween(bounds[0], bounds[1]);
@@ -259,7 +258,7 @@ public class RoundingTests extends ESTestCase {
             }
 
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
-            PreparedRounding javaTimeRounding = rounding.prepareJavaTime();
+            Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
             for (int d = 0; d < 1000; d++) {
                 date = dateBetween(bounds[0], bounds[1]);
                 long javaRounded = javaTimeRounding.round(date);

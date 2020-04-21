@@ -113,7 +113,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
-                        long rounded = roundingInfos[roundingIdx].rounding.round(value);
+                        long rounded = roundingInfos[roundingIdx].rounding.round(value);  // NOCOMMIT prepare rounding
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -141,7 +141,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     Rounding newRounding = roundingInfos[++roundingIdx].rounding;
                     for (int i = 0; i < oldBucketOrds.size(); i++) {
                         long oldKey = oldBucketOrds.get(i);
-                        long newKey = newRounding.round(oldKey);
+                        long newKey = newRounding.round(oldKey);  // NOCOMMIT prepare rounding
                         long newBucketOrd = newBucketOrds.add(newKey);
                         if (newBucketOrd >= 0) {
                             mergeMap[i] = newBucketOrd;

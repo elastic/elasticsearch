@@ -50,7 +50,7 @@ public class RoundingBenchmark {
     private long min;
     private long max; 
     private long[] dates;
-    private Supplier<PreparedRounding> rounderBuilder;
+    private Supplier<Rounding.Prepared> rounderBuilder;
 
     @Setup
     public void buildDates() {
@@ -82,7 +82,7 @@ public class RoundingBenchmark {
 
     @Benchmark
     public void round(Blackhole bh) {
-        PreparedRounding rounder = rounderBuilder.get();
+        Rounding.Prepared rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
             bh.consume(rounder.round(dates[i]));
         }
@@ -90,7 +90,7 @@ public class RoundingBenchmark {
 
     @Benchmark
     public void nextRoundingValue(Blackhole bh) {
-        PreparedRounding rounder = rounderBuilder.get();
+        Rounding.Prepared rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
             bh.consume(rounder.nextRoundingValue(dates[i]));
         }

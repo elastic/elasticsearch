@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LocalTimeOffsetTests extends ESTestCase {
+    // NOCOMMIT test for checking for lookupFixedOffset
     public void testUtc() {
         LongFunction<LocalTimeOffset> lookup = unbound(ZoneId.of("UTC"));
         assertThat(lookup, instanceOf(FixedLookup.class));

@@ -3,7 +3,7 @@
 
 Sometimes reducing the number of shards in a cluster while maintaining the
 same amount of data will lead to a more effective use of system resources
-(CPU, RAM, IO). In these situations, we consider the cluster “oversharded”.
+(CPU, RAM, IO). In these situations, we consider the cluster _oversharded_.
 
 The number of shards where this inflection point occurs depends on a variety
 of factors, including:

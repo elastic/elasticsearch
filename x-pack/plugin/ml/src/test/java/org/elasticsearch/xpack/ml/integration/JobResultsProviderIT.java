@@ -90,7 +90,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
@@ -319,7 +319,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         List<Calendar> updatedCalendars = getCalendars(null);
         assertEquals(5, updatedCalendars.size());
         for (Calendar cal: updatedCalendars) {
-            assertThat("bar", not(isIn(cal.getJobIds())));
+            assertThat("bar", is(not(in(cal.getJobIds()))));
         }
 
         Calendar catFoo = getCalendar("cat foo calendar");
@@ -341,8 +341,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         updatedCalendars = getCalendars(null);
         assertEquals(5, updatedCalendars.size());
         for (Calendar cal: updatedCalendars) {
-            assertThat("bar", not(isIn(cal.getJobIds())));
-            assertThat("cat", not(isIn(cal.getJobIds())));
+            assertThat("bar", is(not(in(cal.getJobIds()))));
+            assertThat("cat", is(not(in(cal.getJobIds()))));
         }
     }
 

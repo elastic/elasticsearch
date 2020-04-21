@@ -52,3 +52,8 @@ deprecated in 7.6, and are now removed in 8.x. The form
 `cosineSimilarity(query, doc['field'])` is replaced by
 `cosineSimilarity(query, 'field')`.
 
+[float]
+==== Object format for `indices_boost`
+The `indices_boost` option in the search request used to accept the boosts
+both as an object and as an array. The object format has been deprecated since
+5.2 and is now removed in 8.0.

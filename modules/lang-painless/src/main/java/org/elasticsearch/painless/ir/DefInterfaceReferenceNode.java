@@ -44,7 +44,8 @@ public class DefInterfaceReferenceNode extends ReferenceNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
-        // place holder for
+        // place holder for functional interface receiver
+        // which is resolved and replace at runtime
         methodWriter.push((String)null);
 
         for (String capture : getCaptures()) {

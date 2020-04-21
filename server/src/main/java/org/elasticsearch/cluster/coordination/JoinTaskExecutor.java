@@ -37,8 +37,12 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -124,6 +128,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // we only enforce major version transitions on a fully formed clusters
         final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
+        Map<String, String> joiniedNodeNameIds = new HashMap<>();
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {
                 // noop
@@ -143,6 +148,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
+                    if (node.isMasterNode()) {
+                        joiniedNodeNameIds.put(node.getName(), node.getId());
+                    }
                 } catch (IllegalArgumentException | IllegalStateException e) {
                     results.failure(joinTask, e);
                     continue;
@@ -150,10 +158,36 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             }
             results.success(joinTask);
         }
+
         if (nodesChanged) {
             rerouteService.reroute("post-join reroute", Priority.HIGH, ActionListener.wrap(
                 r -> logger.trace("post-join reroute completed"),
                 e -> logger.debug("post-join reroute failed", e)));
+
+            if (joiniedNodeNameIds.isEmpty() == false) {
+                Set<CoordinationMetadata.VotingConfigExclusion> currentVotingConfigExclusions = currentState.getVotingConfigExclusions();
+                Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusions = currentVotingConfigExclusions.stream()
+                    .map(e -> {
+                        // Update nodeId in VotingConfigExclusion when a new node with excluded node name joins
+                        if (CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER.equals(e.getNodeId()) &&
+                            joiniedNodeNameIds.containsKey(e.getNodeName())) {
+                            return new CoordinationMetadata.VotingConfigExclusion(joiniedNodeNameIds.get(e.getNodeName()), e.getNodeName());
+                        } else {
+                            return e;
+                        }
+                    }).collect(Collectors.toSet());
+
+                // if VotingConfigExclusions did get updated
+                if (newVotingConfigExclusions.equals(currentVotingConfigExclusions) == false) {
+                    CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata())
+                        .clearVotingConfigExclusions();
+                    newVotingConfigExclusions.forEach(coordMetadataBuilder::addVotingConfigExclusion);
+                    Metadata newMetadata = Metadata.builder(currentState.metadata())
+                                                    .coordinationMetadata(coordMetadataBuilder.build()).build();
+                    return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder)
+                                                                                            .metadata(newMetadata).build()));
+                }
+            }
 
             return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
         } else {

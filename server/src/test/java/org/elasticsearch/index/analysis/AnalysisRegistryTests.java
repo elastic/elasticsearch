@@ -80,8 +80,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
             return singletonList(PreConfiguredTokenFilter.singleton("reverse", true, ReverseStringFilter::new));
         }
-    }    
-    
+    }
+
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
         return IndexSettingsModule.newIndexSettings("index", settings
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -153,29 +153,29 @@ public class AnalysisRegistryTests extends ESTestCase {
                         emptyMap(), emptyMap(), emptyMap()));
         assertEquals("analyzer [default] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
     }
-    
-    
+
+
     public void testNameClashNormalizer() throws IOException {
-        
+
         // Test out-of-the-box normalizer works OK.
         IndexAnalyzers indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY));
         assertNotNull(indexAnalyzers.getNormalizer("lowercase"));
         assertThat(indexAnalyzers.getNormalizer("lowercase").normalize("field", "AbC").utf8ToString(), equalTo("abc"));
-        
-        // Test that a name clash with a custom normalizer will favour the index's normalizer rather than the out-of-the-box 
-        // one of the same name. (However this "feature" will be removed with https://github.com/elastic/elasticsearch/issues/22263 ) 
+
+        // Test that a name clash with a custom normalizer will favour the index's normalizer rather than the out-of-the-box
+        // one of the same name. (However this "feature" will be removed with https://github.com/elastic/elasticsearch/issues/22263 )
         Settings settings = Settings.builder()
             // Deliberately bad choice of normalizer name for the job it does.
             .put("index.analysis.normalizer.lowercase.type", "custom")
             .putList("index.analysis.normalizer.lowercase.filter", "reverse")
             .build();
-        
+
         indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings));
         assertNotNull(indexAnalyzers.getNormalizer("lowercase"));
         assertThat(indexAnalyzers.getNormalizer("lowercase").normalize("field","AbC").utf8ToString(), equalTo("CbA"));
-    }       
+    }
 
-    
+
     public void testOverrideDefaultIndexAnalyzerIsUnsupported() {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
@@ -325,7 +325,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
-                        deprecationLogger.deprecated("Using deprecated token filter [deprecated]");
+                        deprecationLogger.deprecatedAndMaybeLog("deprecated_token_filter", "Using deprecated token filter [deprecated]");
                     }
                     return tokenStream;
                 }
@@ -353,7 +353,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecated("Using deprecated token filter [unused]");
+                    deprecationLogger.deprecatedAndMaybeLog("unused_token_filter", "Using deprecated token filter [unused]");
                     return tokenStream;
                 }
             }
@@ -366,7 +366,8 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecated("Using deprecated token filter [deprecated_normalizer]");
+                    deprecationLogger.deprecatedAndMaybeLog("deprecated_normalizer",
+                        "Using deprecated token filter [deprecated_normalizer]");
                     return tokenStream;
                 }
 

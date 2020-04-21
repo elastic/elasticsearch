@@ -92,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -255,6 +256,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
                                  Metadata metadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
                                  ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }

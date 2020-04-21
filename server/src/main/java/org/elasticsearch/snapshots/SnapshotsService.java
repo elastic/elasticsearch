@@ -990,10 +990,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Deletes a snapshot from the repository or aborts a running snapshot.
-     * First checks if the snapshot is still running and if so cancels the snapshot and then deletes it from the repository.
-     * If the snapshot is not running, moves to trying to find a matching {@link Snapshot} for the given name in the repository and if
-     * one is found deletes it by invoking {@link #deleteCompletedSnapshots}.
+     * Deletes snapshots from the repository or aborts a running snapshot.
+     * If deleting a single snapshot, first checks if a snapshot is still running and if so cancels the snapshot and then deletes it from
+     * the repository.
+     * If the snapshot is not running or multiple snapshot names are given, moves to trying to find a matching {@link Snapshot}s for the
+     * given names in the repository and deletes them by invoking {@link #deleteCompletedSnapshots}.
      *
      * @param repositoryName  repositoryName
      * @param snapshotNames   snapshotNames

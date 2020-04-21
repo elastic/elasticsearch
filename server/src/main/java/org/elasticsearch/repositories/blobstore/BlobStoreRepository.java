@@ -895,7 +895,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                  final Metadata clusterMetadata,
                                  final Map<String, Object> userMetadata,
                                  Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateFilter,
+                                 Function<ClusterState, ClusterState> stateTransformer,
                                  final ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN :
             "Must finalize based on a valid repository generation but received [" + repositoryStateId + "]";
@@ -914,7 +914,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
                     final RepositoryData updatedRepositoryData =
                         existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), Version.CURRENT, shardGenerations);
-                    writeIndexGen(updatedRepositoryData, repositoryStateId, writeShardGens, stateFilter,
+                    writeIndexGen(updatedRepositoryData, repositoryStateId, writeShardGens, stateTransformer,
                             ActionListener.wrap(writtenRepoData -> {
                                 if (writeShardGens) {
                                     cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);

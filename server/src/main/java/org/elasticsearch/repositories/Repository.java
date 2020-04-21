@@ -128,7 +128,7 @@ public interface Repository extends LifecycleComponent {
      * @param clusterMetadata       cluster metadata
      * @param userMetadata          user metadata
      * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param stateFilter           a function that filters the last cluster state update that the snapshot finalization will execute and
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
      * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
      *                              completion of the snapshot
@@ -136,7 +136,7 @@ public interface Repository extends LifecycleComponent {
     void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                           int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                           boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                          Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateFilter,
+                          Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
                           ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**

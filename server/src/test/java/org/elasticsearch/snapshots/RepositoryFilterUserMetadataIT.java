@@ -91,11 +91,11 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                                  boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateFilter,
+                                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
                                                  ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures,
-                            repositoryStateId, includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, stateFilter,
+                            repositoryStateId, includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, stateTransformer,
                                 listener);
                     }
 

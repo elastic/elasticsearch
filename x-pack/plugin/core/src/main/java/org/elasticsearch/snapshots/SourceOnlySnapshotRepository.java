@@ -84,7 +84,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateFilter,
+                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
                                  ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
@@ -92,7 +92,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         try {
             super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
                 includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
-                stateFilter, listener);
+                    stateTransformer, listener);
         } catch (IOException ex) {
             listener.onFailure(ex);
         }

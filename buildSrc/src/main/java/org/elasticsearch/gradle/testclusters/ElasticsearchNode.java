@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
@@ -222,6 +223,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         ElasticsearchDistribution distro = container.getByName(distroName);
         distro.setVersion(version);
+        distro.setArchitecture(Architecture.current());
         setDistributionType(distro, testDistribution);
         distributions.add(distro);
     }

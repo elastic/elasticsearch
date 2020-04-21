@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -47,11 +46,6 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     @Override
     protected void assertReduced(InternalDerivative reduced, List<InternalDerivative> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected Reader<InternalDerivative> instanceReader() {
-        return InternalDerivative::new;
     }
 
     @Override

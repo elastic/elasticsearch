@@ -38,6 +38,12 @@ if (System.getProperty('idea.active') == 'true') {
     }
   }
 
+  tasks.register('buildDependencyArtifacts') {
+    group = 'ide'
+    description = 'Builds artifacts needed as dependency for IDE modules'
+    dependsOn ':client:rest-high-level:shadowJar'
+  }
+
   idea {
     project {
       vcs = 'Git'
@@ -49,7 +55,7 @@ if (System.getProperty('idea.active') == 'true') {
           testRunner = 'choose_per_test'
         }
         taskTriggers {
-          afterSync tasks.named('configureIdeaGradleJvm')
+          afterSync tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
         }
         codeStyle {
           java {

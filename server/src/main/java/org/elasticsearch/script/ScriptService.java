@@ -318,7 +318,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             }
             if (useContext == false) {
                 throw new IllegalArgumentException("Cannot set custom general compilation rates [" +
-                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] if compile rates disabled via [" +
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to [" +
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) + "] if compile rates disabled via [" +
                     SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.getKey() + "]");
             }
         }

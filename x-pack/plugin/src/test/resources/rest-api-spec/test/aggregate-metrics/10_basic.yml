@@ -122,7 +122,7 @@
         body:
           query:
             term:
-              metric._min:
+              metric.min:
                 value: 50
 
   - match: { hits.total.value: 1 }

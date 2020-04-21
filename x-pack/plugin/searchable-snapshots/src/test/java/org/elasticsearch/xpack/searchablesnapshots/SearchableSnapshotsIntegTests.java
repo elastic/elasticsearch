@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
@@ -71,13 +72,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .setSettings(Settings.builder().put("location", repo).put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES))
         );
 
-        createIndex(indexName);
+        // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work, but
+        // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
+        assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = between(10, 10_000); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
-        // TODO NORELEASE no dummy docs since that includes deletes, yet we always copy the .liv file in peer recovery
-        indexRandom(true, false, indexRequestBuilders);
+        indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
         assertThat(
             client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),

@@ -94,7 +94,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     /**
-     * Check that this query is generally not cacheable
+     * Check that this query is cacheable
      */
     @Override
     public void testCacheability() throws IOException {
@@ -105,7 +105,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         QueryShardContext context = createShardContext();
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override

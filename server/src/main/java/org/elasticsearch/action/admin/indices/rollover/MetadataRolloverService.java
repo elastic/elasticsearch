@@ -138,7 +138,8 @@ public class MetadataRolloverService {
             .settings(createIndexRequest.settings())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings());
+            .mappings(createIndexRequest.mappings())
+            .preferV2Templates(createIndexRequest.preferV2Templates());
     }
 
     /**

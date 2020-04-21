@@ -68,6 +68,12 @@ public interface IndexAbstraction {
     IndexMetadata getWriteIndex();
 
     /**
+     * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
+     * if it is a concrete index that does not belong to a data stream.
+     */
+    @Nullable DataStream getParentDataStream();
+
+    /**
      * @return whether this index abstraction is hidden or not
      */
     boolean isHidden();
@@ -114,9 +120,15 @@ public interface IndexAbstraction {
     class Index implements IndexAbstraction {
 
         private final IndexMetadata concreteIndex;
+        private final DataStream dataStream;
+
+        public Index(IndexMetadata indexMetadata, DataStream dataStream) {
+            this.concreteIndex = indexMetadata;
+            this.dataStream = dataStream;
+        }
 
         public Index(IndexMetadata indexMetadata) {
-            this.concreteIndex = indexMetadata;
+            this(indexMetadata, null);
         }
 
         @Override
@@ -137,6 +149,11 @@ public interface IndexAbstraction {
         @Override
         public IndexMetadata getWriteIndex() {
             return concreteIndex;
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            return dataStream;
         }
 
         @Override
@@ -180,6 +197,12 @@ public interface IndexAbstraction {
         @Nullable
         public IndexMetadata getWriteIndex() {
             return writeIndex.get();
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            // aliases may not be part of a data stream
+            return null;
         }
 
         @Override
@@ -289,6 +312,12 @@ public interface IndexAbstraction {
 
         public IndexMetadata getWriteIndex() {
             return writeIndex;
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            // a data stream cannot have a parent data stream
+            return null;
         }
 
         @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.common;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
@@ -72,8 +73,10 @@ public abstract class LocalTimeOffset {
             // The range is too large for us to pre-build all the offsets
             return null;
         }
-        // TODO It is very common that we end up with only two offsets applying. In that case maybe it'd be faster to specialize this.
-        return new PreBuiltLookup(zone, rules, minUtcMillis, maxUtcMillis, transitions);
+        if (transitions.size() < 3) {
+            return new LinkedListLookup(zone, minUtcMillis, maxUtcMillis, transitions);
+        }
+        return new TransitionArrayLookup(zone, minUtcMillis, maxUtcMillis, transitions);
     }
 
     /**
@@ -186,6 +189,17 @@ public abstract class LocalTimeOffset {
         };
     };
 
+    /**
+     * Does this offset contain the provided time?
+     */
+    protected abstract boolean containsUtcMillis(long utcMillis);
+
+    /**
+     * Find the offset containing the provided time, first checking this
+     * offset, then its previous offset, the than one's previous offset, etc.
+     */
+    protected abstract LocalTimeOffset offsetContaining(long utcMillis);
+
     @Override
     public String toString() {
         return toString(millis);
@@ -224,6 +238,20 @@ public abstract class LocalTimeOffset {
         }
 
         @Override
+        protected boolean containsUtcMillis(long utcMillis) {
+            return true;
+        }
+
+        @Override
+        protected LocalTimeOffset offsetContaining(long utcMillis) {
+            /*
+             * Since there isn't a previous offset this offset *must* contain
+             * the provided time.
+             */
+            return this;
+        }
+
+        @Override
         protected String toString(long millis) {
             return Long.toString(millis);
         }
@@ -244,6 +272,19 @@ public abstract class LocalTimeOffset {
          */
         public LocalTimeOffset previous() {
             return previous;
+        }
+
+        @Override
+        protected final boolean containsUtcMillis(long utcMillis) {
+            return utcMillis >= startUtcMillis;
+        }
+
+        @Override
+        protected final LocalTimeOffset offsetContaining(long utcMillis) {
+            if (containsUtcMillis(utcMillis)) {
+                return this;
+            }
+            return previous.offsetContaining(utcMillis);
         }
 
         /**
@@ -363,49 +404,60 @@ public abstract class LocalTimeOffset {
     }
 
     /**
+     * Looks up transitions by checking whether the date is after the start
+     * of each transition. Simple so fast for small numbers of transitions.
+     */
+    private static class LinkedListLookup extends AbstractManyTransitionsLookup {
+        private final LocalTimeOffset lastOffset;
+        private final int size;
+
+        public LinkedListLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis, List<ZoneOffsetTransition> transitions) {
+            super(zone, minUtcMillis, maxUtcMillis);
+            int size = 1;
+            LocalTimeOffset last = buildNoPrevious(transitions.get(0));
+            for (ZoneOffsetTransition t : transitions) {
+                last = buildTransition(t, last);
+                size++;
+            }
+            this.lastOffset = last;
+            this.size = size;
+        }
+
+        @Override
+        public LocalTimeOffset innerLookup(long utcMillis) {
+            return lastOffset.offsetContaining(utcMillis);
+        }
+
+        @Override
+        int size() {
+            return size;
+        }
+    }
+
+    /**
      * Builds an array that can be {@link Arrays#binarySearch(long[], long)}ed
      * for the daylight savings time transitions.
      */
-    private static class PreBuiltLookup extends Lookup {
-        private final ZoneId zone;
-        private final long minUtcMillis;
-        private final long maxUtcMillis;
+    private static class TransitionArrayLookup extends AbstractManyTransitionsLookup {
         private final LocalTimeOffset[] offsets;
         private final long[] transitionOutUtcMillis;
 
-        private PreBuiltLookup(ZoneId zone, ZoneRules rules,
-                long minUtcMillis, long maxUtcMillis, List<ZoneOffsetTransition> transitions) {
-            this.zone = zone;
-            this.minUtcMillis = minUtcMillis;
-            this.maxUtcMillis = maxUtcMillis;
+        private TransitionArrayLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis, List<ZoneOffsetTransition> transitions) {
+            super(zone, minUtcMillis, maxUtcMillis);
             this.offsets = new LocalTimeOffset[transitions.size() + 1];
             this.transitionOutUtcMillis = new long[transitions.size()];
-            this.offsets[0] = new NoPrevious(transitions.get(0).getOffsetBefore().getTotalSeconds() * 1000);
+            this.offsets[0] = buildNoPrevious(transitions.get(0));
             int i = 0;
             for (ZoneOffsetTransition t : transitions) {
-                long utcStart = transitionOutUtcMillis[i] = t.toEpochSecond() * 1000;
-                long offsetBeforeMillis = t.getOffsetBefore().getTotalSeconds() * 1000;
-                long offsetAfterMillis = t.getOffsetAfter().getTotalSeconds() * 1000;
-                LocalTimeOffset next;
-                if (t.isGap()) {
-                    long firstMissingLocalTime = utcStart + offsetBeforeMillis;
-                    long firstLocalTimeAfterGap = utcStart + offsetAfterMillis;
-                    next = new Gap(offsetAfterMillis, this.offsets[i], utcStart, firstMissingLocalTime, firstLocalTimeAfterGap);
-                } else {
-                    long firstOverlappingLocalTime = utcStart + offsetAfterMillis;
-                    long firstNonOverlappingLocalTime = utcStart + offsetBeforeMillis;
-                    next = new Overlap(offsetAfterMillis, this.offsets[i], utcStart,
-                            firstOverlappingLocalTime, firstNonOverlappingLocalTime);
-                }
+                Transition transition = buildTransition(t, this.offsets[i]);
+                transitionOutUtcMillis[i] = transition.startUtcMillis();
                 i++;
-                this.offsets[i] = next;
+                this.offsets[i] = transition;
             }
         }
 
         @Override
-        public LocalTimeOffset lookup(long utcMillis) {
-            assert utcMillis >= minUtcMillis;
-            assert utcMillis <= maxUtcMillis;
+        protected LocalTimeOffset innerLookup(long utcMillis) {
             int index = Arrays.binarySearch(transitionOutUtcMillis, utcMillis);
             if (index < 0) {
                 /*
@@ -423,20 +475,59 @@ public abstract class LocalTimeOffset {
         }
 
         @Override
-        public LocalTimeOffset fixedInRange(long minUtcMillis, long maxUtcMillis) {
-            LocalTimeOffset offset = lookup(maxUtcMillis);
-            return lookup(minUtcMillis) == offset ? offset : null;
-        }
-
-        @Override
         int size() {
             return offsets.length;
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "PreBuiltLookup[for %s between %s and %s]",
+            return String.format(Locale.ROOT, "TransitionArrayLookup[for %s between %s and %s]",
                     zone, Instant.ofEpochMilli(minUtcMillis), Instant.ofEpochMilli(maxUtcMillis));
+        }
+    }
+
+    private abstract static class AbstractManyTransitionsLookup extends Lookup {
+        protected final ZoneId zone;
+        protected final long minUtcMillis;
+        protected final long maxUtcMillis;
+
+        public AbstractManyTransitionsLookup(ZoneId zone, long minUtcMillis, long maxUtcMillis) {
+            this.zone = zone;
+            this.minUtcMillis = minUtcMillis;
+            this.maxUtcMillis = maxUtcMillis;
+        }
+
+        @Override
+        public final LocalTimeOffset lookup(long utcMillis) {
+            assert utcMillis >= minUtcMillis;
+            assert utcMillis <= maxUtcMillis;
+            return innerLookup(utcMillis);
+        }
+
+        protected abstract LocalTimeOffset innerLookup(long utcMillis);
+
+        @Override
+        public final LocalTimeOffset fixedInRange(long minUtcMillis, long maxUtcMillis) {
+            LocalTimeOffset offset = lookup(maxUtcMillis);
+            return offset.containsUtcMillis(minUtcMillis) ? offset : null;
+        }
+
+        protected static NoPrevious buildNoPrevious(ZoneOffsetTransition transition) {
+            return new NoPrevious(transition.getOffsetBefore().getTotalSeconds() * 1000);
+        }
+
+        protected static Transition buildTransition(ZoneOffsetTransition transition, LocalTimeOffset previous) {
+            long utcStart = transition.toEpochSecond() * 1000;
+            long offsetBeforeMillis = transition.getOffsetBefore().getTotalSeconds() * 1000;
+            long offsetAfterMillis = transition.getOffsetAfter().getTotalSeconds() * 1000;
+            if (transition.isGap()) {
+                long firstMissingLocalTime = utcStart + offsetBeforeMillis;
+                long firstLocalTimeAfterGap = utcStart + offsetAfterMillis;
+                return new Gap(offsetAfterMillis, previous, utcStart, firstMissingLocalTime, firstLocalTimeAfterGap);
+            }
+            long firstOverlappingLocalTime = utcStart + offsetAfterMillis;
+            long firstNonOverlappingLocalTime = utcStart + offsetBeforeMillis;
+            return new Overlap(offsetAfterMillis, previous, utcStart, firstOverlappingLocalTime, firstNonOverlappingLocalTime);
         }
     }
 

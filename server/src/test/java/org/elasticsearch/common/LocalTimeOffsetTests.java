@@ -98,7 +98,8 @@ public class LocalTimeOffsetTests extends ESTestCase {
         long max = time("2021-01-01", zone) - 1;
         assertThat(Instant.ofEpochMilli(min), lessThan(lastTransitionIn(zone).getInstant()));
         assertThat(Instant.ofEpochMilli(max), greaterThan(lastTransitionIn(zone).getInstant()));
-        assertTransitions(zone, min, max, time("1980-06-01", zone), min + hours(1), 83, hours(-5), hours(-4));
+        assertTransitions(zone, min, max, time("2000-06-01", zone), min + hours(1), 83, hours(-5), hours(-4));
+        assertThat(LocalTimeOffset.lookup(zone, min, max).fixedInRange(utcTime("2000-06-01"), utcTime("2000-06-02")), notNullValue());
     }
 
     public void testAfterRules() {

@@ -31,7 +31,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +47,7 @@ public class RoundingBenchmark {
 
     @Param({
         "2000-01-01 to 2020-01-01", // A super long range
-        "2000-10-01 to 2001-11-01", // A whole month which is pretty believable
+        "2000-10-01 to 2000-11-01", // A whole month which is pretty believable
         "2000-10-29 to 2000-10-30", // A date right around daylight savings time.
         "2000-06-01 to 2000-06-02"  // A date fully in one time zone. Should be much faster than above.
     })
@@ -110,10 +109,12 @@ public class RoundingBenchmark {
     }
 
     @Benchmark
-    public void nextRoundingValue(Blackhole bh) {
+    public long nextRoundingValue() {
+        long sum = 0;
         Rounding.Prepared rounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.nextRoundingValue(dates[i]));
+            sum += rounder.nextRoundingValue(dates[i]);
         }
+        return sum;
     }
 }

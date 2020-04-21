@@ -170,10 +170,7 @@ class PrecommitTasks {
 
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                project.logger.warn(
-                        "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
-                        BuildParams.runtimeJavaVersion
-                )
+                // forbidden apis does not yet support java 14 (it will in version 3.0), so we must use java 13 target
                 targetCompatibility = JavaVersion.VERSION_13.majorVersion
             }
             bundledSignatures = [

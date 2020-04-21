@@ -234,7 +234,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
             Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
             Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
-            Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
             for (String indexName : remoteMetadata.getConcreteAllIndices()) {
@@ -244,7 +244,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 snapshotStates.put(indexName, SnapshotState.SUCCESS);
                 snapshotVersions.put(indexName, Version.CURRENT);
                 Index index = remoteIndices.get(indexName).getIndex();
-                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
+                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
             return new RepositoryData(1, copiedSnapshotIds, snapshotStates, snapshotVersions, indexSnapshots, ShardGenerations.EMPTY);
         });

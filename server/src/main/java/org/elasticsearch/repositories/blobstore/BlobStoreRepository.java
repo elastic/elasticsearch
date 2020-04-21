@@ -651,12 +651,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         for (IndexId indexId : indices) {
             final Set<SnapshotId> survivingSnapshots = oldRepositoryData.getSnapshots(indexId).stream()
                 .filter(id -> snapshotIds.contains(id) == false).collect(Collectors.toSet());
-            final StepListener<Integer> shardCountListener = new StepListener<>();
-            final ActionListener<Integer> shardCounts = new GroupedActionListener<>(ActionListener.wrap(
-                    counts -> shardCountListener.onResponse(counts.stream().mapToInt(i -> i).max().orElse(0)),
-                    shardCountListener::onFailure), snapshotIds.size());
+            final StepListener<Collection<Integer>> shardCountListener = new StepListener<>();
+            final ActionListener<Integer> allShardCountsListener = new GroupedActionListener<>(shardCountListener, snapshotIds.size());
             for (SnapshotId snapshotId : snapshotIds) {
-                executor.execute(ActionRunnable.supply(shardCounts, () -> {
+                executor.execute(ActionRunnable.supply(allShardCountsListener, () -> {
                     try {
                         return getSnapshotIndexMetadata(snapshotId, indexId).getNumberOfShards();
                     } catch (Exception ex) {
@@ -670,7 +668,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }));
             }
-            shardCountListener.whenComplete(shardCount -> {
+            shardCountListener.whenComplete(counts -> {
+                final int shardCount = counts.stream().mapToInt(i -> i).max().orElse(0);
                 if (shardCount == 0) {
                     deleteIndexMetadataListener.onResponse(null);
                     return;
@@ -684,7 +683,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         @Override
                         protected void doRun() throws Exception {
                             final BlobContainer shardContainer = shardContainer(indexId, finalShardId);
-                            final Set<String> blobs = getShardBlobs(shardContainer);
+                            final Set<String> blobs = shardContainer.listBlobs().keySet();
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final String newGen;
                             if (useUUIDs) {
@@ -692,8 +691,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(blobs, shardContainer,
                                         oldRepositoryData.shardGenerations().getShardGen(indexId, finalShardId)).v1();
                             } else {
-                                Tuple<BlobStoreIndexShardSnapshots, Long> tuple =
-                                        buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+                                Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
                                 newGen = Long.toString(tuple.v2() + 1);
                                 blobStoreIndexShardSnapshots = tuple.v1();
                             }
@@ -704,8 +702,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         @Override
                         public void onFailure(Exception ex) {
                             logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                            snapshotIds, indexId.getName(), finalShardId), ex);
+                                () -> new ParameterizedMessage("{} failed to delete shard data for shard [{}][{}]",
+                                    snapshotIds, indexId.getName(), finalShardId), ex);
                             // Just passing null here to count down the listener instead of failing it, the stale data left behind
                             // here will be retried in the next delete or repository cleanup
                             allShardsListener.onResponse(null);
@@ -726,9 +724,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
                 return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
             }),
-            deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().flatMap(indexId ->
-                snapshotIds.stream().map(snapshotId -> // TODO: Add filter via RepositoryData
-                    indexContainer(indexId).path().buildAsString() + globalMetadataFormat.blobName(snapshotId.getUUID())))
+            deleteResults.stream().map(shardResult -> shardResult.indexId).distinct().flatMap(indexId -> {
+                final String indexContainerPath = indexContainer(indexId).path().buildAsString();
+                return snapshotIds.stream().map(snapshotId -> indexContainerPath + globalMetadataFormat.blobName(snapshotId.getUUID()));
+            })
         ).map(absolutePath -> {
             assert absolutePath.startsWith(basePath);
             return absolutePath.substring(basePathLen);
@@ -1951,16 +1950,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert ShardGenerations.NEW_SHARD_GEN.equals(indexGeneration) == false;
         assert ShardGenerations.DELETED_SHARD_GEN.equals(indexGeneration) == false;
         indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
-    }
-
-    private static Set<String> getShardBlobs(BlobContainer shardContainer) throws IOException {
-        final Set<String> blobs;
-        try {
-            blobs = shardContainer.listBlobs().keySet();
-        } catch (IOException e) {
-            throw new IOException("Failed to list content of shard directory", e);
-        }
-        return blobs;
     }
 
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all

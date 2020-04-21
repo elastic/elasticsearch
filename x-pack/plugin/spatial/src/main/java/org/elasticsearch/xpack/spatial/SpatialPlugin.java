@@ -16,10 +16,13 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
@@ -62,7 +65,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
-        return List.of(SpatialPlugin::registerGeoShapeBoundsAggregator);
+        return List.of(SpatialPlugin::registerGeoShapeBoundsAggregator, SpatialPlugin::registerGeoShapeCentroidAggregator);
     }
 
     @Override
@@ -75,5 +78,11 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
+    }
+
+    public static void registerGeoShapeCentroidAggregator(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.INSTANCE,
+            (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
+                -> new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata));
     }
 }

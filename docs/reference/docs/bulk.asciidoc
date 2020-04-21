@@ -381,6 +381,7 @@ error type and reason.
     {
       "update": {
         "_index": "index1",
+        "_type" : "_doc",
         "_id": "5",
         "status": 404,
         "error": {
@@ -395,6 +396,7 @@ error type and reason.
     {
       "update": {
         "_index": "index1",
+        "_type" : "_doc",
         "_id": "6",
         "status": 404,
         "error": {
@@ -409,6 +411,7 @@ error type and reason.
     {
       "create": {
         "_index": "index1",
+        "_type" : "_doc",
         "_id": "7",
         "_version": 1,
         "result": "created",

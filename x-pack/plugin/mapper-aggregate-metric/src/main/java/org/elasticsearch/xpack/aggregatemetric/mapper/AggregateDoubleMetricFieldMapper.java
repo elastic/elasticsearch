@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
@@ -477,7 +478,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             XFieldComparatorSource.Nested nested,
                             boolean reverse
                         ) {
-                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                            SortField sortField = new SortedNumericSortField(delegateFieldType().name(), SortField.Type.DOUBLE, reverse);
+                            return sortField;
                         }
 
                         @Override
@@ -491,7 +493,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             int bucketSize,
                             BucketedSort.ExtraData extra
                         ) {
-                            throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
+                            throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
                 }

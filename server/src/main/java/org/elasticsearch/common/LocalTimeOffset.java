@@ -570,7 +570,21 @@ public abstract class LocalTimeOffset {
      * into a list we can reason about. If we'd collect more than
      * {@link #MAX_TRANSITIONS} rules we'll abort, returning {@code null}
      * signaling that {@link LocalTimeOffset} is probably not the implementation
-     * to use in this case.  
+     * to use in this case.
+     * <p>
+     * {@link ZoneRules} gives us access to the local time transition database
+     * with two method: {@link ZoneRules#getTransitions()} for "fully defined"
+     * transitions and {@link ZoneRules#getTransitionRules()}. This first one
+     * is a list of transitions and when the they happened. To get the full
+     * picture of transitions you pick up from where that one leaves off using
+     * the rules, which are basically factories that you give the year in local
+     * time to build a transition for that year.
+     * <p>
+     * This method collects all of the {@link ZoneRules#getTransitions()} that
+     * are relevant for the date range and, if our range extends past the last
+     * transition, calls
+     * {@link #buildTransitionsFromRules(List, ZoneId, ZoneRules, long, long)}
+     * to build the remaining transitions to fully describe the range.
      */
     private static List<ZoneOffsetTransition> collectTransitions(ZoneId zone, ZoneRules rules, long minUtcMillis, long maxUtcMillis) {
         long minSecond = minUtcMillis / 1000;

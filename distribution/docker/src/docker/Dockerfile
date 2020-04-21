@@ -48,7 +48,7 @@ ENV ELASTIC_CONTAINER true
 # Most of the utilities are provided with Busybox, hence the different user
 # management commands here compared to the builder image.
 RUN addgroup -g 1000 elasticsearch && \
-    adduser -D -u 1000 -G elasticsearch -h /usr/share/elasticsearch elasticsearch && \
+    adduser -D -u 1000 -G elasticsearch -g elasticsearch -h /usr/share/elasticsearch elasticsearch && \
     addgroup elasticsearch root && \
     chmod 0775 /usr/share/elasticsearch && \
     chgrp 0 /usr/share/elasticsearch

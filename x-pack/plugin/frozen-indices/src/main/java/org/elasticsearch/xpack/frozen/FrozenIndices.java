@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.FrozenEngine;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -27,8 +26,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
-import org.elasticsearch.xpack.frozen.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.frozen.action.TransportFreezeIndexAction;
+import org.elasticsearch.xpack.frozen.rest.action.RestFreezeIndexAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,17 +43,8 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            if (isSearchableSnapshotStore(indexSettings.getSettings())) {
-                return Optional.of(config -> new FrozenEngine(config) {
-                    @Override
-                    protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
-                        // searchable snapshots may not satisfy this property but that's ok since they're only subject to file-based
-                        // recoveries and the files "on disk" never change
-                    }
-                });
-            } else {
-                return Optional.of(FrozenEngine::new);
-            }
+            final boolean requireCompleteHistory = isSearchableSnapshotStore(indexSettings.getSettings()) == false;
+            return Optional.of(config -> new FrozenEngine(config, requireCompleteHistory));
         } else {
             return Optional.empty();
         }

@@ -67,7 +67,7 @@ import java.util.function.Function;
  * The internal reopen of readers is treated like a refresh and refresh listeners are called up-on reopen. This allows to consume refresh
  * stats in order to obtain the number of reopens.
  */
-public class FrozenEngine extends ReadOnlyEngine {
+public final class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
     private final SegmentsStats segmentsStats;
@@ -75,8 +75,8 @@ public class FrozenEngine extends ReadOnlyEngine {
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
 
-    public FrozenEngine(EngineConfig config) {
-        super(config, null, null, true, Function.identity());
+    public FrozenEngine(EngineConfig config, boolean requireCompleteHistory) {
+        super(config, null, null, true, Function.identity(), requireCompleteHistory);
 
         boolean success = false;
         Directory directory = store.directory();

@@ -28,7 +28,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.license.License;
@@ -202,13 +201,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()) {
-                @Override
-                protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
-                    // searchable snapshots may not satisfy this property but that's ok since they're only subject to file-based
-                    // recoveries and the files "on disk" never change
-                }
-            });
+            return Optional.of(
+                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
+            );
         }
         return Optional.empty();
     }

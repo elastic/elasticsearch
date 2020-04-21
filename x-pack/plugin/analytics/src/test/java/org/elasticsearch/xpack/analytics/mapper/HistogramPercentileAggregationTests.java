@@ -171,8 +171,6 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         PutMappingRequest request2 = new PutMappingRequest("pre_agg").source(xContentBuilder2);
         client().admin().indices().putMapping(request2).actionGet();
 
-        System.err.println("FUCK");
-
         TDigestState histogram = new TDigestState(compression);
         BulkRequest bulkRequest = new BulkRequest();
 
@@ -190,7 +188,6 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.add(value);
             if ((i + 1) % frq == 0) {
-                System.err.println("FUCK2");
                 client().bulk(bulkRequest).actionGet();
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();

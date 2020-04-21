@@ -204,7 +204,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            });
+            }, true);
     }
 
     /**

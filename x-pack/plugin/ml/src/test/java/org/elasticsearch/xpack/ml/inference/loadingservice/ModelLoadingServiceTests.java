@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -146,7 +145,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(4)).getTrainedModel(eq(model3), eq(true), any());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55251")
     public void testMaxCachedLimitReached() throws Exception {
         String model1 = "test-cached-limit-load-model-1";
         String model2 = "test-cached-limit-load-model-2";
@@ -184,8 +182,11 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(2)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelProvider, times(2)).getTrainedModel(eq(model2), eq(true), any());
+        // Depending on the order the models were first loaded in the first step
+        // models 1 & 2 may have been evicted by model 3 in which case they have
+        // been loaded at most twice
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model2), eq(true), any());
         // Only loaded requested once on the initial load from the change event
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
 
@@ -252,8 +253,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), eq(true), any());
         verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), eq(true), any());
-        verify(trainedModelProvider, Mockito.atLeast(5)).getTrainedModel(eq(model3), eq(true), any());
-        verify(trainedModelProvider, atMost(5)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, times(5)).getTrainedModel(eq(model3), eq(true), any());
     }
 
 

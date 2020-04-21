@@ -16,8 +16,6 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::setup/bootstrap-checks-xes.asciidoc[]
-
 include::upgrade.asciidoc[]
 
 include::aggregations.asciidoc[]
@@ -69,8 +67,6 @@ include::{xes-repo-dir}/watcher/index.asciidoc[]
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
-
-include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 

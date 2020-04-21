@@ -21,7 +21,9 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
     public static ClassificationConfig randomClassificationConfig() {
         return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10)
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomIntBetween(0, 10),
+            randomFrom(PredictionFieldType.values())
             );
     }
 

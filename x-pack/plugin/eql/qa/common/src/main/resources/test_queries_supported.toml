@@ -13,3 +13,7 @@ expected_event_ids = [95]
 query = '''
 file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
 '''
+
+[[queries]]
+query = 'process where string(serial_event_id) = "1"'
+expected_event_ids  = [1]

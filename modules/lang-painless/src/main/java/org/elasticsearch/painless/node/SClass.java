@@ -49,15 +49,7 @@ public class SClass extends ANode {
         return userTreeVisitor.visitClass(this, input);
     }
 
-    public void buildClassScope(ScriptScope scriptScope) {
-        for (SFunction function : functionNodes) {
-            function.buildClassScope(scriptScope);
-        }
-    }
-
     public void analyze(ScriptScope scriptScope) {
-        buildClassScope(scriptScope);
-
         for (SFunction function : functionNodes) {
             function.analyze(scriptScope);
         }

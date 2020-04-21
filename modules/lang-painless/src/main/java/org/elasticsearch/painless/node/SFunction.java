@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
@@ -28,7 +27,6 @@ import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -111,45 +109,6 @@ public class SFunction extends ANode {
     @Override
     public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
         return userTreeVisitor.visitFunction(this, input);
-    }
-
-    void buildClassScope(ScriptScope scriptScope) {
-        if (canonicalTypeNameParameters.size() != parameterNames.size()) {
-            throw createError(new IllegalStateException(
-                "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
-                "parameter names size [" + parameterNames.size() + "]"));
-        }
-
-        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
-        FunctionTable functionTable = scriptScope.getFunctionTable();
-
-        String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
-
-        if (functionTable.getFunction(functionKey) != null) {
-            throw createError(new IllegalArgumentException("illegal duplicate functions [" + functionKey + "]."));
-        }
-
-        Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
-
-        if (returnType == null) {
-            throw createError(new IllegalArgumentException(
-                "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
-        }
-
-        List<Class<?>> typeParameters = new ArrayList<>();
-
-        for (String typeParameter : canonicalTypeNameParameters) {
-            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
-
-            if (paramType == null) {
-                throw createError(new IllegalArgumentException(
-                    "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
-            }
-
-            typeParameters.add(paramType);
-        }
-
-        functionTable.addFunction(functionName, returnType, typeParameters, isInternal, isStatic);
     }
 
     void analyze(ScriptScope scriptScope) {

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.phase.IRTreeBuilder;
+import org.elasticsearch.painless.phase.SemanticHeaderPhase;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
@@ -212,6 +213,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new SemanticHeaderPhase().visitClass(root, scriptScope);
         root.analyze(scriptScope);
         ClassNode classNode = (ClassNode)new IRTreeBuilder().visitClass(root, scriptScope);
         DefBootstrapInjectionPhase.phase(classNode);
@@ -243,6 +245,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new SemanticHeaderPhase().visitClass(root, scriptScope);
         root.analyze(scriptScope);
         ClassNode classNode = (ClassNode)new IRTreeBuilder().visitClass(root, scriptScope);
         classNode.setDebugStream(debugStream);

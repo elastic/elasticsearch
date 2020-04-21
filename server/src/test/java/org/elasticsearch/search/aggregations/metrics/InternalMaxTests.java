@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -35,11 +34,6 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
         double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalMax(name, value, formatter, metadata);
-    }
-
-    @Override
-    protected Reader<InternalMax> instanceReader() {
-        return InternalMax::new;
     }
 
     @Override

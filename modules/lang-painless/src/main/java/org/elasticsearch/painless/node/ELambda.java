@@ -82,6 +82,14 @@ public class ELambda extends AExpression implements ILambda {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: lambda not used"));
+        }
+
         String name;
         Class<?> returnType;
         List<Class<?>> typeParametersWithCaptures;

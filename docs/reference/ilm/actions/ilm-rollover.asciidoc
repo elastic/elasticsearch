@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ilm-rollover]]
 === Rollover
 

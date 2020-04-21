@@ -20,6 +20,7 @@ use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>
 * <<overview-index-lifecycle-management>>
 * <<ilm-concepts>>
 * <<getting-started-index-lifecycle-management>>
+* <<ilm-actions>>
 * <<set-up-lifecycle-policy>>
 * <<index-lifecycle-error-handling>>
 * <<start-stop-ilm>>

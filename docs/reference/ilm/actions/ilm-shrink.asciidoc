@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ilm-shrink]]
 === Shrink
 
@@ -26,6 +27,7 @@ then converts the follower index into a regular index with the
 (Required, integer) 
 The number of shards to shrink to. 
 Must be a factor of the number of shards in the source index.
+
 
 [[ilm-shrink-example]]
 ==== Example

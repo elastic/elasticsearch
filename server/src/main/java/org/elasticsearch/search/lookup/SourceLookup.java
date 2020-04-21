@@ -132,10 +132,6 @@ public class SourceLookup implements Map<String, Object> {
         return context.getFilter().apply(loadSourceIfNeeded());
     }
 
-    public Object extractValue(String path) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded());
-    }
-
     @Override
     public Object get(Object key) {
         return loadSourceIfNeeded().get(key);

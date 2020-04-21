@@ -386,7 +386,7 @@ error type and reason.
         "status": 404,
         "error": {
           "type": "document_missing_exception",
-          "reason": "[5]: document missing",
+          "reason": "[_doc][5]: document missing",
           "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
           "shard": "0",
           "index": "index1"
@@ -401,7 +401,7 @@ error type and reason.
         "status": 404,
         "error": {
           "type": "document_missing_exception",
-          "reason": "[6]: document missing",
+          "reason": "[_doc][6]: document missing",
           "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
           "shard": "0",
           "index": "index1"
@@ -458,7 +458,7 @@ The API returns the following result.
       "update": {
         "error": {
           "type": "document_missing_exception",
-          "reason": "[5]: document missing",
+          "reason": "[_doc][5]: document missing",
           "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
           "shard": "0",
           "index": "index1"
@@ -469,7 +469,7 @@ The API returns the following result.
       "update": {
         "error": {
           "type": "document_missing_exception",
-          "reason": "[6]: document missing",
+          "reason": "[_doc][6]: document missing",
           "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
           "shard": "0",
           "index": "index1"

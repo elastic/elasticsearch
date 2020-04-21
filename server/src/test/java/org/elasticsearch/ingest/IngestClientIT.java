@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "exception change")
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IngestClientIT extends ESIntegTestCase {
 

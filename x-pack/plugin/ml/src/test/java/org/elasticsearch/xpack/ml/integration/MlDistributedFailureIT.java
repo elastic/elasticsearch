@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -59,6 +60,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "missing actions")
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override

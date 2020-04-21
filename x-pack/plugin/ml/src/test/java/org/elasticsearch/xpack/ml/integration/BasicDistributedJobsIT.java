@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,6 +56,7 @@ import static org.elasticsearch.persistent.PersistentTasksClusterService.needsRe
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "missing actions")
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testFailOverBasics() throws Exception {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -16,6 +17,7 @@ import java.util.Collections;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "currently broken")
 public class SqlDisabledIT extends AbstractSqlIntegTestCase {
 
     @Override

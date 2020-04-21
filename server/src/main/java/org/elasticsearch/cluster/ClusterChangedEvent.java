@@ -257,9 +257,12 @@ public class ClusterChangedEvent {
             return Collections.emptyList();
         }
         List<Index> deleted = null;
-        for (ObjectCursor<IndexMetadata> cursor : previousState.metadata().indices().values()) {
+        final Metadata previousMetadata = previousState.metadata();
+        final Metadata currentMetadata = state.metadata();
+
+        for (ObjectCursor<IndexMetadata> cursor : previousMetadata.indices().values()) {
             IndexMetadata index = cursor.value;
-            IndexMetadata current = state.metadata().index(index.getIndex());
+            IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {
                     deleted = new ArrayList<>();
@@ -267,6 +270,20 @@ public class ClusterChangedEvent {
                 deleted.add(index.getIndex());
             }
         }
+
+        // Look for new entries in the index graveyard, where there's no corresponding index in the
+        // previous metadata. This indicates that a dangling index has been explicitly deleted, so
+        // each node should make sure to delete any related data.
+        for (IndexGraveyard.Tombstone tombstone : currentMetadata.indexGraveyard().getTombstones()) {
+            final Index index = tombstone.getIndex();
+            if (previousMetadata.hasIndex(index.getName()) == false && previousMetadata.indexGraveyard().containsIndex(index) == false) {
+                if (deleted == null) {
+                    deleted = new ArrayList<>();
+                }
+                deleted.add(index);
+            }
+        }
+
         return deleted == null ? Collections.<Index>emptyList() : deleted;
     }
 

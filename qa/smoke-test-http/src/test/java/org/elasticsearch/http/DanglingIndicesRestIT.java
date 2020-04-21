@@ -24,6 +24,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -290,6 +291,11 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         });
 
         ensureStableCluster(3);
+
+        assertBusy(
+            () -> internalCluster().getInstances(GatewayMetaState.class)
+                .forEach(gatewayMetaState -> assertTrue(gatewayMetaState.allPendingAsyncStatesWritten()))
+        );
 
         return new DanglingIndexDetails(stoppedNodeName.get(), indexToUUID);
     }

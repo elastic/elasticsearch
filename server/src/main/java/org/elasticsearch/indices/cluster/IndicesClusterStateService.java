@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -325,8 +326,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // node was not part of the cluster.  In this case, try reading the index
                 // metadata from disk.  If its not there, there is nothing to delete.
                 // First, though, verify the precondition for applying this case by
-                // asserting that the previous cluster state is not initialized/recovered.
-                assert previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+                // asserting that either this index is already in the graveyard, or the
+                // previous cluster state is not initialized/recovered.
+                assert state.metadata().indexGraveyard().containsIndex(index)
+                    || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
                 if (metadata != null) {
                     indexSettings = new IndexSettings(metadata, settings);

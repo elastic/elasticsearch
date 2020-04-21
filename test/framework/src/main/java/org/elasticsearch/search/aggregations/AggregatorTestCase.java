@@ -632,7 +632,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
-    public final void testSupportedFieldTypes() throws IOException {
+    public void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
         String fieldName = "typeTestFieldName";
@@ -711,7 +711,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Document doc = new Document();
         String json;
 
-
         if (vst.equals(CoreValuesSourceType.NUMERIC)) {
             long v;
             if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
@@ -723,7 +722,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 v = NumericUtils.floatToSortableInt(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
-                float f = Math.abs(randomFloat());
+                // Generate a random float that respects the limits of half float
+                float f = Math.abs((randomFloat() * 2 - 1) * 70000);
                 v = HalfFloatPoint.halfFloatToSortableShort(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {

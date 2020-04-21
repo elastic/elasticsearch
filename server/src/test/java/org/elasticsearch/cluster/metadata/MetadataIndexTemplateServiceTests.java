@@ -527,7 +527,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         try {
             // add an invalid global template that specifies the `index.hidden` setting
             IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(List.of("*"), templateWithHiddenSetting, List.of("ct"), 5L, 1L,
-                null);
+                null, null);
             Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
                 new IndexTemplateV2Metadata(Map.of("invalid_global_template", invalidGlobalTemplate))).build();
 

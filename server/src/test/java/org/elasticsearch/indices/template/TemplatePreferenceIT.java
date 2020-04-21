@@ -55,7 +55,8 @@ public class TemplatePreferenceIT extends ESSingleNodeTestCase {
         Template v2Settings = new Template(Settings.builder()
             .put("index.priority", 23)
             .build(), null, null);
-        IndexTemplateV2 v2template = new IndexTemplateV2(Collections.singletonList(INDEX + "*"), v2Settings, null, null, null, null);
+        IndexTemplateV2 v2template =
+            new IndexTemplateV2(Collections.singletonList(INDEX + "*"), v2Settings, null, null, null, null, null);
         PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request("v2");
         request.indexTemplate(v2template);
         assertAcked(client().execute(PutIndexTemplateV2Action.INSTANCE, request).get());

@@ -302,7 +302,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Iterator<String> autoCreateIndicesIterator = autoCreateIndices.iterator();
         while (autoCreateIndicesIterator.hasNext()) {
             String indexName =  autoCreateIndicesIterator.next();
-            String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexName, null);
+            String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
             if (v2Template != null) {
                 IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
                 if (indexTemplateV2.getDataStreamTemplate() != null) {

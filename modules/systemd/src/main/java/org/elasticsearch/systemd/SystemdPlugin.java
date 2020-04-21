@@ -21,6 +21,7 @@ package org.elasticsearch.systemd;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -79,7 +80,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         enabled = Boolean.TRUE.toString().equals(esSDNotify);
     }
 
-    Scheduler.Cancellable extender;
+    final SetOnce<Scheduler.Cancellable> extender = new SetOnce<>();
 
     @Override
     public Collection<Object> createComponents(
@@ -94,24 +95,26 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        if (enabled) {
-            /*
-             * Since we have set the service type to notify, by default systemd will wait up to sixty seconds for the process to send the
-             * READY=1 status via sd_notify. Since our startup can take longer than that (e.g., if we are upgrading on-disk metadata) then
-             * we need to repeatedly notify systemd that we are still starting up by sending EXTEND_TIMEOUT_USEC with an extension to the
-             * timeout. Therefore, every fifteen seconds we send systemd a message via sd_notify to extend the timeout by thirty seconds.
-             * We will cancel this scheduled task after we successfully notify systemd that we are ready.
-             */
-            extender = threadPool.scheduleWithFixedDelay(
-                () -> {
-                    final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
-                    if (rc < 0) {
-                        logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
-                    }
-                },
-                TimeValue.timeValueSeconds(15),
-                ThreadPool.Names.SAME);
+        if (enabled == false) {
+            extender.set(null);
+            return List.of();
         }
+        /*
+         * Since we have set the service type to notify, by default systemd will wait up to sixty seconds for the process to send the
+         * READY=1 status via sd_notify. Since our startup can take longer than that (e.g., if we are upgrading on-disk metadata) then we
+         * need to repeatedly notify systemd that we are still starting up by sending EXTEND_TIMEOUT_USEC with an extension to the timeout.
+         * Therefore, every fifteen seconds we send systemd a message via sd_notify to extend the timeout by thirty seconds. We will cancel
+         * this scheduled task after we successfully notify systemd that we are ready.
+         */
+        extender.set(threadPool.scheduleWithFixedDelay(
+            () -> {
+                final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
+                if (rc < 0) {
+                    logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
+                }
+            },
+            TimeValue.timeValueSeconds(15),
+            ThreadPool.Names.SAME));
         return List.of();
     }
 
@@ -124,6 +127,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     @Override
     public void onNodeStarted() {
         if (enabled == false) {
+            assert extender.get() == null;
             return;
         }
         final int rc = sd_notify(0, "READY=1");
@@ -131,8 +135,8 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             // treat failure to notify systemd of readiness as a startup failure
             throw new RuntimeException("sd_notify returned error [" + rc + "]");
         }
-        assert extender != null;
-        final boolean cancelled = extender.cancel();
+        assert extender.get() != null;
+        final boolean cancelled = extender.get().cancel();
         assert cancelled;
     }
 

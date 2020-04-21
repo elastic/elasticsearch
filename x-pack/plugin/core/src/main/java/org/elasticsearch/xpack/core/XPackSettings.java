@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;

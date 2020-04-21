@@ -25,18 +25,18 @@ aggregation on the time field. This requirement ensures that the aggregated data
 is a time series and the timestamp of each bucket is the time of the last record
 in the bucket.
 
-You must also consider the interval of the date histogram aggregation carefully.
-The bucket span of your {anomaly-job} must be divisible by the value of the
-`calendar_interval` or `fixed_interval` in your aggregation (with no remainder).
-If you specify a `frequency` for your {dfeed}, it must also be divisible by this
-interval. You cannot feed an {anomaly-job} with a date histogram with an 
-interval measured in months because the length of the month is not fixed. 
-{dfeeds-cap} tolerate weeks or smaller units.
-
 IMPORTANT: The name of the aggregation and the name of the field that the agg 
 operates on need to match, otherwise the aggregation doesn't work. For example, 
 if you use a `max` aggregation on a time field called `responsetime`, the name 
 of the aggregation must be also `responsetime`.
+
+You must also consider the interval of the date histogram aggregation carefully.
+The bucket span of your {anomaly-job} must be divisible by the value of the
+`calendar_interval` or `fixed_interval` in your aggregation (with no remainder).
+If you specify a `frequency` for your {dfeed}, it must also be divisible by this
+interval. {anomaly-jobs-cap} cannot use date histograms with an interval 
+measured in months because the length of the month is not fixed. {dfeeds-cap} 
+tolerate weeks or smaller units.
 
 TIP: As a rule of thumb, if your detectors use <<ml-metric-functions,metric>> or
 <<ml-sum-functions,sum>> analytical functions, set the date histogram
@@ -124,12 +124,10 @@ PUT _ml/datafeeds/datafeed-farequote
 <1> In this example, the aggregations have names that match the fields that they
 operate on. That is to say, the `max` aggregation is named `time` and its
 field also needs to be `time`.
-<2> In this example, the aggregations have names that match the fields that they
-operate on. That is to say, the `term` aggregation is named `airline` and its
-field also needs to be `airline`.
-<3> In this example, the aggregations have names that match the fields that they
-operate on. That is to say, the `avg` aggregation is named `responsetime` and 
-its field also needs to be `responsetime`.
+<2> Likewise, the `term` aggregation is named `airline` and its field is also 
+named `airline`.
+<3> Likewise, the `avg` aggregation is named `responsetime` and its field is 
+also named `responsetime`.
 
 Your {dfeed} can contain multiple aggregations, but only the ones with names 
 that match values in the job configuration are fed to the job.

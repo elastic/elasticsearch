@@ -65,10 +65,10 @@ public class ECapturingFunctionRef extends AExpression {
         if (input.expected == null) {
             String defReferenceEncoding;
             if (captured.getType() == def.class) {
-                // dynamic implementation
+                // unknown functional interface
                 defReferenceEncoding = "D" + variable + "." + call + ",1";
             } else {
-                // typed implementation
+                // known functional interface
                 defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + call + ",1";
             }
             output.actual = String.class;
@@ -83,7 +83,7 @@ public class ECapturingFunctionRef extends AExpression {
             output.expressionNode = defInterfaceReferenceNode;
         } else {
             output.actual = input.expected;
-            // static case
+            // known functional interface
             if (captured.getType() != def.class) {
                 FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
                         input.expected, captured.getCanonicalTypeName(), call, 1);
@@ -95,6 +95,7 @@ public class ECapturingFunctionRef extends AExpression {
                 typedInterfaceReferenceNode.setReference(ref);
 
                 output.expressionNode = typedInterfaceReferenceNode;
+            // known functional interface, unknown receiver type
             } else {
                 TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode();
                 typedCaptureReferenceNode.setLocation(location);

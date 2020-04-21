@@ -197,7 +197,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
-        return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), 0, Long.MAX_VALUE);
+        return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName));
     }
 
     /**
@@ -218,7 +218,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (length == 0) {
             return new ByteArrayInputStream(new byte[0]);
         } else {
-            return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), position, length);
+            return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), position,
+                Math.addExact(position, length - 1));
         }
     }
 

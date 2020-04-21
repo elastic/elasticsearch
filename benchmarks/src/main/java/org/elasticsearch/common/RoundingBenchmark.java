@@ -54,20 +54,20 @@ public class RoundingBenchmark {
     })
     public String range;
 
-    @Param({"java time", "es"})
+    @Param({ "java time", "es" })
     public String rounder;
 
-    @Param({"UTC", "America/New_York"})
+    @Param({ "UTC", "America/New_York" })
     public String zone;
 
-    @Param({"MONTH_OF_YEAR", "HOUR_OF_DAY"})
+    @Param({ "MONTH_OF_YEAR", "HOUR_OF_DAY" })
     public String timeUnit;
 
-    @Param({"1", "1000000"})
+    @Param({ "1", "1000000" })
     public int count;
 
     private long min;
-    private long max; 
+    private long max;
     private long[] dates;
     private Supplier<Rounding.Prepared> rounderBuilder;
 
@@ -88,14 +88,14 @@ public class RoundingBenchmark {
         }
         Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.valueOf(timeUnit)).timeZone(ZoneId.of(zone)).build();
         switch (rounder) {
-        case "java time":
-            rounderBuilder = rounding::prepareJavaTime;
-            break;
-        case "es":
-            rounderBuilder = () -> rounding.prepare(min, max);
-            break;
-        default:
-            throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
+            case "java time":
+                rounderBuilder = rounding::prepareJavaTime;
+                break;
+            case "es":
+                rounderBuilder = () -> rounding.prepare(min, max);
+                break;
+            default:
+                throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
         }
     }
 

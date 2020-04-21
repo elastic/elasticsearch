@@ -524,7 +524,7 @@ public abstract class Rounding implements Writeable {
         private class ToMidnightRounding implements Prepared {
             private final LongFunction<LocalTimeOffset> lookup;
 
-            public ToMidnightRounding(LongFunction<LocalTimeOffset> lookup) {
+            ToMidnightRounding(LongFunction<LocalTimeOffset> lookup) {
                 this.lookup = lookup;
             }
 
@@ -544,7 +544,7 @@ public abstract class Rounding implements Writeable {
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
             private final LongFunction<LocalTimeOffset> lookup;
 
-            public NotToMidnightRounding(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
+            NotToMidnightRounding(LongFunction<LocalTimeOffset> lookup, long unitMillis) {
                 super(unitMillis);
                 this.lookup = lookup;
             }
@@ -787,8 +787,11 @@ public abstract class Rounding implements Writeable {
                             final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(offsetIndex));
                             final Instant offsetInstant = offsetTime.toInstant();
                             if (previousTransition != null && offsetInstant.isBefore(previousTransition.getInstant())) {
-                                // Rounding down across the transition can yield the wrong result. It's best to return to the transition time
-                                // and round that down.
+                                /*
+                                 * Rounding down across the transition can yield the
+                                 * wrong result. It's best to return to the transition
+                                 * time and round that down.
+                                 */
                                 return round(previousTransition.getInstant().toEpochMilli() - 1);
                             }
 

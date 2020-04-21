@@ -193,7 +193,7 @@ public abstract class LocalTimeOffset {
     };
 
     private static class NoPrevious extends LocalTimeOffset {
-        public NoPrevious(long millis) {
+        NoPrevious(long millis) {
             super(millis);
         }
 
@@ -208,7 +208,7 @@ public abstract class LocalTimeOffset {
         }
     }
 
-    public static abstract class Transition extends LocalTimeOffset {
+    public abstract static class Transition extends LocalTimeOffset {
         private final LocalTimeOffset previous;
         private final long startUtcMillis;
 
